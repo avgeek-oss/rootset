@@ -25,6 +25,7 @@ import {
 } from "@rootset/access";
 import {
   IdSchema,
+  KeyCreatedSchema,
   PreferencesSchema,
   ResourceTargetSchema,
   RootsetError,
@@ -101,6 +102,9 @@ export interface IdentityPaging {
 const nameSchema = z.string().trim().min(1).max(255);
 const emailSchema = z.string().trim().toLowerCase().email().max(320);
 const passwordSchema = z.string().min(15).max(1024);
+const signOutEverywhereInputSchema = z.strictObject({
+  revokeDelegated: z.boolean().optional(),
+});
 const pendingProvision = new AsyncLocalStorage<{
   reason: "bootstrap" | "invitation";
 }>();
@@ -138,6 +142,12 @@ const businessInput = (
       ([key]) => key !== "approvalId" && key !== "actionId",
     ),
   );
+const keyIssuanceOperations = new Set([
+  "createPersonalKey",
+  "createTeamKey",
+  "rotatePersonalKey",
+  "rotateTeamKey",
+]);
 const safeEqual = (a: string, b: string): boolean => {
   const x = Buffer.from(a),
     y = Buffer.from(b);
@@ -1377,8 +1387,18 @@ export class IdentityService {
         );
       return result;
     };
-    const run = (client: PoolClient) =>
-      mutationSet.has(operation)
+    const run = async (client: PoolClient): Promise<T> => {
+      if (keyIssuanceOperations.has(operation)) {
+        const replay = await this.prepareKeyReceipt(
+          client,
+          operation,
+          actor,
+          businessInput(input),
+          context,
+        );
+        if (replay) return replay as T;
+      }
+      return mutationSet.has(operation)
         ? runMutation(
             client,
             actor,
@@ -1389,6 +1409,7 @@ export class IdentityService {
             () => approveAndRun(client),
           )
         : approveAndRun(client);
+    };
     return context.approvalClient
       ? run(context.approvalClient)
       : withOrg(this.config.pool, actor.orgId, run);
@@ -1582,9 +1603,11 @@ export class IdentityService {
             })
           : target === "changeEmail"
             ? z.strictObject({ newEmail: emailSchema })
-            : target === "removePasskey"
-              ? z.strictObject({ id: z.string().min(1).max(255) })
-              : z.strictObject({}),
+            : target === "signOutEverywhere"
+              ? signOutEverywhereInputSchema
+              : target === "removePasskey"
+                ? z.strictObject({ id: z.string().min(1).max(255) })
+                : z.strictObject({}),
         boundInput,
       );
     this.checkActionAuthority(actor, target, boundInput);
@@ -2251,8 +2274,9 @@ export class IdentityService {
         return this.beginEmailChange(client, actor, input, context);
       case "signOutEverywhere": {
         security();
+        const data = parse(signOutEverywhereInputSchema, input);
         await this.assertSensitive(actor, operation, input, context, client);
-        const delegated = input.revokeDelegated !== false;
+        const delegated = data.revokeDelegated !== false;
         await client.query(
           `DELETE FROM rootset_control.sessions WHERE user_id=$1`,
           [actor.userId],
@@ -2435,12 +2459,6 @@ export class IdentityService {
       this.config.pool,
       actor.orgId,
       async (client) => {
-        const locked = await client.query(
-          `SELECT consumed_at,result FROM rootset_control.account_actions WHERE id=$1 FOR UPDATE`,
-          [id],
-        );
-        if (locked.rows[0].consumed_at) return locked.rows[0].result;
-        let output: unknown;
         if (external) {
           if (!this.externalExecutor)
             throw new RootsetError(
@@ -2448,24 +2466,7 @@ export class IdentityService {
               "The shared operation executor is unavailable",
               503,
             );
-          await this.assertOperationApproval(actor, action.operation, input, {
-            ...context,
-            actionId: id,
-            approvalClient: client,
-          });
-          output = await this.externalExecutor(action.operation, actor, input, {
-            ...context,
-            actionId: id,
-            approvalClient: client,
-            idempotencyKey: `account-action:${id}`,
-          });
-          await client.query(
-            `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='' WHERE id=$1`,
-            [id],
-          );
-        } else {
-          output = await this.executeWithin(
-            client,
+          const output = await this.externalExecutor(
             action.operation,
             actor,
             input,
@@ -2473,20 +2474,56 @@ export class IdentityService {
               ...context,
               actionId: id,
               approvalClient: client,
+              idempotencyKey: `account-action:${id}`,
+            },
+          );
+          await client.query(
+            `UPDATE rootset_control.account_actions SET consumed_at=COALESCE(consumed_at,now()),payload_encrypted='',result=$2 WHERE id=$1`,
+            [id, JSON.stringify(stripSecrets(output))],
+          );
+          return output;
+        }
+        if (keyIssuanceOperations.has(action.operation)) {
+          const replay = await this.prepareKeyReceipt(
+            client,
+            action.operation,
+            actor,
+            input,
+            {
+              ...context,
+              actionId: id,
               idempotencyKey: context.idempotencyKey ?? `account-action:${id}`,
             },
           );
-          if (!(
-            output &&
-            typeof output === "object" &&
-            "state" in output &&
-            output.state === "interactive_proof_required"
-          ))
-            await client.query(
-              `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='' WHERE id=$1`,
-              [id],
-            );
+          if (replay) return replay;
         }
+        const locked = await client.query(
+          `SELECT consumed_at,result FROM rootset_control.account_actions WHERE id=$1 FOR UPDATE`,
+          [id],
+        );
+        if (locked.rows[0].consumed_at) return locked.rows[0].result;
+        const output = await this.executeWithin(
+          client,
+          action.operation,
+          actor,
+          input,
+          {
+            ...context,
+            actionId: id,
+            approvalClient: client,
+            idempotencyKey: context.idempotencyKey ?? `account-action:${id}`,
+          },
+        );
+        if (!(
+          output &&
+          typeof output === "object" &&
+          "state" in output &&
+          output.state === "interactive_proof_required"
+        ))
+          await client.query(
+            `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='' WHERE id=$1`,
+            [id],
+          );
         const stored = stripSecrets(output);
         await client.query(
           `UPDATE rootset_control.account_actions SET result=$2 WHERE id=$1`,
@@ -3108,6 +3145,118 @@ export class IdentityService {
     }
     return this.readGrants(client, actor.orgId);
   }
+  private async prepareKeyReceipt(
+    client: PoolClient,
+    operation: string,
+    actor: Actor,
+    input: Record<string, unknown>,
+    context: ExecutionContext,
+  ): Promise<z.infer<typeof KeyCreatedSchema> | null> {
+    this.checkActionAuthority(actor, operation, input);
+    if (typeof input.orgId === "string" && input.orgId !== actor.orgId)
+      notFound();
+    if (!context.idempotencyKey)
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Idempotency-Key is required for key creation or rotation",
+      );
+    const requestDigest = this.requestDigest({
+      protocol: "key-receipt:v2",
+      operation,
+      input,
+      actorKind: actor.kind,
+      actorId: actor.id,
+      orgId: actor.orgId,
+      userId: actor.userId ?? null,
+      credentialId: actor.credentialId ?? null,
+      clientId: actor.clientId ?? null,
+      actionId: context.actionId ?? null,
+    });
+    await client.query(
+      `INSERT INTO rootset_control.key_requests(actor_id,org_id,operation,key,digest) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
+      [actor.id, actor.orgId, operation, context.idempotencyKey, requestDigest],
+    );
+    const receipt = (
+      await client.query(
+        `SELECT digest,result FROM rootset_control.key_requests WHERE actor_id=$1 AND org_id=$2 AND operation=$3 AND key=$4 FOR UPDATE`,
+        [actor.id, actor.orgId, operation, context.idempotencyKey],
+      )
+    ).rows[0];
+    if (receipt.digest !== requestDigest)
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "The idempotency key belongs to a different request",
+        409,
+      );
+    if (!receipt.result) return null;
+    const replay = KeyCreatedSchema.parse(receipt.result),
+      team = operation.includes("Team");
+    const owns = async (id: string): Promise<void> => {
+      if (
+        !(
+          await client.query(
+            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND owner_kind=$3 AND ($4::text IS NULL OR owner_user_id=$4)`,
+            [
+              id,
+              actor.orgId,
+              team ? "team" : "personal",
+              team ? null : actor.userId,
+            ],
+          )
+        ).rowCount
+      )
+        notFound();
+    };
+    await owns(replay.key.id);
+    if (operation.startsWith("rotate")) await owns(parse(IdSchema, input.id));
+    assertDelegation(
+      actor,
+      replay.key.scopes,
+      replay.key.targets,
+      !!replay.key.unrestricted,
+    );
+    await this.validateKeyTargets(client, actor, replay.key.targets);
+    if (
+      actor.role === "viewer" &&
+      replay.key.scopes.some((scope) => !scope.endsWith(":read"))
+    )
+      throw new RootsetError(
+        "ACCESS_DENIED",
+        "Viewers may create read-scoped keys only",
+        403,
+      );
+    return { key: replay.key, replayed: true };
+  }
+  private async validateKeyTargets(
+    client: PoolClient,
+    actor: Actor,
+    targets: TargetGrant[],
+  ): Promise<void> {
+    for (const target of targets) {
+      if (target.tableId) {
+        const table = (
+          await client.query(
+            `SELECT t.database_id FROM rootset_control.tables t JOIN rootset_control.databases d ON d.id=t.database_id AND d.org_id=t.org_id WHERE t.id=$1 AND t.org_id=$2 AND t.state='active' AND d.state='active'`,
+            [target.tableId, actor.orgId],
+          )
+        ).rows[0];
+        if (
+          !table ||
+          (target.databaseId && target.databaseId !== table.database_id)
+        )
+          notFound();
+      } else if (
+        target.databaseId &&
+        !(
+          await client.query(
+            `SELECT 1 FROM rootset_control.databases WHERE id=$1 AND org_id=$2 AND state='active'`,
+            [target.databaseId, actor.orgId],
+          )
+        ).rowCount
+      )
+        notFound();
+    }
+  }
   private async createOrRotateKey(
     client: PoolClient,
     operation: string,
@@ -3140,23 +3289,14 @@ export class IdentityService {
       }),
       input,
     );
-    const requestDigest = digest(input);
-    await client.query(
-      `INSERT INTO rootset_control.key_requests(actor_id,org_id,operation,key,digest) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
-      [actor.id, actor.orgId, operation, context.idempotencyKey, requestDigest],
+    const replay = await this.prepareKeyReceipt(
+      client,
+      operation,
+      actor,
+      input,
+      context,
     );
-    const replay = await client.query(
-      `SELECT * FROM rootset_control.key_requests WHERE actor_id=$1 AND org_id=$2 AND operation=$3 AND key=$4 FOR UPDATE`,
-      [actor.id, actor.orgId, operation, context.idempotencyKey],
-    );
-    if (replay.rows[0].digest !== requestDigest)
-      throw new RootsetError(
-        "IDEMPOTENCY_CONFLICT",
-        "The idempotency key belongs to a different request",
-        409,
-      );
-    if (replay.rows[0].result)
-      return { ...replay.rows[0].result, replayed: true };
+    if (replay) return replay;
     let old: Record<string, unknown> | undefined;
     if (rotation) {
       if (!data.id)
@@ -3184,30 +3324,7 @@ export class IdentityService {
         "Name, scopes and targets are required",
       );
     assertDelegation(actor, scopes, targets, !!unrestricted);
-    for (const target of targets) {
-      if (target.tableId) {
-        const table = (
-          await client.query(
-            `SELECT database_id FROM rootset_control.tables WHERE id=$1 AND org_id=$2 AND state='active'`,
-            [target.tableId, actor.orgId],
-          )
-        ).rows[0];
-        if (
-          !table ||
-          (target.databaseId && target.databaseId !== table.database_id)
-        )
-          notFound();
-      } else if (
-        target.databaseId &&
-        !(
-          await client.query(
-            `SELECT 1 FROM rootset_control.databases WHERE id=$1 AND org_id=$2 AND state='active'`,
-            [target.databaseId, actor.orgId],
-          )
-        ).rowCount
-      )
-        notFound();
-    }
+    await this.validateKeyTargets(client, actor, targets);
     if (actor.role === "viewer" && scopes.some((s) => !s.endsWith(":read")))
       throw new RootsetError(
         "ACCESS_DENIED",

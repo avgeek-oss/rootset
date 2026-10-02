@@ -43,6 +43,16 @@ RustFS 1 GiB/one CPU and Mailpit 128 MiB/half a CPU, with no additional swap.
 These prerequisite limits are outside the four-service allocation. Reserve durable disk and monitor
 WAL/history/artifact growth.
 
+Each API/worker runtime has lazy PostgreSQL pools with maxima of ten application
+work connections, five DDL connections, ten identity connections and two separate
+admission connections: 27 per process, or 54 across one API and one worker. The
+admission pool keeps bounded admission decisions independent from a busy work
+pool; it does not increase concurrent request or work quotas. The shipped local
+PostgreSQL default is 100 connections, leaving room for the reporter, operator
+and PostgreSQL maintenance. External installations must budget all replicas and
+operator connections explicitly. Monitor actual active, idle and waiting pool
+counts and database connection pressure within the same four-GiB PostgreSQL cap.
+
 The migration job has a 1 GiB limit and 768 MiB Node heap. Stop web/API/worker before
 an upgrade so migration does not add another active process to the eight-GiB
 runtime allocation. During fresh installation it completes before those services

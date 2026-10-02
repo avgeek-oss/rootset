@@ -812,6 +812,9 @@ export class BackupRunner {
         "Restored row/history counts differ",
         409,
       );
+    const expected = new HistoryFingerprint();
+    for await (const batch of this.source(actor, manifest).history())
+      for (const record of batch) expected.add(record);
     await snapshotTransaction(
       this.queue.workerPool,
       actor.orgId,
@@ -864,7 +867,6 @@ export class BackupRunner {
               409,
             );
         }
-        const expected = new HistoryFingerprint();
         const actual = new HistoryFingerprint();
         const reverse = new Map(
           [
@@ -875,8 +877,6 @@ export class BackupRunner {
           ].map(([oldId, newId]) => [newId, oldId]),
         );
         reverse.set(restored.databaseId, manifest.databaseId);
-        for await (const batch of this.source(actor, manifest).history())
-          for (const record of batch) expected.add(record);
         for await (const batch of snapshot.history())
           for (const record of batch) actual.add(record, reverse);
         if (expected.digest() !== actual.digest())

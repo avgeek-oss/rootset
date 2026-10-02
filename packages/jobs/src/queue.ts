@@ -379,6 +379,12 @@ export async function snapshotTransaction<T>(
   const client = await pool.connect();
   let locked = false;
   let discard = false;
+  let connectionError: Error | undefined;
+  const onConnectionError = (error: Error) => {
+    connectionError ??= error;
+    discard = true;
+  };
+  client.on("error", onConnectionError);
   try {
     // Acquire before BEGIN: a SELECT set_config can establish a repeatable
     // snapshot before a transactional barrier has actually acquired its lock.
@@ -390,17 +396,20 @@ export async function snapshotTransaction<T>(
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     await client.query("SELECT set_config('rootset.org_id',$1,true)", [orgId]);
     const result = await run(client);
+    if (connectionError) throw connectionError;
     await client.query("COMMIT");
     return result;
   } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      discard = true;
+    if (!connectionError) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        discard = true;
+      }
     }
-    throw error;
+    throw connectionError ?? error;
   } finally {
-    if (locked) {
+    if (locked && !connectionError) {
       try {
         await client.query(
           "SELECT pg_advisory_unlock_shared(hashtextextended($1,0))",
@@ -411,5 +420,6 @@ export async function snapshotTransaction<T>(
       }
     }
     client.release(discard);
+    client.removeListener("error", onConnectionError);
   }
 }

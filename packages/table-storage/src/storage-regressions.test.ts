@@ -1905,3 +1905,149 @@ test(
     }
   },
 );
+
+test(
+  "SIGKILL of a queued index worker preserves live leases and requires a freshly authorised retry after cancellation or lease expiry",
+  { skip: !configured },
+  async () => {
+    const { spawn } = await import("node:child_process");
+    for (const interruption of ["cancelled", "expired"] as const) {
+      const table = await storage!.createTable(actor, databaseId, {
+        name: `Killed queued index ${interruption}`,
+        fields: [
+          { apiKey: "code", label: "Code", type: "text", charLimit: 30 },
+        ],
+      });
+      await storage!.createRow(actor, table.id, { code: "kept" });
+      const fence = await runningJob(table.id, "createIndex");
+      const appUrl = new URL(process.env.ROOTSET_TEST_APP_DATABASE_URL!),
+        ddlUrl = new URL(process.env.ROOTSET_TEST_DDL_DATABASE_URL!);
+      appUrl.pathname = ddlUrl.pathname = `/${isolatedName}`;
+      const input = {
+        fieldId: table.fields[0]!.id,
+        kind: "btree" as const,
+        expectedSchemaVersion: 1,
+        idempotencyKey: `actual-killed-queued-index-${interruption}`,
+      };
+      const program = `import {TableStorage} from ${JSON.stringify(new URL("./index.ts", import.meta.url).href)};import {createPool} from '@rootset/database';const app=createPool(process.env.PROBE_APP_URL),ddl=createPool(process.env.PROBE_DDL_URL);const storage=new TableStorage({pool:app,ddlPool:ddl,cursorSecret:'child-index-restart-secret-at-least-thirty-two-bytes'});let calls=0;await storage.createIndex(${JSON.stringify(actor)},${JSON.stringify(table.id)},{...${JSON.stringify(input)},context:{jobFence:${JSON.stringify(fence)},beforePublish:async()=>{if(++calls===2){process.send({nativeBuilt:true});await new Promise(()=>{});}}}});`;
+      const child = spawn(
+        process.execPath,
+        ["--import", "tsx", "--input-type=module", "--eval", program],
+        {
+          env: {
+            ...process.env,
+            PROBE_APP_URL: appUrl.toString(),
+            PROBE_DDL_URL: ddlUrl.toString(),
+          },
+          stdio: ["ignore", "ignore", "pipe", "ipc"],
+        },
+      );
+      let stderr = "";
+      child.stderr!.on("data", (chunk) => (stderr += chunk.toString()));
+      const ended = new Promise<{ signal: NodeJS.Signals | null }>((resolve) =>
+        child.once("exit", (_code, signal) => resolve({ signal })),
+      );
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () =>
+              reject(new Error("Queued native checkpoint missing: " + stderr)),
+            5000,
+          );
+          child.once("message", () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          child.once("exit", () => {
+            clearTimeout(timeout);
+            reject(
+              new Error("Queued child exited before checkpoint: " + stderr),
+            );
+          });
+        });
+        const pending = (await storage!.listIndexes(actor, table.id))[0]!;
+        const nativeName = `"${schemaName}"."${pending.physicalName}"`;
+        assert.equal(pending.state, "building");
+        assert.equal(
+          (
+            await owner!.query<{ valid: boolean }>(
+              "SELECT indisvalid AS valid FROM pg_index WHERE indexrelid=$1::regclass",
+              [nativeName],
+            )
+          ).rows[0]!.valid,
+          true,
+        );
+        child.kill("SIGKILL");
+        assert.equal((await ended).signal, "SIGKILL");
+        const restarted = new TableStorage({
+          pool: app!,
+          ddlPool: ddl!,
+          cursorSecret: "queued-index-restart-secret-at-least-thirty-two-bytes",
+        });
+        assert.deepEqual(await restarted.reconcileSchemaOperations(actor), {
+          recovered: [],
+        });
+        await owner!.query(
+          interruption === "cancelled"
+            ? "UPDATE rootset_control.jobs SET state='cancelled',cancel_requested=true,lease_until=NULL WHERE id=$1"
+            : "UPDATE rootset_control.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+          [fence.jobId],
+        );
+        assert.equal(
+          (await restarted.reconcileSchemaOperations(actor)).recovered.length,
+          1,
+        );
+        assert.equal(
+          (await restarted.getTable(actor, table.id)).schemaVersion,
+          1,
+        );
+        assert.equal(
+          (await restarted.listIndexes(actor, table.id))[0]!.state,
+          "failed",
+        );
+        assert.equal(
+          (
+            await owner!.query("SELECT to_regclass($1) AS relation", [
+              nativeName,
+            ])
+          ).rows[0]!.relation,
+          null,
+        );
+        await assert.rejects(
+          restarted.createIndex(actor, table.id, {
+            ...input,
+            context: { jobFence: fence },
+          }),
+          { code: "JOB_LEASE_LOST" },
+        );
+        const leaseToken = newId();
+        await owner!.query(
+          "UPDATE rootset_control.jobs SET state='running',cancel_requested=false,lease_token=$2,lease_until=clock_timestamp()+interval '5 minutes' WHERE id=$1",
+          [fence.jobId, leaseToken],
+        );
+        let authorityChecks = 0;
+        const retried = await restarted.createIndex(actor, table.id, {
+          ...input,
+          context: {
+            jobFence: { jobId: fence.jobId, leaseToken },
+            beforePublish: async () => {
+              authorityChecks++;
+            },
+          },
+        });
+        assert.equal(retried.id, pending.id);
+        assert.equal(retried.state, "active");
+        assert.ok(authorityChecks >= 2);
+        assert.equal(
+          (await restarted.getTable(actor, table.id)).schemaVersion,
+          2,
+        );
+        assert.equal((await restarted.getTable(actor, table.id)).rowCount, 1);
+      } finally {
+        if (child.exitCode === null && child.signalCode === null)
+          child.kill("SIGKILL");
+        await ended;
+      }
+    }
+  },
+);

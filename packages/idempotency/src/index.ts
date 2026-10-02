@@ -4,6 +4,7 @@ import {
   IdSchema,
   limits,
   RootsetError,
+  ViewPreferencesResultSchema,
   type Actor,
 } from "@rootset/contracts";
 import { type PoolClient, type Queryable } from "@rootset/database";
@@ -136,6 +137,19 @@ export function stripMutationSecrets(value: unknown): unknown {
   return JSON.parse(json) as unknown;
 }
 
+function mutationOutcome(operationId: string, value: unknown): unknown {
+  if (operationId !== "updateViewPreferences")
+    return stripMutationSecrets(value);
+  const result = ViewPreferencesResultSchema.safeParse(value);
+  if (!result.success)
+    throw new RootsetError(
+      "INTERNAL_ERROR",
+      "The view preference mutation returned an invalid outcome",
+      500,
+    );
+  return result.data;
+}
+
 /** Reauthorise the current principal and target before any replay lookup. */
 export async function lookupMutation(
   connection: Queryable,
@@ -218,7 +232,7 @@ export async function runMutation<T>(
         "UPDATE rootset_control.control_mutation_replays SET input_digest=$5,outcome=NULL,created_at=now(),expires_at=now()+$6::bigint*interval '1 millisecond' WHERE org_id=$1 AND principal_binding=$2 AND operation_id=$3 AND key_digest=$4",
         [...parameters, limits.idempotencyLifetimeMs],
       );
-    const result = stripMutationSecrets(await work()) as T;
+    const result = mutationOutcome(operationId, await work()) as T;
     await client.query(
       "UPDATE rootset_control.control_mutation_replays SET outcome=$5::jsonb WHERE org_id=$1 AND principal_binding=$2 AND operation_id=$3 AND key_digest=$4",
       [...parameters.slice(0, 4), JSON.stringify(result)],

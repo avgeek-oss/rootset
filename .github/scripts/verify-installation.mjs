@@ -304,9 +304,8 @@ try {
   });
   report.stage = "operator_binding";
   compose(
-    "run",
-    "--rm",
-    "--no-deps",
+    "exec",
+    "-T",
     "api",
     "node",
     "dist/operator.mjs",

@@ -11,6 +11,14 @@ pnpm exec tsx tools/verification/gate-audit.ts verification/<run-id>
 
 Each instrumented case records its ID, exact gates, the behavior actually checked, UTC times, duration and observed result. Reports under `verification/` are ignored by Git. They record the source commit and working tree digests before and after execution. A dirty or changing working tree is development evidence and cannot establish an immutable release candidate.
 
+Keep the final candidate manifest outside the frozen source tree. It binds the exact commit, PostgreSQL/API/worker/web image digests and all 205 literal requirements to named test cases, hashed artifacts, reviewed covered clauses, explicitly empty remaining clauses and a named reviewer with a UTC review time. API, worker and web images must carry that commit in their OCI revision label. The checklist is the baseline contract; the manifest records acceptance for a particular candidate without creating a circular commit-hash reference in its source.
+
+```sh
+pnpm verify:signoff verification/<candidate>/manifest.json
+```
+
+The auditor rejects dirty or mismatched source, missing or mismatched local images, changed evidence bytes and incomplete whole-requirement reviews. Its metadata checks cannot establish that a test ran or that a reviewer assessed every clause; those observations must be present in the linked artifacts.
+
 The gate audit lists missing evidence explicitly. It does not infer complete implementation from a green test, mark checklist boxes, invent reviewer approval or treat upload acknowledgement as backup success. Browser reviews, real MCP clients, hardware measurements, five-million-row admission and scrolling, ten-million-event history, upgrade/disaster recovery, and named final reviewers require their own evidence artifacts.
 
 The committed `gate-evidence-plan.json` is generated from the exact checklist. It preserves every requirement and records the additional kinds of evidence required. Regenerate it when an approved architecture change modifies the acceptance contract. A change in gate count requires review.

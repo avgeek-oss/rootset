@@ -31,6 +31,7 @@ import { z } from "zod";
 import type { OAuthService } from "@rootset/oauth";
 import { Admission } from "./admission.js";
 import { readJson, numberLexemes } from "./json.js";
+import { normaliseTransportError } from "./transport-errors.js";
 
 export interface OperationContext {
   requestId: string;
@@ -50,6 +51,7 @@ export interface AdmissionLimits {
 }
 export interface ApiDependencies {
   pool: Pool;
+  admissionPool?: Pool;
   config: { baseURL: string; version?: string };
   core: {
     execute(
@@ -202,7 +204,12 @@ function errorResponse(
   if (status === 403)
     headers["WWW-Authenticate"] =
       `Bearer error="insufficient_scope", resource_metadata="${origin}/.well-known/oauth-protected-resource/${audience}"${scopes ? `, scope="${scopes}"` : ""}`;
-  if (status === 429)
+  if (
+    status === 429 ||
+    (status === 503 &&
+      error instanceof RootsetError &&
+      error.code === "DEPENDENCY_UNAVAILABLE")
+  )
     headers["Retry-After"] = String(
       (error instanceof RootsetError &&
       error.details &&
@@ -223,7 +230,7 @@ export function createApp(deps: ApiDependencies) {
       Variables: { requestId: string; operationId: string; errorCode: string };
     }>(),
     origin = new URL(deps.config.baseURL).origin,
-    admission = new Admission(deps.pool);
+    admission = new Admission(deps.admissionPool ?? deps.pool);
   const publicSpec = buildOpenAPI(origin),
     internalSpec = buildOpenAPI(origin, true),
     coverage = generateCoverageInventory(),
@@ -348,12 +355,13 @@ export function createApp(deps: ApiDependencies) {
     await next();
   });
   app.onError((error, c) => {
+    const failure = normaliseTransportError(error);
     c.set(
       "errorCode",
-      error instanceof RootsetError ? error.code : "INTERNAL_ERROR",
+      failure instanceof RootsetError ? failure.code : "INTERNAL_ERROR",
     );
     return errorResponse(
-      error,
+      failure,
       c.get("requestId"),
       origin,
       c.req.path === "/mcp" ? "mcp" : "v1",
@@ -1080,9 +1088,10 @@ export function createApp(deps: ApiDependencies) {
           );
         return content;
       } catch (error) {
+        const failure = normaliseTransportError(error);
         c.set(
           "errorCode",
-          error instanceof RootsetError ? error.code : "INTERNAL_ERROR",
+          failure instanceof RootsetError ? failure.code : "INTERNAL_ERROR",
         );
         return {
           isError: true,
@@ -1090,12 +1099,12 @@ export function createApp(deps: ApiDependencies) {
             {
               type: "text" as const,
               text:
-                error instanceof RootsetError
-                  ? `${error.code}: ${error.message}`
+                failure instanceof RootsetError
+                  ? `${failure.code}: ${failure.message}`
                   : "INTERNAL_ERROR: Operation could not be completed.",
             },
           ],
-          structuredContent: errorEnvelope(error, requestId),
+          structuredContent: errorEnvelope(failure, requestId),
         };
       }
     });

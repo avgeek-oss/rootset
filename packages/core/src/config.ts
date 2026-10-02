@@ -2,18 +2,43 @@ import { z } from "zod";
 
 const secret = z.string().min(32);
 const url = z.string().url();
+function hasProtocol(value: string, protocols: readonly string[]): boolean {
+  try {
+    return protocols.includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+const databaseUrl = url.refine(
+  (value) => hasProtocol(value, ["postgres:", "postgresql:"]),
+  "Use postgres:// or postgresql://",
+);
+const objectStorageUrl = url.refine(
+  (value) => hasProtocol(value, ["http:", "https:"]),
+  "Use http:// or https:// for the S3 endpoint",
+);
+const keyringSchema = z.record(
+  z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+  z.string().regex(/^[a-fA-F0-9]{64}$/),
+);
+const invalidKeyringMessage =
+  "ROOTSET_ENCRYPTION_KEYS must be a JSON object mapping 1-64 character alphanumeric, underscore or hyphen key IDs to 64 hexadecimal characters";
 const schema = z.object({
   ROOTSET_BASE_URL: url.refine((value) => {
-    const u = new URL(value);
-    return (
-      u.protocol === "https:" ||
-      (u.protocol === "http:" &&
-        ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname))
-    );
+    try {
+      const u = new URL(value);
+      return (
+        u.protocol === "https:" ||
+        (u.protocol === "http:" &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname))
+      );
+    } catch {
+      return false;
+    }
   }, "Use HTTPS or loopback HTTP"),
-  ROOTSET_DATABASE_URL: url,
-  ROOTSET_DDL_DATABASE_URL: url,
-  ROOTSET_IDENTITY_DATABASE_URL: url,
+  ROOTSET_DATABASE_URL: databaseUrl,
+  ROOTSET_DDL_DATABASE_URL: databaseUrl,
+  ROOTSET_IDENTITY_DATABASE_URL: databaseUrl,
   ROOTSET_AUTH_SECRET: secret,
   ROOTSET_KEY_HASH_SECRET: secret,
   ROOTSET_CURSOR_SECRET: secret,
@@ -28,7 +53,7 @@ const schema = z.object({
   ROOTSET_ENCRYPTION_KEY_ID: z.string().min(1).default("primary"),
   ROOTSET_BOOTSTRAP_SECRET: secret,
   ROOTSET_PORT: z.coerce.number().int().min(1).max(65535).default(4310),
-  ROOTSET_S3_ENDPOINT: url,
+  ROOTSET_S3_ENDPOINT: objectStorageUrl,
   ROOTSET_S3_REGION: z.string().default("us-east-1"),
   ROOTSET_S3_BUCKET: z.string().min(3),
   ROOTSET_S3_ACCESS_KEY: z.string().min(1),
@@ -49,19 +74,20 @@ export function loadConfig(
   env: Record<string, string | undefined> = process.env,
 ) {
   const v = schema.parse(env);
-  const rawKeys = z
-    .record(
-      z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
-      z.string().regex(/^[a-fA-F0-9]{64}$/),
-    )
-    .parse(
-      v.ROOTSET_ENCRYPTION_KEYS
-        ? JSON.parse(v.ROOTSET_ENCRYPTION_KEYS)
-        : v.ROOTSET_ENCRYPTION_KEY
-          ? { [v.ROOTSET_ENCRYPTION_KEY_ID]: v.ROOTSET_ENCRYPTION_KEY }
-          : {},
-    );
-  if (!rawKeys[v.ROOTSET_ENCRYPTION_KEY_ID])
+  let decodedKeys: unknown;
+  try {
+    decodedKeys = v.ROOTSET_ENCRYPTION_KEYS
+      ? JSON.parse(v.ROOTSET_ENCRYPTION_KEYS)
+      : v.ROOTSET_ENCRYPTION_KEY
+        ? { [v.ROOTSET_ENCRYPTION_KEY_ID]: v.ROOTSET_ENCRYPTION_KEY }
+        : {};
+  } catch {
+    throw new Error(invalidKeyringMessage);
+  }
+  const parsedKeys = keyringSchema.safeParse(decodedKeys);
+  if (!parsedKeys.success) throw new Error(invalidKeyringMessage);
+  const rawKeys = parsedKeys.data;
+  if (!Object.hasOwn(rawKeys, v.ROOTSET_ENCRYPTION_KEY_ID))
     throw new Error(
       "The active encryption key must be present in ROOTSET_ENCRYPTION_KEYS or ROOTSET_ENCRYPTION_KEY",
     );

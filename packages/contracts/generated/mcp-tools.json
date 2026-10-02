@@ -29193,7 +29193,7 @@
                   "type": "object",
                   "propertyNames": {
                     "type": "string",
-                    "enum": ["api", "ddl", "identity", "worker"]
+                    "enum": ["api", "ddl", "identity", "worker", "admission"]
                   },
                   "additionalProperties": {
                     "type": "object",

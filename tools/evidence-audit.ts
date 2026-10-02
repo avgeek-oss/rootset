@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
+import { auditEvidenceManifest } from "./verification/evidence-manifest.js";
+import { gateReviewOracles } from "./verification/gate-review-oracles.js";
 
 const checklist = await readFile(
   new URL(
@@ -9,70 +11,46 @@ const checklist = await readFile(
   ),
   "utf8",
 );
-const ids = [...checklist.matchAll(/^- \[[ xX]\] `([A-Z]+-\d{2})`/gm)].map(
-  (match) => match[1]!,
-);
+const requirements = [
+  ...checklist.matchAll(/^- \[[ xX]\] `([A-Z]+-\d{2})` (.+)$/gm),
+].map((match) => {
+  const id = match[1]!;
+  const positiveReviewOracle = gateReviewOracles.get(id);
+  if (!positiveReviewOracle) throw new Error(`Missing review oracle for ${id}`);
+  return { id, requirement: match[2]!, positiveReviewOracle };
+});
 const path = process.argv[2];
 if (!path) throw new Error("Pass a candidate evidence manifest path");
-interface GateEvidence {
-  status: "passed" | "failed" | "pending";
-  testCases: string[];
-  artifacts: { path: string; sha256: string }[];
-  reviewer: string;
-  candidateCommit: string;
-}
-interface Manifest {
-  candidateCommit: string;
-  imageDigests: Record<string, string>;
-  gates: Record<string, GateEvidence>;
-}
-const manifest = JSON.parse(await readFile(path, "utf8")) as Manifest;
-const failures: string[] = [];
-const head = execFileSync("git", ["rev-parse", "HEAD"], {
-  encoding: "utf8",
-}).trim();
-if (manifest.candidateCommit !== head)
-  failures.push("Candidate source does not match HEAD");
-if (!Object.keys(manifest.imageDigests ?? {}).length)
-  failures.push("Immutable image digests are missing");
-for (const id of ids) {
-  const evidence = manifest.gates[id];
-  if (
-    !evidence ||
-    evidence.status !== "passed" ||
-    evidence.candidateCommit !== manifest.candidateCommit ||
-    !evidence.reviewer ||
-    !evidence.testCases.length ||
-    !evidence.artifacts.length
-  ) {
-    failures.push(`${id}: reviewed passing evidence missing`);
-    continue;
-  }
-  for (const artifact of evidence.artifacts) {
-    try {
-      const bytes = await readFile(artifact.path);
-      if (createHash("sha256").update(bytes).digest("hex") !== artifact.sha256)
-        failures.push(`${id}: artifact checksum mismatch ${artifact.path}`);
-    } catch {
-      failures.push(`${id}: artifact unavailable ${artifact.path}`);
-    }
-  }
-}
-const failedGates = new Set(
-  failures.flatMap((f) => {
-    const match = /^(\w+-\d\d):/.exec(f);
-    return match ? [match[1]] : [];
-  }),
-);
-console.log(
-  JSON.stringify(
-    {
-      requiredGates: ids.length,
-      verified: ids.length - failedGates.size,
-      failures,
-    },
-    null,
-    2,
-  ),
-);
-if (failures.length) process.exitCode = 1;
+const manifest: unknown = JSON.parse(await readFile(path, "utf8"));
+const run = promisify(execFile);
+const result = await auditEvidenceManifest(manifest, {
+  candidateCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim(),
+  sourceClean:
+    execFileSync("git", ["status", "--porcelain"], {
+      encoding: "utf8",
+    }).trim().length === 0,
+  requirements,
+  readArtifact: readFile,
+  inspectImage: async (digest) => {
+    const { stdout } = await run("docker", ["image", "inspect", digest], {
+      timeout: 10000,
+    });
+    const inspected = JSON.parse(stdout) as {
+      Id: string;
+      RepoDigests?: string[];
+      Config?: { Labels?: Record<string, string> };
+    }[];
+    const image = inspected.find(
+      (image) => image.Id === digest || image.RepoDigests?.includes(digest),
+    );
+    return {
+      available: !!image,
+      sourceCommit:
+        image?.Config?.Labels?.["org.opencontainers.image.revision"],
+    };
+  },
+});
+console.log(JSON.stringify(result, null, 2));
+if (!result.acceptanceReady) process.exitCode = 1;

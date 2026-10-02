@@ -156,8 +156,10 @@ export async function fetchClientMetadata(clientId: string): Promise<Metadata> {
         rejectUnauthorized: true,
         headers: { Accept: "application/json" },
         // Pin the DNS answer we validated, retaining hostname certificate verification.
-        lookup: (_hostname, _options, callback) =>
-          callback(null, address.address, address.family),
+        lookup: (_hostname, options, callback) => {
+          if (options.all) callback(null, [address]);
+          else callback(null, address.address, address.family);
+        },
       },
       (res) => {
         if (

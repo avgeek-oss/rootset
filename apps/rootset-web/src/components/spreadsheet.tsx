@@ -30,6 +30,7 @@ import {
   parseStrictJson,
   operatorsByType,
   QuerySpecSchema,
+  limits,
   type QueryOperator,
   type FilterNode,
   type FieldDefinition,
@@ -46,7 +47,12 @@ import {
   visibleColumns,
   visibleRange,
 } from "../lib/window-cache";
-import { parseTsv, serializeTsv } from "../lib/clipboard";
+import { parseTsvCells, type TsvCell } from "../lib/clipboard";
+import { parsePastedCell } from "../lib/pasted-cell";
+import {
+  copySelectedRows,
+  readSelectedWindow,
+} from "../lib/clipboard-selection";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { CellEditor, formatCellValue } from "./cells";
 import { Dialog } from "./dialog";
@@ -90,27 +96,6 @@ function copyCell(value: JsonValue | undefined): string {
     : typeof value === "object"
       ? JSON.stringify(value)
       : String(value);
-}
-
-function parsePastedCell(field: FieldDefinition, value: string): JsonValue {
-  if (value === "" && !field.required) return null;
-  let parsed: JsonValue = value;
-  if (field.type === "integer" || field.type === "float") {
-    if (!/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim()))
-      throw new Error(`${field.label}: enter a number`);
-    parsed = Number(value);
-  } else if (field.type === "boolean") {
-    if (value !== "true" && value !== "false")
-      throw new Error(`${field.label}: use true, false, or an empty cell`);
-    parsed = value === "true";
-  } else if (field.type === "json") {
-    try {
-      parsed = parseStrictJson(value) as JsonValue;
-    } catch {
-      throw new Error(`${field.label}: JSON could not be parsed`);
-    }
-  }
-  return validateCell(field, parsed);
 }
 
 export function Spreadsheet({
@@ -164,6 +149,7 @@ export function Spreadsheet({
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [draft, setDraft] = useState<CellDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [history, setHistory] = useState<{
     row: Row;
     field: FieldDefinition;
@@ -195,16 +181,23 @@ export function Spreadsheet({
   const gridRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new RowWindowCache());
   const abort = useRef<AbortController | null>(null);
+  const copyAbort = useRef<AbortController | null>(null);
   const sessionId = useRef<string | undefined>(undefined);
   const cellAttempt = useRef(new MutationAttempt());
   const pasteAttempt = useRef(new MutationAttempt());
   const scrollFrame = useRef<number | null>(null);
+  const viewportTiming = useRef<{
+    context: string;
+    startedAt: number;
+    emitted: boolean;
+  } | null>(null);
   const previousFilter = useRef("");
   const previousSchemaVersion = useRef<number | undefined>(undefined);
   const currentStart = useRef(0);
   const currentRows = useRef<Row[]>([]);
   const currentSelection = useRef<CellSelection | null>(null);
   const queryDigest = JSON.stringify(query);
+  const copyContext = `${tablePath}:${schema.data?.table.schemaVersion}:${queryDigest}:${JSON.stringify(selection)}:${rows.map((row) => `${row.id}:${row.version}`).join("|")}:${viewPrefs.columnOrder.join("|")}:${viewPrefs.hiddenColumns.join("|")}`;
   const navigationDigest = JSON.stringify({
     where: query.where,
     orderBy: query.orderBy,
@@ -259,6 +252,77 @@ export function Spreadsheet({
   useEffect(() => {
     if (view.data) setViewPrefs(view.data.preferences);
   }, [view.data]);
+  useEffect(() => {
+    viewportTiming.current = {
+      context: tablePath,
+      startedAt: performance.now(),
+      emitted: false,
+    };
+  }, [tablePath]);
+  useEffect(() => {
+    const timing = viewportTiming.current;
+    if (
+      !timing ||
+      timing.context !== tablePath ||
+      timing.emitted ||
+      loading ||
+      staleResults ||
+      accessRevoked ||
+      !rows.length
+    )
+      return;
+    let frame: number;
+    frame = requestAnimationFrame(() => {
+      // The second frame follows a populated DOM's paint opportunity.
+      frame = requestAnimationFrame(() => {
+        const element = gridRef.current;
+        const cells = element?.querySelectorAll('[role="gridcell"]');
+        if (
+          !element ||
+          !cells?.length ||
+          !element.getClientRects().length ||
+          Array.from(cells).some(
+            (cell) => cell.getAttribute("data-cell-loaded") !== "true",
+          )
+        )
+          return;
+        timing.emitted = true;
+        performance.clearMarks("rootset:grid:usable");
+        performance.clearMeasures("rootset:grid:navigation-viewport");
+        performance.clearMeasures("rootset:grid:context-viewport");
+        performance.mark("rootset:grid:usable", {
+          detail: {
+            orgId,
+            databaseId,
+            tableId: table.id,
+            schemaVersion: schema.data?.table.schemaVersion,
+            rows: rows.length,
+            columns: columns.length,
+          },
+        });
+        performance.measure("rootset:grid:navigation-viewport", {
+          start: 0,
+          end: "rootset:grid:usable",
+        });
+        performance.measure("rootset:grid:context-viewport", {
+          start: timing.startedAt,
+          end: "rootset:grid:usable",
+        });
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    tablePath,
+    orgId,
+    databaseId,
+    table.id,
+    schema.data?.table.schemaVersion,
+    rows,
+    columns.length,
+    loading,
+    staleResults,
+    accessRevoked,
+  ]);
   useEffect(() => {
     const element = gridRef.current;
     if (!element) return;
@@ -417,6 +481,7 @@ export function Spreadsheet({
     currentRows.current = rows;
     currentSelection.current = selection;
   }, [rows, selection]);
+  useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
   useEffect(() => {
     if (!schema.data || !projectedKeys) return;
     const timer = setTimeout(() => {
@@ -699,36 +764,148 @@ export function Spreadsheet({
   }
 
   async function copySelection() {
-    if (!selection) return;
-    const output: string[][] = [];
-    for (
-      let rowIndex = Math.min(selection.row, selection.endRow);
-      rowIndex <= Math.max(selection.row, selection.endRow);
-      rowIndex++
-    )
-      output.push(
-        fields
-          .slice(
-            Math.min(selection.column, selection.endColumn),
-            Math.max(selection.column, selection.endColumn) + 1,
-          )
-          .map((field) => copyCell(rows[rowIndex]!.values[field.apiKey])),
-      );
+    if (!selection || copying || accessRevoked || staleResults) return;
+    if (loading) {
+      setError("Wait for the current rows to load, then copy the selection.");
+      return;
+    }
+    const controller = new AbortController();
+    copyAbort.current = controller;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, limits.requestTimeoutMs);
+    setCopying(true);
+    setAnnouncement("Preparing selection for copy…");
+    let preparationFailure: unknown;
     try {
-      await navigator.clipboard.writeText(serializeTsv(output));
-      setAnnouncement("Selection copied.");
-    } catch {
-      setError(
-        "Clipboard access was denied. Allow clipboard access and retry.",
+      const firstRow = Math.min(selection.row, selection.endRow);
+      const selectedRows = rows.slice(
+        firstRow,
+        Math.max(selection.row, selection.endRow) + 1,
       );
+      const selectedFields = fields.slice(
+        Math.min(selection.column, selection.endColumn),
+        Math.max(selection.column, selection.endColumn) + 1,
+      );
+      const querySnapshot: QuerySpec = {
+        ...query,
+        select: selectedFields.map((field) => field.apiKey),
+        cursor: null,
+      };
+      const needsRead = selectedRows.some((row) =>
+        selectedFields.some(
+          (field) => !Object.hasOwn(row.values, field.apiKey),
+        ),
+      );
+      const preparedRows = needsRead
+        ? readSelectedWindow(
+            selectedRows,
+            firstRow,
+            schema.data!.table.schemaVersion,
+            (cursor, limit, signal) =>
+              cursor
+                ? client.operation<QueryResult>(
+                    "queryRows",
+                    {
+                      orgId,
+                      databaseId,
+                      tableId: table.id,
+                      query: { ...querySnapshot, limit, cursor },
+                    },
+                    { signal },
+                  )
+                : client.request<WindowResult>(
+                    `/tables/${table.id}/windows/query`,
+                    {
+                      method: "POST",
+                      body: {
+                        orgId,
+                        databaseId,
+                        query: { ...querySnapshot, limit },
+                        position: windowStart === 0 ? "first" : windowStart,
+                        ...(sessionId.current
+                          ? { sessionId: sessionId.current }
+                          : {}),
+                      },
+                      signal,
+                    },
+                  ),
+            controller.signal,
+          )
+        : Promise.resolve(selectedRows);
+      const text = preparedRows.then((current) =>
+        copySelectedRows(
+          current,
+          selectedFields,
+          () => {
+            throw new Error(
+              "A selected field is unavailable. Refresh its schema and rows before copying.",
+            );
+          },
+          controller.signal,
+        ),
+      );
+      const content = text.then(
+        (value) => {
+          controller.signal.throwIfAborted();
+          return new Blob([value], { type: "text/plain" });
+        },
+        (failure: unknown) => {
+          preparationFailure = failure;
+          throw failure;
+        },
+      );
+      // Native permission refusal can precede consumption of the pending data.
+      void content.catch(() => undefined);
+      // Begin the browser permission call inside the copy gesture, including Safari.
+      if (!navigator.clipboard || typeof ClipboardItem !== "function")
+        throw new Error(
+          "Clipboard access is unavailable in this browser. Use a secure connection or export the selected data.",
+        );
+      await navigator.clipboard.write([
+        new ClipboardItem({ "text/plain": content }),
+      ]);
+      setAnnouncement("Selection copied.");
+    } catch (writeFailure) {
+      const failure = preparationFailure ?? writeFailure;
+      if (timedOut)
+        setError(
+          "Copy timed out. Your clipboard has not changed. Retry the selection.",
+        );
+      else if (!controller.signal.aborted) {
+        if (
+          failure instanceof ApiError &&
+          [401, 403, 404].includes(failure.status)
+        ) {
+          cache.current.clear();
+          setRows([]);
+          setWindowInfo(null);
+          setSelection(null);
+          setAccessRevoked(true);
+        }
+        setError(
+          failure instanceof DOMException && failure.name === "NotAllowedError"
+            ? "Clipboard access was denied. Allow clipboard access and retry."
+            : failure instanceof Error
+              ? failure.message
+              : "The selection could not be copied. Your clipboard has not changed.",
+        );
+      } else setAnnouncement("Copy cancelled; your clipboard has not changed.");
+    } finally {
+      clearTimeout(timer);
+      controller.abort();
+      if (copyAbort.current === controller) copyAbort.current = null;
+      setCopying(false);
     }
   }
 
   function previewPaste(text: string) {
     if (!selection || !writable) return;
-    let cells: string[][];
+    let parsedCells: TsvCell[][];
     try {
-      cells = parseTsv(text);
+      parsedCells = parseTsvCells(text);
     } catch (failure) {
       setError(
         failure instanceof Error
@@ -737,6 +914,7 @@ export function Spreadsheet({
       );
       return;
     }
+    const cells = parsedCells.map((line) => line.map((cell) => cell.value));
     const errors: string[] = [];
     const parsedValues: Record<string, JsonValue>[] = [];
     const operations: {
@@ -747,7 +925,7 @@ export function Spreadsheet({
     }[] = [];
     if (cells.some((line) => line.length !== cells[0]?.length))
       errors.push("The pasted selection must be rectangular.");
-    const larger =
+    let larger =
       cells.length > 1000 || cells.length + selection.row > rows.length;
     cells.forEach((line, index) => {
       const row = rows[selection.row + index];
@@ -759,7 +937,11 @@ export function Spreadsheet({
           return;
         }
         try {
-          values[field.apiKey] = parsePastedCell(field, value);
+          values[field.apiKey] = parsePastedCell(
+            field,
+            value,
+            parsedCells[index]![column]!.quoted,
+          );
         } catch (failure) {
           errors.push(
             `Row ${index + 1}: ${failure instanceof Error ? failure.message : "Invalid value"}`,
@@ -775,6 +957,21 @@ export function Spreadsheet({
           values,
         });
     });
+    if (!larger) {
+      const input = {
+        orgId,
+        databaseId,
+        tableId: table.id,
+        mutations: operations.map(({ kind, ...mutation }) => ({
+          ...mutation,
+          type: kind,
+        })),
+        expectedSchemaVersion: schema.data!.table.schemaVersion,
+      };
+      larger =
+        new TextEncoder().encode(JSON.stringify(input)).byteLength >
+        limits.requestBytes;
+    }
     setPastePreview({
       cells,
       errors: errors.slice(0, 50),
@@ -1192,6 +1389,9 @@ export function Spreadsheet({
             moves across columns; Escape cancels. Hold Shift to select a
             rectangle. Times are UTC. Date-times display in{" "}
             {preferences.timezone}.
+            {copying && (
+              <span role="status"> Preparing selection for copy…</span>
+            )}
           </div>
           <div
             className="grid-viewport"
@@ -1397,6 +1597,10 @@ export function Spreadsheet({
                             className={`grid-cell ${selected ? "selected" : ""} ${frozen ? "frozen" : ""} ${field.type === "integer" || field.type === "float" ? "numeric" : ""} ${value === null ? "null-cell" : ""}`}
                             key={field.id}
                             role="gridcell"
+                            data-cell-loaded={Object.hasOwn(
+                              row.values,
+                              field.apiKey,
+                            )}
                             aria-colindex={columnIndex + 1}
                             aria-selected={!!selected}
                             aria-readonly={!writable}
@@ -1695,6 +1899,11 @@ export function Spreadsheet({
             {pastePreview.cells.length.toLocaleString()} rows ×{" "}
             {pastePreview.cells[0]?.length ?? 0} columns. Small pastes commit as
             one atomic batch.
+          </p>
+          <p>
+            An unquoted empty TSV cell means null; required fields refuse it. A
+            quoted empty cell preserves empty text. JSON cells use JSON values,
+            including quotes around scalar strings. Review before committing.
           </p>
           <div className="paste-preview">
             <table>

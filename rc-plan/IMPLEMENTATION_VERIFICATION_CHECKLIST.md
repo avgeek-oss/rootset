@@ -1,6 +1,6 @@
 # Implementation and verification checklist
 
-Baseline: 2026-10-02. Current state: implementation and development verification are in progress; final release-candidate gates remain unsigned. This is the complete v1 acceptance contract for the [architecture documents](README.md).
+Baseline: 2026-10-02. This is the complete v1 acceptance contract for the [architecture documents](README.md). The baseline starts unchecked; final acceptance is recorded in a reviewed, hashed candidate manifest as described in the [verification guide](../docs/verification/README.md).
 
 ## Sign-off rule
 

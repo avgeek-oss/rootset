@@ -340,6 +340,108 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
         }
       },
     );
+    await t.test(
+      "View preference outcomes preserve business JSON vocabulary, replay exactly and reject credential-shaped extra output atomically",
+      async () => {
+        const tableId = newId();
+        const preferences = {
+          columnOrder: [],
+          columnWidths: {},
+          frozenColumns: 0,
+          hiddenColumns: [],
+          query: {
+            where: {
+              field: "DETAILS",
+              op: "jsonContains",
+              value: {
+                password: "ordinary data vocabulary",
+                token: "ordinary data vocabulary",
+                secret: { nested: ["ordinary data vocabulary", null, true] },
+              },
+            },
+          },
+        };
+        const input = { tableId, preferences };
+        const expected = { tableId, preferences };
+        const key = newId();
+        let effects = 0;
+        const execute = () =>
+          withOrg(fixture.identity, orgId, (client) =>
+            runMutation(
+              client,
+              actor,
+              "updateViewPreferences",
+              input,
+              key,
+              secret,
+              async () => {
+                effects++;
+                return expected;
+              },
+            ),
+          );
+        assert.deepEqual(await execute(), expected);
+        assert.deepEqual(await execute(), expected);
+        assert.equal(effects, 1);
+        assert.deepEqual(
+          await withOrg(fixture.identity, orgId, (client) =>
+            lookupMutation(
+              client,
+              actor,
+              "updateViewPreferences",
+              input,
+              key,
+              secret,
+            ),
+          ),
+          { found: true, result: expected },
+        );
+        const invalidKey = newId();
+        const auditId = newId();
+        await assert.rejects(
+          withOrg(fixture.identity, orgId, (client) =>
+            runMutation(
+              client,
+              actor,
+              "updateViewPreferences",
+              input,
+              invalidKey,
+              secret,
+              async () => {
+                await client.query(
+                  "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,outcome) VALUES($1,$2,'session',$3,$4,'updateViewPreferences','{}')",
+                  [auditId, orgId, actor.id, actor.userId],
+                );
+                return { ...expected, accessToken: "must not be persisted" };
+              },
+            ),
+          ),
+          { code: "INTERNAL_ERROR", status: 500 },
+        );
+        assert.equal(
+          (
+            await fixture.owner.query(
+              "SELECT id FROM rootset_control.account_audit WHERE id=$1",
+              [auditId],
+            )
+          ).rowCount,
+          0,
+        );
+        assert.deepEqual(
+          await withOrg(fixture.identity, orgId, (client) =>
+            lookupMutation(
+              client,
+              actor,
+              "updateViewPreferences",
+              input,
+              invalidKey,
+              secret,
+            ),
+          ),
+          { found: false },
+        );
+      },
+    );
   } finally {
     await fixture.close();
   }

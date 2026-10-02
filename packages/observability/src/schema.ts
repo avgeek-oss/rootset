@@ -135,7 +135,7 @@ export const OperationalMetricsSchema = z.strictObject({
     operations: z.array(OperationMetricsSchema).max(256),
   }),
   pools: z.partialRecord(
-    z.enum(["api", "ddl", "identity", "worker"]),
+    z.enum(["api", "ddl", "identity", "worker", "admission"]),
     PoolMetricsSchema,
   ),
   databaseStatus: z.enum(["healthy", "unavailable"]),

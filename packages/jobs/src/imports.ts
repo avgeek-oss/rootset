@@ -822,6 +822,22 @@ export class ImportRunner {
     let total = 0;
     let newRows = 0;
     const client = await this.queue.workerPool.connect();
+    let connectionError: Error | undefined;
+    let discardConnection = false;
+    const onConnectionError = (error: Error) => {
+      connectionError ??= error;
+      discardConnection = true;
+    };
+    client.on("error", onConnectionError);
+    let lastTouch = performance.now();
+    const touchValidation = async () => {
+      if (connectionError) throw connectionError;
+      if (performance.now() - lastTouch < 5000) return;
+      await client.query("SELECT 1");
+      await this.queue.fenced(job, async () => undefined);
+      if (this.recheck) actor = await this.recheck(job);
+      lastTouch = performance.now();
+    };
     try {
       await client.query("BEGIN");
       await client.query("SELECT set_config('rootset.org_id',$1,true)", [
@@ -835,6 +851,7 @@ export class ImportRunner {
         safeIntegers: false,
         recoverInvalidRecords: true,
       })) {
+        await touchValidation();
         total = source.record;
         let planned = await this.plan(
           actor,
@@ -934,6 +951,8 @@ export class ImportRunner {
           rejected++;
           await this.recordRejection(job, planned.rejection);
         } else valid++;
+        await this.failpoint?.("import.validation.afterRecord", job.id);
+        await touchValidation();
         if (total % 200 === 0)
           await this.queue.checkpoint(
             job,
@@ -944,10 +963,17 @@ export class ImportRunner {
       }
       await client.query("COMMIT");
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!connectionError) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          discardConnection = true;
+        }
+      }
       throw error;
     } finally {
-      client.release();
+      client.release(discardConnection);
+      client.removeListener("error", onConnectionError);
     }
     const report = await this.rejectionReport(actor, job);
     const errors = await withOrg(

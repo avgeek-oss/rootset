@@ -20,6 +20,7 @@ import {
 } from "./index.js";
 import { MetadataPaging } from "../../core/src/paging.js";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
+import { snapshotTransaction } from "./queue.js";
 
 if (!process.env.ROOTSET_TEST_DATABASE_URL)
   throw new Error(
@@ -3611,4 +3612,251 @@ test("JOB-03/04 IO-09: running exports recheck cancellation and current authorit
       (error) => error instanceof RootsetError && error.code === "JOB_FAILED",
     );
   }
+});
+
+test("IO-01/02 JOB-04/06: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Validation transaction recovery ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Rejected records",
+    fields: [{ apiKey: "flag", label: "Flag", type: "boolean" }],
+    idempotencyKey: newId(),
+  });
+  const prepare = async (records: number) => {
+    const content =
+      Array.from({ length: records }, () =>
+        JSON.stringify({ flag: "invalid" }),
+      ).join("\n") + "\n";
+    const accepted = (await jobs.execute("prepareImportUpload", actor, {
+      tableId: target.id,
+      format: "jsonl",
+      byteLength: Buffer.byteLength(content),
+      checksum: createHash("sha256").update(content).digest("hex"),
+    })) as { artifactId: string };
+    await jobs.uploadArtifact(
+      actor,
+      accepted.artifactId,
+      (async function* () {
+        yield Buffer.from(content);
+      })(),
+    );
+    return jobs.execute("validateImport", actor, {
+      tableId: target.id,
+      artifactId: accepted.artifactId,
+      expectedSchemaVersion: target.schemaVersion,
+      mapping: { flag: "flag" },
+      mode: "create",
+    }) as Promise<{ jobId: string }>;
+  };
+  const slow = await prepare(65);
+  let paused = 0;
+  hook = async (point) => {
+    if (point !== "import.validation.afterRecord") return;
+    paused++;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  };
+  const started = performance.now();
+  try {
+    await jobs.runOnce(actor.orgId);
+  } finally {
+    hook = null;
+  }
+  assert.ok(performance.now() - started > 30000);
+  assert.equal(paused, 65);
+  const completed = (await jobs.execute("getJob", actor, {
+    id: slow.jobId,
+  })) as {
+    state: string;
+    attempt: number;
+    result: { examined: number; accepted: number; rejected: number };
+  };
+  getOperation("getJob").outputSchema.parse(completed);
+  assert.equal(completed.state, "succeeded");
+  assert.equal(completed.attempt, 1);
+  assert.equal(completed.result.examined, 65);
+  assert.equal(completed.result.accepted, 0);
+  assert.equal(completed.result.rejected, 65);
+  assert.equal((await storage.getTable(actor, target.id)).rowCount, 0);
+
+  const interrupted = await prepare(2);
+  let terminated = false;
+  hook = async (point) => {
+    if (point !== "import.validation.afterRecord" || terminated) return;
+    const clients = await owner.query<{ pid: number }>(
+      "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction' AND query='CREATE INDEX ON rootset_import_seen(rule_id,digest)'",
+    );
+    assert.equal(clients.rows.length, 1);
+    const killed = await owner.query<{ stopped: boolean }>(
+      "SELECT pg_terminate_backend($1) AS stopped",
+      [clients.rows[0]!.pid],
+    );
+    assert.equal(killed.rows[0]!.stopped, true);
+    terminated = true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  };
+  try {
+    await jobs.runOnce(actor.orgId);
+  } finally {
+    hook = null;
+  }
+  assert.equal(terminated, true);
+  const failed = (await jobs.execute("getJob", actor, {
+    id: interrupted.jobId,
+  })) as { state: string; error: { code: string; message: string } };
+  getOperation("getJob").outputSchema.parse(failed);
+  assert.equal(failed.state, "queued");
+  assert.equal(failed.error.code, "JOB_FAILED");
+  assert.equal(
+    failed.error.message,
+    "The background operation failed; inspect redacted worker logs",
+  );
+  assert.equal((await storage.getTable(actor, target.id)).rowCount, 0);
+  assert.equal(
+    (await pool.query("SELECT 1 AS available")).rows[0]!.available,
+    1,
+  );
+  const retry = await owner.query<{ next_attempt_at: Date }>(
+    "SELECT next_attempt_at FROM rootset_control.jobs WHERE id=$1",
+    [interrupted.jobId],
+  );
+  await new Promise((resolve) =>
+    setTimeout(
+      resolve,
+      Math.max(0, retry.rows[0]!.next_attempt_at.getTime() - Date.now() + 100),
+    ),
+  );
+  const recovered = await terminal(interrupted.jobId);
+  assert.equal(recovered.state, "succeeded", JSON.stringify(recovered.error));
+  assert.equal(recovered.result?.examined, 2);
+  assert.equal(recovered.result?.rejected, 2);
+});
+
+test("BKP-05 JOB-06: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Verification snapshot liveness ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Canonical history",
+    fields: [{ apiKey: "payload", label: "Payload", type: "json" }],
+    idempotencyKey: newId(),
+  });
+  const row = await storage.createRow(actor, target.id, {
+    payload: { id: "literal", nested: [null, true, "original"] },
+  });
+  await storage.updateRow(
+    actor,
+    target.id,
+    row.id,
+    { payload: { id: "literal", nested: [null, false, "changed"] } },
+    { expectedVersion: row.version, idempotencyKey: newId() },
+  );
+  const admitted = (await jobs.execute("createBackup", actor, {
+    databaseId: database.id,
+  })) as { jobId: string };
+  const completed = await terminal(admitted.jobId);
+  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
+  const loaded = await jobs.backups.load(
+    actor,
+    String(completed.result?.backupId),
+  );
+  const staged = await storage.restoreDatabase(
+    actor,
+    jobs.backups.source(actor, loaded.manifest),
+    {
+      name: `Slow history verification ${newId()}`,
+      verification: true,
+      staged: true,
+      jobId: newId(),
+    },
+  );
+  const historyArtifact = await jobs.artifacts.get(
+    actor,
+    loaded.manifest.history.artifactId,
+  );
+  let slowReads = 0;
+  const delayMiddleware = "verificationExpectedHistoryLatency";
+  jobs.artifacts.client.middlewareStack.add(
+    (next) => async (args) => {
+      if (
+        "Key" in args.input &&
+        args.input.Key === historyArtifact.object_key
+      ) {
+        slowReads++;
+        const barrier = await owner.query<{ acquired: boolean }>(
+          "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired",
+          [staged.databaseId],
+        );
+        assert.equal(barrier.rows[0]!.acquired, true);
+        await owner.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [
+          staged.databaseId,
+        ]);
+        await new Promise((resolve) => setTimeout(resolve, 35000));
+      }
+      return next(args);
+    },
+    { name: delayMiddleware, step: "initialize" },
+  );
+  const started = performance.now();
+  try {
+    await jobs.backups.verifyRestored(actor, loaded.manifest, staged);
+  } finally {
+    jobs.artifacts.client.middlewareStack.remove(delayMiddleware);
+    await storage.discardRestore(actor, staged);
+  }
+  assert.equal(slowReads, 1);
+  assert.ok(performance.now() - started > 30000);
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT setting FROM pg_settings WHERE name='idle_in_transaction_session_timeout'",
+      )
+    ).rows[0]!.setting,
+    "30000",
+  );
+  let interruptedPid = 0;
+  await assert.rejects(
+    snapshotTransaction(ddlPool, actor.orgId, database.id, async (client) => {
+      interruptedPid = (
+        await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")
+      ).rows[0]!.pid;
+      const killed = await owner.query<{ stopped: boolean }>(
+        "SELECT pg_terminate_backend($1) AS stopped",
+        [interruptedPid],
+      );
+      assert.equal(killed.rows[0]!.stopped, true);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await client.query("SELECT 1");
+    }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "57P01" &&
+      /terminating connection due to administrator command/.test(error.message),
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*) AS count FROM pg_stat_activity WHERE pid=$1",
+        [interruptedPid],
+      )
+    ).rows[0]!.count,
+    "0",
+  );
+  assert.equal(
+    await snapshotTransaction(
+      ddlPool,
+      actor.orgId,
+      database.id,
+      async (client) =>
+        (await client.query("SELECT 1 AS recovered")).rows[0]!.recovered,
+    ),
+    1,
+  );
+  const original = await storage.getRow(actor, target.id, row.id);
+  assert.equal(original.version, "2");
+  assert.deepEqual(original.values.payload, {
+    id: "literal",
+    nested: [null, false, "changed"],
+  });
 });

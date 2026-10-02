@@ -1,6 +1,22 @@
 import type { Pool } from "pg";
 import { newId, RootsetError, limits } from "@rootset/contracts";
 
+function dependencyUnavailable() {
+  return new RootsetError(
+    "DEPENDENCY_UNAVAILABLE",
+    "Request admission is temporarily unavailable. Retry this request.",
+    503,
+    { retryAfter: 1 },
+  );
+}
+
+function transientDatabaseError(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return /^(?:08[0-9A-Z]{3}|53300|55P03|57014|57P0[123]|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE)$/.test(
+    String(error.code),
+  );
+}
+
 export class Admission {
   constructor(private pool: Pool) {}
   async enter(
@@ -21,9 +37,12 @@ export class Admission {
       throw new RangeError(
         "Admission lease must be between 1 and 900 seconds.",
       );
-    const db = await this.pool.connect(),
+    const db = await this.pool.connect().catch(() => {
+        throw dependencyUnavailable();
+      }),
       id = newId();
     let committed = false;
+    let discardConnection = false;
     try {
       await db.query("BEGIN");
       await db.query(
@@ -83,16 +102,26 @@ export class Admission {
       committed = true;
       return async () => {
         if (!preAuth)
-          await this.pool.query(
-            "DELETE FROM rootset_control.api_admissions WHERE id=$1",
-            [id],
-          );
+          await this.pool
+            .query("DELETE FROM rootset_control.api_admissions WHERE id=$1", [
+              id,
+            ])
+            .catch(() => {
+              throw dependencyUnavailable();
+            });
       };
     } catch (error) {
-      if (!committed) await db.query("ROLLBACK");
+      if (!committed) {
+        try {
+          await db.query("ROLLBACK");
+        } catch {
+          discardConnection = true;
+        }
+      }
+      if (transientDatabaseError(error)) throw dependencyUnavailable();
       throw error;
     } finally {
-      db.release();
+      db.release(discardConnection);
     }
   }
 }

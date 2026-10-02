@@ -61,6 +61,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
   let cookie = "",
     restSecret = "";
   const positiveOperations = new Set<string>();
+  const dependencyEvents: string[] = [];
   try {
     const config = {
       ...loadConfig(),
@@ -81,6 +82,8 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     });
     const record = runtime.observer.record.bind(runtime.observer);
     runtime.observer.record = (event) => {
+      if (event.errorCode === "DEPENDENCY_UNAVAILABLE")
+        dependencyEvents.push(event.operationId);
       if (
         event.status >= 200 &&
         event.status < 300 &&
@@ -328,6 +331,202 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(created.row.values.SCORE, 1e20);
     assert.equal(created.row.values.UPDATED, "2026-10-02T12:34:56.000Z");
     const rowId = created.row.id;
+    await t.test(
+      "API-08 default ten active HTTP reads retain independent admission capacity; exhausted reservations return redacted retryable503",
+      async () => {
+        assert.equal(runtime!.pool.options.max, 10);
+        assert.equal(runtime!.admissionPool.options.max, 2);
+        assert.notEqual(runtime!.pool, runtime!.admissionPool);
+        const nativeBefore = (
+          await db.owner.query(
+            "SELECT row_count FROM rootset_control.tables WHERE id=$1",
+            [tableId],
+          )
+        ).rows[0].row_count;
+        const principal = `user:${provision.userId}`;
+        const queryPath = `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/query`;
+        const peerKey = await call("createTeamKey", {
+          orgId,
+          name: "Independent saturated workload credential",
+          scopes: ["rows:read"],
+          targets: [],
+          unrestricted: true,
+        });
+        const peerPrincipal = `credential:${peerKey.key.id}`;
+        const blocker = await db.owner.connect();
+        const pending: Promise<Response>[] = [];
+        try {
+          await blocker.query("BEGIN");
+          await blocker.query(
+            "LOCK TABLE rootset_control.tables IN ACCESS EXCLUSIVE MODE",
+          );
+          for (let index = 0; index < 10; index++)
+            pending.push(
+              request(
+                queryPath,
+                "POST",
+                { query: { limit: 1 } },
+                { token: restSecret },
+              ),
+            );
+          let active = 0;
+          for (let attempt = 0; attempt < 100; attempt++) {
+            active = Number(
+              (
+                await db.owner.query(
+                  "SELECT count(*)::int count FROM rootset_control.api_admissions WHERE principal=$1 AND read_only AND expires_at>clock_timestamp()",
+                  [principal],
+                )
+              ).rows[0].count,
+            );
+            if (active === 10) break;
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          assert.equal(active, 10);
+          assert.equal(runtime!.pool.totalCount, 10);
+          assert.equal(runtime!.pool.idleCount, 0);
+          const excess = await request(
+            queryPath,
+            "POST",
+            { query: { limit: 1 } },
+            { token: restSecret },
+          );
+          assert.equal(excess.status, 429);
+          assert.equal((await excess.json()).error.code, "RATE_LIMITED");
+          assert.ok(Number(excess.headers.get("retry-after")) > 0);
+          assert.equal((await request("/health/live")).status, 200);
+          const [peerRest, mixedMutation] = await Promise.all([
+            request(
+              queryPath,
+              "POST",
+              { query: { limit: 1 } },
+              { token: peerKey.secret },
+            ),
+            request(
+              `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/rows`,
+              "POST",
+              {
+                expectedSchemaVersion: 1,
+                values: { NAME: "Within-quota overload mutation" },
+              },
+              { token: restSecret, key: newId() },
+            ),
+          ]);
+          assert.equal(peerRest.status, 503);
+          assert.equal(peerRest.headers.get("retry-after"), "1");
+          const peerEnvelope = await peerRest.json();
+          assert.equal(peerEnvelope.error.code, "DEPENDENCY_UNAVAILABLE");
+          assert.equal(peerEnvelope.error.details.retryAfter, 1);
+          assert.equal(mixedMutation.status, 503);
+          assert.equal(mixedMutation.headers.get("retry-after"), "1");
+          const mutationFailure = await mixedMutation.json();
+          assert.equal(mutationFailure.error.code, "DEPENDENCY_UNAVAILABLE");
+          assert.ok(
+            !/timeout exceeded|SELECT|rootset_control|password|stack/i.test(
+              JSON.stringify([peerEnvelope, mutationFailure]),
+            ),
+          );
+          assert.equal(
+            Number(
+              (
+                await db.owner.query(
+                  "SELECT count(*) FROM rootset_control.api_admissions WHERE principal=$1",
+                  [peerPrincipal],
+                )
+              ).rows[0].count,
+            ),
+            0,
+          );
+          assert.ok(
+            dependencyEvents.filter((operation) =>
+              ["queryRows", "createRow"].includes(operation),
+            ).length >= 2,
+          );
+        } finally {
+          await blocker.query("ROLLBACK");
+          blocker.release();
+          for (const response of await Promise.all(pending))
+            assert.equal(response.status, 200);
+        }
+        assert.equal(
+          (
+            await db.owner.query(
+              "SELECT row_count FROM rootset_control.tables WHERE id=$1",
+              [tableId],
+            )
+          ).rows[0].row_count,
+          nativeBefore,
+        );
+        assert.equal(
+          (
+            await request(
+              queryPath,
+              "POST",
+              { query: { limit: 1 } },
+              { token: peerKey.secret },
+            )
+          ).status,
+          200,
+        );
+        assert.equal(
+          Number(
+            (
+              await db.owner.query(
+                "SELECT count(*) FROM rootset_control.api_admissions WHERE principal=$1",
+                [principal],
+              )
+            ).rows[0].count,
+          ),
+          0,
+        );
+        const held = await Promise.all([
+          runtime!.admissionPool.connect(),
+          runtime!.admissionPool.connect(),
+        ]);
+        try {
+          const response = await request(
+            queryPath,
+            "POST",
+            { query: { limit: 1 } },
+            { token: restSecret },
+          );
+          assert.equal(response.status, 503);
+          const envelope = await response.json();
+          assert.equal(envelope.error.code, "DEPENDENCY_UNAVAILABLE");
+          assert.equal(response.headers.get("retry-after"), "1");
+          assert.ok(!JSON.stringify(envelope).includes(restSecret));
+          assert.ok(
+            !/timeout exceeded|connectionString|rootset_control|SELECT|password|stack/i.test(
+              JSON.stringify(envelope),
+            ),
+          );
+        } finally {
+          for (const connection of held) connection.release();
+        }
+        assert.equal(
+          (
+            await request(
+              queryPath,
+              "POST",
+              { query: { limit: 1 } },
+              { token: restSecret },
+            )
+          ).status,
+          200,
+        );
+        assert.equal(
+          Number(
+            (
+              await db.owner.query(
+                "SELECT count(*) FROM rootset_control.api_admissions WHERE principal=$1",
+                [principal],
+              )
+            ).rows[0].count,
+          ),
+          0,
+        );
+      },
+    );
     const generatedSource =
       stripTypeScriptTypes(generateClientSource(), { mode: "transform" }) +
       "\n//# sourceURL=rootset-generated-client-test.js";
@@ -586,6 +785,61 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       }),
     );
     assert.equal((await client.listTools()).tools.length, operations.length);
+    await t.test(
+      "API-08 MCP genuine issued OAuth returns typed retryable dependency when the bounded work pool is occupied; operator status and liveness survive",
+      async () => {
+        const workConnections = await Promise.all(
+          Array.from({ length: 10 }, () => runtime!.pool.connect()),
+        );
+        try {
+          assert.equal((await request("/health/live")).status, 200);
+          getOperation("getInstallationStatus").outputSchema.parse(
+            await call("getInstallationStatus", {}, "browser"),
+          );
+          const failure = await client.callTool({
+            name: getOperation("queryRows").toolName,
+            arguments: { ...ids, query: { limit: 1 } },
+          });
+          assert.equal(failure.isError, true);
+          const envelope = failure.structuredContent as {
+            error: { code: string; details: { retryAfter: number } };
+          };
+          assert.equal(envelope.error.code, "DEPENDENCY_UNAVAILABLE");
+          assert.equal(envelope.error.details.retryAfter, 1);
+          assert.ok(
+            !/timeout exceeded|SELECT|rootset_control|password|stack/i.test(
+              JSON.stringify(failure),
+            ),
+          );
+          assert.ok(
+            dependencyEvents.filter((operation) => operation === "queryRows")
+              .length >= 2,
+          );
+          assert.equal(
+            Number(
+              (
+                await db.owner.query(
+                  "SELECT count(*) FROM rootset_control.api_admissions WHERE principal=$1",
+                  [`user:${provision.userId}`],
+                )
+              ).rows[0].count,
+            ),
+            0,
+          );
+        } finally {
+          workConnections.forEach((connection) => connection.release());
+        }
+        const recovered = await client.callTool({
+          name: getOperation("queryRows").toolName,
+          arguments: { ...ids, query: { limit: 1 } },
+        });
+        assert.notEqual(recovered.isError, true);
+        getOperation("queryRows").outputSchema.parse(
+          recovered.structuredContent,
+        );
+      },
+    );
+
     const mcpOperation = async (
       id: string,
       input: Record<string, unknown>,

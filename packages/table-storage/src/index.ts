@@ -3854,7 +3854,7 @@ export class TableStorage {
               "SELECT i.indisvalid FROM pg_index i JOIN pg_class cls ON cls.oid=i.indexrelid JOIN pg_namespace ns ON ns.oid=cls.relnamespace WHERE ns.nspname=$1 AND cls.relname=$2",
               [t.schemaName, plan.physicalName],
             );
-            if (r.rows[0]?.indisvalid) {
+            if (r.rows[0]?.indisvalid && !planJob) {
               await c.query(
                 "UPDATE rootset_control.indexes SET state='active' WHERE id=$1",
                 [plan.indexId],
@@ -3864,16 +3864,19 @@ export class TableStorage {
               await c.query(
                 `DROP INDEX IF EXISTS ${q(t.schemaName)}.${q(String(plan.physicalName))}`,
               );
+              const recoveryError = JSON.stringify({
+                code: planJob
+                  ? "INTERRUPTED_JOB_REQUIRES_RETRY"
+                  : "INVALID_INDEX_RECOVERED",
+                retryable: true,
+              });
               await c.query(
                 "UPDATE rootset_control.indexes SET state='failed',error=$2::jsonb WHERE id=$1",
-                [
-                  plan.indexId,
-                  JSON.stringify({ code: "INVALID_INDEX_RECOVERED" }),
-                ],
+                [plan.indexId, recoveryError],
               );
               await c.query(
-                "UPDATE rootset_control.schema_operations SET state='failed' WHERE id=$1",
-                [op.id],
+                "UPDATE rootset_control.schema_operations SET state='failed',error=$2::jsonb WHERE id=$1",
+                [op.id, recoveryError],
               );
             }
           } else

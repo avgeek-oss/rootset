@@ -17,7 +17,9 @@ export interface RequestObservation {
 }
 export interface ObserverOptions {
   operatorPool: Pool;
-  pools: Partial<Record<"api" | "ddl" | "identity" | "worker", Pool>>;
+  pools: Partial<
+    Record<"api" | "ddl" | "identity" | "worker" | "admission", Pool>
+  >;
   log?: (record: string) => void;
   now?: () => number;
 }
@@ -124,7 +126,7 @@ export class OperationalObserver {
       this.timeouts++;
       counter.timeouts++;
     }
-    if (errorCode === "ROW_LIMIT_EXCEEDED") this.rowLimitRejections++;
+    if (errorCode === "ROW_LIMIT_REACHED") this.rowLimitRejections++;
     if (
       errorCode?.startsWith("STORAGE_") &&
       [

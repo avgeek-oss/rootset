@@ -105,3 +105,115 @@ test(
     }
   },
 );
+
+test(
+  "API-08 bounded admission pool handles multi-principal/org contention, acquisition exhaustion and native lock deadlines without leaked reservations",
+  { skip: !url },
+  async () => {
+    const pool = new Pool({
+      connectionString: url,
+      max: 2,
+      connectionTimeoutMillis: 150,
+      options: "-c statement_timeout=100 -c timezone=UTC",
+    });
+    const blockerPool = new Pool({ connectionString: url, max: 1 });
+    const admission = new Admission(pool);
+    const suffix = newId(),
+      principals = [
+        `user:${suffix}:a`,
+        `user:${suffix}:b`,
+        `organisation:${suffix}:a`,
+        `organisation:${suffix}:b`,
+      ];
+    const leases: (() => Promise<void>)[] = [];
+    try {
+      const held = await Promise.all([pool.connect(), pool.connect()]);
+      try {
+        await Promise.all(
+          principals.map((principal) =>
+            assert.rejects(
+              admission.enter(principal, true),
+              (error) =>
+                error instanceof RootsetError &&
+                error.status === 503 &&
+                error.code === "DEPENDENCY_UNAVAILABLE" &&
+                (error.details as { retryAfter: number }).retryAfter === 1,
+            ),
+          ),
+        );
+      } finally {
+        held.forEach((connection) => connection.release());
+      }
+      for (const principal of principals) {
+        leases.push(await admission.enter(principal, true, false, 120, 1));
+        leases.push(await admission.enter(principal, false, false, 120, 1));
+      }
+      await Promise.all(
+        principals.map((principal) =>
+          assert.rejects(
+            admission.enter(principal, true, false, 120, 1),
+            (error) => error instanceof RootsetError && error.status === 429,
+          ),
+        ),
+      );
+      assert.equal(
+        Number(
+          (
+            await pool.query(
+              "SELECT count(*) FROM rootset_control.api_admissions WHERE principal=ANY($1::text[])",
+              [principals],
+            )
+          ).rows[0].count,
+        ),
+        8,
+      );
+      await Promise.all(leases.splice(0).map((release) => release()));
+      const blocker = await blockerPool.connect();
+      try {
+        await blocker.query("BEGIN");
+        await blocker.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,72412))",
+          [principals[0]],
+        );
+        await assert.rejects(
+          admission.enter(principals[0]!, true),
+          (error) =>
+            error instanceof RootsetError &&
+            error.status === 503 &&
+            error.code === "DEPENDENCY_UNAVAILABLE" &&
+            !/statement|SELECT|57014/.test(error.message),
+        );
+        const unrelated = await admission.enter(principals[1]!, true);
+        await unrelated();
+        assert.equal(
+          Number(
+            (
+              await pool.query(
+                "SELECT count(*) FROM rootset_control.api_admissions WHERE principal=ANY($1::text[])",
+                [principals],
+              )
+            ).rows[0].count,
+          ),
+          0,
+        );
+      } finally {
+        await blocker.query("ROLLBACK");
+        blocker.release();
+      }
+      const recovered = await admission.enter(principals[0]!, true);
+      await recovered();
+      assert.equal(pool.options.max, 2);
+    } finally {
+      await Promise.all(leases.map((release) => release()));
+      await pool.query(
+        "DELETE FROM rootset_control.api_admissions WHERE principal=ANY($1::text[])",
+        [principals],
+      );
+      await pool.query(
+        "DELETE FROM rootset_control.api_rate_windows WHERE principal=ANY($1::text[])",
+        [principals],
+      );
+      await Promise.all([pool.end(), blockerPool.end()]);
+    }
+  },
+);

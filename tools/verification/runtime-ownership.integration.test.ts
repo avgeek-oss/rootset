@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import { before, after } from "node:test";
 import { createServer } from "node:net";
 import { randomBytes } from "node:crypto";
-import { newId, type Actor } from "@rootset/contracts";
+import { ErrorCodeSchema, newId, type Actor } from "@rootset/contracts";
 import { EmailOutbox } from "../../packages/email/src/index.js";
 import { TableStorage } from "../../packages/table-storage/src/index.js";
-import { withOrg, type Pool } from "@rootset/database";
+import {
+  createPool,
+  withOrg,
+  type Pool,
+  type PoolClient,
+} from "@rootset/database";
 import { OperationalObserver } from "../../packages/observability/src/index.js";
 import { ownedPostgres } from "./owned-postgres.js";
 import { verificationCase } from "./evidence.js";
@@ -383,7 +388,7 @@ verificationCase(
       operationId: "createRow",
       status: 422,
       durationMs: 4,
-      errorCode: "ROW_LIMIT_EXCEEDED",
+      errorCode: ErrorCodeSchema.parse("ROW_LIMIT_REACHED"),
     });
     const result = await observer.metrics();
     assert.equal(result.databaseStatus, "healthy");
@@ -419,7 +424,7 @@ verificationCase(
     id: "OBSERVABILITY-02",
     gates: ["OPS-06", "JOB-05"],
     scope:
-      "Actual pool saturation and SMTP connection failure plus persisted expired job lease, old queue, degraded worker and failed schema states produce operator signals while another application read remains usable",
+      "Actual application and bounded two-connection admission pool saturation and SMTP connection failure plus persisted expired job lease, old queue, degraded worker and failed schema states produce operator signals while another application read remains usable",
   },
   async () => {
     const pool = cluster.app;
@@ -427,21 +432,53 @@ verificationCase(
       Array.from({ length: pool.options.max ?? 4 }, () => pool.connect()),
     );
     const waiting = pool.connect();
+    const admission = createPool(pool.options.connectionString!, 2);
+    const admissionHeld: PoolClient[] = [];
+    let admissionWaiting: Promise<PoolClient> | undefined;
     const observer = new OperationalObserver({
       operatorPool: cluster.identity,
-      pools: { api: pool, ddl: cluster.ddl, identity: cluster.identity },
+      pools: {
+        api: pool,
+        ddl: cluster.ddl,
+        identity: cluster.identity,
+        admission,
+      },
       log: () => {},
     });
     try {
+      for (let index = 0; index < 2; index++)
+        admissionHeld.push(await admission.connect());
+      assert.equal(
+        (await admissionHeld[0]!.query("SELECT current_user AS role")).rows[0]!
+          .role,
+        "rootset_app",
+      );
+      admissionWaiting = admission.connect();
       const saturated = await observer.metrics();
       assert.ok(saturated.pools.api!.waiting > 0);
+      assert.deepEqual(saturated.pools.admission, {
+        total: 2,
+        idle: 0,
+        waiting: 1,
+        maximum: 2,
+      });
       assert.equal(
         saturated.signals.some((signal) => signal.code === "POOL_SATURATED"),
         true,
       );
+      assert.ok(
+        saturated.signals.some(
+          (signal) =>
+            signal.code === "POOL_SATURATED" &&
+            signal.message.startsWith("admission pool"),
+        ),
+      );
     } finally {
       held.forEach((connection) => connection.release());
       (await waiting).release();
+      admissionHeld.forEach((connection) => connection.release());
+      if (admissionWaiting) (await admissionWaiting).release();
+      await admission.end();
     }
     const smtp = createServer((socket) => socket.destroy());
     await new Promise<void>((resolve, reject) => {

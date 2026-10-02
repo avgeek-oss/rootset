@@ -159,8 +159,10 @@ test(
       approveAction: async () => ({ approved: true }),
     };
     // This integration isolates transport and permission plumbing. Domain CRUD is exercised by the candidate verification suite.
+    let transportFailure: Error | undefined;
     const core = {
       execute: async (operationId: string, caller: Actor, input: unknown) => {
+        if (transportFailure) throw transportFailure;
         const operation = operations.find((op) => op.id === operationId)!;
         if (operation.scopes.some((scope) => !caller.scopes.includes(scope)))
           throw new RootsetError("ACCESS_DENIED", "Scope unavailable.", 403);
@@ -485,6 +487,66 @@ test(
         "PAYLOAD_TOO_LARGE",
       );
       assert(Buffer.byteLength(JSON.stringify(oversized)) < 1024 * 1024);
+      for (const [message, status, code] of [
+        [
+          "timeout exceeded when trying to connect",
+          503,
+          "DEPENDENCY_UNAVAILABLE",
+        ],
+        [
+          "Connection terminated due to connection timeout",
+          503,
+          "DEPENDENCY_UNAVAILABLE",
+        ],
+        [
+          "Unexpected programming failure: synthetic password=private SELECT",
+          500,
+          "INTERNAL_ERROR",
+        ],
+      ] as const) {
+        transportFailure = new Error(message);
+        const rest = await fetch(
+          `${baseURL}/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/query`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${restToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ query: { limit: 1 } }),
+          },
+        );
+        assert.equal(rest.status, status);
+        const restFailure = await rest.json();
+        assert.equal(restFailure.error.code, code);
+        assert.equal(
+          rest.headers.get("retry-after"),
+          status === 503 ? "1" : null,
+        );
+        const mcp = await client.callTool({
+          name: "rootset_query_rows",
+          arguments: { orgId, databaseId, tableId, query: { limit: 1 } },
+        });
+        assert.equal(mcp.isError, true);
+        assert.equal(
+          (mcp.structuredContent as typeof restFailure).error.code,
+          code,
+        );
+        if (status === 503)
+          assert.equal(
+            (mcp.structuredContent as typeof restFailure).error.details
+              .retryAfter,
+            1,
+          );
+        assert.ok(!JSON.stringify([restFailure, mcp]).includes(message));
+        assert.ok(
+          observed.some(
+            (event) =>
+              event.operationId === "queryRows" && event.errorCode === code,
+          ),
+        );
+      }
+      transportFailure = undefined;
       const unauthenticated = await fetch(`${baseURL}/mcp`, {
         method: "POST",
         headers: {

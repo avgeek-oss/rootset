@@ -132,6 +132,14 @@ test("metadata fetch pins the validated DNS address while retaining HTTPS hostna
       resolve();
     });
   });
+  await new Promise<void>((resolve, reject) => {
+    if (typeof lookup !== "function") throw new Error("Pinned lookup missing");
+    lookup("metadata.rootset.example", { all: true }, (error, addresses) => {
+      if (error) return reject(error);
+      assert.deepEqual(addresses, [{ address: "93.184.215.14", family: 4 }]);
+      resolve();
+    });
+  });
 });
 test("metadata rejects any private DNS answer before opening a connection", async (t) => {
   const fixture = network(t);

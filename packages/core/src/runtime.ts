@@ -21,6 +21,7 @@ export async function createRuntime(
   options: { oauthClients?: OAuthConfig["clients"] } = {},
 ) {
   const pool = createPool(baseline.databaseURL),
+    admissionPool = createPool(baseline.databaseURL, 2),
     ddlPool = createPool(baseline.ddlDatabaseURL, 5),
     identityPool = createPool(baseline.identityDatabaseURL);
   try {
@@ -61,7 +62,12 @@ export async function createRuntime(
     const capacity = new CapacityService(identityPool);
     const observer = new OperationalObserver({
       operatorPool: identityPool,
-      pools: { api: pool, ddl: ddlPool, identity: identityPool },
+      pools: {
+        api: pool,
+        admission: admissionPool,
+        ddl: ddlPool,
+        identity: identityPool,
+      },
     });
     const storage = new TableStorage({
       pool,
@@ -209,6 +215,7 @@ export async function createRuntime(
     );
     return {
       pool,
+      admissionPool,
       ddlPool,
       identityPool,
       core,
@@ -222,11 +229,21 @@ export async function createRuntime(
       getAdmissionLimits: () => installation.admissionLimits(),
       getReadiness: () => installation.status(),
       close: async () => {
-        await Promise.all([pool.end(), ddlPool.end(), identityPool.end()]);
+        await Promise.all([
+          pool.end(),
+          admissionPool.end(),
+          ddlPool.end(),
+          identityPool.end(),
+        ]);
       },
     };
   } catch (error) {
-    await Promise.all([pool.end(), ddlPool.end(), identityPool.end()]);
+    await Promise.all([
+      pool.end(),
+      admissionPool.end(),
+      ddlPool.end(),
+      identityPool.end(),
+    ]);
     throw error;
   }
 }

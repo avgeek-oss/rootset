@@ -28,6 +28,12 @@ explicit password, token, key-secret, TOTP and recovery-code fields while retain
 ordinary domain error codes and public credential identifiers. A stored receipt
 never redisplays a one-time secret.
 
+View-preference outcomes instead use their complete strict public response schema.
+Their saved query is user data: JSON predicates can legitimately contain keys named
+`password`, `token` or `secret`, and both the initial response and replay preserve
+that query exactly. Credential-shaped fields outside this response schema reject
+the mutation and roll back its receipt and effects.
+
 The real PostgreSQL tests exercise concurrent publication, changed-input conflict,
 RLS and principal bindings, password privacy, rollback, bounded contention,
 autocommit rejection and expiry. The identity tests additionally use real

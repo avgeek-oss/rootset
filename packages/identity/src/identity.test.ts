@@ -6,6 +6,8 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { Pool, withOrg, migrate } from "@rootset/database";
 import {
   AccountActionSchema,
+  DatabaseSchema,
+  BackupPolicySchema,
   ContextSchema,
   KeyCreatedSchema,
   ProfileSchema,
@@ -23,6 +25,8 @@ import {
 } from "@rootset/email";
 import { createIdentityService, type IdentityService } from "./index";
 import { MetadataPaging } from "../../core/src/paging";
+import { createRuntime } from "../../core/src/runtime";
+import { loadConfig } from "../../core/src/config";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
 
 try {
@@ -111,6 +115,842 @@ function totp(secret: string): string {
     .toString()
     .padStart(6, "0");
 }
+
+test(
+  "KEY-05 KEY-06 approved named issuance and rotation serialize exact retries before consuming approval and revalidate current authority",
+  { skip: !ownerURL || !identityURL, timeout: 60000 },
+  async () => {
+    const fixture = await isolatedDatabase();
+    const config = {
+      pool: fixture.identity,
+      baseURL,
+      secret: randomBytes(32).toString("hex"),
+      bootstrapSecret: randomBytes(32).toString("hex"),
+      keyHashSecret: randomBytes(32).toString("hex"),
+      encryptionKeys: { test: randomBytes(32).toString("base64") },
+      activeEncryptionKeyId: "test",
+    };
+    const service = createIdentityService(config),
+      email = `key-receipts-${newId().toLowerCase()}@example.test`,
+      password = randomBytes(32).toString("base64url");
+    const execute = (operation: string, actor: Actor, input: unknown) =>
+      service.execute(operation, actor, input, { idempotencyKey: newId() });
+    const errorCode = (code: string) => (error: unknown) =>
+      (error as { code: string }).code === code;
+    try {
+      await service.claimSetup({
+        bootstrapSecret: config.bootstrapSecret,
+        name: "Key receipt Owner",
+        email,
+        password,
+        organisationName: "Disposable key receipt fixture",
+      });
+      await latestVerification(service, fixture.identity, email);
+      const session = await login(service, email, password);
+      assert.equal(session.response.status, 200);
+      const owner = (await service.resolveActor(
+        request("/get-session", undefined, session.cookie),
+        "browser",
+      ))!;
+      const createInitiator = async () => {
+        const issued = KeyCreatedSchema.parse(
+          await execute("createPersonalKey", owner, {
+            orgId: owner.orgId,
+            name: "Actual scoped receipt initiator",
+            scopes: ["keys:manage", "rows:read"],
+            targets: [],
+            unrestricted: true,
+          }),
+        );
+        return {
+          issued,
+          actor: (await service.resolveActor(
+            new Request(`${baseURL}/v1/me`, {
+              headers: { authorization: `Bearer ${issued.secret}` },
+            }),
+            "api",
+          ))!,
+        };
+      };
+      const initiator = await createInitiator();
+      const named = (
+        actor: Actor,
+        operation: string,
+        input: Record<string, unknown>,
+        context: { actionId: string; idempotencyKey: string },
+        effect?: () => void,
+      ) =>
+        service.withOperationApproval(
+          actor,
+          operation,
+          input,
+          context,
+          (client) => {
+            effect?.();
+            return service.execute(operation, actor, input, {
+              ...context,
+              approvalClient: client,
+            });
+          },
+        );
+      let retained:
+        | {
+            operation: string;
+            input: Record<string, unknown>;
+            context: { actionId: string; idempotencyKey: string };
+          }
+        | undefined;
+      for (const kind of ["Personal", "Team"]) {
+        let originalId = "";
+        for (const verb of ["create", "rotate"]) {
+          const operation = `${verb}${kind}Key`,
+            input: Record<string, unknown> =
+              verb === "create"
+                ? {
+                    orgId: owner.orgId,
+                    name: `${kind} key receipt`,
+                    scopes: ["rows:read"],
+                    targets: [],
+                    unrestricted: true,
+                  }
+                : {
+                    ...(kind === "Team" ? { orgId: owner.orgId } : {}),
+                    id: originalId,
+                    overlapSeconds: 0,
+                  };
+          const action = AccountActionSchema.parse(
+            await execute("beginAccountAction", initiator.actor, {
+              orgId: owner.orgId,
+              type: verb === "create" ? "create_key" : "rotate_key",
+              operationId: operation,
+              input,
+            }),
+          );
+          await service.approveAction(action.id, owner);
+          const context = { actionId: action.id, idempotencyKey: newId() },
+            before = Number(
+              (
+                await fixture.owner.query(
+                  "SELECT count(*) FROM rootset_control.api_keys",
+                )
+              ).rows[0].count,
+            );
+          let effects = 0;
+          const results = (
+            await Promise.all([
+              named(
+                initiator.actor,
+                operation,
+                input,
+                context,
+                () => effects++,
+              ),
+              named(
+                initiator.actor,
+                operation,
+                input,
+                context,
+                () => effects++,
+              ),
+            ])
+          ).map((result) => KeyCreatedSchema.parse(result));
+          const [first, second] = results;
+          assert.ok(first && second);
+          assert.equal(
+            effects,
+            1,
+            "Only one request reaches credential issuance",
+          );
+          assert.equal(results.filter((result) => result.secret).length, 1);
+          assert.equal(first.key.id, second.key.id);
+          assert.equal(
+            Number(
+              (
+                await fixture.owner.query(
+                  "SELECT count(*) FROM rootset_control.api_keys",
+                )
+              ).rows[0].count,
+            ),
+            before + 1,
+          );
+          const replay = KeyCreatedSchema.parse(
+            await named(initiator.actor, operation, input, context),
+          );
+          assert.equal(replay.key.id, first.key.id);
+          assert.equal(replay.secret, undefined);
+          const consumed = AccountActionSchema.parse(
+            await execute("getAccountAction", initiator.actor, {
+              id: action.id,
+            }),
+          );
+          assert.equal(consumed.state, "consumed");
+          assert.equal(
+            KeyCreatedSchema.parse(consumed.result).secret,
+            undefined,
+          );
+          const changedInput =
+            verb === "create"
+              ? { ...input, name: "Changed name" }
+              : { ...input, overlapSeconds: 1 };
+          await assert.rejects(
+            () => named(initiator.actor, operation, changedInput, context),
+            errorCode("IDEMPOTENCY_CONFLICT"),
+          );
+          await assert.rejects(
+            () =>
+              named(initiator.actor, operation, input, {
+                ...context,
+                idempotencyKey: newId(),
+              }),
+            errorCode("STEP_UP_REQUIRED"),
+          );
+          await assert.rejects(
+            () =>
+              named(initiator.actor, operation, input, {
+                ...context,
+                actionId: newId(),
+              }),
+            errorCode("IDEMPOTENCY_CONFLICT"),
+          );
+          const receipt = (
+            await fixture.owner.query(
+              "SELECT digest,result FROM rootset_control.key_requests WHERE actor_id=$1 AND operation=$2 AND key=$3",
+              [initiator.actor.id, operation, context.idempotencyKey],
+            )
+          ).rows[0];
+          assert.match(receipt.digest, /^[a-f0-9]{64}$/);
+          assert.equal(receipt.result.secret, undefined);
+          assert.ok(
+            !JSON.stringify(receipt).includes(
+              results.find((result) => result.secret)!.secret!,
+            ),
+          );
+          if (verb === "create") originalId = first.key.id;
+          retained = { operation, input, context };
+        }
+      }
+      assert.ok(retained);
+      const mixedInput = {
+          orgId: owner.orgId,
+          name: "Named route and action completion share a receipt",
+          scopes: ["rows:read"],
+          targets: [],
+          unrestricted: true,
+        },
+        mixedAction = AccountActionSchema.parse(
+          await execute("beginAccountAction", initiator.actor, {
+            orgId: owner.orgId,
+            type: "create_key",
+            operationId: "createPersonalKey",
+            input: mixedInput,
+          }),
+        );
+      await service.approveAction(mixedAction.id, owner);
+      const mixedContext = {
+          actionId: mixedAction.id,
+          idempotencyKey: newId(),
+        },
+        mixedBefore = Number(
+          (
+            await fixture.owner.query(
+              "SELECT count(*) FROM rootset_control.api_keys",
+            )
+          ).rows[0].count,
+        ),
+        mixedResults = await Promise.all([
+          named(initiator.actor, "createPersonalKey", mixedInput, mixedContext),
+          service.execute(
+            "completeAccountAction",
+            initiator.actor,
+            { id: mixedAction.id },
+            { idempotencyKey: mixedContext.idempotencyKey },
+          ),
+        ]),
+        namedResult = KeyCreatedSchema.parse(mixedResults[0]),
+        completedResult = KeyCreatedSchema.parse(
+          AccountActionSchema.parse(mixedResults[1]).result,
+        );
+      assert.equal(namedResult.key.id, completedResult.key.id);
+      assert.equal(
+        [namedResult, completedResult].filter((result) => result.secret).length,
+        1,
+      );
+      assert.equal(
+        Number(
+          (
+            await fixture.owner.query(
+              "SELECT count(*) FROM rootset_control.api_keys",
+            )
+          ).rows[0].count,
+        ),
+        mixedBefore + 1,
+        "Named and completion paths commit one credential without inverse locks",
+      );
+      const retry = () =>
+        named(
+          initiator.actor,
+          retained!.operation,
+          retained!.input,
+          retained!.context,
+        );
+      await fixture.owner.query(
+        "UPDATE rootset_control.api_keys SET scopes='[\"keys:manage\"]' WHERE id=$1",
+        [initiator.issued.key.id],
+      );
+      await assert.rejects(retry, errorCode("DELEGATION_EXCEEDS_AUTHORITY"));
+      await fixture.owner.query(
+        'UPDATE rootset_control.api_keys SET scopes=\'["keys:manage","rows:read"]\',unrestricted=false WHERE id=$1',
+        [initiator.issued.key.id],
+      );
+      await assert.rejects(retry, errorCode("DELEGATION_EXCEEDS_AUTHORITY"));
+      await fixture.owner.query(
+        "UPDATE rootset_control.api_keys SET unrestricted=true WHERE id=$1",
+        [initiator.issued.key.id],
+      );
+      const other = await createInitiator(),
+        receiptsBefore = (
+          await fixture.owner.query(
+            "SELECT count(*) FROM rootset_control.key_requests",
+          )
+        ).rows[0].count;
+      await assert.rejects(
+        () =>
+          named(
+            other.actor,
+            retained!.operation,
+            retained!.input,
+            retained!.context,
+          ),
+        errorCode("STEP_UP_REQUIRED"),
+      );
+      assert.equal(
+        (
+          await fixture.owner.query(
+            "SELECT count(*) FROM rootset_control.key_requests",
+          )
+        ).rows[0].count,
+        receiptsBefore,
+        "Unauthorized first-use receipt placeholder rolls back",
+      );
+      const databaseId = newId(),
+        tableId = newId();
+      await fixture.owner.query(
+        "INSERT INTO rootset_control.databases(id,org_id,name,schema_name) VALUES($1,$2,'Receipt target fixture',$3)",
+        [databaseId, owner.orgId, `rsd_${databaseId.toLowerCase()}`],
+      );
+      await fixture.owner.query(
+        "INSERT INTO rootset_control.tables(id,database_id,org_id,name,physical_name) VALUES($1,$2,$3,'Receipt table fixture',$4)",
+        [tableId, databaseId, owner.orgId, `rst_${tableId.toLowerCase()}`],
+      );
+      const targetInput = {
+          orgId: owner.orgId,
+          name: "Scoped receipt",
+          scopes: ["rows:read"],
+          targets: [{ databaseId, tableId, level: "read" }],
+          unrestricted: false,
+        },
+        targetAction = AccountActionSchema.parse(
+          await execute("beginAccountAction", initiator.actor, {
+            orgId: owner.orgId,
+            type: "create_key",
+            operationId: "createPersonalKey",
+            input: targetInput,
+          }),
+        );
+      await service.approveAction(targetAction.id, owner);
+      const targetContext = {
+        actionId: targetAction.id,
+        idempotencyKey: newId(),
+      };
+      KeyCreatedSchema.parse(
+        await named(
+          initiator.actor,
+          "createPersonalKey",
+          targetInput,
+          targetContext,
+        ),
+      );
+      await fixture.owner.query(
+        "UPDATE rootset_control.databases SET state='deleting' WHERE id=$1",
+        [databaseId],
+      );
+      await assert.rejects(
+        () =>
+          named(
+            initiator.actor,
+            "createPersonalKey",
+            targetInput,
+            targetContext,
+          ),
+        errorCode("RESOURCE_NOT_FOUND"),
+      );
+      await fixture.owner.query(
+        "UPDATE rootset_control.databases SET state='active' WHERE id=$1",
+        [databaseId],
+      );
+      const orgId = newId();
+      await fixture.owner.query(
+        "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Foreign target fixture')",
+        [orgId],
+      );
+      await fixture.owner.query(
+        "UPDATE rootset_control.tables SET org_id=$2 WHERE id=$1",
+        [tableId, orgId],
+      );
+      await assert.rejects(
+        () =>
+          named(
+            initiator.actor,
+            "createPersonalKey",
+            targetInput,
+            targetContext,
+          ),
+        errorCode("RESOURCE_NOT_FOUND"),
+      );
+      await fixture.owner.query(
+        "UPDATE rootset_control.tables SET org_id=$2 WHERE id=$1",
+        [tableId, owner.orgId],
+      );
+      await fixture.owner.query(
+        "UPDATE rootset_control.key_requests SET digest=repeat('0',64) WHERE actor_id=$1 AND operation=$2 AND key=$3",
+        [
+          initiator.actor.id,
+          retained.operation,
+          retained.context.idempotencyKey,
+        ],
+      );
+      await assert.rejects(retry, errorCode("IDEMPOTENCY_CONFLICT"));
+      await execute("revokePersonalKey", owner, {
+        id: initiator.issued.key.id,
+      });
+      await assert.rejects(retry, errorCode("UNAUTHENTICATED"));
+    } finally {
+      await fixture.close();
+    }
+  },
+);
+
+test(
+  "AUTH-07 API09 external completion and named Core policy requests share receipt-first locking and revalidate resource authority",
+  { skip: !ownerURL || !identityURL, timeout: 60000 },
+  async () => {
+    const fixture = await isolatedDatabase();
+    const runtime = await createRuntime({
+      ...loadConfig(),
+      baseURL,
+      databaseURL: fixture.app.options.connectionString!,
+      ddlDatabaseURL: fixture.ddl.options.connectionString!,
+      identityDatabaseURL: fixture.identity.options.connectionString!,
+    });
+    try {
+      const service = runtime.identity,
+        email = `external-receipt-${newId().toLowerCase()}@example.test`,
+        password = randomBytes(32).toString("base64url");
+      await service.claimSetup({
+        bootstrapSecret: service.config.bootstrapSecret,
+        name: "External receipt Owner",
+        email,
+        password,
+        organisationName: "Disposable external receipt fixture",
+      });
+      await latestVerification(service, fixture.identity, email);
+      const signedIn = await login(service, email, password);
+      assert.equal(signedIn.response.status, 200);
+      const owner = (await service.resolveActor(
+        request("/get-session", undefined, signedIn.cookie),
+        "browser",
+      ))!;
+      const execute = (
+        operation: string,
+        actor: Actor,
+        input: unknown,
+        context: Parameters<typeof runtime.core.execute>[3] = {},
+      ) =>
+        runtime.core.execute(operation, actor, input, {
+          surface: "browser",
+          idempotencyKey: newId(),
+          ...context,
+        });
+      const database = DatabaseSchema.parse(
+        await execute("createDatabase", owner, {
+          orgId: owner.orgId,
+          name: "Receipt-first policy",
+        }),
+      );
+      const issued = KeyCreatedSchema.parse(
+        await execute("createPersonalKey", owner, {
+          orgId: owner.orgId,
+          name: "Actual scoped policy initiator",
+          scopes: ["backups:manage", "databases:read"],
+          targets: [{ databaseId: database.id, level: "manage" }],
+          unrestricted: false,
+        }),
+      );
+      const actor = (await service.resolveActor(
+        new Request(`${baseURL}/v1/me`, {
+          headers: { authorization: `Bearer ${issued.secret}` },
+        }),
+        "api",
+      ))!;
+      const input = {
+        orgId: owner.orgId,
+        databaseId: database.id,
+        enabled: false,
+        cron: "0 2 * * *",
+        timezone: "UTC",
+        retentionDays: 7,
+        retentionCount: 7,
+        maxRuntimeSeconds: 3600,
+        encryption: true,
+        destination: "installation",
+        notifications: false,
+      };
+      const begin = async () =>
+        AccountActionSchema.parse(
+          await execute("beginAccountAction", actor, {
+            orgId: owner.orgId,
+            type: "set_backup_policy",
+            operationId: "setBackupPolicy",
+            input,
+          }),
+        );
+      const action = await begin();
+      await service.approveAction(action.id, owner);
+      const context = {
+        surface: "rest" as const,
+        actionId: action.id,
+        idempotencyKey: `account-action:${action.id}`,
+      };
+      let notifyNamed!: () => void, notifyCompletion!: () => void;
+      const namedHeld = new Promise<void>((resolve) => {
+          notifyNamed = resolve;
+        }),
+        completionDispatched = new Promise<void>((resolve) => {
+          notifyCompletion = resolve;
+        });
+      const privateIdentity = service as unknown as {
+          requireApprovedAction: (...args: unknown[]) => Promise<unknown>;
+          externalExecutor: (...args: unknown[]) => Promise<unknown>;
+        },
+        privateJobs = runtime.jobs as unknown as {
+          setPolicy: (...args: unknown[]) => Promise<unknown>;
+        };
+      const approve = privateIdentity.requireApprovedAction.bind(service),
+        external = privateIdentity.externalExecutor.bind(service),
+        setPolicy = privateJobs.setPolicy.bind(runtime.jobs);
+      let paused = false,
+        policyEffects = 0;
+      // Schedule the two real dispatch paths while the named request holds its receipt.
+      privateIdentity.requireApprovedAction = async (...args) => {
+        if (args[4] === true && !paused) {
+          paused = true;
+          notifyNamed();
+          await Promise.race([
+            completionDispatched,
+            new Promise<never>((_, reject) => {
+              const timer = setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      "Completion did not dispatch before its action lock",
+                    ),
+                  ),
+                5000,
+              );
+              timer.unref();
+            }),
+          ]);
+        }
+        return approve(...args);
+      };
+      privateIdentity.externalExecutor = async (...args) => {
+        notifyCompletion();
+        return external(...args);
+      };
+      privateJobs.setPolicy = async (...args) => {
+        policyEffects++;
+        return setPolicy(...args);
+      };
+      const named = runtime.core.execute(
+        "setBackupPolicy",
+        actor,
+        input,
+        context,
+      );
+      await namedHeld;
+      const completed = runtime.core.execute(
+        "completeAccountAction",
+        actor,
+        { id: action.id },
+        { surface: "mcp", idempotencyKey: context.idempotencyKey },
+      );
+      const results = await Promise.all([named, completed]);
+      privateIdentity.requireApprovedAction = approve;
+      privateIdentity.externalExecutor = external;
+      privateJobs.setPolicy = setPolicy;
+      const policy = BackupPolicySchema.parse(results[0]),
+        completion = AccountActionSchema.parse(results[1]);
+      assert.equal(completion.state, "consumed");
+      assert.deepEqual(BackupPolicySchema.parse(completion.result), policy);
+      assert.equal(
+        policyEffects,
+        1,
+        "Concurrent named and completion paths perform one actual policy write",
+      );
+      assert.equal(
+        (
+          await fixture.owner.query(
+            "SELECT count(*) FROM rootset_control.backup_policies WHERE database_id=$1",
+            [database.id],
+          )
+        ).rows[0].count,
+        "1",
+      );
+      assert.equal(
+        (
+          await fixture.owner.query(
+            "SELECT count(*) FROM rootset_control.control_mutation_replays WHERE operation_id='setBackupPolicy' AND org_id=$1 AND outcome IS NOT NULL",
+            [owner.orgId],
+          )
+        ).rows[0].count,
+        "1",
+      );
+      const persisted = (
+        await fixture.owner.query(
+          "SELECT consumed_at,payload_encrypted,result FROM rootset_control.account_actions WHERE id=$1",
+          [action.id],
+        )
+      ).rows[0];
+      assert.ok(persisted.consumed_at);
+      assert.equal(persisted.payload_encrypted, "");
+      assert.deepEqual(BackupPolicySchema.parse(persisted.result), policy);
+      const transaction = (
+        await fixture.owner.query(
+          "SELECT xmin::text transaction FROM rootset_control.backup_policies WHERE database_id=$1",
+          [database.id],
+        )
+      ).rows[0].transaction;
+      assert.deepEqual(
+        await runtime.core.execute("setBackupPolicy", actor, input, context),
+        policy,
+      );
+      assert.equal(
+        (
+          await fixture.owner.query(
+            "SELECT xmin::text transaction FROM rootset_control.backup_policies WHERE database_id=$1",
+            [database.id],
+          )
+        ).rows[0].transaction,
+        transaction,
+      );
+      const narrowedAction = await begin();
+      await service.approveAction(narrowedAction.id, owner);
+      await fixture.owner.query(
+        "UPDATE rootset_control.api_keys SET targets=$2 WHERE id=$1",
+        [
+          issued.key.id,
+          JSON.stringify([{ databaseId: database.id, level: "read" }]),
+        ],
+      );
+      await assert.rejects(
+        () => runtime.core.execute("setBackupPolicy", actor, input, context),
+        (error) => (error as { code: string }).code === "RESOURCE_NOT_FOUND",
+      );
+      await assert.rejects(
+        () =>
+          runtime.core.execute(
+            "completeAccountAction",
+            actor,
+            { id: narrowedAction.id },
+            { surface: "mcp", idempotencyKey: newId() },
+          ),
+        (error) => (error as { code: string }).code === "RESOURCE_NOT_FOUND",
+      );
+      assert.equal(
+        (
+          await fixture.owner.query(
+            "SELECT xmin::text transaction FROM rootset_control.backup_policies WHERE database_id=$1",
+            [database.id],
+          )
+        ).rows[0].transaction,
+        transaction,
+      );
+      assert.equal(
+        AccountActionSchema.parse(
+          await execute("getAccountAction", actor, { id: narrowedAction.id }),
+        ).state,
+        "approved",
+      );
+    } finally {
+      await runtime.close();
+      await fixture.close();
+    }
+  },
+);
+
+test(
+  "AUTH-07 AUTH-08 UI-shaped sign-out approvals preserve or revoke delegated authority with an immutable boolean",
+  { skip: !ownerURL || !identityURL },
+  async () => {
+    const fixture = await isolatedDatabase();
+    const config = {
+      pool: fixture.identity,
+      baseURL,
+      secret: randomBytes(32).toString("hex"),
+      bootstrapSecret: randomBytes(32).toString("hex"),
+      keyHashSecret: randomBytes(32).toString("hex"),
+      encryptionKeys: { test: randomBytes(32).toString("base64") },
+      activeEncryptionKeyId: "test",
+    };
+    const service = createIdentityService(config);
+    const email = `signout-${newId().toLowerCase()}@example.test`;
+    const password = randomBytes(32).toString("base64url");
+    const execute = (id: string, actor: Actor, input: unknown) =>
+      service.execute(id, actor, input, { idempotencyKey: newId() });
+    const freshSession = async () => {
+      const session = await login(service, email, password);
+      assert.equal(session.response.status, 200);
+      return (await service.resolveActor(
+        request("/get-session", undefined, session.cookie),
+        "browser",
+      ))!;
+    };
+    try {
+      await service.claimSetup({
+        bootstrapSecret: config.bootstrapSecret,
+        name: "Sign-out approval fixture",
+        email,
+        password,
+        organisationName: "Disposable sign-out approval fixture",
+      });
+      await latestVerification(service, fixture.identity, email);
+      const actor = await freshSession();
+      const key = KeyCreatedSchema.parse(
+        await execute("createPersonalKey", actor, {
+          orgId: actor.orgId,
+          name: "Sign-out delegated key",
+          scopes: ["rows:read"],
+          targets: [],
+          unrestricted: true,
+        }),
+      );
+      assert.ok(key.secret);
+      const bearer = () =>
+        service.resolveActor(
+          new Request(`${baseURL}/v1/me`, {
+            headers: { authorization: `Bearer ${key.secret}` },
+          }),
+          "api",
+        );
+      // Token issuance is exercised by the HTTP/MCP suite; this grant checks persisted revocation state.
+      const grantId = newId();
+      await fixture.owner.query(
+        `INSERT INTO rootset_control.oauth_grants(id,org_id,user_id,client_id,scopes,targets,actor,resource) VALUES($1,$2,$3,'signout-fixture-client',ARRAY['rows:read'],'[]',$4,$5)`,
+        [
+          grantId,
+          actor.orgId,
+          actor.userId,
+          JSON.stringify({
+            ...actor,
+            kind: "oauth",
+            id: grantId,
+            credentialId: grantId,
+            clientId: "signout-fixture-client",
+          }),
+          `${baseURL}/mcp`,
+        ],
+      );
+      await assert.rejects(
+        () =>
+          execute("beginAccountAction", actor, {
+            type: "sign_out_everywhere",
+            operationId: "signOutEverywhere",
+            input: { revokeDelegated: "false" },
+          }),
+        (error) => (error as { code: string }).code === "VALIDATION_FAILED",
+      );
+      const preserve = AccountActionSchema.parse(
+        await execute("beginAccountAction", actor, {
+          type: "sign_out_everywhere",
+          operationId: "signOutEverywhere",
+          input: { revokeDelegated: false },
+        }),
+      );
+      await service.approveAction(preserve.id, actor);
+      await assert.rejects(
+        () =>
+          service.execute(
+            "signOutEverywhere",
+            actor,
+            { revokeDelegated: true },
+            { actionId: preserve.id, idempotencyKey: newId() },
+          ),
+        (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
+      );
+      assert.ok(await service.refreshActor(actor));
+      assert.equal(
+        (
+          await fixture.owner.query(
+            `SELECT consumed_at FROM rootset_control.account_actions WHERE id=$1`,
+            [preserve.id],
+          )
+        ).rows[0].consumed_at,
+        null,
+      );
+      const preserved = AccountActionSchema.parse(
+        await execute("completeAccountAction", actor, { id: preserve.id }),
+      );
+      assert.deepEqual(preserved.result, { revoked: true });
+      await assert.rejects(() => service.refreshActor(actor));
+      assert.ok(await bearer());
+      assert.equal(
+        (
+          await fixture.owner.query(
+            `SELECT revoked_at FROM rootset_control.oauth_grants WHERE id=$1`,
+            [grantId],
+          )
+        ).rows[0].revoked_at,
+        null,
+      );
+      const renewed = await freshSession();
+      const secondSession = await freshSession();
+      const revoke = AccountActionSchema.parse(
+        await execute("beginAccountAction", renewed, {
+          type: "sign_out_everywhere",
+          operationId: "signOutEverywhere",
+          input: { revokeDelegated: true },
+        }),
+      );
+      await service.approveAction(revoke.id, renewed);
+      const revoked = AccountActionSchema.parse(
+        await execute("completeAccountAction", renewed, { id: revoke.id }),
+      );
+      assert.deepEqual(revoked.result, { revoked: true });
+      await assert.rejects(() => service.refreshActor(renewed));
+      await assert.rejects(() => service.refreshActor(secondSession));
+      assert.equal(await bearer(), null);
+      assert.equal(
+        (
+          await fixture.owner.query(
+            `SELECT count(*) FROM rootset_control.sessions WHERE user_id=$1`,
+            [actor.userId],
+          )
+        ).rows[0].count,
+        "0",
+      );
+      assert.ok(
+        (
+          await fixture.owner.query(
+            `SELECT revoked_at FROM rootset_control.oauth_grants WHERE id=$1`,
+            [grantId],
+          )
+        ).rows[0].revoked_at,
+      );
+    } finally {
+      await fixture.close();
+    }
+  },
+);
 
 test(
   "AUTH-07 legacy password digests are erased and pending approvals expire while verified ownership survives",
@@ -2242,12 +3082,24 @@ test(
           assert.equal(failed.attempts, 1);
           assert.equal(failed.last_error, "SMTP delivery failed");
           assert.ok(failed.payload_encrypted);
+          const smtpHost = process.env.ROOTSET_SMTP_HOST;
+          const smtpPort = Number(process.env.ROOTSET_SMTP_PORT);
+          const smtpFrom = process.env.ROOTSET_EMAIL_FROM;
+          assert.ok(smtpHost, "The mail fixture needs a configured SMTP host");
+          assert.ok(
+            Number.isInteger(smtpPort) && smtpPort > 0 && smtpPort <= 65535,
+            "The mail fixture needs a configured SMTP port",
+          );
+          assert.ok(smtpFrom, "The mail fixture needs a configured sender");
           const restarted = new EmailOutbox(pool, {
             ...config,
             smtp: {
-              host: "127.0.0.1",
-              port: 59025,
-              from: "rootset@example.test",
+              host: smtpHost,
+              port: smtpPort,
+              secure: process.env.ROOTSET_SMTP_SECURE === "true",
+              from: smtpFrom,
+              user: process.env.ROOTSET_SMTP_USER,
+              password: process.env.ROOTSET_SMTP_PASSWORD,
             },
           });
           await owner.query(
