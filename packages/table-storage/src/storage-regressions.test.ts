@@ -492,8 +492,15 @@ test(
       { value: "second" },
       { expectedVersion: row.version },
     );
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const to = new Date().toISOString();
+    await owner!.query(
+      "UPDATE rootset_control.cell_changes SET changed_at=changed_at-interval '10 seconds' WHERE table_id=$1",
+      [table.id],
+    );
+    await owner!.query(
+      "UPDATE rootset_control.row_events SET changed_at=changed_at-interval '10 seconds' WHERE table_id=$1",
+      [table.id],
+    );
+    const to = new Date(Date.now() - 5000).toISOString();
     const c = await ddl!.connect();
     let metadata: Awaited<
       ReturnType<TableStorage["snapshotHistory"]>
@@ -504,6 +511,15 @@ test(
       await c.query("SELECT set_config('rootset.org_id',$1,true)", [
         actor.orgId,
       ]);
+      await assert.rejects(
+        storage!.snapshotHistory(
+          actor,
+          table.id,
+          { to: new Date(Date.now() + 60000).toISOString() },
+          c,
+        ),
+        { code: "VALIDATION_FAILED" },
+      );
       const source = await storage!.snapshotHistory(actor, table.id, { to }, c);
       metadata = source.metadata;
       for await (const batch of source.history()) cold.push(...batch);
@@ -1371,5 +1387,521 @@ test(
       );
     });
     await storage!.discardRestore(actor, restored);
+  },
+);
+
+test(
+  "Native unique rules use exact typed grouping and extend the SQL budget only for a current authorised queued worker",
+  { skip: !configured },
+  async () => {
+    const url = new URL(process.env.ROOTSET_TEST_DDL_DATABASE_URL!);
+    url.pathname = `/${isolatedName}`;
+    const observedPool = createPool(url.toString(), 2);
+    const observations: { timeout: string; sql: string }[] = [];
+    observedPool.on(
+      "connect",
+      (client: import("@rootset/database").PoolClient) => {
+        const execute = client.query.bind(client) as unknown as (
+          sql: string,
+          parameters?: unknown[],
+        ) => Promise<{ rows: Record<string, unknown>[] }>;
+        client.query = (async (sql: string, parameters?: unknown[]) => {
+          if (typeof sql === "string" && sql.includes("HAVING count(*)>1")) {
+            const setting = await execute("SHOW statement_timeout");
+            observations.push({
+              timeout: String(setting.rows[0]!.statement_timeout),
+              sql,
+            });
+          }
+          return execute(sql, parameters);
+        }) as typeof client.query;
+      },
+    );
+    const observed = new TableStorage({
+      pool: app!,
+      ddlPool: observedPool,
+      cursorSecret: "unique-rule-budget-regression-secret-at-least-32-bytes",
+    });
+    const fixture = async (label: string, duplicates = false) => {
+      const table = await observed.createTable(actor, databaseId, {
+        name: label,
+        fields: [
+          { apiKey: "code", label: "Code", type: "text", charLimit: 40 },
+          { apiKey: "count", label: "Count", type: "integer" },
+          { apiKey: "rate", label: "Rate", type: "float" },
+        ],
+      });
+      await observed.mutateRows(actor, table.id, {
+        operations: [
+          { kind: "create", values: { code: "Case", count: 1, rate: 0 } },
+          {
+            kind: "create",
+            values: { code: duplicates ? "Case" : "case", count: 1, rate: -0 },
+          },
+          { kind: "create", values: { code: null, count: 1, rate: 0 } },
+          { kind: "create", values: { code: null, count: 1, rate: 0 } },
+        ],
+      });
+      return table;
+    };
+    try {
+      const ordinary = await fixture("Ordinary typed grouping");
+      assert.equal(
+        (
+          await observed.createUniqueRule(actor, ordinary.id, {
+            fieldIds: ordinary.fields.map((f) => f.id),
+            expectedSchemaVersion: 1,
+          })
+        ).strategy,
+        "native",
+      );
+      assert.equal(observations.at(-1)!.timeout, "10s");
+      assert.ok(observations.at(-1)!.sql.startsWith("WITH duplicates AS"));
+      assert.equal(observations.at(-1)!.sql.includes("canonical_json"), false);
+      const worker = await fixture("Queued typed grouping");
+      const fence = await runningJob(worker.id, "createUniqueRule");
+      assert.equal(
+        (
+          await observed.createUniqueRule(actor, worker.id, {
+            fieldIds: worker.fields.map((f) => f.id),
+            expectedSchemaVersion: 1,
+            context: { jobFence: fence },
+          })
+        ).state,
+        "active",
+      );
+      assert.equal(observations.at(-1)!.timeout, "0");
+      const expired = await fixture("Expired queued grouping");
+      const deadFence = await runningJob(expired.id, "createUniqueRule");
+      await owner!.query(
+        "UPDATE rootset_control.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+        [deadFence.jobId],
+      );
+      const scans = observations.length;
+      await assert.rejects(
+        observed.createUniqueRule(actor, expired.id, {
+          fieldIds: expired.fields.map((f) => f.id),
+          expectedSchemaVersion: 1,
+          context: { jobFence: deadFence },
+        }),
+        { code: "JOB_LEASE_LOST" },
+      );
+      await assert.rejects(
+        observed.createUniqueRule(actor, expired.id, {
+          fieldIds: expired.fields.map((f) => f.id),
+          expectedSchemaVersion: 1,
+          context: {
+            jobFence: fence,
+            beforePublish: async () => {
+              throw Object.assign(new Error("Authority revoked"), {
+                code: "ACCESS_DENIED",
+              });
+            },
+          },
+        }),
+        { code: "ACCESS_DENIED" },
+      );
+      assert.equal(observations.length, scans);
+      assert.equal(
+        (await observed.listUniqueRules(actor, expired.id)).length,
+        0,
+      );
+      const duplicate = await fixture("Signed-zero duplicates", true);
+      await assert.rejects(
+        observed.createUniqueRule(actor, duplicate.id, {
+          fieldIds: duplicate.fields.map((f) => f.id),
+          expectedSchemaVersion: 1,
+        }),
+        (error) => {
+          const result = error as {
+            code: string;
+            details: { conflicts: { count: number; rowIds: string[] }[] };
+          };
+          assert.equal(result.code, "UNIQUE_CONFLICT");
+          assert.equal(result.details.conflicts[0]!.count, 2);
+          assert.equal(result.details.conflicts[0]!.rowIds.length, 2);
+          return true;
+        },
+      );
+      const cancelled = await fixture("Cancellation at rule publication");
+      const cancelledFence = await runningJob(cancelled.id, "createUniqueRule");
+      let checks = 0;
+      await assert.rejects(
+        observed.createUniqueRule(actor, cancelled.id, {
+          fieldIds: cancelled.fields.map((f) => f.id),
+          expectedSchemaVersion: 1,
+          context: {
+            jobFence: cancelledFence,
+            beforePublish: async () => {
+              if (++checks === 2)
+                await owner!.query(
+                  "UPDATE rootset_control.jobs SET cancel_requested=true WHERE id=$1",
+                  [cancelledFence.jobId],
+                );
+            },
+          },
+        }),
+        { code: "JOB_LEASE_LOST" },
+      );
+      assert.equal(checks, 2);
+      assert.equal(
+        (await observed.getTable(actor, cancelled.id)).schemaVersion,
+        1,
+      );
+      assert.equal(
+        (await observed.listUniqueRules(actor, cancelled.id)).length,
+        0,
+      );
+      assert.equal(
+        (
+          await owner!.query(
+            "SELECT c.oid FROM pg_class c JOIN pg_index i ON i.indexrelid=c.oid WHERE i.indrelid=$1::regclass AND c.relname LIKE 'rsu_%'",
+            [`"${schemaName}"."${cancelled.physicalName}"`],
+          )
+        ).rowCount,
+        0,
+      );
+    } finally {
+      await observedPool.end();
+    }
+  },
+);
+
+test(
+  "Rule idempotency replays the exact durable outcome when names share fields and after subsequent rule deletion",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Exact rule result",
+      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 20 }],
+    });
+    const firstInput = {
+      name: "First named rule",
+      fieldIds: [table.fields[0]!.id],
+      expectedSchemaVersion: 1,
+      idempotencyKey: "first-exact-rule",
+    };
+    const secondInput = {
+      name: "Second named rule",
+      fieldIds: [table.fields[0]!.id],
+      expectedSchemaVersion: 2,
+      idempotencyKey: "second-exact-rule",
+    };
+    const first = await storage!.createUniqueRule(actor, table.id, firstInput);
+    const second = await storage!.createUniqueRule(
+      actor,
+      table.id,
+      secondInput,
+    );
+    assert.notEqual(second.id, first.id);
+    const restarted = new TableStorage({
+      pool: app!,
+      ddlPool: ddl!,
+      cursorSecret: "restarted-rule-outcome-secret-at-least-thirty-two-bytes",
+    });
+    assert.deepEqual(
+      await restarted.createUniqueRule(actor, table.id, secondInput),
+      second,
+    );
+    await restarted.deleteUniqueRule(actor, table.id, second.id, {
+      expectedSchemaVersion: 3,
+    });
+    const afterDeletion = await restarted.getTable(actor, table.id);
+    assert.equal(
+      (await restarted.listUniqueRules(actor, table.id)).some(
+        (rule) => rule.id === second.id,
+      ),
+      false,
+    );
+    assert.equal(afterDeletion.schemaVersion, 4);
+    assert.deepEqual(
+      await restarted.createUniqueRule(actor, table.id, secondInput),
+      second,
+    );
+    const saved = (
+      await owner!.query<{ plan: { ruleId: string; outcome: unknown } }>(
+        "SELECT plan FROM rootset_control.schema_operations WHERE org_id=$1 AND idempotency_key=$2",
+        [actor.orgId, secondInput.idempotencyKey],
+      )
+    ).rows[0]!.plan;
+    assert.equal(saved.ruleId, second.id);
+    assert.deepEqual(saved.outcome, second);
+    await owner!.query(
+      "UPDATE rootset_control.schema_operations SET plan=plan-'outcome' WHERE org_id=$1 AND idempotency_key=$2",
+      [actor.orgId, secondInput.idempotencyKey],
+    );
+    await assert.rejects(
+      restarted.createUniqueRule(actor, table.id, secondInput),
+      { code: "INTERNAL_ERROR", status: 500 },
+    );
+    assert.equal((await restarted.getTable(actor, table.id)).schemaVersion, 4);
+    assert.equal((await restarted.listUniqueRules(actor, table.id)).length, 1);
+  },
+);
+
+test(
+  "Conversions rebuild unaffected native, trigram and JSON indexes on the authoritative generation and preserve registry uniqueness across repeated conversion and replay",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Generation enforcement",
+      fields: [
+        { apiKey: "code", label: "Code", type: "text", charLimit: 30 },
+        { apiKey: "wide", label: "Wide", type: "text", charLimit: 4000 },
+        { apiKey: "value", label: "Value", type: "float" },
+        { apiKey: "payload", label: "Payload", type: "json" },
+      ],
+    });
+    const native = await storage!.createUniqueRule(actor, table.id, {
+      name: "Native unchanged",
+      fieldIds: [table.fields[0]!.id],
+      expectedSchemaVersion: 1,
+    });
+    const registry = await storage!.createUniqueRule(actor, table.id, {
+      name: "Registry unchanged",
+      fieldIds: [table.fields[1]!.id],
+      expectedSchemaVersion: 2,
+    });
+    assert.equal(registry.strategy, "registry");
+    for (const [index, kind] of (
+      ["btree", "trigram", "json"] as const
+    ).entries())
+      await storage!.createIndex(actor, table.id, {
+        fieldId: table.fields[kind === "json" ? 3 : 0]!.id,
+        kind,
+        expectedSchemaVersion: 3 + index,
+      });
+    const rows = [];
+    for (let i = 0; i < 3; i++)
+      rows.push(
+        await storage!.createRow(actor, table.id, {
+          code: `code-${i}`,
+          wide: `wide-${i}`,
+          value: i + 0.25,
+          payload: { keep: i },
+        }),
+      );
+    const jobFence = await runningJob(table.id, "updateField");
+    const requestId = newId();
+    const input = {
+      type: "text" as const,
+      conversion: { strategy: "stringify" as const },
+      expectedSchemaVersion: 6,
+      idempotencyKey: "generation-stringify",
+      context: {
+        source: "mcp" as const,
+        requestId,
+        jobId: jobFence.jobId,
+        jobFence,
+      },
+    };
+    const converted = await storage!.updateField(
+      actor,
+      table.id,
+      table.fields[2]!.id,
+      input,
+    );
+    assert.equal(converted.generation, 2);
+    for (const relation of ["mutations", "cell_changes", "resource_history"]) {
+      const records = await owner!.query<{ context: unknown; body: string }>(
+        `SELECT context,row_to_json(r)::text AS body FROM rootset_control.${relation} r WHERE table_id=$1 AND context->>'jobId'=$2`,
+        [table.id, jobFence.jobId],
+      );
+      assert.ok(records.rowCount! > 0);
+      for (const record of records.rows) {
+        assert.deepEqual(record.context, {
+          source: "schema",
+          requestId,
+          jobId: jobFence.jobId,
+        });
+        assert.equal(record.body.includes(jobFence.leaseToken), false);
+        assert.equal(record.body.includes("jobFence"), false);
+      }
+    }
+    async function enforcement(current: typeof converted) {
+      const rules = await storage!.listUniqueRules(actor, table.id),
+        indexes = await storage!.listIndexes(actor, table.id);
+      assert.deepEqual(
+        rules.map((r) => r.id).sort(),
+        [native.id, registry.id].sort(),
+      );
+      for (const definition of [
+        ...rules.filter((r) => r.strategy === "native"),
+        ...indexes,
+      ]) {
+        const info = (
+          await owner!.query<{
+            relid: string;
+            valid: boolean;
+            definition: string;
+          }>(
+            "SELECT i.indrelid::regclass::text AS relid,i.indisvalid AS valid,pg_get_indexdef(i.indexrelid) AS definition FROM pg_index i WHERE i.indexrelid=$1::regclass",
+            [`"${current.schemaName}"."${definition.physicalName}"`],
+          )
+        ).rows[0]!;
+        assert.equal(
+          info.relid,
+          `${current.schemaName}.${current.physicalName}`,
+        );
+        assert.equal(info.valid, true);
+        if ("kind" in definition && definition.kind === "trigram")
+          assert.ok(info.definition.includes("gin_trgm_ops"));
+        if ("kind" in definition && definition.kind === "json")
+          assert.ok(info.definition.includes("USING gin"));
+      }
+      const value = current.fields[2]!.type === "text" ? "7" : 7;
+      await assert.rejects(
+        storage!.createRow(actor, table.id, {
+          code: "code-0",
+          wide: "unused-wide",
+          value,
+          payload: null,
+        }),
+        { code: "UNIQUE_CONFLICT" },
+      );
+      await assert.rejects(
+        storage!.createRow(actor, table.id, {
+          code: "unused-code",
+          wide: "wide-0",
+          value,
+          payload: null,
+        }),
+        { code: "UNIQUE_CONFLICT" },
+      );
+      assert.equal((await storage!.getTable(actor, table.id)).rowCount, 3);
+    }
+    await enforcement(converted);
+    assert.equal(
+      (await storage!.updateField(actor, table.id, table.fields[2]!.id, input))
+        .generation,
+      2,
+    );
+    assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 7);
+    const reverted = await storage!.updateField(
+      actor,
+      table.id,
+      table.fields[2]!.id,
+      {
+        type: "float",
+        conversion: { strategy: "parse" },
+        expectedSchemaVersion: 7,
+        idempotencyKey: "generation-parse",
+      },
+    );
+    assert.equal(reverted.generation, 3);
+    await enforcement(reverted);
+    for (const row of rows)
+      assert.equal(
+        (await storage!.getRow(actor, table.id, row.id)).version,
+        "3",
+      );
+    assert.equal(
+      (
+        await owner!.query(
+          "SELECT id FROM rootset_control.cell_changes WHERE table_id=$1 AND operation='conversion'",
+          [table.id],
+        )
+      ).rowCount,
+      6,
+    );
+  },
+);
+
+test(
+  "Restart reconciliation publishes an actually built index after SIGKILL before metadata cutover, then exact retry increments the schema only once",
+  { skip: !configured },
+  async () => {
+    const { spawn } = await import("node:child_process");
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Killed valid native build",
+      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 30 }],
+    });
+    await storage!.createRow(actor, table.id, { code: "kept" });
+    const appUrl = new URL(process.env.ROOTSET_TEST_APP_DATABASE_URL!),
+      ddlUrl = new URL(process.env.ROOTSET_TEST_DDL_DATABASE_URL!);
+    appUrl.pathname = ddlUrl.pathname = `/${isolatedName}`;
+    const input = {
+      fieldId: table.fields[0]!.id,
+      kind: "btree" as const,
+      expectedSchemaVersion: 1,
+      idempotencyKey: "actual-killed-index",
+    };
+    const program = `import {TableStorage} from ${JSON.stringify(new URL("./index.ts", import.meta.url).href)};import {createPool} from '@rootset/database';const app=createPool(process.env.PROBE_APP_URL),ddl=createPool(process.env.PROBE_DDL_URL);const storage=new TableStorage({pool:app,ddlPool:ddl,cursorSecret:'child-index-restart-secret-at-least-thirty-two-bytes'});let calls=0;await storage.createIndex(${JSON.stringify(actor)},${JSON.stringify(table.id)},{...${JSON.stringify(input)},context:{beforePublish:async()=>{if(++calls===2){process.send({nativeBuilt:true});await new Promise(()=>{});}}}});`;
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "--eval", program],
+      {
+        env: {
+          ...process.env,
+          PROBE_APP_URL: appUrl.toString(),
+          PROBE_DDL_URL: ddlUrl.toString(),
+        },
+        stdio: ["ignore", "ignore", "pipe", "ipc"],
+      },
+    );
+    let stderr = "";
+    child.stderr!.on("data", (chunk) => (stderr += chunk.toString()));
+    const ended = new Promise<{
+      code: number | null;
+      signal: NodeJS.Signals | null;
+    }>((resolve) =>
+      child.once("exit", (code, signal) => resolve({ code, signal })),
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("Native index checkpoint missing: " + stderr)),
+          5000,
+        );
+        child.once("message", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        child.once("exit", () => {
+          clearTimeout(timeout);
+          reject(new Error("Child exited before checkpoint: " + stderr));
+        });
+      });
+      const pending = await storage!.listIndexes(actor, table.id);
+      assert.equal(pending[0]!.state, "building");
+      assert.equal(
+        (
+          await owner!.query<{ valid: boolean }>(
+            "SELECT indisvalid AS valid FROM pg_index WHERE indexrelid=$1::regclass",
+            [`"${schemaName}"."${pending[0]!.physicalName}"`],
+          )
+        ).rows[0]!.valid,
+        true,
+      );
+      child.kill("SIGKILL");
+      assert.equal((await ended).signal, "SIGKILL");
+      const restarted = new TableStorage({
+        pool: app!,
+        ddlPool: ddl!,
+        cursorSecret:
+          "index-restart-verification-secret-at-least-thirty-two-bytes",
+      });
+      assert.equal(
+        (await restarted.reconcileSchemaOperations(actor)).recovered.length,
+        1,
+      );
+      assert.equal(
+        (await restarted.createIndex(actor, table.id, input)).id,
+        pending[0]!.id,
+      );
+      assert.equal(
+        (await restarted.getTable(actor, table.id)).schemaVersion,
+        2,
+      );
+      assert.equal(
+        (await restarted.listIndexes(actor, table.id))[0]!.state,
+        "active",
+      );
+      assert.equal((await restarted.getTable(actor, table.id)).rowCount, 1);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null)
+        child.kill("SIGKILL");
+      await ended;
+    }
   },
 );

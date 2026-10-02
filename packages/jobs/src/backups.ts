@@ -149,6 +149,8 @@ export function historyContent(
     "tableId",
     "fieldId",
     "resourceId",
+    "ruleId",
+    "indexId",
     "mutationId",
     "fieldIds",
     "table_id",

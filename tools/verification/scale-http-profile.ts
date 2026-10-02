@@ -715,7 +715,9 @@ export async function runHttpProfile(
           };
           assert.equal(typeof admitted.jobId, "string");
           const active: number[] = [],
-            complete: number[] = [];
+            complete: number[] = [],
+            activeErrors: Record<string, number> = {},
+            completeErrors: Record<string, number> = {};
           let state:
             { state: string; result: unknown; error?: unknown } | undefined;
           await measure(
@@ -729,11 +731,19 @@ export async function runHttpProfile(
                   })
                 ).value as typeof state;
               const began = performance.now();
-              await indexed(index);
-              (state && ["queued", "running"].includes(state.state)
-                ? active
-                : complete
-              ).push(performance.now() - began);
+              const observedActive =
+                state && ["queued", "running"].includes(state.state);
+              try {
+                await indexed(index);
+              } catch (error) {
+                const errors = observedActive ? activeErrors : completeErrors;
+                errors[errorCode(error)] = (errors[errorCode(error)] ?? 0) + 1;
+                throw error;
+              } finally {
+                (observedActive ? active : complete).push(
+                  performance.now() - began,
+                );
+              }
             },
             500,
           );
@@ -763,8 +773,23 @@ export async function runHttpProfile(
             id: `BACKGROUND-${name}`,
             jobId: admitted.jobId,
             elapsedMs: performance.now() - started,
-            foregroundDuringQueuedOrRunning: summary(active),
-            foregroundAfterObservedTerminal: summary(complete),
+            foregroundDuringObservedQueuedOrRunning: {
+              ...summary(active),
+              errors: activeErrors,
+              targetP95Ms: 500,
+              measuredTargetMet:
+                active.length > 0 &&
+                (summary(active).p95Ms ?? Infinity) <= 500 &&
+                Object.keys(activeErrors).length === 0,
+              minimumScenarioRequests: 1000,
+              minimumActiveSampleCountMet: active.length >= 1000,
+            },
+            foregroundAfterObservedTerminal: {
+              ...summary(complete),
+              errors: completeErrors,
+            },
+            overlapClassification:
+              "Authenticated job state is observed every20requests. Active samples use the latest queued/running observation; completion may occur between polls. Post-terminal samples do not count as concurrent background evidence.",
             observedJob: state,
             resourcesBefore: before,
             resourcesAfter: await resources(),
@@ -958,6 +983,10 @@ export async function runHttpProfile(
         assert.equal(typeof admitted.jobId, "string");
         const durations: number[] = [],
           errors: Record<string, number> = {},
+          active: number[] = [],
+          complete: number[] = [],
+          activeErrors: Record<string, number> = {},
+          completeErrors: Record<string, number> = {},
           samples: unknown[] = [before];
         let state:
           { state: string; result: unknown; error?: unknown } | undefined;
@@ -970,12 +999,19 @@ export async function runHttpProfile(
               })
             ).value as typeof state;
           const start = performance.now();
+          const observedActive =
+            state && ["queued", "running"].includes(state.state);
           try {
             await indexed(index % 1000);
           } catch (error) {
             errors[errorCode(error)] = (errors[errorCode(error)] ?? 0) + 1;
+            const phaseErrors = observedActive ? activeErrors : completeErrors;
+            phaseErrors[errorCode(error)] =
+              (phaseErrors[errorCode(error)] ?? 0) + 1;
           }
-          durations.push(performance.now() - start);
+          const duration = performance.now() - start;
+          durations.push(duration);
+          (observedActive ? active : complete).push(duration);
           if (index % 100 === 0) {
             samples.push(await resourceSample());
             console.log(
@@ -992,6 +1028,8 @@ export async function runHttpProfile(
               requests: index + 1,
               state: state?.state,
               errors,
+              observedActiveRequests: active.length,
+              observedTerminalRequests: complete.length,
             };
             await writeFile(filename, JSON.stringify(report, null, 2) + "\n", {
               mode: 0o600,
@@ -1016,7 +1054,24 @@ export async function runHttpProfile(
           id: `FULL-SCALE-${name}`,
           jobId: admitted.jobId,
           elapsedMs: performance.now() - began,
-          foreground: summary(durations),
+          foregroundOverall: summary(durations),
+          foregroundDuringObservedQueuedOrRunning: {
+            ...summary(active),
+            errors: activeErrors,
+            targetP95Ms: 500,
+            measuredTargetMet:
+              active.length > 0 &&
+              (summary(active).p95Ms ?? Infinity) <= 500 &&
+              Object.keys(activeErrors).length === 0,
+            minimumScenarioRequests: 1000,
+            minimumActiveSampleCountMet: active.length >= 1000,
+          },
+          foregroundAfterObservedTerminal: {
+            ...summary(complete),
+            errors: completeErrors,
+          },
+          overlapClassification:
+            "Authenticated job state is observed every10requests. Active samples use the latest queued/running observation; completion may occur between polls. Post-terminal samples do not count as concurrent background evidence.",
           errors,
           terminalJob: state,
           resourceSamples: samples,

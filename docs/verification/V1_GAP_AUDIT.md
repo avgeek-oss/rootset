@@ -1,4 +1,4 @@
-# V 1 development gap audit
+# V1 development gap audit
 
 This is development triage of all 205 exact requirements on 2 October 2026. It records source corrections, focused actual evidence and remaining whole-requirement proof separately. The tree is changing, all 205 gates remain unsigned and no named candidate reviewer approval is inferred.
 

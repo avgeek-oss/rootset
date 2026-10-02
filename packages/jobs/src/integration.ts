@@ -3142,16 +3142,16 @@ test("AUD-09 BKP-01 JOB-04: history policy, archive detail, schedule preview and
     (error) =>
       error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
   );
-  const before = await withOrg(
-    ddlPool,
-    actor.orgId,
-    async (c) =>
-      (
-        await c.query<{ before: string }>(
-          "SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS before",
-        )
-      ).rows[0]!.before,
+  const historicalAt = new Date(Date.now() - 60000).toISOString();
+  await owner.query(
+    "UPDATE rootset_control.cell_changes SET changed_at=$2 WHERE org_id=$1 AND table_id=$3",
+    [actor.orgId, historicalAt, target.id],
   );
+  await owner.query(
+    "UPDATE rootset_control.row_events SET changed_at=$2 WHERE org_id=$1 AND table_id=$3",
+    [actor.orgId, historicalAt, target.id],
+  );
+  const before = new Date(Date.now() - 5000).toISOString();
   const archive = (await jobs.execute(
     "archiveHistory",
     actor,

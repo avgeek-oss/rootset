@@ -46,7 +46,6 @@ jobs:
       ROOTSET_SMTP_PORT: "1025"
       ROOTSET_SMTP_SECURE: "false"
       ROOTSET_EMAIL_FROM: rootset@example.test
-      ROOTSET_CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
       ROOTSET_VERIFICATION_RUN: ci-integration
     services:
       postgres:
@@ -74,6 +73,8 @@ jobs:
         ports: [1025:1025, 8025:8025]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
@@ -82,6 +83,8 @@ jobs:
           npm install --global pnpm@11.5.3
           pnpm install --frozen-lockfile
       - name: Initialize isolated non-owner service roles and blank migrations
+        env:
+          ROOTSET_CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           pnpm exec tsx .github/scripts/prepare-postgres.ts
           pnpm db:migrate

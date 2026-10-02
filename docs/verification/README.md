@@ -15,16 +15,16 @@ The gate audit lists missing evidence explicitly. It does not infer complete imp
 
 The committed `gate-evidence-plan.json` is generated from the exact checklist. It preserves every requirement and records the additional kinds of evidence required. Regenerate it when an approved architecture change modifies the acceptance contract. A change in gate count requires review.
 
-[V 1_GAP_AUDIT.md](V 1_GAP_AUDIT.md) distinguishes prioritized implementation findings from broader verification gaps. Its `gate-gap-audit.json` inventories all 205 unchanged requirements with open acceptance status. Regenerate that development triage with `pnpm exec tsx tools/verification/gap-audit.ts`; it does not infer positive implementation completion or reviewer approval.
+[V1_GAP_AUDIT.md](V1_GAP_AUDIT.md) distinguishes prioritized implementation findings from broader verification gaps. Its `gate-gap-audit.json` inventories all 205 unchanged requirements with open acceptance status. Regenerate that development triage with `pnpm exec tsx tools/verification/gap-audit.ts`; it does not infer positive implementation completion or reviewer approval.
 
 Source pointers come from explicit gate IDs in test titles or instrumented case annotations, with curated suite pointers for the actual HTTP/MCP/OAuth workflows and scale scenarios. A pointer records intended partial coverage; it is neither an observed passing result nor proof that every test in that suite covers every linked gate. Gates without a named source stay visible as gaps. Review the individual assertions and machine result artifacts before relying on a source pointer.
 
 The scale harness creates a dedicated local organisation, a five-million-row table with 24 fields covering all eight native types, ten million retained cell changes, and a 200-field table with rows at the 65,536-byte limit. Canonical payload sizes are measured from actual values. Seeding uses the owner role with a temporary maintenance state and disabled enforcement trigger; this makes a performance fixture and is never evidence of normal write enforcement. The harness re-enables enforcement before final counts, checksums and benchmarks. Capacity and edit checks then use the ordinary application database role and real committed transactions.
 
 ```sh
-pnpm exec tsx tools/verification/scale-fixture.ts verification/scale-v 1
-pnpm exec tsx tools/verification/scale-fixture.ts verification/scale-v 1/scale-fixture.json --finalize
-pnpm exec tsx tools/verification/scale-benchmark.ts verification/scale-v 1/scale-fixture.json indexed 200
+pnpm exec tsx tools/verification/scale-fixture.ts verification/scale-v1
+pnpm exec tsx tools/verification/scale-fixture.ts verification/scale-v1/scale-fixture.json --finalize
+pnpm exec tsx tools/verification/scale-benchmark.ts verification/scale-v1/scale-fixture.json indexed 200
 ```
 
 The first command creates a new fixture; use it once. The second resumes finalization only when the recorded fixture exists and its manifest remains incomplete. It checks the physical count, schema and active enforcement trigger before proceeding. It neither reseeds rows nor replaces an already complete checksum manifest. Row checksums cover ordered native PostgreSQL row JSON in bounded chunks. History checksums cover each ordered event in bounded row groups using the existing organisation/table/row index, avoiding a global external sort of ten million records. The manifest records both algorithms and chunk digests.

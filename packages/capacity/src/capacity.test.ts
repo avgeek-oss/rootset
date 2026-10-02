@@ -265,6 +265,8 @@ test(
             installationQuotaBytes: (initial + 2097152n).toString(),
           });
           const first = await app!.connect();
+          let second: Promise<string | undefined> | undefined;
+          let admissionTimeout: ReturnType<typeof setTimeout> | undefined;
           try {
             await first.query("BEGIN");
             await first.query("SELECT set_config('rootset.org_id',$1,true)", [
@@ -278,8 +280,8 @@ test(
               `INSERT INTO "${schema}".capacity_native VALUES('first-org',$1)`,
               [randomBytes(131072).toString("base64")],
             );
-            let secondFinished = false;
-            const second = withOrg(app!, otherOrgId, async (c) => {
+            const startedAt = performance.now();
+            second = withOrg(app!, otherOrgId, async (c) => {
               await capacity.begin(c, otherOrgId, {
                 reserveBytes: 2097152n,
                 operation: "second-org",
@@ -288,18 +290,35 @@ test(
                 `INSERT INTO "${otherSchema}".capacity_native VALUES('second-org','denied')`,
               );
             }).then(
-              () => {
-                secondFinished = true;
-                return "accepted";
-              },
-              (error) => {
-                secondFinished = true;
-                return (error as { code: string }).code;
-              },
+              () => "accepted",
+              (error) => (error as { code: string }).code,
             );
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            assert.equal(secondFinished, true);
-            assert.equal(await second, "STORAGE_ADMISSION_BUSY");
+            const admissionBudgetMs = 2000;
+            const outcome = await Promise.race([
+              second,
+              new Promise<never>((_resolve, reject) => {
+                admissionTimeout = setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        "Admission did not reject within two seconds while the first reservation remained held",
+                      ),
+                    ),
+                  admissionBudgetMs,
+                );
+              }),
+            ]);
+            clearTimeout(admissionTimeout);
+            assert.equal(outcome, "STORAGE_ADMISSION_BUSY");
+            assert.ok(performance.now() - startedAt < admissionBudgetMs);
+            assert.equal(
+              (
+                await owner!.query(
+                  `SELECT count(*)::int count FROM "${otherSchema}".capacity_native WHERE id='second-org'`,
+                )
+              ).rows[0].count,
+              0,
+            );
             await capacity.finish(first, reservation);
             await first.query("COMMIT");
             await assert.rejects(
@@ -314,10 +333,15 @@ test(
                 assertPrivateCapacityError(error, "STORAGE_QUOTA_EXCEEDED"),
             );
           } finally {
-            await first.query("ROLLBACK");
-            first.release();
+            clearTimeout(admissionTimeout);
+            try {
+              await first.query("ROLLBACK");
+            } finally {
+              first.release();
+              await second;
+              await configure({ installationQuotaBytes: null });
+            }
           }
-          await configure({ installationQuotaBytes: null });
           await assert.rejects(
             () =>
               withOrg(app!, orgId, async (c) => {

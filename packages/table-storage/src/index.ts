@@ -1206,7 +1206,12 @@ export class TableStorage {
     tableId: string,
     kind: string,
     input: T,
-    change: (c: PoolClient, t: TableRecord) => Promise<void>,
+    change: (
+      c: PoolClient,
+      t: TableRecord,
+      operationId: string,
+    ) => Promise<void>,
+    replayed?: (c: PoolClient, operationId: string) => Promise<void>,
   ): Promise<TableRecord> {
     return this.run(
       a,
@@ -1217,13 +1222,20 @@ export class TableStorage {
         await this.barrier(c, t.databaseId);
         t = await this.table(c, a, tableId, true, true);
         const j = await this.journal(c, a, t, t.databaseId, kind, input, input);
-        if (j.replay) return t;
+        if (j.replay) {
+          await replayed?.(c, j.operationId);
+          return t;
+        }
         await this.database(c, a, t.databaseId);
         this.expected(t, input.expectedSchemaVersion);
         if (t.state !== "active")
           fail("SCHEMA_MAINTENANCE", "Table is in maintenance", 409);
         await this.assertPublication(c, a, input.context, false);
-        await change(c, t);
+        if (kind === "rule.create" && input.context?.jobFence) {
+          await c.query("SET LOCAL statement_timeout='0'");
+          await c.query("SET LOCAL lock_timeout='10s'");
+        }
+        await change(c, t, j.operationId);
         await this.assertPublication(c, a, input.context);
         await this.finish(c, j.operationId, t.id);
         const after = await this.table(c, a, t.id, false, true);
@@ -2818,13 +2830,15 @@ export class TableStorage {
       .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
       .join(" AND ");
     const tuple = this.tupleSql(fields);
+    const nativeColumns = fields.map((f) => q(fieldColumn(f)));
+    const duplicateSql =
+      rule.strategy === "native"
+        ? `WITH duplicates AS (SELECT ${nativeColumns.join(",")},count(*)::text AS count FROM ${tablePath(t)} WHERE ${notNull} GROUP BY ${nativeColumns.join(",")} HAVING count(*)>1 LIMIT 100) SELECT d.count,ARRAY(SELECT r.row_id FROM ${tablePath(t)} r WHERE ${nativeColumns.map((column) => `r.${column}=d.${column}`).join(" AND ")} ORDER BY r.row_id LIMIT 20) AS row_ids FROM duplicates d`
+        : `SELECT ${tuple} COLLATE "C" AS tuple,count(*)::text AS count,(array_agg(row_id ORDER BY row_id))[1:20] AS row_ids FROM ${tablePath(t)} source_row WHERE ${notNull} GROUP BY ${tuple} COLLATE "C" HAVING count(*)>1 LIMIT 100`;
     const duplicates = await c.query<{
-      tuple: string;
       count: string;
       row_ids: string[];
-    }>(
-      `SELECT ${tuple} COLLATE "C" AS tuple,count(*)::text AS count,(array_agg(row_id ORDER BY row_id))[1:20] AS row_ids FROM ${tablePath(t)} source_row WHERE ${notNull} GROUP BY ${tuple} COLLATE "C" HAVING count(*)>1 LIMIT 100`,
-    );
+    }>(duplicateSql);
     if (duplicates.rows.length)
       fail(
         "UNIQUE_CONFLICT",
@@ -2860,58 +2874,87 @@ export class TableStorage {
     input: { fieldIds: string[]; name?: string } & SchemaOptions,
   ): Promise<UniqueRule> {
     let ruleId = "";
-    await this.schemaChange(a, tableId, "rule.create", input, async (c, t) => {
-      const rules = await this.rules(c, t);
-      const indexes = await this.indexes(c, t);
-      if (
-        rules.filter((r) => r.state === "active").length >=
-        limits.maxUniqueRules
-      )
-        fail("VALIDATION_FAILED", "Unique rule budget exceeded");
-      if (
-        !input.fieldIds.length ||
-        input.fieldIds.length > limits.maxUniqueFields ||
-        new Set(input.fieldIds).size !== input.fieldIds.length
-      )
-        fail("VALIDATION_FAILED", "Rule requires 1–8 distinct scalar fields");
-      const fields = input.fieldIds.map((fid) => fieldFor(t, fid));
-      if (fields.some((f) => f.type === "json"))
-        fail("VALIDATION_FAILED", "JSON uniqueness is outside v1");
-      const strategy = this.nativeFits(fields) ? "native" : "registry";
-      if (
-        strategy === "native" &&
-        indexes.filter((i) => i.state === "active").length +
-          rules.filter((r) => r.state === "active" && r.strategy === "native")
-            .length >=
-          limits.maxIndexes
-      )
-        fail("VALIDATION_FAILED", "Secondary index budget exceeded");
-      ruleId = newId();
-      const r: UniqueRule = {
-        id: ruleId,
-        tableId: t.id,
-        name: input.name ?? fields.map((f) => f.apiKey).join(" + "),
-        fieldIds: fields.map((f) => f.id),
-        strategy,
-        state: "building",
-        physicalName:
-          strategy === "native" ? `rsu_${ruleId.toLowerCase()}` : null,
-      };
-      await c.query(
-        "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,physical_name) VALUES($1,$2,$3,$4,$5,$6,$7)",
-        [r.id, t.id, a.orgId, r.name, r.fieldIds, r.strategy, r.physicalName],
-      );
-      await this.buildRule(c, t, r);
-      await c.query(
-        "UPDATE rootset_control.unique_rules SET state='active' WHERE id=$1",
-        [r.id],
-      );
-    });
-    const rules = await this.listUniqueRules(a, tableId);
+    let outcome: UniqueRule | undefined;
+    await this.schemaChange(
+      a,
+      tableId,
+      "rule.create",
+      input,
+      async (c, t, operationId) => {
+        const rules = await this.rules(c, t);
+        const indexes = await this.indexes(c, t);
+        if (
+          rules.filter((r) => r.state === "active").length >=
+          limits.maxUniqueRules
+        )
+          fail("VALIDATION_FAILED", "Unique rule budget exceeded");
+        if (
+          !input.fieldIds.length ||
+          input.fieldIds.length > limits.maxUniqueFields ||
+          new Set(input.fieldIds).size !== input.fieldIds.length
+        )
+          fail("VALIDATION_FAILED", "Rule requires 1–8 distinct scalar fields");
+        const fields = input.fieldIds.map((fid) => fieldFor(t, fid));
+        if (fields.some((f) => f.type === "json"))
+          fail("VALIDATION_FAILED", "JSON uniqueness is outside v1");
+        const strategy = this.nativeFits(fields) ? "native" : "registry";
+        if (
+          strategy === "native" &&
+          indexes.filter((i) => i.state === "active").length +
+            rules.filter((r) => r.state === "active" && r.strategy === "native")
+              .length >=
+            limits.maxIndexes
+        )
+          fail("VALIDATION_FAILED", "Secondary index budget exceeded");
+        ruleId = newId();
+        const r: UniqueRule = {
+          id: ruleId,
+          tableId: t.id,
+          name: input.name ?? fields.map((f) => f.apiKey).join(" + "),
+          fieldIds: fields.map((f) => f.id),
+          strategy,
+          state: "building",
+          physicalName:
+            strategy === "native" ? `rsu_${ruleId.toLowerCase()}` : null,
+        };
+        await c.query(
+          "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,physical_name) VALUES($1,$2,$3,$4,$5,$6,$7)",
+          [r.id, t.id, a.orgId, r.name, r.fieldIds, r.strategy, r.physicalName],
+        );
+        await this.buildRule(c, t, r);
+        await c.query(
+          "UPDATE rootset_control.unique_rules SET state='active' WHERE id=$1",
+          [r.id],
+        );
+        outcome = { ...r, state: "active" };
+        await c.query(
+          "UPDATE rootset_control.schema_operations SET plan=plan||jsonb_build_object('ruleId',$2::text,'outcome',$3::jsonb) WHERE id=$1",
+          [operationId, ruleId, JSON.stringify(outcome)],
+        );
+      },
+      async (c, operationId) => {
+        const saved = (
+          await c.query<{ plan: Raw }>(
+            "SELECT plan FROM rootset_control.schema_operations WHERE id=$1 AND org_id=$2",
+            [operationId, a.orgId],
+          )
+        ).rows[0]?.plan;
+        outcome = saved?.outcome as UniqueRule | undefined;
+        if (
+          !outcome ||
+          outcome.id !== saved?.ruleId ||
+          outcome.tableId !== id(tableId)
+        )
+          fail(
+            "INTERNAL_ERROR",
+            "The committed rule creation outcome is unavailable; an arbitrary matching rule cannot be replayed",
+            500,
+          );
+      },
+    );
     return (
-      rules.find((r) => r.id === ruleId) ??
-      rules.find((r) => r.fieldIds.join(",") === input.fieldIds.join(",")) ??
-      fail("RESOURCE_NOT_FOUND", "Unique rule was not found", 404)
+      outcome ??
+      fail("INTERNAL_ERROR", "Rule creation did not persist its outcome", 500)
     );
   }
   private async removeRule(
@@ -3369,6 +3412,7 @@ export class TableStorage {
     let fresh!: TableRecord;
     let operationId = "";
     const strategy = input.conversion.strategy;
+    const conversionContext = context({ ...input.context, source: "schema" });
     await this.run(
       a,
       async (c) => {
@@ -3477,7 +3521,7 @@ export class TableStorage {
           await this.reserveRelation(c, a, old, "field.convert", true);
           await c.query("SET LOCAL statement_timeout='0'");
           await this.barrier(c, old.databaseId);
-          await this.assertPublication(c, a, input.context);
+          await this.assertPublication(c, a, input.context, false);
           const t = await this.table(c, a, old.id, true);
           if (t.physicalName !== old.physicalName)
             fail(
@@ -3486,13 +3530,39 @@ export class TableStorage {
               409,
             );
           const after = fieldFor(fresh, fieldId);
+          for (const rule of await this.rules(c, old)) {
+            if (rule.state !== "active" || rule.strategy !== "native") continue;
+            const physicalName = `rsu_${rule.id.toLowerCase()}_g${fresh.generation}`;
+            const columns = rule.fieldIds.map((fid) =>
+              q(fieldColumn(fieldFor(fresh, fid))),
+            );
+            await c.query(
+              `CREATE UNIQUE INDEX ${q(physicalName)} ON ${tablePath(fresh)}(${columns.join(",")})`,
+            );
+            await c.query(
+              "UPDATE rootset_control.unique_rules SET physical_name=$2 WHERE id=$1",
+              [rule.id, physicalName],
+            );
+          }
+          for (const index of await this.indexes(c, old)) {
+            if (index.state !== "active") continue;
+            const physicalName = `rsi_${index.id.toLowerCase()}_g${fresh.generation}`;
+            const column = q(fieldColumn(fieldFor(fresh, index.fieldId)));
+            await c.query(
+              `CREATE INDEX ${q(physicalName)} ON ${tablePath(fresh)} USING ${index.kind === "btree" ? "btree" : "gin"}(${column}${index.kind === "trigram" ? " gin_trgm_ops" : ""})`,
+            );
+            await c.query(
+              "UPDATE rootset_control.indexes SET physical_name=$2 WHERE id=$1",
+              [index.id, physicalName],
+            );
+          }
           const m = await this.newMutation(
             c,
             a,
             t,
             { conversionOperation: operationId },
             `conversion:${operationId}`,
-            { source: "schema" },
+            conversionContext,
           );
           const before = fieldFor(old, fieldId);
           const oldCell = `rootset_control.cell_value(to_jsonb(o),${literal(JSON.stringify(before))}::jsonb)`;
@@ -3507,7 +3577,7 @@ export class TableStorage {
               m.id,
               JSON.stringify(after),
               JSON.stringify(a),
-              JSON.stringify(context({ source: "schema" })),
+              JSON.stringify(conversionContext),
             ],
           );
           await c.query(
@@ -3515,6 +3585,7 @@ export class TableStorage {
             [after.id, JSON.stringify(after), after.label],
           );
           await this.installTrigger(c, fresh);
+          await this.assertPublication(c, a, input.context);
           await c.query(
             "UPDATE rootset_control.tables SET physical_name=$2,generation=$3,state='active' WHERE id=$1",
             [old.id, fresh.physicalName, fresh.generation],
@@ -3529,7 +3600,7 @@ export class TableStorage {
             "field.convert",
             before,
             after,
-            input.context,
+            conversionContext,
           );
           await c.query(
             "UPDATE rootset_control.mutations SET outcome=$2::jsonb WHERE id=$1",
@@ -3740,7 +3811,12 @@ export class TableStorage {
             ).rowCount
           )
             continue;
-          await this.barrier(c, String(op.database_id));
+          await this.barrier(
+            c,
+            String(op.database_id),
+            undefined,
+            op.kind === "index.create",
+          );
           const plan = op.plan as Raw;
           if (op.kind === "field.convert" && op.table_id) {
             const t = await this.table(c, a, String(op.table_id), true);
@@ -4411,6 +4487,8 @@ export class TableStorage {
         "databaseId",
         "tableId",
         "fieldId",
+        "ruleId",
+        "indexId",
         "resourceId",
         "mutationId",
         "fieldIds",
