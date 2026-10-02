@@ -334,6 +334,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     await t.test(
       "API-08 default ten active HTTP reads retain independent admission capacity; exhausted reservations return redacted retryable503",
       async () => {
+        const dependencyEventStart = dependencyEvents.length;
         assert.equal(runtime!.pool.options.max, 10);
         assert.equal(runtime!.admissionPool.options.max, 2);
         assert.notEqual(runtime!.pool, runtime!.admissionPool);
@@ -379,7 +380,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
                 )
               ).rows[0].count,
             );
-            if (active === 10) break;
+            if (
+              active === 10 &&
+              runtime!.pool.totalCount === 10 &&
+              runtime!.pool.idleCount === 0
+            )
+              break;
             await new Promise((resolve) => setTimeout(resolve, 25));
           }
           assert.equal(active, 10);
@@ -438,9 +444,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             0,
           );
           assert.ok(
-            dependencyEvents.filter((operation) =>
-              ["queryRows", "createRow"].includes(operation),
-            ).length >= 2,
+            dependencyEvents
+              .slice(dependencyEventStart)
+              .filter((operation) =>
+                ["queryRows", "createRow"].includes(operation),
+              ).length >= 2,
           );
         } finally {
           await blocker.query("ROLLBACK");
@@ -788,6 +796,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     await t.test(
       "API-08 MCP genuine issued OAuth returns typed retryable dependency when the bounded work pool is occupied; operator status and liveness survive",
       async () => {
+        const dependencyEventStart = dependencyEvents.length;
         const workConnections = await Promise.all(
           Array.from({ length: 10 }, () => runtime!.pool.connect()),
         );
@@ -812,8 +821,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             ),
           );
           assert.ok(
-            dependencyEvents.filter((operation) => operation === "queryRows")
-              .length >= 2,
+            dependencyEvents
+              .slice(dependencyEventStart)
+              .filter((operation) => operation === "queryRows").length >= 1,
           );
           assert.equal(
             Number(

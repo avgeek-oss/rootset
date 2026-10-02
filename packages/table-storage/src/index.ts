@@ -1296,7 +1296,7 @@ export class TableStorage {
             t,
             { kind: "field.default", field: f.id },
             newId(),
-            { source: "schema" },
+            context({ ...input.context, source: "schema" }),
           );
           await c.query(
             "SELECT set_config('rootset.schema_write','true',true)",

@@ -28,6 +28,7 @@ import {
   Toggle,
   useConfirmation,
 } from "./ui";
+import { JobResultDetails } from "./job-result";
 import type {
   Artifact,
   Backup,
@@ -154,63 +155,15 @@ export function JobTracker({
             </p>
           )}
           {resource.data.result && (
-            <>
-              <p className="settings-muted">
-                {resource.data.result.inserted !== undefined && (
-                  <>
-                    Inserted {resource.data.result.inserted.toLocaleString()}{" "}
-                    ·{" "}
-                  </>
-                )}
-                {resource.data.result.updated !== undefined && (
-                  <>
-                    updated {resource.data.result.updated.toLocaleString()}{" "}
-                    ·{" "}
-                  </>
-                )}
-                {resource.data.result.rejected !== undefined && (
-                  <>rejected {resource.data.result.rejected.toLocaleString()}</>
-                )}
-              </p>
-              {resource.data.result.artifactId && (
-                <Button
-                  variant="secondary"
-                  onPress={() =>
-                    mutation
-                      .run(
-                        () =>
-                          downloadArtifact(
-                            orgId,
-                            resource.data!.result!.artifactId!,
-                          ),
-                        "Download opened.",
-                      )
-                      .then(() => undefined)
-                  }
-                >
-                  Download result
-                </Button>
-              )}
-              {resource.data.result.reportArtifactId && (
-                <Button
-                  variant="secondary"
-                  onPress={() =>
-                    mutation
-                      .run(
-                        () =>
-                          downloadArtifact(
-                            orgId,
-                            resource.data!.result!.reportArtifactId!,
-                          ),
-                        "Report opened.",
-                      )
-                      .then(() => undefined)
-                  }
-                >
-                  Download rejection report
-                </Button>
-              )}
-            </>
+            <JobResultDetails
+              result={resource.data.result}
+              openArtifact={(id, kind) => {
+                void mutation.run(
+                  () => downloadArtifact(orgId, id),
+                  kind === "result" ? "Download opened." : "Report opened.",
+                );
+              }}
+            />
           )}
           <div className="settings-actions">
             {active && (

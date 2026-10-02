@@ -1202,6 +1202,43 @@ verificationCase(
     const b = await table([text()]);
     const oldA = await storage.createRow(actor, a.id, { CODE: "before-a" });
     const oldB = await storage.createRow(actor, b.id, { CODE: "before-b" });
+    let signalDeniedSchemaLock: () => void;
+    const deniedSchemaLock = new Promise<void>((resolve) => {
+      signalDeniedSchemaLock = resolve;
+    });
+    const observedDdl = new Proxy(pools.ddl, {
+      get(pool, property) {
+        if (property === "connect")
+          return async () => {
+            const client = await pool.connect();
+            return new Proxy(client, {
+              get(client, property) {
+                if (property === "query")
+                  return async (sql: string, values?: unknown[]) => {
+                    const result = await client.query(sql, values);
+                    if (
+                      sql ===
+                        "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired" &&
+                      values?.[0] === databaseId &&
+                      result.rows[0]?.acquired === false
+                    )
+                      signalDeniedSchemaLock();
+                    return result;
+                  };
+                const value = Reflect.get(client, property, client);
+                return typeof value === "function" ? value.bind(client) : value;
+              },
+            });
+          };
+        const value = Reflect.get(pool, property, pool);
+        return typeof value === "function" ? value.bind(pool) : value;
+      },
+    });
+    const writer = new TableStorage({
+      pool: pools.app,
+      ddlPool: observedDdl,
+      cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+    });
     const connection = await pools.app.connect();
     let schemaSettled = false;
     let change: Promise<TableRecord> | undefined;
@@ -1250,7 +1287,7 @@ verificationCase(
         ).length,
         2,
       );
-      change = storage
+      change = writer
         .createField(actor, a.id, {
           ...text("NEW"),
           expectedSchemaVersion: 1,
@@ -1259,24 +1296,19 @@ verificationCase(
         .finally(() => {
           schemaSettled = true;
         });
-      // Schema writers retry exclusive lock acquisition outside a transaction.
-      // Observe the real polling backend and held snapshot lock, then check that
-      // the schema cannot publish before that shared lock is released.
+      // Finished try-lock statements can be missed by pg_stat_activity sampling.
+      // Observe this writer's actual denied database lock without changing SQL,
+      // its result, or the production ten-second acquisition deadline.
       const sharedLock = await connection.query<{ held: number }>(
         "SELECT count(*)::int AS held FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory' AND mode='ShareLock' AND granted",
       );
       assert.ok(sharedLock.rows[0]!.held > 0);
-      let acquisitionPending = false;
-      for (let attempt = 0; attempt < 100 && !acquisitionPending; attempt++) {
-        const waiters = await pools.owner.query<{ pending: number }>(
-          "SELECT count(*)::int AS pending FROM pg_stat_activity WHERE application_name=$1 AND (wait_event=$2 OR query LIKE $3)",
-          ["rootset", "advisory", "%pg_try_advisory_lock(hashtextextended%"],
-        );
-        acquisitionPending = waiters.rows[0]!.pending > 0;
-        if (!acquisitionPending)
-          await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-      assert.equal(acquisitionPending, true);
+      await Promise.race([
+        deniedSchemaLock,
+        change.then(() => {
+          assert.fail("Field DDL published before a denied snapshot lock");
+        }),
+      ]);
       assert.equal(schemaSettled, false);
       assert.equal((await storage.getTable(actor, a.id)).schemaVersion, 1);
       assert.equal(
@@ -1285,6 +1317,14 @@ verificationCase(
         ),
         false,
       );
+      const blockedRowsA = [];
+      for await (const batch of snapshot.rows(a.id))
+        blockedRowsA.push(...batch);
+      assert.deepEqual(blockedRowsA, rowsA);
+      const blockedRowsB = [];
+      for await (const batch of snapshot.rows(b.id))
+        blockedRowsB.push(...batch);
+      assert.deepEqual(blockedRowsB, rowsB);
       await connection.query("COMMIT");
     } catch (error) {
       await connection.query("ROLLBACK");

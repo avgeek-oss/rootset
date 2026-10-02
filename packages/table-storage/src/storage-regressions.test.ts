@@ -1096,6 +1096,177 @@ test(
 );
 
 test(
+  "Populated default backfills preserve public worker correlation, native cell history, peer isolation and cancellation rollback",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Correlated default backfill",
+      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 30 }],
+    });
+    const originals = await Promise.all(
+      ["first", "second"].map((code) =>
+        storage!.createRow(actor, table.id, { code }),
+      ),
+    );
+    const fence = await runningJob(table.id, "applySchemaChange");
+    const requestId = `default-backfill-${fence.jobId}`;
+    let checks = 0;
+    const changed = await storage!.createField(actor, table.id, {
+      apiKey: "defaulted",
+      label: "Defaulted integer",
+      type: "integer",
+      required: true,
+      default: 7,
+      expectedSchemaVersion: 1,
+      context: {
+        requestId,
+        jobId: fence.jobId,
+        jobFence: fence,
+        source: "rest",
+        beforePublish: async () => {
+          checks++;
+        },
+      },
+    });
+    assert.equal(checks, 2);
+    assert.equal(changed.schemaVersion, 2);
+    assert.equal(changed.rowCount, 2);
+    const added = changed.fields.find((field) => field.apiKey === "defaulted")!;
+    const events = await owner!.query<{
+      row_id: string;
+      mutation_id: string;
+      old_value: null;
+      new_value: number;
+      old_version: string;
+      new_version: string;
+      actor: Actor;
+      context: Record<string, unknown>;
+    }>(
+      "SELECT row_id,mutation_id,old_value,new_value,old_version::text,new_version::text,actor,context FROM rootset_control.cell_changes WHERE table_id=$1 AND field_id=$2 ORDER BY row_id",
+      [table.id, added.id],
+    );
+    assert.equal(events.rows.length, 2);
+    assert.equal(
+      new Set(events.rows.map((event) => event.mutation_id)).size,
+      1,
+    );
+    for (const event of events.rows) {
+      assert.deepEqual(event.context, {
+        requestId,
+        jobId: fence.jobId,
+        source: "schema",
+      });
+      assert.equal(event.old_value, null);
+      assert.equal(event.new_value, 7);
+      assert.equal(event.old_version, "1");
+      assert.equal(event.new_version, "2");
+      assert.deepEqual(event.actor, actor);
+    }
+    assert.deepEqual(
+      (
+        await owner!.query<{ context: Record<string, unknown> }>(
+          "SELECT context FROM rootset_control.mutations WHERE id=$1",
+          [events.rows[0]!.mutation_id],
+        )
+      ).rows[0]!.context,
+      { requestId, jobId: fence.jobId, source: "schema" },
+    );
+    const savedRows = (
+      await storage!.queryRows(actor, table.id, { limit: 200 })
+    ).data;
+    assert.deepEqual(
+      savedRows.map((row) => row.id).sort(),
+      originals.map((row) => row.id).sort(),
+    );
+    assert.ok(
+      savedRows.every(
+        (row) => row.values.defaulted === 7 && row.version === "2",
+      ),
+    );
+    const peerId = newId();
+    await owner!.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+      [peerId, "Default backfill peer"],
+    );
+    assert.equal(
+      (
+        await withOrg(app!, peerId, (client) =>
+          client.query(
+            `SELECT row_id FROM "${schemaName}"."${changed.physicalName}"`,
+          ),
+        )
+      ).rowCount,
+      0,
+    );
+    assert.equal(
+      (
+        await withOrg(app!, peerId, (client) =>
+          client.query(
+            "SELECT public_id FROM rootset_control.cell_changes WHERE table_id=$1",
+            [table.id],
+          ),
+        )
+      ).rowCount,
+      0,
+    );
+    const counts = async () =>
+      (
+        await owner!.query(
+          "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.row_events WHERE table_id=$1) AS rows,(SELECT count(*)::int FROM rootset_control.mutations WHERE table_id=$1) AS mutations,(SELECT count(*)::int FROM pg_attribute WHERE attrelid=$2::regclass AND attnum>0 AND NOT attisdropped) AS native_columns",
+          [table.id, `"${schemaName}"."${changed.physicalName}"`],
+        )
+      ).rows[0];
+    const beforeCounts = await counts();
+    checks = 0;
+    await assert.rejects(
+      storage!.createField(actor, table.id, {
+        apiKey: "cancelled_default",
+        label: "Cancelled default",
+        type: "boolean",
+        default: true,
+        expectedSchemaVersion: 2,
+        context: {
+          requestId,
+          jobId: fence.jobId,
+          jobFence: fence,
+          beforePublish: async () => {
+            if (++checks === 2)
+              await owner!.query(
+                "UPDATE rootset_control.jobs SET cancel_requested=true WHERE id=$1",
+                [fence.jobId],
+              );
+          },
+        },
+      }),
+      { code: "JOB_LEASE_LOST" },
+    );
+    assert.deepEqual(await counts(), beforeCounts);
+    assert.deepEqual(
+      (await storage!.queryRows(actor, table.id, { limit: 200 })).data,
+      savedRows,
+    );
+    const after = await storage!.getTable(actor, table.id);
+    assert.equal(after.schemaVersion, 2);
+    assert.equal(
+      after.fields.some((field) => field.apiKey === "cancelled_default"),
+      false,
+    );
+    const retained = await owner!.query<{ value: string }>(
+      "SELECT to_jsonb(r)::text AS value FROM rootset_control.cell_changes r WHERE table_id=$1 UNION ALL SELECT to_jsonb(r)::text FROM rootset_control.mutations r WHERE table_id=$1 UNION ALL SELECT to_jsonb(r)::text FROM rootset_control.schema_operations r WHERE table_id=$1",
+      [table.id],
+    );
+    assert.ok(
+      retained.rows.every(
+        (row) =>
+          !row.value.includes(fence.leaseToken) &&
+          !row.value.includes('"jobFence"') &&
+          !row.value.includes('"beforePublish"'),
+      ),
+    );
+  },
+);
+
+test(
   "Verification restores fence every batch and discard copied values and all interpretation metadata while retaining a minimal provenance marker",
   { skip: !configured },
   async () => {
