@@ -1,0 +1,6408 @@
+// Generated from @rootset/contracts. Regenerate through pnpm contracts:generate.
+export type JsonValue =
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export type ErrorCode =
+  | "VALIDATION_FAILED"
+  | "UNAUTHENTICATED"
+  | "ACCESS_DENIED"
+  | "FORBIDDEN"
+  | "INSUFFICIENT_SCOPE"
+  | "PERSONAL_IDENTITY_REQUIRED"
+  | "OPERATOR_REQUIRED"
+  | "DELEGATION_EXCEEDS_AUTHORITY"
+  | "RESOURCE_NOT_FOUND"
+  | "ROW_VERSION_CONFLICT"
+  | "SCHEMA_VERSION_CONFLICT"
+  | "UNIQUE_CONFLICT"
+  | "ROW_SIZE_LIMIT"
+  | "ROW_LIMIT_REACHED"
+  | "PAYLOAD_TOO_LARGE"
+  | "REQUEST_TIMEOUT"
+  | "QUERY_TIMEOUT"
+  | "CURSOR_INVALID"
+  | "STEP_UP_REQUIRED"
+  | "IDEMPOTENCY_CONFLICT"
+  | "JOB_FAILED"
+  | "RATE_LIMITED"
+  | "CAPACITY_LIMIT"
+  | "SCHEMA_MAINTENANCE"
+  | "BACKUP_UNVERIFIED"
+  | "ARTIFACT_EXPIRED"
+  | "CONFIGURATION_INVALID"
+  | "DEPENDENCY_UNAVAILABLE"
+  | "STORAGE_ADMISSION_BUSY"
+  | "STORAGE_POLICY_CHANGED"
+  | "STORAGE_QUOTA_EXCEEDED"
+  | "STORAGE_DISK_PRESSURE"
+  | "STORAGE_REPORT_STALE"
+  | "STORAGE_RESERVATION_REQUIRED"
+  | "STORAGE_RESERVATION_EXCEEDED"
+  | "INTERNAL_ERROR";
+export const transportLimits = {
+  jsonRequestMaxBytes: 8388608,
+  jsonReadTimeoutMs: 10000,
+  restResultMaxBytes: 8388608,
+  mcpResultMaxBytes: 1048576,
+} as const;
+export const storageErrorRecovery = {
+  STORAGE_ADMISSION_BUSY: {
+    status: 503,
+    retryable: true,
+    action: "retry_unchanged",
+    guidance:
+      "Retry the unchanged request after the active storage operation completes.",
+  },
+  STORAGE_POLICY_CHANGED: {
+    status: 503,
+    retryable: true,
+    action: "retry_unchanged",
+    guidance: "Retry the unchanged request under the current storage policy.",
+  },
+  STORAGE_QUOTA_EXCEEDED: {
+    status: 503,
+    retryable: false,
+    action: "adjust_capacity",
+    guidance:
+      "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying.",
+  },
+  STORAGE_DISK_PRESSURE: {
+    status: 503,
+    retryable: false,
+    action: "restore_disk_headroom",
+    guidance:
+      "Restore PostgreSQL filesystem headroom through approved maintenance before retrying.",
+  },
+  STORAGE_REPORT_STALE: {
+    status: 503,
+    retryable: false,
+    action: "restore_capacity_reporter",
+    guidance:
+      "Restore the database-host capacity reporter or revise the configured free-space policy before retrying.",
+  },
+  STORAGE_RESERVATION_REQUIRED: {
+    status: 503,
+    retryable: false,
+    action: "contact_operator",
+    guidance:
+      "The write lacks its required transaction reservation; an operator must repair the admission integration.",
+  },
+  STORAGE_RESERVATION_EXCEEDED: {
+    status: 503,
+    retryable: false,
+    action: "reduce_operation",
+    guidance:
+      "Use a smaller batch or sufficient reserved schema space before retrying.",
+  },
+} as const;
+export type getContextInput = Record<string, never>;
+export type getContextOutput = {
+  principal: {
+    id: string;
+    kind: string;
+    userId?: string;
+    role: "owner" | "admin" | "editor" | "viewer";
+    operator: boolean;
+  };
+  organisation: {
+    id: string;
+    name: string;
+    description: string | null;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  scopes: string[];
+  targets: {
+    databaseId?: string;
+    tableId?: string;
+    level: "read" | "edit" | "manage";
+  }[];
+  profile: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    disabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  preferences: {
+    timezone: string;
+    locale: string;
+    dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
+    timeFormat: "12h" | "24h";
+    theme: "system" | "light" | "dark";
+  } | null;
+  onboarding: { needsEmailVerification: boolean; setupComplete: boolean };
+};
+export type getProfileInput = Record<string, never>;
+export type getProfileOutput = {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  disabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+export type updateProfileInput = { name: string };
+export type updateProfileOutput = {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  disabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+export type getPreferencesInput = Record<string, never>;
+export type getPreferencesOutput = {
+  timezone: string;
+  locale: string;
+  dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
+  timeFormat: "12h" | "24h";
+  theme: "system" | "light" | "dark";
+};
+export type updatePreferencesInput = {
+  timezone?: string;
+  locale?: string;
+  dateFormat?: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
+  timeFormat?: "12h" | "24h";
+  theme?: "system" | "light" | "dark";
+};
+export type updatePreferencesOutput = {
+  timezone: string;
+  locale: string;
+  dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
+  timeFormat: "12h" | "24h";
+  theme: "system" | "light" | "dark";
+};
+export type getPreferenceOptionsInput = Record<string, never>;
+export type getPreferenceOptionsOutput = {
+  timezones: string[];
+  locales: string[];
+  dateFormats: string[];
+  timeFormats: string[];
+  themes: string[];
+};
+export type previewPreferencesInput = {
+  preferences: {
+    timezone: string;
+    locale: string;
+    dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
+    timeFormat: "12h" | "24h";
+    theme: "system" | "light" | "dark";
+  };
+  value: string;
+};
+export type previewPreferencesOutput = {
+  utc: string;
+  displayed: string;
+  timezone: string;
+};
+export type listSessionsInput = Record<string, never>;
+export type listSessionsOutput = {
+  data: {
+    id: string;
+    createdAt: string;
+    expiresAt: string;
+    lastActivityAt: string;
+    current: boolean;
+    userAgent?: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type revokeSessionInput = { id: string; approvalId?: string };
+export type revokeSessionOutput = { deleted: boolean; mutationId?: string };
+export type listConnectionsInput = Record<string, never>;
+export type listConnectionsOutput = {
+  data: {
+    id: string;
+    clientId: string;
+    clientName: string;
+    orgId: string;
+    audience: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    createdAt: string;
+    expiresAt: string;
+    revokedAt: string | null;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type revokeConnectionInput = { id: string };
+export type revokeConnectionOutput = { deleted: boolean; mutationId?: string };
+export type beginAccountActionInput = {
+  type:
+    | "change_password"
+    | "change_email"
+    | "register_passkey"
+    | "remove_passkey"
+    | "enable_totp"
+    | "disable_totp"
+    | "rotate_recovery_codes"
+    | "delete_account"
+    | "sign_out_everywhere"
+    | "transfer_ownership"
+    | "create_key"
+    | "rotate_key"
+    | "set_backup_policy"
+    | "set_history_retention_policy"
+    | "archive_history"
+    | "restore_backup"
+    | "delete_organisation"
+    | "delete_database"
+    | "delete_table"
+    | "update_installation_configuration"
+    | "test_email";
+  operationId?: string;
+  input: null | boolean | number | string | unknown[] | Record<string, unknown>;
+  orgId: string;
+};
+export type beginAccountActionOutput = {
+  id: string;
+  type:
+    | "change_password"
+    | "change_email"
+    | "register_passkey"
+    | "remove_passkey"
+    | "enable_totp"
+    | "disable_totp"
+    | "rotate_recovery_codes"
+    | "delete_account"
+    | "sign_out_everywhere"
+    | "transfer_ownership"
+    | "create_key"
+    | "rotate_key"
+    | "set_backup_policy"
+    | "set_history_retention_policy"
+    | "archive_history"
+    | "restore_backup"
+    | "delete_organisation"
+    | "delete_database"
+    | "delete_table"
+    | "update_installation_configuration"
+    | "test_email";
+  state: "pending" | "approved" | "consumed" | "expired" | "denied";
+  expiresAt: string;
+  approvalUrl: string;
+  result?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+};
+export type getAccountActionInput = { id: string };
+export type getAccountActionOutput = {
+  id: string;
+  type:
+    | "change_password"
+    | "change_email"
+    | "register_passkey"
+    | "remove_passkey"
+    | "enable_totp"
+    | "disable_totp"
+    | "rotate_recovery_codes"
+    | "delete_account"
+    | "sign_out_everywhere"
+    | "transfer_ownership"
+    | "create_key"
+    | "rotate_key"
+    | "set_backup_policy"
+    | "set_history_retention_policy"
+    | "archive_history"
+    | "restore_backup"
+    | "delete_organisation"
+    | "delete_database"
+    | "delete_table"
+    | "update_installation_configuration"
+    | "test_email";
+  state: "pending" | "approved" | "consumed" | "expired" | "denied";
+  expiresAt: string;
+  approvalUrl: string;
+  result?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+};
+export type completeAccountActionInput = { id: string };
+export type completeAccountActionOutput = {
+  id: string;
+  type:
+    | "change_password"
+    | "change_email"
+    | "register_passkey"
+    | "remove_passkey"
+    | "enable_totp"
+    | "disable_totp"
+    | "rotate_recovery_codes"
+    | "delete_account"
+    | "sign_out_everywhere"
+    | "transfer_ownership"
+    | "create_key"
+    | "rotate_key"
+    | "set_backup_policy"
+    | "set_history_retention_policy"
+    | "archive_history"
+    | "restore_backup"
+    | "delete_organisation"
+    | "delete_database"
+    | "delete_table"
+    | "update_installation_configuration"
+    | "test_email";
+  state: "pending" | "approved" | "consumed" | "expired" | "denied";
+  expiresAt: string;
+  approvalUrl: string;
+  result?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+};
+export type listOrganisationsInput = Record<string, never>;
+export type listOrganisationsOutput = {
+  data: {
+    id: string;
+    name: string;
+    description: string | null;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type getOrganisationInput = { orgId: string };
+export type getOrganisationOutput = {
+  id: string;
+  name: string;
+  description: string | null;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type updateOrganisationInput = {
+  orgId: string;
+  name: string;
+  description?: string | null;
+};
+export type updateOrganisationOutput = {
+  id: string;
+  name: string;
+  description: string | null;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type transferOwnershipInput = {
+  orgId: string;
+  userId: string;
+  approvalId?: string;
+};
+export type transferOwnershipOutput = {
+  id: string;
+  name: string;
+  description: string | null;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type deleteOrganisationInput = { orgId: string; approvalId?: string };
+export type deleteOrganisationOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type listMembersInput = {
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listMembersOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    userId: string;
+    name: string;
+    email: string;
+    role: "owner" | "admin" | "editor" | "viewer";
+    state: "active" | "disabled";
+    version: string;
+    verified: boolean;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type updateMemberInput = {
+  orgId: string;
+  id: string;
+  role?: "owner" | "admin" | "editor" | "viewer";
+  state?: "active" | "disabled";
+  expectedVersion: string;
+  approvalId?: string;
+};
+export type updateMemberOutput = {
+  id: string;
+  orgId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: "owner" | "admin" | "editor" | "viewer";
+  state: "active" | "disabled";
+  version: string;
+  verified: boolean;
+};
+export type removeMemberInput = {
+  orgId: string;
+  id: string;
+  expectedVersion: string;
+  approvalId?: string;
+};
+export type removeMemberOutput = { deleted: boolean; mutationId?: string };
+export type listInvitationsInput = {
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listInvitationsOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    email: string;
+    role: "admin" | "editor" | "viewer";
+    state: "pending" | "accepted" | "cancelled" | "expired";
+    expiresAt: string;
+    createdAt: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type inviteMemberInput = {
+  orgId: string;
+  email: string;
+  role: "admin" | "editor" | "viewer";
+};
+export type inviteMemberOutput = {
+  id: string;
+  orgId: string;
+  email: string;
+  role: "admin" | "editor" | "viewer";
+  state: "pending" | "accepted" | "cancelled" | "expired";
+  expiresAt: string;
+  createdAt: string;
+};
+export type cancelInvitationInput = { orgId: string; id: string };
+export type cancelInvitationOutput = { deleted: boolean; mutationId?: string };
+export type getGrantsInput = { orgId: string };
+export type getGrantsOutput = {
+  data: {
+    membershipId: string;
+    unrestricted: boolean;
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    version: number;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type updateGrantsInput = {
+  orgId: string;
+  grants: {
+    membershipId: string;
+    unrestricted: boolean;
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    version: number;
+  }[];
+};
+export type updateGrantsOutput = {
+  data: {
+    membershipId: string;
+    unrestricted: boolean;
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    version: number;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type queryOrganisationAuditInput = {
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+  from?: string;
+  to?: string;
+  operationId?: string;
+  actorId?: string;
+  databaseId?: string;
+  tableId?: string;
+};
+export type queryOrganisationAuditOutput = {
+  data: {
+    id: string;
+    operationId: string;
+    actorId: string;
+    timestamp: string;
+    target:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    outcome:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type listPersonalKeysInput = Record<string, never>;
+export type listPersonalKeysOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    name: string;
+    ownerKind: "personal" | "team";
+    userId?: string;
+    prefix: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    unrestricted?: boolean;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createPersonalKeyInput = {
+  orgId: string;
+  name: string;
+  scopes: string[];
+  targets: {
+    databaseId?: string;
+    tableId?: string;
+    level: "read" | "edit" | "manage";
+  }[];
+  unrestricted?: boolean;
+  expiresAt?: string | null;
+  approvalId?: string;
+};
+export type createPersonalKeyOutput = {
+  key: {
+    id: string;
+    orgId: string;
+    name: string;
+    ownerKind: "personal" | "team";
+    userId?: string;
+    prefix: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    unrestricted?: boolean;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  };
+  secret?: string;
+  replayed?: boolean;
+};
+export type rotatePersonalKeyInput = {
+  id: string;
+  overlapSeconds?: number;
+  approvalId?: string;
+};
+export type rotatePersonalKeyOutput = {
+  key: {
+    id: string;
+    orgId: string;
+    name: string;
+    ownerKind: "personal" | "team";
+    userId?: string;
+    prefix: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    unrestricted?: boolean;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  };
+  secret?: string;
+  replayed?: boolean;
+};
+export type revokePersonalKeyInput = { id: string };
+export type revokePersonalKeyOutput = { deleted: boolean; mutationId?: string };
+export type listTeamKeysInput = { orgId: string };
+export type listTeamKeysOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    name: string;
+    ownerKind: "personal" | "team";
+    userId?: string;
+    prefix: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    unrestricted?: boolean;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createTeamKeyInput = {
+  orgId: string;
+  name: string;
+  scopes: string[];
+  targets: {
+    databaseId?: string;
+    tableId?: string;
+    level: "read" | "edit" | "manage";
+  }[];
+  unrestricted?: boolean;
+  expiresAt?: string | null;
+  approvalId?: string;
+};
+export type createTeamKeyOutput = {
+  key: {
+    id: string;
+    orgId: string;
+    name: string;
+    ownerKind: "personal" | "team";
+    userId?: string;
+    prefix: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    unrestricted?: boolean;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  };
+  secret?: string;
+  replayed?: boolean;
+};
+export type rotateTeamKeyInput = {
+  orgId: string;
+  id: string;
+  overlapSeconds?: number;
+  approvalId?: string;
+};
+export type rotateTeamKeyOutput = {
+  key: {
+    id: string;
+    orgId: string;
+    name: string;
+    ownerKind: "personal" | "team";
+    userId?: string;
+    prefix: string;
+    scopes: string[];
+    targets: {
+      databaseId?: string;
+      tableId?: string;
+      level: "read" | "edit" | "manage";
+    }[];
+    unrestricted?: boolean;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  };
+  secret?: string;
+  replayed?: boolean;
+};
+export type revokeTeamKeyInput = { orgId: string; id: string };
+export type revokeTeamKeyOutput = { deleted: boolean; mutationId?: string };
+export type getSecurityStatusInput = Record<string, never>;
+export type getSecurityStatusOutput = {
+  twoFactorEnabled: boolean;
+  recoveryCodesRemaining: number;
+  passkeys: {
+    id: string;
+    name: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+  }[];
+};
+export type listDatabasesInput = {
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listDatabasesOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    name: string;
+    description?: string | null;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createDatabaseInput = {
+  orgId: string;
+  name: string;
+  description?: string | null;
+};
+export type createDatabaseOutput = {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string | null;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type getDatabaseInput = { orgId: string; databaseId: string };
+export type getDatabaseOutput = {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string | null;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type updateDatabaseInput = {
+  orgId: string;
+  databaseId: string;
+  name: string;
+  description?: string | null;
+};
+export type updateDatabaseOutput = {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string | null;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type deleteDatabaseInput = {
+  orgId: string;
+  databaseId: string;
+  approvalId?: string;
+};
+export type deleteDatabaseOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type listTablesInput = {
+  orgId: string;
+  databaseId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listTablesOutput = {
+  data: {
+    id: string;
+    databaseId: string;
+    orgId: string;
+    name: string;
+    description?: string | null;
+    schemaVersion: number;
+    rowCount: number;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createTableInput = {
+  orgId: string;
+  databaseId: string;
+  name: string;
+  description?: string | null;
+  fields?: (
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      }
+  )[];
+};
+export type createTableOutput = {
+  table: {
+    id: string;
+    databaseId: string;
+    orgId: string;
+    name: string;
+    description?: string | null;
+    schemaVersion: number;
+    rowCount: number;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  };
+  fields: (
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      }
+  )[];
+  uniqueRules: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    nullPolicy: "distinct";
+    state: "building" | "active" | "failed" | "deleting";
+    strategy: "native" | "registry";
+    jobId?: string;
+    error?: string;
+  }[];
+  indexes: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    kind: "btree" | "trigram" | "jsonb";
+    state: "building" | "active" | "failed" | "deleting";
+    jobId?: string;
+    sizeBytes?: number;
+  }[];
+  operators: Record<string, string[]>;
+  limits: Record<string, number>;
+  schemaOperationId?: string;
+};
+export type getTableInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type getTableOutput = {
+  id: string;
+  databaseId: string;
+  orgId: string;
+  name: string;
+  description?: string | null;
+  schemaVersion: number;
+  rowCount: number;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type updateTableInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  name: string;
+  description?: string | null;
+};
+export type updateTableOutput = {
+  id: string;
+  databaseId: string;
+  orgId: string;
+  name: string;
+  description?: string | null;
+  schemaVersion: number;
+  rowCount: number;
+  state:
+    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+  createdAt: string;
+  updatedAt: string;
+};
+export type deleteTableInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  approvalId?: string;
+};
+export type deleteTableOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type getTableSchemaInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type getTableSchemaOutput = {
+  table: {
+    id: string;
+    databaseId: string;
+    orgId: string;
+    name: string;
+    description?: string | null;
+    schemaVersion: number;
+    rowCount: number;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  };
+  fields: (
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      }
+  )[];
+  uniqueRules: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    nullPolicy: "distinct";
+    state: "building" | "active" | "failed" | "deleting";
+    strategy: "native" | "registry";
+    jobId?: string;
+    error?: string;
+  }[];
+  indexes: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    kind: "btree" | "trigram" | "jsonb";
+    state: "building" | "active" | "failed" | "deleting";
+    jobId?: string;
+    sizeBytes?: number;
+  }[];
+  operators: Record<string, string[]>;
+  limits: Record<string, number>;
+  schemaOperationId?: string;
+};
+export type listFieldsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type listFieldsOutput = {
+  data: (
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      }
+  )[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createFieldInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  field:
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      };
+};
+export type createFieldOutput =
+  | {
+      table: {
+        id: string;
+        databaseId: string;
+        orgId: string;
+        name: string;
+        description?: string | null;
+        schemaVersion: number;
+        rowCount: number;
+        state:
+          | "active"
+          | "creating"
+          | "maintenance"
+          | "deleting"
+          | "deleted"
+          | "failed";
+        createdAt: string;
+        updatedAt: string;
+      };
+      fields: (
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "text";
+            charLimit?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "integer";
+            min?: number;
+            max?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "float";
+            min?: number;
+            max?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "boolean";
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "date";
+            min?: string;
+            max?: string;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "time";
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "date-time";
+            min?: string;
+            max?: string;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "json";
+          }
+      )[];
+      uniqueRules: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        nullPolicy: "distinct";
+        state: "building" | "active" | "failed" | "deleting";
+        strategy: "native" | "registry";
+        jobId?: string;
+        error?: string;
+      }[];
+      indexes: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        kind: "btree" | "trigram" | "jsonb";
+        state: "building" | "active" | "failed" | "deleting";
+        jobId?: string;
+        sizeBytes?: number;
+      }[];
+      operators: Record<string, string[]>;
+      limits: Record<string, number>;
+      schemaOperationId?: string;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type updateFieldInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  fieldId: string;
+  field:
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      };
+  conversion?: "explicit" | "lossless";
+};
+export type updateFieldOutput =
+  | {
+      table: {
+        id: string;
+        databaseId: string;
+        orgId: string;
+        name: string;
+        description?: string | null;
+        schemaVersion: number;
+        rowCount: number;
+        state:
+          | "active"
+          | "creating"
+          | "maintenance"
+          | "deleting"
+          | "deleted"
+          | "failed";
+        createdAt: string;
+        updatedAt: string;
+      };
+      fields: (
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "text";
+            charLimit?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "integer";
+            min?: number;
+            max?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "float";
+            min?: number;
+            max?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "boolean";
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "date";
+            min?: string;
+            max?: string;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "time";
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "date-time";
+            min?: string;
+            max?: string;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "json";
+          }
+      )[];
+      uniqueRules: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        nullPolicy: "distinct";
+        state: "building" | "active" | "failed" | "deleting";
+        strategy: "native" | "registry";
+        jobId?: string;
+        error?: string;
+      }[];
+      indexes: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        kind: "btree" | "trigram" | "jsonb";
+        state: "building" | "active" | "failed" | "deleting";
+        jobId?: string;
+        sizeBytes?: number;
+      }[];
+      operators: Record<string, string[]>;
+      limits: Record<string, number>;
+      schemaOperationId?: string;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type deleteFieldInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  fieldId: string;
+  removeDependencies?: boolean;
+};
+export type deleteFieldOutput =
+  | {
+      table: {
+        id: string;
+        databaseId: string;
+        orgId: string;
+        name: string;
+        description?: string | null;
+        schemaVersion: number;
+        rowCount: number;
+        state:
+          | "active"
+          | "creating"
+          | "maintenance"
+          | "deleting"
+          | "deleted"
+          | "failed";
+        createdAt: string;
+        updatedAt: string;
+      };
+      fields: (
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "text";
+            charLimit?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "integer";
+            min?: number;
+            max?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "float";
+            min?: number;
+            max?: number;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "boolean";
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "date";
+            min?: string;
+            max?: string;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "time";
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "date-time";
+            min?: string;
+            max?: string;
+          }
+        | {
+            id: string;
+            apiKey: string;
+            label: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "json";
+          }
+      )[];
+      uniqueRules: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        nullPolicy: "distinct";
+        state: "building" | "active" | "failed" | "deleting";
+        strategy: "native" | "registry";
+        jobId?: string;
+        error?: string;
+      }[];
+      indexes: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        kind: "btree" | "trigram" | "jsonb";
+        state: "building" | "active" | "failed" | "deleting";
+        jobId?: string;
+        sizeBytes?: number;
+      }[];
+      operators: Record<string, string[]>;
+      limits: Record<string, number>;
+      schemaOperationId?: string;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type reorderFieldsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  fieldIds: string[];
+};
+export type reorderFieldsOutput = {
+  table: {
+    id: string;
+    databaseId: string;
+    orgId: string;
+    name: string;
+    description?: string | null;
+    schemaVersion: number;
+    rowCount: number;
+    state:
+      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
+    createdAt: string;
+    updatedAt: string;
+  };
+  fields: (
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "text";
+        charLimit?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "integer";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "float";
+        min?: number;
+        max?: number;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "boolean";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "time";
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "date-time";
+        min?: string;
+        max?: string;
+      }
+    | {
+        id: string;
+        apiKey: string;
+        label: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "json";
+      }
+  )[];
+  uniqueRules: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    nullPolicy: "distinct";
+    state: "building" | "active" | "failed" | "deleting";
+    strategy: "native" | "registry";
+    jobId?: string;
+    error?: string;
+  }[];
+  indexes: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    kind: "btree" | "trigram" | "jsonb";
+    state: "building" | "active" | "failed" | "deleting";
+    jobId?: string;
+    sizeBytes?: number;
+  }[];
+  operators: Record<string, string[]>;
+  limits: Record<string, number>;
+  schemaOperationId?: string;
+};
+export type previewSchemaChangeInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  change:
+    | {
+        kind: "add_field";
+        field: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | {
+        kind: "update_field";
+        fieldId: string;
+        changes: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+        conversion?: "explicit" | "lossless";
+      }
+    | { kind: "delete_field"; fieldId: string; removeDependencies: boolean }
+    | { kind: "reorder_fields"; fieldIds: string[] };
+};
+export type previewSchemaChangeOutput = {
+  valid: boolean;
+  requiresJob: boolean;
+  rowCount: number;
+  conflicts: {
+    rowId: string;
+    fieldId?: string;
+    code: string;
+    message: string;
+  }[];
+  reportArtifactId?: string;
+};
+export type applySchemaChangeInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  change:
+    | {
+        kind: "add_field";
+        field: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | {
+        kind: "update_field";
+        fieldId: string;
+        changes: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+        conversion?: "explicit" | "lossless";
+      }
+    | { kind: "delete_field"; fieldId: string; removeDependencies: boolean }
+    | { kind: "reorder_fields"; fieldIds: string[] };
+};
+export type applySchemaChangeOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type getSchemaOperationInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  id: string;
+};
+export type getSchemaOperationOutput = {
+  id: string;
+  databaseId: string;
+  tableId: string | null;
+  kind: string;
+  state: string;
+  phase:
+    "planned" | "running" | "committed" | "failed" | "historical" | "unknown";
+  expectedSchemaVersion: number | null;
+  request:
+    | { kind: "database.create"; name: string; description?: string | null }
+    | { kind: "database.update"; name?: string; description?: string | null }
+    | { kind: "database.delete" }
+    | {
+        kind: "table.create";
+        name: string;
+        description?: string | null;
+        fields: (
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "text";
+              charLimit?: number;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "integer";
+              min?: number;
+              max?: number;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "float";
+              min?: number;
+              max?: number;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "boolean";
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "date";
+              min?: string;
+              max?: string;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "time";
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "date-time";
+              min?: string;
+              max?: string;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "json";
+            }
+        )[];
+      }
+    | { kind: "table.update"; name?: string; description?: string | null }
+    | { kind: "table.delete" }
+    | {
+        kind: "field.create";
+        field:
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "text";
+              charLimit?: number;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "integer";
+              min?: number;
+              max?: number;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "float";
+              min?: number;
+              max?: number;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "boolean";
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "date";
+              min?: string;
+              max?: string;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "time";
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "date-time";
+              min?: string;
+              max?: string;
+            }
+          | {
+              apiKey: string;
+              label: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "json";
+            };
+      }
+    | {
+        kind: "field.update";
+        fieldId?: string;
+        changes: {
+          apiKey?: string;
+          label?: string;
+          type?:
+            | "text"
+            | "integer"
+            | "float"
+            | "boolean"
+            | "date"
+            | "time"
+            | "date-time"
+            | "json";
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          charLimit?: number;
+          min?: unknown;
+          max?: unknown;
+          order?: number;
+        };
+      }
+    | {
+        kind: "field.convert";
+        fieldId?: string;
+        changes: {
+          apiKey?: string;
+          label?: string;
+          type?:
+            | "text"
+            | "integer"
+            | "float"
+            | "boolean"
+            | "date"
+            | "time"
+            | "date-time"
+            | "json";
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          charLimit?: number;
+          min?: unknown;
+          max?: unknown;
+          order?: number;
+        };
+        conversion?: "explicit" | "lossless";
+      }
+    | { kind: "field.delete"; fieldId?: string; removeDependencies: boolean }
+    | { kind: "fields.reorder"; fieldIds: string[] }
+    | { kind: "rule.create"; fieldIds: string[]; name?: string }
+    | { kind: "rule.delete"; id?: string }
+    | {
+        kind: "index.create";
+        fieldIds: string[];
+        indexKind: "btree" | "trigram" | "jsonb";
+      }
+    | { kind: "index.delete"; id?: string }
+    | { kind: "unknown" };
+  before: {
+    table: {
+      id: string;
+      databaseId: string;
+      orgId: string;
+      name: string;
+      description?: string | null;
+      schemaVersion: number;
+      rowCount: number;
+      state:
+        | "active"
+        | "creating"
+        | "maintenance"
+        | "deleting"
+        | "deleted"
+        | "failed";
+      createdAt: string;
+      updatedAt: string;
+    };
+    fields: (
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "text";
+          charLimit?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "integer";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "float";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "boolean";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "time";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date-time";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "json";
+        }
+    )[];
+  } | null;
+  change?:
+    | {
+        kind: "add_field";
+        field: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | {
+        kind: "update_field";
+        fieldId: string;
+        changes: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+        conversion?: "explicit" | "lossless";
+      }
+    | { kind: "delete_field"; fieldId: string; removeDependencies: boolean }
+    | { kind: "reorder_fields"; fieldIds: string[] };
+  verification: {
+    transactional?: boolean;
+    fieldId?: string;
+    indexId?: string;
+    nextField?:
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "text";
+          charLimit?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "integer";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "float";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "boolean";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "time";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date-time";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "json";
+        };
+  };
+  createdAt: string;
+  committedAt: string | null;
+  error?: { code: string; message: string; retryable?: boolean };
+  jobId?: string;
+};
+export type listUniqueRulesInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type listUniqueRulesOutput = {
+  data: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    nullPolicy: "distinct";
+    state: "building" | "active" | "failed" | "deleting";
+    strategy: "native" | "registry";
+    jobId?: string;
+    error?: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createUniqueRuleInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  fieldIds: string[];
+};
+export type createUniqueRuleOutput =
+  | {
+      id: string;
+      tableId: string;
+      fieldIds: string[];
+      nullPolicy: "distinct";
+      state: "building" | "active" | "failed" | "deleting";
+      strategy: "native" | "registry";
+      jobId?: string;
+      error?: string;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type deleteUniqueRuleInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  id: string;
+};
+export type deleteUniqueRuleOutput = { deleted: boolean; mutationId?: string };
+export type listIndexesInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type listIndexesOutput = {
+  data: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    kind: "btree" | "trigram" | "jsonb";
+    state: "building" | "active" | "failed" | "deleting";
+    jobId?: string;
+    sizeBytes?: number;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createIndexInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  fieldIds: string[];
+  kind: "btree" | "trigram" | "jsonb";
+};
+export type createIndexOutput =
+  | {
+      id: string;
+      tableId: string;
+      fieldIds: string[];
+      kind: "btree" | "trigram" | "jsonb";
+      state: "building" | "active" | "failed" | "deleting";
+      jobId?: string;
+      sizeBytes?: number;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type deleteIndexInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  id: string;
+};
+export type deleteIndexOutput = { deleted: boolean; mutationId?: string };
+export type listRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  select?: string[];
+  orderBy?: { field: string; direction: "asc" | "desc" }[];
+  limit?: number;
+  cursor?: string | null;
+};
+export type listRowsOutput = {
+  data: {
+    id: string;
+    version: string;
+    createdAt: string;
+    updatedAt: string;
+    values: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+  }[];
+  schemaVersion: number;
+  page: {
+    returned: number;
+    requestedLimit: number;
+    hasMore: boolean;
+    nextCursor: unknown;
+    stopReason: "row_limit" | "byte_limit" | "end";
+    consistency: "live";
+  };
+};
+export type queryRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  query: {
+    select?: string[];
+    where?:
+      | {
+          field: string;
+          op:
+            | "eq"
+            | "ne"
+            | "lt"
+            | "lte"
+            | "gt"
+            | "gte"
+            | "between"
+            | "in"
+            | "isNull"
+            | "isNotNull"
+            | "prefix"
+            | "contains"
+            | "iContains"
+            | "pathExists"
+            | "pathEq"
+            | "jsonContains";
+          value?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          path?: (string | number)[];
+        }
+      | { and: JsonValue[] }
+      | { or: JsonValue[] };
+    orderBy?: { field: string; direction: "asc" | "desc" }[];
+    limit?: number;
+    cursor?: string | null;
+  };
+};
+export type queryRowsOutput = {
+  data: {
+    id: string;
+    version: string;
+    createdAt: string;
+    updatedAt: string;
+    values: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+  }[];
+  schemaVersion: number;
+  page: {
+    returned: number;
+    requestedLimit: number;
+    hasMore: boolean;
+    nextCursor: unknown;
+    stopReason: "row_limit" | "byte_limit" | "end";
+    consistency: "live";
+  };
+};
+export type getRowInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+};
+export type getRowOutput = {
+  id: string;
+  version: string;
+  createdAt: string;
+  updatedAt: string;
+  values: Record<
+    string,
+    null | boolean | number | string | unknown[] | Record<string, unknown>
+  >;
+};
+export type createRowInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  values: Record<
+    string,
+    null | boolean | number | string | unknown[] | Record<string, unknown>
+  >;
+};
+export type createRowOutput = {
+  row: {
+    id: string;
+    version: string;
+    createdAt: string;
+    updatedAt: string;
+    values: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+  };
+  mutationId: string;
+};
+export type updateRowInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  rowId: string;
+  expectedVersion: string;
+  values: Record<
+    string,
+    null | boolean | number | string | unknown[] | Record<string, unknown>
+  >;
+};
+export type updateRowOutput = {
+  row: {
+    id: string;
+    version: string;
+    createdAt: string;
+    updatedAt: string;
+    values: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+  };
+  mutationId: string;
+};
+export type deleteRowInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  rowId: string;
+  expectedVersion: string;
+};
+export type deleteRowOutput = { deleted: boolean; mutationId?: string };
+export type mutateRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  mutations: (
+    | {
+        type: "create";
+        values: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | {
+        type: "update";
+        rowId: string;
+        expectedVersion: string;
+        values: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | { type: "delete"; rowId: string; expectedVersion: string }
+  )[];
+};
+export type mutateRowsOutput = {
+  mutationId: string;
+  results: {
+    type: "create" | "update" | "delete";
+    rowId: string;
+    row?: {
+      id: string;
+      version: string;
+      createdAt: string;
+      updatedAt: string;
+      values: Record<
+        string,
+        null | boolean | number | string | unknown[] | Record<string, unknown>
+      >;
+    };
+    deleted?: boolean;
+  }[];
+};
+export type getTableStatisticsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type getTableStatisticsOutput = {
+  liveRows: number;
+  rowCountKind: "cached" | "live" | "approximate";
+  storageBytes: number;
+  indexBytes: number;
+  historyEvents: number;
+  asOf: string;
+};
+export type countRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  query?: {
+    select?: string[];
+    where?:
+      | {
+          field: string;
+          op:
+            | "eq"
+            | "ne"
+            | "lt"
+            | "lte"
+            | "gt"
+            | "gte"
+            | "between"
+            | "in"
+            | "isNull"
+            | "isNotNull"
+            | "prefix"
+            | "contains"
+            | "iContains"
+            | "pathExists"
+            | "pathEq"
+            | "jsonContains";
+          value?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          path?: (string | number)[];
+        }
+      | { and: JsonValue[] }
+      | { or: JsonValue[] };
+    orderBy?: { field: string; direction: "asc" | "desc" }[];
+    limit?: number;
+    cursor?: string | null;
+  };
+  exact?: boolean;
+};
+export type countRowsOutput =
+  | {
+      count: number;
+      kind: "cached" | "live" | "approximate" | "exact";
+      asOf: string;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type getCellHistoryInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+  fieldId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type getCellHistoryOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    databaseId: string;
+    tableId: string;
+    rowId: string;
+    fieldId: string;
+    mutationId: string;
+    requestId: string;
+    actor: {
+      id: string;
+      kind: string;
+      credentialId?: string;
+      clientId?: string;
+    };
+    source: string;
+    operation:
+      "create" | "update" | "delete" | "conversion" | "restore" | "repair";
+    before:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    after:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    fieldDefinition:
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "text";
+          charLimit?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "integer";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "float";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "boolean";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "time";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date-time";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "json";
+        };
+    previousVersion: string | null;
+    version: string;
+    timestamp: string;
+  }[];
+  nextCursor: unknown;
+  hasMore: boolean;
+  retentionGaps: { from: string; to: string; archiveId?: string }[];
+};
+export type queryHistoryInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId?: string;
+  fieldId?: string;
+  mutationId?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type queryHistoryOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    databaseId: string;
+    tableId: string;
+    rowId: string;
+    fieldId: string;
+    mutationId: string;
+    requestId: string;
+    actor: {
+      id: string;
+      kind: string;
+      credentialId?: string;
+      clientId?: string;
+    };
+    source: string;
+    operation:
+      "create" | "update" | "delete" | "conversion" | "restore" | "repair";
+    before:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    after:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    fieldDefinition:
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "text";
+          charLimit?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "integer";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "float";
+          min?: number;
+          max?: number;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "boolean";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "time";
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "date-time";
+          min?: string;
+          max?: string;
+        }
+      | {
+          id: string;
+          apiKey: string;
+          label: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "json";
+        };
+    previousVersion: string | null;
+    version: string;
+    timestamp: string;
+  }[];
+  nextCursor: unknown;
+  hasMore: boolean;
+  retentionGaps: { from: string; to: string; archiveId?: string }[];
+};
+export type getMutationInput = { orgId: string; id: string };
+export type getMutationOutput = {
+  mutationId: string;
+  replayed?: boolean;
+  result?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+};
+export type prepareImportUploadInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  format: "csv" | "jsonl";
+  byteLength: number;
+  checksum?: string;
+};
+export type prepareImportUploadOutput = {
+  artifactId: string;
+  uploadUrl: string;
+  expiresAt: string;
+  maxBytes: number;
+  method: "PUT";
+  headers: Record<string, string>;
+  byteLength: number;
+};
+export type validateImportInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  artifactId: string;
+  format?: "csv" | "jsonl";
+  mapping: Record<string, string>;
+  mode: "create" | "upsert";
+  uniqueRuleId?: string;
+  rowIdColumn?: string;
+  atomic?: boolean;
+  batchSize?: number;
+};
+export type validateImportOutput =
+  | {
+      valid: boolean;
+      examined: number;
+      accepted: number;
+      rejected: number;
+      errors: {
+        record: number;
+        field?: string;
+        code: string;
+        message: string;
+      }[];
+      reportArtifactId?: string;
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type importRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  artifactId: string;
+  format?: "csv" | "jsonl";
+  mapping: Record<string, string>;
+  mode: "create" | "upsert";
+  uniqueRuleId?: string;
+  rowIdColumn?: string;
+  atomic?: boolean;
+  batchSize?: number;
+};
+export type importRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type exportRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  format: "csv" | "jsonl";
+  query?: {
+    select?: string[];
+    where?:
+      | {
+          field: string;
+          op:
+            | "eq"
+            | "ne"
+            | "lt"
+            | "lte"
+            | "gt"
+            | "gte"
+            | "between"
+            | "in"
+            | "isNull"
+            | "isNotNull"
+            | "prefix"
+            | "contains"
+            | "iContains"
+            | "pathExists"
+            | "pathEq"
+            | "jsonContains";
+          value?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          path?: (string | number)[];
+        }
+      | { and: JsonValue[] }
+      | { or: JsonValue[] };
+    orderBy?: { field: string; direction: "asc" | "desc" }[];
+    limit?: number;
+    cursor?: string | null;
+  };
+  spreadsheetSafe?: boolean;
+};
+export type exportRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type getArtifactInput = { orgId: string; id: string };
+export type getArtifactOutput = {
+  id: string;
+  orgId: string;
+  kind: "import" | "export" | "report" | "backup" | "history_archive";
+  format: "csv" | "jsonl" | "json" | "archive";
+  sizeBytes: number;
+  checksum: string;
+  expiresAt: string;
+  downloadUrl?: string;
+  resourceUri?: string;
+  rowCount?: number;
+};
+export type getHistoryRetentionPolicyInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type getHistoryRetentionPolicyOutput = {
+  enabled: boolean;
+  retentionDays: number;
+  cron: string;
+  timezone: string;
+  maxRuntimeSeconds: number;
+  suspension?: { code: string; at: string };
+};
+export type setHistoryRetentionPolicyInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  enabled: boolean;
+  retentionDays: number;
+  cron: string;
+  timezone: string;
+  maxRuntimeSeconds: number;
+  approvalId?: string;
+};
+export type setHistoryRetentionPolicyOutput = {
+  enabled: boolean;
+  retentionDays: number;
+  cron: string;
+  timezone: string;
+  maxRuntimeSeconds: number;
+  suspension?: { code: string; at: string };
+};
+export type archiveHistoryInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  before: string;
+  approvalId?: string;
+};
+export type archiveHistoryOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type listHistoryArchivesInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listHistoryArchivesOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    databaseId: string;
+    tableId: string;
+    jobId: string;
+    artifactId: string | null;
+    state:
+      | "queued"
+      | "snapshotting"
+      | "uploading"
+      | "verifying"
+      | "purging"
+      | "succeeded"
+      | "failed"
+      | "cancelled";
+    from: string | null;
+    to: string;
+    createdAt: string;
+    verifiedAt: string | null;
+    cellEvents: number;
+    rowEvents: number;
+    sizeBytes?: number;
+    checksum?: string;
+    manifest?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    error?: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type getHistoryArchiveInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  id: string;
+};
+export type getHistoryArchiveOutput = {
+  id: string;
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  jobId: string;
+  artifactId: string | null;
+  state:
+    | "queued"
+    | "snapshotting"
+    | "uploading"
+    | "verifying"
+    | "purging"
+    | "succeeded"
+    | "failed"
+    | "cancelled";
+  from: string | null;
+  to: string;
+  createdAt: string;
+  verifiedAt: string | null;
+  cellEvents: number;
+  rowEvents: number;
+  sizeBytes?: number;
+  checksum?: string;
+  manifest?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+  error?: string;
+};
+export type getBackupPolicyInput = { orgId: string; databaseId: string };
+export type getBackupPolicyOutput = {
+  policy: {
+    enabled: boolean;
+    cron: string;
+    timezone: string;
+    destination: "installation";
+    retentionDays: number;
+    retentionCount: number;
+    encryption: true;
+    maxRuntimeSeconds: number;
+    notifications: boolean;
+    suspension?: { code: string; at: string };
+  } | null;
+};
+export type setBackupPolicyInput = {
+  orgId: string;
+  databaseId: string;
+  enabled: boolean;
+  cron: string;
+  timezone: string;
+  destination: "installation";
+  retentionDays: number;
+  retentionCount: number;
+  encryption: true;
+  maxRuntimeSeconds: number;
+  notifications: boolean;
+  approvalId?: string;
+};
+export type setBackupPolicyOutput = {
+  enabled: boolean;
+  cron: string;
+  timezone: string;
+  destination: "installation";
+  retentionDays: number;
+  retentionCount: number;
+  encryption: true;
+  maxRuntimeSeconds: number;
+  notifications: boolean;
+  suspension?: { code: string; at: string };
+};
+export type previewBackupScheduleInput = {
+  orgId: string;
+  databaseId: string;
+  cron?: string;
+  timezone?: string;
+  count?: number;
+  from?: string;
+};
+export type previewBackupScheduleOutput = {
+  occurrences: string[];
+  timezone: string;
+  repeatedTimePolicy: "earlier";
+  nonexistentTimePolicy: "skip";
+};
+export type listBackupsInput = {
+  orgId: string;
+  databaseId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listBackupsOutput = {
+  data: {
+    id: string;
+    databaseId: string;
+    orgId: string;
+    jobId: string;
+    state:
+      | "queued"
+      | "snapshotting"
+      | "uploading"
+      | "verifying"
+      | "succeeded"
+      | "failed"
+      | "cancelled";
+    createdAt: string;
+    verifiedAt: string | null;
+    sizeBytes?: number;
+    checksum?: string;
+    manifest?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    error?: string;
+    notificationState?: "pending" | "sent" | "failed" | "disabled";
+    cleanupError?: { code: string; message: string };
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type getBackupInput = { orgId: string; databaseId: string; id: string };
+export type getBackupOutput = {
+  id: string;
+  databaseId: string;
+  orgId: string;
+  jobId: string;
+  state:
+    | "queued"
+    | "snapshotting"
+    | "uploading"
+    | "verifying"
+    | "succeeded"
+    | "failed"
+    | "cancelled";
+  createdAt: string;
+  verifiedAt: string | null;
+  sizeBytes?: number;
+  checksum?: string;
+  manifest?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+  error?: string;
+  notificationState?: "pending" | "sent" | "failed" | "disabled";
+  cleanupError?: { code: string; message: string };
+};
+export type createBackupInput = { orgId: string; databaseId: string };
+export type createBackupOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type deleteBackupInput = {
+  orgId: string;
+  databaseId: string;
+  id: string;
+};
+export type deleteBackupOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type previewRestoreInput = {
+  orgId: string;
+  databaseId: string;
+  id: string;
+  mode: "new" | "replace";
+  name?: string;
+  targetDatabaseId?: string;
+  approvalId?: string;
+};
+export type previewRestoreOutput = {
+  compatible: boolean;
+  mode: "new" | "replace";
+  requiresApproval: boolean;
+  requiresRecoveryPoint: boolean;
+  warnings: string[];
+};
+export type restoreBackupInput = {
+  orgId: string;
+  databaseId: string;
+  id: string;
+  mode: "new" | "replace";
+  name?: string;
+  targetDatabaseId?: string;
+  approvalId?: string;
+};
+export type restoreBackupOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type listJobsInput = {
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+  databaseId?: string;
+  tableId?: string;
+  state?:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  kind?: string;
+};
+export type listJobsOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    kind: string;
+    operationId: string;
+    state:
+      | "queued"
+      | "running"
+      | "succeeded"
+      | "failed"
+      | "cancelled"
+      | "partially_completed";
+    stage?: string;
+    databaseId?: string;
+    tableId?: string;
+    progress?: { completed: number; total?: number; unit?: string };
+    createdAt: string;
+    updatedAt: string;
+    result?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    error?: {
+      code: string;
+      message: string;
+      requestId: string;
+      details?:
+        null | boolean | number | string | unknown[] | Record<string, unknown>;
+    };
+    checkpoint?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    attempt?: number;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type getJobInput = { orgId: string; id: string };
+export type getJobOutput = {
+  id: string;
+  orgId: string;
+  kind: string;
+  operationId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  stage?: string;
+  databaseId?: string;
+  tableId?: string;
+  progress?: { completed: number; total?: number; unit?: string };
+  createdAt: string;
+  updatedAt: string;
+  result?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+  error?: {
+    code: string;
+    message: string;
+    requestId: string;
+    details?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+  };
+  checkpoint?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+  attempt?: number;
+};
+export type cancelJobInput = { orgId: string; id: string };
+export type cancelJobOutput = {
+  id: string;
+  orgId: string;
+  kind: string;
+  operationId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  stage?: string;
+  databaseId?: string;
+  tableId?: string;
+  progress?: { completed: number; total?: number; unit?: string };
+  createdAt: string;
+  updatedAt: string;
+  result?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+  error?: {
+    code: string;
+    message: string;
+    requestId: string;
+    details?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+  };
+  checkpoint?:
+    null | boolean | number | string | unknown[] | Record<string, unknown>;
+  attempt?: number;
+};
+export type retryJobInput = { orgId: string; id: string };
+export type retryJobOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type getUsageInput = { orgId: string };
+export type getUsageOutput = {
+  databases: number;
+  tables: number;
+  rows: number;
+  dataBytes: number;
+  indexBytes: number;
+  historyBytes: number;
+  artifactBytes: number;
+  storageQuotaBytes: string | null;
+  storageAdmission: {
+    state:
+      | "available"
+      | "quota_exceeded"
+      | "disk_pressure"
+      | "report_stale"
+      | "unavailable";
+    reason: unknown;
+  };
+  admissionAvailable: boolean;
+};
+export type getViewPreferencesInput = { tableId: string };
+export type getViewPreferencesOutput = {
+  tableId: string;
+  preferences: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+  };
+};
+export type updateViewPreferencesInput = {
+  tableId: string;
+  preferences: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+  };
+};
+export type updateViewPreferencesOutput = {
+  tableId: string;
+  preferences: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+  };
+};
+export type getInstallationStatusInput = Record<string, never>;
+export type getInstallationStatusOutput = {
+  healthy: boolean;
+  version: string;
+  migrationVersion: string;
+  dependencies: Record<string, "healthy" | "degraded" | "unavailable">;
+  workerHeartbeatAt: string | null;
+  metrics: {
+    collectedAt: string;
+    processStartedAt: string;
+    uptimeSeconds: number;
+    requestCounterScope: "process_since_start";
+    requests: {
+      total: number;
+      errors: number;
+      timeouts: number;
+      rowLimitRejections: number;
+      storageAdmissionRejections: number;
+      rateLimitRejections: number;
+      loggingFailures: number;
+      operations: {
+        operationId: string;
+        requests: number;
+        errors: number;
+        timeouts: number;
+        durationSumMs: number;
+        durationMaxMs: number;
+        histogram: { upperBoundMs: number | null; count: number }[];
+      }[];
+    };
+    pools: Record<
+      string,
+      { total: number; idle: number; waiting: number; maximum: number }
+    >;
+    databaseStatus: "healthy" | "unavailable";
+    database: {
+      databaseBytes: string;
+      temporaryBytes: string;
+      temporaryFiles: string;
+      walDirectoryBytes: string;
+      walGeneratedBytes: string;
+      walRecords: string;
+      transactionsCommitted: string;
+      transactionsRolledBack: string;
+      deadlocks: string;
+      connections: {
+        total: number;
+        active: number;
+        idle: number;
+        idleInTransaction: number;
+        maximum: number;
+        oldestTransactionSeconds: number | null;
+      };
+      jobs: {
+        queued: number;
+        running: number;
+        failed: number;
+        expiredLeases: number;
+        oldestQueuedSeconds: number | null;
+        retried: number;
+      };
+      backups: {
+        verified: number;
+        failed: number;
+        pendingNotifications: number;
+        failedNotifications: number;
+        lastVerifiedAt: string | null;
+        oldestDatabaseVerifiedAgeSeconds: number | null;
+        databasesWithoutVerifiedBackup: number;
+      };
+      email: {
+        pending: number;
+        sending: number;
+        failed: number;
+        retrying: number;
+        oldestPendingSeconds: number | null;
+      };
+      schema: {
+        pending: number;
+        failed: number;
+        buildingIndexes: number;
+        failedIndexes: number;
+        invalidIndexes: number;
+      };
+      workers: { freshReady: number; stale: number; degraded: number };
+      storage: {
+        activeDatabases: number;
+        activeTables: number;
+        retainedTables: number;
+        liveRows: string;
+        dataBytes: string;
+        indexBytes: string;
+        historyEvents: string;
+        historyBytes: string;
+        artifactBytes: string;
+      };
+      statisticsResetAt: string | null;
+      walStatisticsResetAt: string | null;
+    } | null;
+    signals: {
+      code:
+        | "DATABASE_METRICS_UNAVAILABLE"
+        | "POOL_SATURATED"
+        | "DATABASE_CONNECTION_PRESSURE"
+        | "IDLE_TRANSACTION_PRESSURE"
+        | "JOB_BACKLOG"
+        | "JOB_LEASE_EXPIRED"
+        | "WORKER_STALE"
+        | "WORKER_DEGRADED"
+        | "EMAIL_DELIVERY_FAILED"
+        | "EMAIL_DELIVERY_RETRYING"
+        | "SCHEMA_JOB_FAILED"
+        | "INDEX_INVALID"
+        | "BACKUP_FAILED"
+        | "BACKUP_NOTIFICATION_FAILED"
+        | "BACKUP_RECOVERY_POINT_MISSING"
+        | "LOG_SINK_FAILED";
+      severity: "warning" | "critical";
+      component:
+        | "database"
+        | "pool"
+        | "jobs"
+        | "worker"
+        | "email"
+        | "schema"
+        | "backup"
+        | "logging";
+      message: string;
+    }[];
+  };
+  storage: {
+    installation: {
+      usedBytes: string;
+      quotaBytes: string | null;
+      availableQuotaBytes: string | null;
+      metric: "postgresql_database_bytes";
+    };
+    organisation: {
+      orgId: string;
+      nativeRelationBytes: string;
+      retainedControlTupleBytes: string;
+      usedBytes: string;
+      quotaBytes: string | null;
+      availableQuotaBytes: string | null;
+      metric: "native_relation_and_retained_control_tuple_bytes";
+    } | null;
+    disk: {
+      minimumFreeBytes: string | null;
+      reportedAvailableBytes: string | null;
+      reportedTotalBytes: string | null;
+      headroomClaimsBytes: string;
+      effectiveAvailableBytes: string | null;
+      reportedAt: string | null;
+      reportMaxAgeSeconds: number;
+      fresh: boolean;
+      volumes: { name: string; availableBytes: string; totalBytes: string }[];
+    };
+    admission: {
+      enabled: boolean;
+      state: "available" | "quota_exceeded" | "disk_pressure" | "report_stale";
+      reason: unknown;
+    };
+  } | null;
+};
+export type getInstallationConfigurationInput = Record<string, never>;
+export type getInstallationConfigurationOutput = {
+  baseUrl: string;
+  signupEnabled: false;
+  smtpConfigured: boolean;
+  objectStorageConfigured: boolean;
+  limits: Record<string, number>;
+  operatorRecoveryEnabled: boolean;
+  restartRequired?: boolean;
+  storage: {
+    installationQuotaBytes?: string | null;
+    defaultOrganisationQuotaBytes?: string | null;
+    minimumFreeBytes?: string | null;
+    reportMaxAgeSeconds?: number;
+    organisationOverrides?: { orgId: string; quotaBytes: string | null }[];
+  };
+  deletionRetention: {
+    organisationDays?: number | null;
+    accountAuditDays?: number | null;
+  };
+};
+export type updateInstallationConfigurationInput = {
+  limits?: Record<string, number>;
+  storage?: {
+    installationQuotaBytes?: string | null;
+    defaultOrganisationQuotaBytes?: string | null;
+    minimumFreeBytes?: string | null;
+    reportMaxAgeSeconds?: number;
+    organisationOverrides?: { orgId: string; quotaBytes: string | null }[];
+  };
+  deletionRetention?: {
+    organisationDays?: number | null;
+    accountAuditDays?: number | null;
+  };
+  smtp?: {
+    host: string;
+    port: number;
+    secure: boolean;
+    from: string;
+    user?: string;
+    password?: string;
+  };
+  objectStorage?: {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
+  };
+  approvalId?: string;
+};
+export type updateInstallationConfigurationOutput = {
+  baseUrl: string;
+  signupEnabled: false;
+  smtpConfigured: boolean;
+  objectStorageConfigured: boolean;
+  limits: Record<string, number>;
+  operatorRecoveryEnabled: boolean;
+  restartRequired?: boolean;
+  storage: {
+    installationQuotaBytes?: string | null;
+    defaultOrganisationQuotaBytes?: string | null;
+    minimumFreeBytes?: string | null;
+    reportMaxAgeSeconds?: number;
+    organisationOverrides?: { orgId: string; quotaBytes: string | null }[];
+  };
+  deletionRetention: {
+    organisationDays?: number | null;
+    accountAuditDays?: number | null;
+  };
+};
+export type testEmailInput = { recipient: string; approvalId?: string };
+export type testEmailOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export interface CallOptions {
+  signal?: AbortSignal;
+  idempotencyKey?: string;
+}
+const routes = {
+  getContext: {
+    path: "/v1/me",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getProfile: {
+    path: "/v1/me/profile",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateProfile: {
+    path: "/v1/me/profile",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  getPreferences: {
+    path: "/v1/me/preferences",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updatePreferences: {
+    path: "/v1/me/preferences",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  getPreferenceOptions: {
+    path: "/v1/preferences/options",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  previewPreferences: {
+    path: "/v1/me/preferences/preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  listSessions: {
+    path: "/v1/me/sessions",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  revokeSession: {
+    path: "/v1/me/sessions/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listConnections: {
+    path: "/v1/me/connections",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  revokeConnection: {
+    path: "/v1/me/connections/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  beginAccountAction: {
+    path: "/v1/me/actions",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getAccountAction: {
+    path: "/v1/me/actions/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  completeAccountAction: {
+    path: "/v1/me/actions/{id}/complete",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  listOrganisations: {
+    path: "/v1/orgs",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getOrganisation: {
+    path: "/v1/orgs/{orgId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateOrganisation: {
+    path: "/v1/orgs/{orgId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  transferOwnership: {
+    path: "/v1/orgs/{orgId}/ownership-transfer",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  deleteOrganisation: {
+    path: "/v1/orgs/{orgId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listMembers: {
+    path: "/v1/orgs/{orgId}/members",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateMember: {
+    path: "/v1/orgs/{orgId}/members/{id}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  removeMember: {
+    path: "/v1/orgs/{orgId}/members/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listInvitations: {
+    path: "/v1/orgs/{orgId}/invitations",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  inviteMember: {
+    path: "/v1/orgs/{orgId}/invitations",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  cancelInvitation: {
+    path: "/v1/orgs/{orgId}/invitations/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  getGrants: {
+    path: "/v1/orgs/{orgId}/grants",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateGrants: {
+    path: "/v1/orgs/{orgId}/grants",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  queryOrganisationAudit: {
+    path: "/v1/orgs/{orgId}/audit/query",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  listPersonalKeys: {
+    path: "/v1/me/keys",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createPersonalKey: {
+    path: "/v1/me/keys",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  rotatePersonalKey: {
+    path: "/v1/me/keys/{id}/rotate",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  revokePersonalKey: {
+    path: "/v1/me/keys/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listTeamKeys: {
+    path: "/v1/orgs/{orgId}/keys",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createTeamKey: {
+    path: "/v1/orgs/{orgId}/keys",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  rotateTeamKey: {
+    path: "/v1/orgs/{orgId}/keys/{id}/rotate",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  revokeTeamKey: {
+    path: "/v1/orgs/{orgId}/keys/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  getSecurityStatus: {
+    path: "/v1/me/security",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  listDatabases: {
+    path: "/v1/orgs/{orgId}/databases",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createDatabase: {
+    path: "/v1/orgs/{orgId}/databases",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getDatabase: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateDatabase: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  deleteDatabase: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listTables: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createTable: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getTable: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateTable: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  deleteTable: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  getTableSchema: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  listFields: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createField: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  updateField: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields/{fieldId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  deleteField: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields/{fieldId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  reorderFields: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/field-order",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  previewSchemaChange: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema/preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  applySchemaChange: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema/operations",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getSchemaOperation: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema/operations/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  listUniqueRules: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/unique-rules",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createUniqueRule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/unique-rules",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  deleteUniqueRule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/unique-rules/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listIndexes: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createIndex: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  deleteIndex: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  queryRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/query",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  getRow: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createRow: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  updateRow: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  deleteRow: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  mutateRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/batch",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getTableStatistics: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/statistics",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  countRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/count",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  getCellHistory: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}/cells/{fieldId}/history",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  queryHistory: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  getMutation: {
+    path: "/v1/orgs/{orgId}/mutations/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  prepareImportUpload: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/uploads",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  validateImport: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/validate",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  importRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  exportRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/exports",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getArtifact: {
+    path: "/v1/orgs/{orgId}/artifacts/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getHistoryRetentionPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-retention-policy",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  setHistoryRetentionPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-retention-policy",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  archiveHistory: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-archives",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  listHistoryArchives: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-archives",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getHistoryArchive: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-archives/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getBackupPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  setBackupPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  previewBackupSchedule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy/preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  listBackups: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getBackup: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createBackup: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  deleteBackup: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  previewRestore: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}/restore-preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  restoreBackup: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}/restores",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  listJobs: {
+    path: "/v1/orgs/{orgId}/jobs",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getJob: {
+    path: "/v1/orgs/{orgId}/jobs/{id}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  cancelJob: {
+    path: "/v1/orgs/{orgId}/jobs/{id}/cancel",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  retryJob: {
+    path: "/v1/orgs/{orgId}/jobs/{id}/retry",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getUsage: {
+    path: "/v1/orgs/{orgId}/usage",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getViewPreferences: {
+    path: "/v1/me/view-preferences/{tableId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateViewPreferences: {
+    path: "/v1/me/view-preferences/{tableId}",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  getInstallationStatus: {
+    path: "/v1/installation/status",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getInstallationConfiguration: {
+    path: "/v1/installation/configuration",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateInstallationConfiguration: {
+    path: "/v1/installation/configuration",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  testEmail: {
+    path: "/v1/installation/email-test",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+} as const;
+export class RootsetClient {
+  constructor(
+    readonly baseUrl: string,
+    readonly options: {
+      bearer?: string;
+      fetch?: typeof fetch;
+      internal?: boolean;
+    } = {},
+  ) {}
+  private async call(
+    operationId: keyof typeof routes,
+    input: object,
+    call: CallOptions = {},
+  ): Promise<unknown> {
+    const operation = routes[operationId];
+    const body = { ...input } as Record<string, unknown>;
+    let path: string = operation.path;
+    path = path.replace(/\{([^}]+)\}/g, (_, name: string) => {
+      const value = body[name];
+      if (typeof value !== "string")
+        throw new Error("Missing path parameter " + name);
+      delete body[name];
+      return encodeURIComponent(value);
+    });
+    if (this.options.internal) path = path.replace(/^\/v1/, "/api/internal/v1");
+    const headers = new Headers({ Accept: "application/json" });
+    if (this.options.bearer)
+      headers.set("Authorization", "Bearer " + this.options.bearer);
+    if (operation.idempotencyRequired) {
+      if (!call.idempotencyKey) throw new Error("Idempotency-Key is required");
+      headers.set("Idempotency-Key", call.idempotencyKey);
+    }
+    if (operationId === "deleteRow") {
+      const rowId = (input as Record<string, unknown>).rowId;
+      headers.set(
+        "If-Match",
+        '"' + String(rowId) + ":" + String(body.expectedVersion) + '"',
+      );
+    }
+    const url = new URL(path, this.baseUrl);
+    let encoded: string | undefined;
+    if (operation.method === "GET") {
+      for (const [name, value] of Object.entries(body))
+        if (value !== undefined)
+          url.searchParams.set(
+            name,
+            typeof value === "object" ? JSON.stringify(value) : String(value),
+          );
+    } else {
+      headers.set("Content-Type", "application/json");
+      encoded = JSON.stringify(body);
+    }
+    const response = await (this.options.fetch ?? fetch)(url, {
+      method: operation.method,
+      headers,
+      body: encoded,
+      signal: call.signal,
+      credentials: "include",
+    });
+    const result = (await response.json()) as unknown;
+    if (!response.ok) {
+      const error = new Error("Rootset request failed");
+      Object.assign(error, { status: response.status, result });
+      throw error;
+    }
+    return result;
+  }
+  getContext(
+    input: getContextInput,
+    options?: CallOptions,
+  ): Promise<getContextOutput> {
+    return this.call("getContext", input, options) as Promise<getContextOutput>;
+  }
+  getProfile(
+    input: getProfileInput,
+    options?: CallOptions,
+  ): Promise<getProfileOutput> {
+    return this.call("getProfile", input, options) as Promise<getProfileOutput>;
+  }
+  updateProfile(
+    input: updateProfileInput,
+    options?: CallOptions,
+  ): Promise<updateProfileOutput> {
+    return this.call(
+      "updateProfile",
+      input,
+      options,
+    ) as Promise<updateProfileOutput>;
+  }
+  getPreferences(
+    input: getPreferencesInput,
+    options?: CallOptions,
+  ): Promise<getPreferencesOutput> {
+    return this.call(
+      "getPreferences",
+      input,
+      options,
+    ) as Promise<getPreferencesOutput>;
+  }
+  updatePreferences(
+    input: updatePreferencesInput,
+    options?: CallOptions,
+  ): Promise<updatePreferencesOutput> {
+    return this.call(
+      "updatePreferences",
+      input,
+      options,
+    ) as Promise<updatePreferencesOutput>;
+  }
+  getPreferenceOptions(
+    input: getPreferenceOptionsInput,
+    options?: CallOptions,
+  ): Promise<getPreferenceOptionsOutput> {
+    return this.call(
+      "getPreferenceOptions",
+      input,
+      options,
+    ) as Promise<getPreferenceOptionsOutput>;
+  }
+  previewPreferences(
+    input: previewPreferencesInput,
+    options?: CallOptions,
+  ): Promise<previewPreferencesOutput> {
+    return this.call(
+      "previewPreferences",
+      input,
+      options,
+    ) as Promise<previewPreferencesOutput>;
+  }
+  listSessions(
+    input: listSessionsInput,
+    options?: CallOptions,
+  ): Promise<listSessionsOutput> {
+    return this.call(
+      "listSessions",
+      input,
+      options,
+    ) as Promise<listSessionsOutput>;
+  }
+  revokeSession(
+    input: revokeSessionInput,
+    options?: CallOptions,
+  ): Promise<revokeSessionOutput> {
+    return this.call(
+      "revokeSession",
+      input,
+      options,
+    ) as Promise<revokeSessionOutput>;
+  }
+  listConnections(
+    input: listConnectionsInput,
+    options?: CallOptions,
+  ): Promise<listConnectionsOutput> {
+    return this.call(
+      "listConnections",
+      input,
+      options,
+    ) as Promise<listConnectionsOutput>;
+  }
+  revokeConnection(
+    input: revokeConnectionInput,
+    options?: CallOptions,
+  ): Promise<revokeConnectionOutput> {
+    return this.call(
+      "revokeConnection",
+      input,
+      options,
+    ) as Promise<revokeConnectionOutput>;
+  }
+  beginAccountAction(
+    input: beginAccountActionInput,
+    options?: CallOptions,
+  ): Promise<beginAccountActionOutput> {
+    return this.call(
+      "beginAccountAction",
+      input,
+      options,
+    ) as Promise<beginAccountActionOutput>;
+  }
+  getAccountAction(
+    input: getAccountActionInput,
+    options?: CallOptions,
+  ): Promise<getAccountActionOutput> {
+    return this.call(
+      "getAccountAction",
+      input,
+      options,
+    ) as Promise<getAccountActionOutput>;
+  }
+  completeAccountAction(
+    input: completeAccountActionInput,
+    options?: CallOptions,
+  ): Promise<completeAccountActionOutput> {
+    return this.call(
+      "completeAccountAction",
+      input,
+      options,
+    ) as Promise<completeAccountActionOutput>;
+  }
+  listOrganisations(
+    input: listOrganisationsInput,
+    options?: CallOptions,
+  ): Promise<listOrganisationsOutput> {
+    return this.call(
+      "listOrganisations",
+      input,
+      options,
+    ) as Promise<listOrganisationsOutput>;
+  }
+  getOrganisation(
+    input: getOrganisationInput,
+    options?: CallOptions,
+  ): Promise<getOrganisationOutput> {
+    return this.call(
+      "getOrganisation",
+      input,
+      options,
+    ) as Promise<getOrganisationOutput>;
+  }
+  updateOrganisation(
+    input: updateOrganisationInput,
+    options?: CallOptions,
+  ): Promise<updateOrganisationOutput> {
+    return this.call(
+      "updateOrganisation",
+      input,
+      options,
+    ) as Promise<updateOrganisationOutput>;
+  }
+  transferOwnership(
+    input: transferOwnershipInput,
+    options?: CallOptions,
+  ): Promise<transferOwnershipOutput> {
+    return this.call(
+      "transferOwnership",
+      input,
+      options,
+    ) as Promise<transferOwnershipOutput>;
+  }
+  deleteOrganisation(
+    input: deleteOrganisationInput,
+    options?: CallOptions,
+  ): Promise<deleteOrganisationOutput> {
+    return this.call(
+      "deleteOrganisation",
+      input,
+      options,
+    ) as Promise<deleteOrganisationOutput>;
+  }
+  listMembers(
+    input: listMembersInput,
+    options?: CallOptions,
+  ): Promise<listMembersOutput> {
+    return this.call(
+      "listMembers",
+      input,
+      options,
+    ) as Promise<listMembersOutput>;
+  }
+  updateMember(
+    input: updateMemberInput,
+    options?: CallOptions,
+  ): Promise<updateMemberOutput> {
+    return this.call(
+      "updateMember",
+      input,
+      options,
+    ) as Promise<updateMemberOutput>;
+  }
+  removeMember(
+    input: removeMemberInput,
+    options?: CallOptions,
+  ): Promise<removeMemberOutput> {
+    return this.call(
+      "removeMember",
+      input,
+      options,
+    ) as Promise<removeMemberOutput>;
+  }
+  listInvitations(
+    input: listInvitationsInput,
+    options?: CallOptions,
+  ): Promise<listInvitationsOutput> {
+    return this.call(
+      "listInvitations",
+      input,
+      options,
+    ) as Promise<listInvitationsOutput>;
+  }
+  inviteMember(
+    input: inviteMemberInput,
+    options?: CallOptions,
+  ): Promise<inviteMemberOutput> {
+    return this.call(
+      "inviteMember",
+      input,
+      options,
+    ) as Promise<inviteMemberOutput>;
+  }
+  cancelInvitation(
+    input: cancelInvitationInput,
+    options?: CallOptions,
+  ): Promise<cancelInvitationOutput> {
+    return this.call(
+      "cancelInvitation",
+      input,
+      options,
+    ) as Promise<cancelInvitationOutput>;
+  }
+  getGrants(
+    input: getGrantsInput,
+    options?: CallOptions,
+  ): Promise<getGrantsOutput> {
+    return this.call("getGrants", input, options) as Promise<getGrantsOutput>;
+  }
+  updateGrants(
+    input: updateGrantsInput,
+    options?: CallOptions,
+  ): Promise<updateGrantsOutput> {
+    return this.call(
+      "updateGrants",
+      input,
+      options,
+    ) as Promise<updateGrantsOutput>;
+  }
+  queryOrganisationAudit(
+    input: queryOrganisationAuditInput,
+    options?: CallOptions,
+  ): Promise<queryOrganisationAuditOutput> {
+    return this.call(
+      "queryOrganisationAudit",
+      input,
+      options,
+    ) as Promise<queryOrganisationAuditOutput>;
+  }
+  listPersonalKeys(
+    input: listPersonalKeysInput,
+    options?: CallOptions,
+  ): Promise<listPersonalKeysOutput> {
+    return this.call(
+      "listPersonalKeys",
+      input,
+      options,
+    ) as Promise<listPersonalKeysOutput>;
+  }
+  createPersonalKey(
+    input: createPersonalKeyInput,
+    options?: CallOptions,
+  ): Promise<createPersonalKeyOutput> {
+    return this.call(
+      "createPersonalKey",
+      input,
+      options,
+    ) as Promise<createPersonalKeyOutput>;
+  }
+  rotatePersonalKey(
+    input: rotatePersonalKeyInput,
+    options?: CallOptions,
+  ): Promise<rotatePersonalKeyOutput> {
+    return this.call(
+      "rotatePersonalKey",
+      input,
+      options,
+    ) as Promise<rotatePersonalKeyOutput>;
+  }
+  revokePersonalKey(
+    input: revokePersonalKeyInput,
+    options?: CallOptions,
+  ): Promise<revokePersonalKeyOutput> {
+    return this.call(
+      "revokePersonalKey",
+      input,
+      options,
+    ) as Promise<revokePersonalKeyOutput>;
+  }
+  listTeamKeys(
+    input: listTeamKeysInput,
+    options?: CallOptions,
+  ): Promise<listTeamKeysOutput> {
+    return this.call(
+      "listTeamKeys",
+      input,
+      options,
+    ) as Promise<listTeamKeysOutput>;
+  }
+  createTeamKey(
+    input: createTeamKeyInput,
+    options?: CallOptions,
+  ): Promise<createTeamKeyOutput> {
+    return this.call(
+      "createTeamKey",
+      input,
+      options,
+    ) as Promise<createTeamKeyOutput>;
+  }
+  rotateTeamKey(
+    input: rotateTeamKeyInput,
+    options?: CallOptions,
+  ): Promise<rotateTeamKeyOutput> {
+    return this.call(
+      "rotateTeamKey",
+      input,
+      options,
+    ) as Promise<rotateTeamKeyOutput>;
+  }
+  revokeTeamKey(
+    input: revokeTeamKeyInput,
+    options?: CallOptions,
+  ): Promise<revokeTeamKeyOutput> {
+    return this.call(
+      "revokeTeamKey",
+      input,
+      options,
+    ) as Promise<revokeTeamKeyOutput>;
+  }
+  getSecurityStatus(
+    input: getSecurityStatusInput,
+    options?: CallOptions,
+  ): Promise<getSecurityStatusOutput> {
+    return this.call(
+      "getSecurityStatus",
+      input,
+      options,
+    ) as Promise<getSecurityStatusOutput>;
+  }
+  listDatabases(
+    input: listDatabasesInput,
+    options?: CallOptions,
+  ): Promise<listDatabasesOutput> {
+    return this.call(
+      "listDatabases",
+      input,
+      options,
+    ) as Promise<listDatabasesOutput>;
+  }
+  createDatabase(
+    input: createDatabaseInput,
+    options?: CallOptions,
+  ): Promise<createDatabaseOutput> {
+    return this.call(
+      "createDatabase",
+      input,
+      options,
+    ) as Promise<createDatabaseOutput>;
+  }
+  getDatabase(
+    input: getDatabaseInput,
+    options?: CallOptions,
+  ): Promise<getDatabaseOutput> {
+    return this.call(
+      "getDatabase",
+      input,
+      options,
+    ) as Promise<getDatabaseOutput>;
+  }
+  updateDatabase(
+    input: updateDatabaseInput,
+    options?: CallOptions,
+  ): Promise<updateDatabaseOutput> {
+    return this.call(
+      "updateDatabase",
+      input,
+      options,
+    ) as Promise<updateDatabaseOutput>;
+  }
+  deleteDatabase(
+    input: deleteDatabaseInput,
+    options?: CallOptions,
+  ): Promise<deleteDatabaseOutput> {
+    return this.call(
+      "deleteDatabase",
+      input,
+      options,
+    ) as Promise<deleteDatabaseOutput>;
+  }
+  listTables(
+    input: listTablesInput,
+    options?: CallOptions,
+  ): Promise<listTablesOutput> {
+    return this.call("listTables", input, options) as Promise<listTablesOutput>;
+  }
+  createTable(
+    input: createTableInput,
+    options?: CallOptions,
+  ): Promise<createTableOutput> {
+    return this.call(
+      "createTable",
+      input,
+      options,
+    ) as Promise<createTableOutput>;
+  }
+  getTable(
+    input: getTableInput,
+    options?: CallOptions,
+  ): Promise<getTableOutput> {
+    return this.call("getTable", input, options) as Promise<getTableOutput>;
+  }
+  updateTable(
+    input: updateTableInput,
+    options?: CallOptions,
+  ): Promise<updateTableOutput> {
+    return this.call(
+      "updateTable",
+      input,
+      options,
+    ) as Promise<updateTableOutput>;
+  }
+  deleteTable(
+    input: deleteTableInput,
+    options?: CallOptions,
+  ): Promise<deleteTableOutput> {
+    return this.call(
+      "deleteTable",
+      input,
+      options,
+    ) as Promise<deleteTableOutput>;
+  }
+  getTableSchema(
+    input: getTableSchemaInput,
+    options?: CallOptions,
+  ): Promise<getTableSchemaOutput> {
+    return this.call(
+      "getTableSchema",
+      input,
+      options,
+    ) as Promise<getTableSchemaOutput>;
+  }
+  listFields(
+    input: listFieldsInput,
+    options?: CallOptions,
+  ): Promise<listFieldsOutput> {
+    return this.call("listFields", input, options) as Promise<listFieldsOutput>;
+  }
+  createField(
+    input: createFieldInput,
+    options?: CallOptions,
+  ): Promise<createFieldOutput> {
+    return this.call(
+      "createField",
+      input,
+      options,
+    ) as Promise<createFieldOutput>;
+  }
+  updateField(
+    input: updateFieldInput,
+    options?: CallOptions,
+  ): Promise<updateFieldOutput> {
+    return this.call(
+      "updateField",
+      input,
+      options,
+    ) as Promise<updateFieldOutput>;
+  }
+  deleteField(
+    input: deleteFieldInput,
+    options?: CallOptions,
+  ): Promise<deleteFieldOutput> {
+    return this.call(
+      "deleteField",
+      input,
+      options,
+    ) as Promise<deleteFieldOutput>;
+  }
+  reorderFields(
+    input: reorderFieldsInput,
+    options?: CallOptions,
+  ): Promise<reorderFieldsOutput> {
+    return this.call(
+      "reorderFields",
+      input,
+      options,
+    ) as Promise<reorderFieldsOutput>;
+  }
+  previewSchemaChange(
+    input: previewSchemaChangeInput,
+    options?: CallOptions,
+  ): Promise<previewSchemaChangeOutput> {
+    return this.call(
+      "previewSchemaChange",
+      input,
+      options,
+    ) as Promise<previewSchemaChangeOutput>;
+  }
+  applySchemaChange(
+    input: applySchemaChangeInput,
+    options?: CallOptions,
+  ): Promise<applySchemaChangeOutput> {
+    return this.call(
+      "applySchemaChange",
+      input,
+      options,
+    ) as Promise<applySchemaChangeOutput>;
+  }
+  getSchemaOperation(
+    input: getSchemaOperationInput,
+    options?: CallOptions,
+  ): Promise<getSchemaOperationOutput> {
+    return this.call(
+      "getSchemaOperation",
+      input,
+      options,
+    ) as Promise<getSchemaOperationOutput>;
+  }
+  listUniqueRules(
+    input: listUniqueRulesInput,
+    options?: CallOptions,
+  ): Promise<listUniqueRulesOutput> {
+    return this.call(
+      "listUniqueRules",
+      input,
+      options,
+    ) as Promise<listUniqueRulesOutput>;
+  }
+  createUniqueRule(
+    input: createUniqueRuleInput,
+    options?: CallOptions,
+  ): Promise<createUniqueRuleOutput> {
+    return this.call(
+      "createUniqueRule",
+      input,
+      options,
+    ) as Promise<createUniqueRuleOutput>;
+  }
+  deleteUniqueRule(
+    input: deleteUniqueRuleInput,
+    options?: CallOptions,
+  ): Promise<deleteUniqueRuleOutput> {
+    return this.call(
+      "deleteUniqueRule",
+      input,
+      options,
+    ) as Promise<deleteUniqueRuleOutput>;
+  }
+  listIndexes(
+    input: listIndexesInput,
+    options?: CallOptions,
+  ): Promise<listIndexesOutput> {
+    return this.call(
+      "listIndexes",
+      input,
+      options,
+    ) as Promise<listIndexesOutput>;
+  }
+  createIndex(
+    input: createIndexInput,
+    options?: CallOptions,
+  ): Promise<createIndexOutput> {
+    return this.call(
+      "createIndex",
+      input,
+      options,
+    ) as Promise<createIndexOutput>;
+  }
+  deleteIndex(
+    input: deleteIndexInput,
+    options?: CallOptions,
+  ): Promise<deleteIndexOutput> {
+    return this.call(
+      "deleteIndex",
+      input,
+      options,
+    ) as Promise<deleteIndexOutput>;
+  }
+  listRows(
+    input: listRowsInput,
+    options?: CallOptions,
+  ): Promise<listRowsOutput> {
+    return this.call("listRows", input, options) as Promise<listRowsOutput>;
+  }
+  queryRows(
+    input: queryRowsInput,
+    options?: CallOptions,
+  ): Promise<queryRowsOutput> {
+    return this.call("queryRows", input, options) as Promise<queryRowsOutput>;
+  }
+  getRow(input: getRowInput, options?: CallOptions): Promise<getRowOutput> {
+    return this.call("getRow", input, options) as Promise<getRowOutput>;
+  }
+  createRow(
+    input: createRowInput,
+    options?: CallOptions,
+  ): Promise<createRowOutput> {
+    return this.call("createRow", input, options) as Promise<createRowOutput>;
+  }
+  updateRow(
+    input: updateRowInput,
+    options?: CallOptions,
+  ): Promise<updateRowOutput> {
+    return this.call("updateRow", input, options) as Promise<updateRowOutput>;
+  }
+  deleteRow(
+    input: deleteRowInput,
+    options?: CallOptions,
+  ): Promise<deleteRowOutput> {
+    return this.call("deleteRow", input, options) as Promise<deleteRowOutput>;
+  }
+  mutateRows(
+    input: mutateRowsInput,
+    options?: CallOptions,
+  ): Promise<mutateRowsOutput> {
+    return this.call("mutateRows", input, options) as Promise<mutateRowsOutput>;
+  }
+  getTableStatistics(
+    input: getTableStatisticsInput,
+    options?: CallOptions,
+  ): Promise<getTableStatisticsOutput> {
+    return this.call(
+      "getTableStatistics",
+      input,
+      options,
+    ) as Promise<getTableStatisticsOutput>;
+  }
+  countRows(
+    input: countRowsInput,
+    options?: CallOptions,
+  ): Promise<countRowsOutput> {
+    return this.call("countRows", input, options) as Promise<countRowsOutput>;
+  }
+  getCellHistory(
+    input: getCellHistoryInput,
+    options?: CallOptions,
+  ): Promise<getCellHistoryOutput> {
+    return this.call(
+      "getCellHistory",
+      input,
+      options,
+    ) as Promise<getCellHistoryOutput>;
+  }
+  queryHistory(
+    input: queryHistoryInput,
+    options?: CallOptions,
+  ): Promise<queryHistoryOutput> {
+    return this.call(
+      "queryHistory",
+      input,
+      options,
+    ) as Promise<queryHistoryOutput>;
+  }
+  getMutation(
+    input: getMutationInput,
+    options?: CallOptions,
+  ): Promise<getMutationOutput> {
+    return this.call(
+      "getMutation",
+      input,
+      options,
+    ) as Promise<getMutationOutput>;
+  }
+  prepareImportUpload(
+    input: prepareImportUploadInput,
+    options?: CallOptions,
+  ): Promise<prepareImportUploadOutput> {
+    return this.call(
+      "prepareImportUpload",
+      input,
+      options,
+    ) as Promise<prepareImportUploadOutput>;
+  }
+  validateImport(
+    input: validateImportInput,
+    options?: CallOptions,
+  ): Promise<validateImportOutput> {
+    return this.call(
+      "validateImport",
+      input,
+      options,
+    ) as Promise<validateImportOutput>;
+  }
+  importRows(
+    input: importRowsInput,
+    options?: CallOptions,
+  ): Promise<importRowsOutput> {
+    return this.call("importRows", input, options) as Promise<importRowsOutput>;
+  }
+  exportRows(
+    input: exportRowsInput,
+    options?: CallOptions,
+  ): Promise<exportRowsOutput> {
+    return this.call("exportRows", input, options) as Promise<exportRowsOutput>;
+  }
+  getArtifact(
+    input: getArtifactInput,
+    options?: CallOptions,
+  ): Promise<getArtifactOutput> {
+    return this.call(
+      "getArtifact",
+      input,
+      options,
+    ) as Promise<getArtifactOutput>;
+  }
+  getHistoryRetentionPolicy(
+    input: getHistoryRetentionPolicyInput,
+    options?: CallOptions,
+  ): Promise<getHistoryRetentionPolicyOutput> {
+    return this.call(
+      "getHistoryRetentionPolicy",
+      input,
+      options,
+    ) as Promise<getHistoryRetentionPolicyOutput>;
+  }
+  setHistoryRetentionPolicy(
+    input: setHistoryRetentionPolicyInput,
+    options?: CallOptions,
+  ): Promise<setHistoryRetentionPolicyOutput> {
+    return this.call(
+      "setHistoryRetentionPolicy",
+      input,
+      options,
+    ) as Promise<setHistoryRetentionPolicyOutput>;
+  }
+  archiveHistory(
+    input: archiveHistoryInput,
+    options?: CallOptions,
+  ): Promise<archiveHistoryOutput> {
+    return this.call(
+      "archiveHistory",
+      input,
+      options,
+    ) as Promise<archiveHistoryOutput>;
+  }
+  listHistoryArchives(
+    input: listHistoryArchivesInput,
+    options?: CallOptions,
+  ): Promise<listHistoryArchivesOutput> {
+    return this.call(
+      "listHistoryArchives",
+      input,
+      options,
+    ) as Promise<listHistoryArchivesOutput>;
+  }
+  getHistoryArchive(
+    input: getHistoryArchiveInput,
+    options?: CallOptions,
+  ): Promise<getHistoryArchiveOutput> {
+    return this.call(
+      "getHistoryArchive",
+      input,
+      options,
+    ) as Promise<getHistoryArchiveOutput>;
+  }
+  getBackupPolicy(
+    input: getBackupPolicyInput,
+    options?: CallOptions,
+  ): Promise<getBackupPolicyOutput> {
+    return this.call(
+      "getBackupPolicy",
+      input,
+      options,
+    ) as Promise<getBackupPolicyOutput>;
+  }
+  setBackupPolicy(
+    input: setBackupPolicyInput,
+    options?: CallOptions,
+  ): Promise<setBackupPolicyOutput> {
+    return this.call(
+      "setBackupPolicy",
+      input,
+      options,
+    ) as Promise<setBackupPolicyOutput>;
+  }
+  previewBackupSchedule(
+    input: previewBackupScheduleInput,
+    options?: CallOptions,
+  ): Promise<previewBackupScheduleOutput> {
+    return this.call(
+      "previewBackupSchedule",
+      input,
+      options,
+    ) as Promise<previewBackupScheduleOutput>;
+  }
+  listBackups(
+    input: listBackupsInput,
+    options?: CallOptions,
+  ): Promise<listBackupsOutput> {
+    return this.call(
+      "listBackups",
+      input,
+      options,
+    ) as Promise<listBackupsOutput>;
+  }
+  getBackup(
+    input: getBackupInput,
+    options?: CallOptions,
+  ): Promise<getBackupOutput> {
+    return this.call("getBackup", input, options) as Promise<getBackupOutput>;
+  }
+  createBackup(
+    input: createBackupInput,
+    options?: CallOptions,
+  ): Promise<createBackupOutput> {
+    return this.call(
+      "createBackup",
+      input,
+      options,
+    ) as Promise<createBackupOutput>;
+  }
+  deleteBackup(
+    input: deleteBackupInput,
+    options?: CallOptions,
+  ): Promise<deleteBackupOutput> {
+    return this.call(
+      "deleteBackup",
+      input,
+      options,
+    ) as Promise<deleteBackupOutput>;
+  }
+  previewRestore(
+    input: previewRestoreInput,
+    options?: CallOptions,
+  ): Promise<previewRestoreOutput> {
+    return this.call(
+      "previewRestore",
+      input,
+      options,
+    ) as Promise<previewRestoreOutput>;
+  }
+  restoreBackup(
+    input: restoreBackupInput,
+    options?: CallOptions,
+  ): Promise<restoreBackupOutput> {
+    return this.call(
+      "restoreBackup",
+      input,
+      options,
+    ) as Promise<restoreBackupOutput>;
+  }
+  listJobs(
+    input: listJobsInput,
+    options?: CallOptions,
+  ): Promise<listJobsOutput> {
+    return this.call("listJobs", input, options) as Promise<listJobsOutput>;
+  }
+  getJob(input: getJobInput, options?: CallOptions): Promise<getJobOutput> {
+    return this.call("getJob", input, options) as Promise<getJobOutput>;
+  }
+  cancelJob(
+    input: cancelJobInput,
+    options?: CallOptions,
+  ): Promise<cancelJobOutput> {
+    return this.call("cancelJob", input, options) as Promise<cancelJobOutput>;
+  }
+  retryJob(
+    input: retryJobInput,
+    options?: CallOptions,
+  ): Promise<retryJobOutput> {
+    return this.call("retryJob", input, options) as Promise<retryJobOutput>;
+  }
+  getUsage(
+    input: getUsageInput,
+    options?: CallOptions,
+  ): Promise<getUsageOutput> {
+    return this.call("getUsage", input, options) as Promise<getUsageOutput>;
+  }
+  getViewPreferences(
+    input: getViewPreferencesInput,
+    options?: CallOptions,
+  ): Promise<getViewPreferencesOutput> {
+    return this.call(
+      "getViewPreferences",
+      input,
+      options,
+    ) as Promise<getViewPreferencesOutput>;
+  }
+  updateViewPreferences(
+    input: updateViewPreferencesInput,
+    options?: CallOptions,
+  ): Promise<updateViewPreferencesOutput> {
+    return this.call(
+      "updateViewPreferences",
+      input,
+      options,
+    ) as Promise<updateViewPreferencesOutput>;
+  }
+  getInstallationStatus(
+    input: getInstallationStatusInput,
+    options?: CallOptions,
+  ): Promise<getInstallationStatusOutput> {
+    return this.call(
+      "getInstallationStatus",
+      input,
+      options,
+    ) as Promise<getInstallationStatusOutput>;
+  }
+  getInstallationConfiguration(
+    input: getInstallationConfigurationInput,
+    options?: CallOptions,
+  ): Promise<getInstallationConfigurationOutput> {
+    return this.call(
+      "getInstallationConfiguration",
+      input,
+      options,
+    ) as Promise<getInstallationConfigurationOutput>;
+  }
+  updateInstallationConfiguration(
+    input: updateInstallationConfigurationInput,
+    options?: CallOptions,
+  ): Promise<updateInstallationConfigurationOutput> {
+    return this.call(
+      "updateInstallationConfiguration",
+      input,
+      options,
+    ) as Promise<updateInstallationConfigurationOutput>;
+  }
+  testEmail(
+    input: testEmailInput,
+    options?: CallOptions,
+  ): Promise<testEmailOutput> {
+    return this.call("testEmail", input, options) as Promise<testEmailOutput>;
+  }
+}

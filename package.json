@@ -1,0 +1,50 @@
+{
+  "name": "rootset",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build && tsx tools/build-apps.ts",
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint apps packages tools --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo run test",
+    "test:integration": "tsx --test tools/verification/*.test.ts",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:migrate": "tsx tools/migrate.ts",
+    "setup:env": "tsx tools/setup-env.ts",
+    "verify:signoff": "tsx tools/evidence-audit.ts",
+    "contracts:generate": "tsx tools/generate-contracts.ts",
+    "auth:operator": "tsx tools/operator.ts"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "@rootset/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
+    "better-auth": "catalog:",
+    "pg": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/nodemailer": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@playwright/test": "catalog:",
+    "@axe-core/playwright": "catalog:",
+    "typescript": "catalog:",
+    "tsx": "catalog:",
+    "turbo": "catalog:",
+    "eslint": "catalog:",
+    "typescript-eslint": "catalog:",
+    "prettier": "catalog:",
+    "esbuild": "catalog:"
+  }
+}

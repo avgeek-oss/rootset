@@ -1,0 +1,33 @@
+{
+  "name": "@rootset/jobs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "tsx --test src/integration.ts"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "@rootset/idempotency": "workspace:*",
+    "@rootset/table-storage": "workspace:*",
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/lib-storage": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
+    "csv-parse": "catalog:",
+    "csv-stringify": "catalog:",
+    "cron-parser": "catalog:",
+    "ulid": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  }
+}

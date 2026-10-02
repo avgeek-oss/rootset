@@ -1,0 +1,12 @@
+# Run Caddy on the host or attach its container to the Rootset network.
+# Set ROOTSET_HOST_NAME and ROOTSET_WEB_UPSTREAM for that deployment.
+{
+	servers {
+		max_header_size 192KiB
+	}
+}
+
+{$ROOTSET_HOST_NAME} {
+	encode zstd gzip
+	reverse_proxy {$ROOTSET_WEB_UPSTREAM:127.0.0.1:4300}
+}

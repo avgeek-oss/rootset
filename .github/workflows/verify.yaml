@@ -1,0 +1,131 @@
+name: Verify candidate
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      TURBO_TELEMETRY_DISABLED: "1"
+      ROOTSET_BASE_URL: http://127.0.0.1:4300
+      ROOTSET_API_INTERNAL_URL: http://127.0.0.1:4310
+      ROOTSET_PORT: "4310"
+      ROOTSET_DATABASE_URL: postgres://rootset_app:fixture-app@127.0.0.1:5432/rootset
+      ROOTSET_DDL_DATABASE_URL: postgres://rootset_ddl:fixture-ddl@127.0.0.1:5432/rootset
+      ROOTSET_IDENTITY_DATABASE_URL: postgres://rootset_identity:fixture-identity@127.0.0.1:5432/rootset
+      ROOTSET_MIGRATION_DATABASE_URL: postgres://rootset_owner:fixture-owner@127.0.0.1:5432/rootset
+      ROOTSET_TEST_DATABASE_URL: postgres://rootset_owner:fixture-owner@127.0.0.1:5432/rootset
+      ROOTSET_TEST_APP_DATABASE_URL: postgres://rootset_app:fixture-app@127.0.0.1:5432/rootset
+      ROOTSET_TEST_DDL_DATABASE_URL: postgres://rootset_ddl:fixture-ddl@127.0.0.1:5432/rootset
+      ROOTSET_TEST_IDENTITY_DATABASE_URL: postgres://rootset_identity:fixture-identity@127.0.0.1:5432/rootset
+      ROOTSET_AUTH_SECRET: fixture-auth-secret-01234567890123456789
+      ROOTSET_KEY_HASH_SECRET: fixture-hash-secret-01234567890123456789
+      ROOTSET_CURSOR_SECRET: fixture-cursor-secret-01234567890123456789
+      ROOTSET_BOOTSTRAP_SECRET: fixture-bootstrap-secret-01234567890123456789
+      ROOTSET_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      ROOTSET_ENCRYPTION_KEY_ID: primary
+      ROOTSET_S3_ENDPOINT: http://127.0.0.1:9000
+      ROOTSET_S3_REGION: us-east-1
+      ROOTSET_S3_BUCKET: rootset-fixture-artifacts
+      ROOTSET_S3_ACCESS_KEY: fixture-rootset
+      ROOTSET_S3_SECRET_KEY: fixture-rootset-secret
+      ROOTSET_SMTP_HOST: 127.0.0.1
+      ROOTSET_SMTP_PORT: "1025"
+      ROOTSET_SMTP_SECURE: "false"
+      ROOTSET_EMAIL_FROM: rootset@example.test
+      ROOTSET_CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+      ROOTSET_VERIFICATION_RUN: ci-integration
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: rootset_owner
+          POSTGRES_PASSWORD: fixture-owner
+          POSTGRES_DB: rootset
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U rootset_owner -d rootset"
+          --health-interval 5s --health-timeout 3s --health-retries 30
+      objects:
+        image: rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+        env:
+          RUSTFS_ACCESS_KEY: fixture-rootset
+          RUSTFS_SECRET_KEY: fixture-rootset-secret
+          RUSTFS_CONSOLE_ENABLE: "false"
+        ports: [9000:9000]
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9000/health"
+          --health-interval 5s --health-timeout 3s --health-retries 30
+      mail:
+        image: axllent/mailpit@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
+        ports: [1025:1025, 8025:8025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Install pinned public workspace dependencies
+        run: |
+          npm install --global pnpm@11.5.3
+          pnpm install --frozen-lockfile
+      - name: Initialize isolated non-owner service roles and blank migrations
+        run: |
+          pnpm exec tsx .github/scripts/prepare-postgres.ts
+          pnpm db:migrate
+          docker cp infra/postgres-capacity-health.sh "$ROOTSET_CI_POSTGRES_CONTAINER:/tmp/rootset-postgres-health.sh"
+          docker exec --user postgres "$ROOTSET_CI_POSTGRES_CONTAINER" sh /tmp/rootset-postgres-health.sh
+          docker exec --user postgres --detach "$ROOTSET_CI_POSTGRES_CONTAINER" sh -c 'while :; do sh /tmp/rootset-postgres-health.sh; sleep 10; done'
+      - name: Check generated contracts against tracked candidate
+        run: |
+          pnpm contracts:generate
+          git diff --exit-code -- packages/contracts/generated
+          test -z "$(git status --porcelain --untracked-files=all -- packages/contracts/generated)"
+      - name: Prepare artifact storage before runtime integration tests
+        run: |
+          pnpm exec tsx tools/build-apps.ts
+          node dist/objects-init.mjs
+      - name: Format, lint, strict types, unit tests and production builds
+        run: pnpm verify
+      - name: Real PostgreSQL storage, identity, OAuth, API and MCP integration
+        run: |
+          pnpm test:integration
+          pnpm exec tsx packages/jobs/src/integration.ts
+      - name: Dependency vulnerability check
+        run: pnpm audit --prod --audit-level high
+      - name: Record candidate and dependency/build manifests
+        run: |
+          mkdir -p verification/ci
+          git rev-parse HEAD > verification/ci/candidate.txt
+          sha256sum pnpm-lock.yaml packages/database/migrations/*.sql packages/contracts/generated/* > verification/ci/source-digests.txt
+          cp dist/build-manifest.json verification/ci/build-manifest.json
+      - name: Build non-root images from a fresh Docker context
+        run: |
+          rootset_revision=$(git rev-parse HEAD)
+          docker build --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target runtime --tag rootset-runtime:ci .
+          docker build --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target web --tag rootset-web:ci .
+          docker image inspect rootset-runtime:ci rootset-web:ci --format '{{.Id}} {{.Config.User}}' > verification/ci/images.txt
+      - name: Verify actual fresh Compose installation and preserved restart
+        run: ROOTSET_SMOKE_SOURCE_REVISION=$(git rev-parse HEAD) node .github/scripts/verify-installation.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rootset-candidate-evidence
+          path: |
+            verification/ci/*.json
+            verification/ci/*.txt
+            verification/ci-integration/*.json
+          if-no-files-found: warn
+          retention-days: 30

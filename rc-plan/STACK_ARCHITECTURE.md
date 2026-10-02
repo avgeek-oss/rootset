@@ -1,6 +1,6 @@
 # Stack architecture
 
-Baseline: 2026-10-02. Status: planned stack; no application is implemented. Related contracts: [account](ACCOUNT_ARCHITECTURE.md), [database](MDM_DATABASE_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), [implementation](IMPLEMENTATION_PLAN.md), and [verification](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
+Baseline: 2026-10-02. Status: implemented stack under verification; acceptance remains pending. Related contracts: [account](ACCOUNT_ARCHITECTURE.md), [database](MDM_DATABASE_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), [implementation](IMPLEMENTATION_PLAN.md), and [verification](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
 
 ## Runtime components
 
@@ -21,29 +21,29 @@ The web app, API, and worker are separate processes from one repository. A rever
 
 ## Technology choices
 
-| Area            | Choice                                                  | Purpose                                                           |
-| --------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
-| Runtime         | Node.js 24 LTS, TypeScript                              | Shared contracts and Towbar-compatible development patterns.      |
-| Repository      | pnpm workspaces, Turborepo                              | Separately buildable apps and shared packages.                    |
-| HTTP API        | Hono on Node.js                                         | Browser/API/OAuth routes and request middleware.                  |
-| Contracts       | Zod, JSON Schema 2020-12, OpenAPI 3.1.2                 | Validation, generated clients/docs, operation inventory.          |
-| Identity        | Better Auth, passkey/TOTP/API-key adapters              | Towbar-derived authentication with Rootset-owned access rules.    |
-| Metadata ORM    | Drizzle with PostgreSQL driver                          | Static control records and forward migrations.                    |
-| User storage    | PostgreSQL 18                                           | Dynamic typed tables, transactions, history, uniqueness, RLS.     |
-| Schema executor | Restricted PostgreSQL DDL service                       | Generated identifiers, operation journal, lock/cutover recovery.  |
-| Worker queue    | PostgreSQL-backed durable jobs                          | Backups, imports, exports, schema work, outbox delivery.          |
-| Web             | Next.js and React                                       | Towbar-style shell, settings, editable grid.                      |
-| UI controls     | HeroUI, Tailwind CSS, React Aria where needed           | Typed inputs, overlays, focus, accessible account/settings UI.    |
-| Grid            | Glide Data Grid candidate                               | Canvas/lazy visible-cell rendering and spreadsheet behavior.      |
-| Query cache     | TanStack Query candidate                                | Bounded server-data windows, cancellation, mutation invalidation. |
-| JSON editor     | CodeMirror 6                                            | Validated JSON cell editing in a bounded overlay.                 |
-| Email           | React Email, SMTP adapter                               | Towbar template adaptation and transactional outbox.              |
-| Artifacts       | S3-compatible API and encryption                        | Backups, export/import artifacts, history archives.               |
-| Verification    | Unit tests, PostgreSQL integration tests, browser tests | Behavioral, concurrency, recovery, rendered and scale evidence.   |
+| Area            | Choice                                                  | Purpose                                                          |
+| --------------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
+| Runtime         | Node.js 24 LTS, TypeScript                              | Shared contracts and Towbar-compatible development patterns.     |
+| Repository      | pnpm workspaces, Turborepo                              | Separately buildable apps and shared packages.                   |
+| HTTP API        | Hono on Node.js                                         | Browser/API/OAuth routes and request middleware.                 |
+| Contracts       | Zod, JSON Schema 2020-12, OpenAPI 3.1.2                 | Validation, generated clients/docs, operation inventory.         |
+| Identity        | Better Auth, passkey/TOTP/API-key adapters              | Towbar-derived authentication with Rootset-owned access rules.   |
+| Metadata ORM    | Drizzle with PostgreSQL driver                          | Static control records and forward migrations.                   |
+| User storage    | PostgreSQL 18                                           | Dynamic typed tables, transactions, history, uniqueness, RLS.    |
+| Schema executor | Restricted PostgreSQL DDL service                       | Generated identifiers, operation journal, lock/cutover recovery. |
+| Worker queue    | PostgreSQL-backed durable jobs                          | Backups, imports, exports, schema work, outbox delivery.         |
+| Web             | Next.js and React                                       | Towbar-style shell, settings, editable grid.                     |
+| UI controls     | HeroUI, Tailwind CSS, React Aria where needed           | Typed inputs, overlays, focus, accessible account/settings UI.   |
+| Grid            | Accessible DOM grid with two-axis virtualisation        | Bounded visible-cell rendering and spreadsheet behavior.         |
+| Query cache     | TanStack Query and bounded window cache                 | Server-data windows, cancellation and mutation invalidation.     |
+| JSON editor     | CodeMirror 6                                            | Validated JSON cell editing in a bounded overlay.                |
+| Email           | React Email, SMTP adapter                               | Towbar template adaptation and transactional outbox.             |
+| Artifacts       | S3-compatible API and encryption                        | Backups, export/import artifacts, history archives.              |
+| Verification    | Unit tests, PostgreSQL integration tests, browser tests | Behavioral, concurrency, recovery, rendered and scale evidence.  |
 
-Pin exact package versions during the bootstrap work package after compatibility and security checks. The reference Towbar lockfile is a starting point, not a requirement to copy every dependency. Libraries marked candidate require a spike. Do not introduce Temporal, Redis, Kafka, ClickHouse, or an external search engine as mandatory v1 services without a reviewed requirement and new operating evidence.
+Exact public package versions are pinned in the workspace catalog and lockfile after compatibility checks. The reference Towbar lockfile supplied adoption context. Glide's published peer range did not support the selected React 19 stack; the [renderer decision](../apps/rootset-web/RENDERER_DECISION.md) records the accessible DOM grid, logical range navigation and bounded cache. Do not introduce Temporal, Redis, Kafka, ClickHouse, or an external search engine as mandatory v1 services without a reviewed requirement and new operating evidence.
 
-The PostgreSQL-backed queue must support leases, heartbeat, retries, idempotency, cancellation, progress, and terminal states. Choose a maintained queue library or a reviewed bounded implementation during the worker spike. Long-running operations are asynchronous even when the user starts them through MCP.
+The implemented PostgreSQL-backed queue uses bounded leases, heartbeat, retries, idempotency, cancellation, progress, and terminal states. Workers fence publication using the current lease and record committed domain outcomes so a restart can reconcile a completed operation without executing it again. Long-running operations are asynchronous even when the user starts them through MCP. Actual PostgreSQL/S3 and process-termination checks are required before signing off recovery.
 
 ## Planned repository layout
 
@@ -66,15 +66,19 @@ tools/
 rc-plan/                   architecture and sign-off contract
 ```
 
-This layout describes future implementation. Do not add empty apps and claim the work package complete. Packages have explicit exports and narrow dependencies; frontend code cannot import SQL, credentials, or server-only identity modules. Own the required code in this repository or use public packages; a fresh clone must not need Towbar's private registry access.
+The repository also contains dedicated capacity, observability, identity, OAuth and jobs packages. Packages have explicit exports and narrow dependencies; frontend code cannot import SQL, credentials, or server-only identity modules. A fresh clone uses public packages and does not need Towbar's private registry access. Source, generated contracts and development evidence do not by themselves satisfy final sign-off.
 
 ## Operation and storage boundaries
 
 An operation has a stable ID, transport schema, permissions, target resolver, mutation/step-up metadata, executor, output schema, and audit definition. Browser, REST, MCP, and job workers use the same domain implementation. Workers execute a persisted, authorised job specification and revalidate required access where the account/resource lifecycle demands it.
 
-The API uses a non-owner database role with forced organisation RLS. The schema worker uses a separate role restricted to managed namespaces. Only migrations/operator recovery use broader privileges. Use explicit transaction-local context with the pooled driver; reset or reject contaminated sessions. The worker never builds SQL names from free-form labels.
+The API uses a non-owner database role with forced organisation RLS. The schema worker inherits a dedicated managed-storage owner, with no superuser or identity/metrics/capacity-definer membership. Fixed, migration-owned locator and aggregate functions have narrow grants. Use explicit transaction-local context with the pooled driver; reset or reject contaminated sessions. The worker never builds SQL names from free-form labels.
+
+The DDL credential is a trusted schema-service credential: PostgreSQL table ownership allows it to change RLS on its owned managed tables. Its protection is the private runtime boundary, generated DDL and reviewed service code. Forced RLS proves tenant isolation for ordinary runtime operations; it does not make a stolen DDL credential unable to alter its own policies. Deployment and recovery documentation must preserve this trust boundary. Migration-owner credentials are absent from normal API and worker containers.
 
 Use bounded connection pools and transaction/query timeouts. Foreground reads cannot queue behind an unbounded import. Reserve worker concurrency and database connections so a backup/schema job does not exhaust API capacity. Role/resource revocations invalidate relevant cached authorisation; no indefinite access cache is allowed.
+
+Control mutations and durable job admission use a request-bound replay receipt. Principal, credential, key and canonical business input are HMAC-bound; raw passwords, reusable tokens and one-time credential results are excluded. Effects, the receipt and any consumed interactive approval commit in one transaction. Current principal and resource access are checked before returning a stored response, including the original job target and both source and replacement target for restores. Concurrent identical approved requests return one published outcome; changed input under the same key conflicts.
 
 ## Spreadsheet architecture
 
@@ -104,6 +108,10 @@ Cron evaluation records scheduled UTC occurrences using the configured IANA time
 
 Ship a documented Docker Compose installation with web, API, worker, and PostgreSQL, plus reverse-proxy configuration. Support external PostgreSQL and S3-compatible storage. Keep artifact storage configuration separate from a logical database's backup policy. Specify volumes, non-root users, health/readiness checks, restart behavior, resource budgets, and upgrade commands.
 
+The user-reviewed v1 acceptance profile enforces 8 GiB total for those four services: PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB and web server 1 GiB. Node heap ceilings leave room for native buffers and connections. Browser memory is measured separately, and object storage/SMTP have their own prerequisite budgets. Full-scale tests retain five million live rows, ten million history events and the existing latency/scrolling thresholds. The earlier larger deployment profile is capacity guidance rather than the v1 test requirement.
+
+Encrypted artifact validation uses separate disk-backed API and worker spool volumes with private ownership and cleanup. Allocate room for the largest concurrently validated ciphertext and the configured free-space reserve; temporary files must not rely on a small tmpfs or be loaded into the Node heap. Record any test-specific host mounts and their disk measurements alongside the tested topology.
+
 Required configuration includes base URL, database URLs for application/DDL roles, bootstrap secret, authentication/hash/encryption secrets, SMTP, object storage, logging, and worker/query budgets. All names use a `ROOTSET_` prefix. Provide `.env.example` with placeholders and validation. Persist encryption/hash keys across restart and provide rotation and disaster-recovery procedures. Never generate a new key silently when decrypting existing data fails.
 
 Use forward control-schema migrations and a schema-journal reconciler for dynamic user data. An upgrade first verifies a recovery backup and compatibility, applies migrations, performs readiness checks, and reports the result. Document whether rollback is supported for each schema version; code rollback cannot undo arbitrary data migrations. Clean-install and in-place upgrade evidence are different gates.
@@ -112,7 +120,7 @@ The initial repository is private. Image publishing, public source distribution,
 
 ## Observability and capacity
 
-Structured logs include request/job/operation IDs and redacted actor/target attribution. Metrics cover latency/error rate, query timeout, row admission, history growth, index build/size, queue delay, lease recovery, backup age/verification, object-store/SMTP failures, connection pool occupancy, disk/WAL use, and grid loading/mutation errors.
+Structured request logs include generated request IDs, fixed operation labels, status, duration and bounded error codes. They exclude request inputs, query values, tokens and private error text. Process counters explicitly state their reset scope. Operator-only fixed aggregate metrics cover database/WAL/temporary bytes, connections, history growth, index state, queue delay, expired leases, backup age/verification/notification delivery, email retries and pool occupancy. Failed metric collection remains unavailable rather than returning false zeroes. The [capacity contract](../packages/capacity/README.md) defines quota and filesystem admission separately.
 
 Expose liveness and readiness separately. Readiness checks actual dependencies needed for service, migrations, and table-journal compatibility. SMTP outage should report degraded delivery without blocking authorised data reads. A backup destination outage should fail backups visibly without masquerading as corrupt live data. Worker health requires successful polling/heartbeat, not merely a running process.
 

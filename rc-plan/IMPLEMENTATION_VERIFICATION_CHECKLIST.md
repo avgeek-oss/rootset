@@ -1,6 +1,6 @@
 # Implementation and verification checklist
 
-Baseline: 2026-10-02. Current state: implementation has not started; no implementation or verification gate is signed off. This is the complete v1 acceptance contract for the [architecture documents](README.md).
+Baseline: 2026-10-02. Current state: implementation and development verification are in progress; final release-candidate gates remain unsigned. This is the complete v1 acceptance contract for the [architecture documents](README.md).
 
 ## Sign-off rule
 
@@ -203,7 +203,7 @@ Run storage/recovery checks with actual PostgreSQL, not an in-memory substitute.
 - [ ] `MCP-04` Client metadata fetching rejects unsafe network/redirect/size/time behavior and consent correctly identifies provenance/trust.
 - [ ] `MCP-05` Consent binds user/organisation/scopes/targets and cannot exceed current authority; deny and revoke paths work.
 - [ ] `MCP-06` Access expiry and refresh rotation/inactivity/absolute expiry work; concurrent refresh/reuse revokes correctly.
-- [ ] `MCP-07` REST tokens fail at MCP and MCP tokens fail at REST; transport session IDs cannot replace token verification.
+- [ ] `MCP-07` REST tokens fail at MCP and MCP tokens fail at ordinary REST; documented artifact-bound binary upload/download handoffs validate the MCP credential and original source/target authority. Transport session IDs cannot replace token verification.
 - [ ] `MCP-08` Every catalogued data/admin task has typed input/output, correct annotations, permission gates and useful error results.
 - [ ] `MCP-09` Structured outputs meet the 1 MiB budget without duplicated row dumps; projection/pagination/export resources preserve current access.
 - [ ] `MCP-10` Long tasks return queued job state and inspection/cancel/retry access; terminal success requires domain verification.
@@ -271,7 +271,7 @@ Run storage/recovery checks with actual PostgreSQL, not an in-memory substitute.
 
 ## Performance profile and scale gates
 
-Engineering acceptance profile: PostgreSQL on 8 vCPU, 32 GiB RAM and 500 GiB SSD; API on 4 vCPU/8 GiB; worker on 4 vCPU/8 GiB; browser on a 16 GiB desktop; browser-to-API RTT at most 50 ms, API-to-PostgreSQL RTT at most 10 ms. Record exact hardware/storage/container limits and actual RTT. A changed profile requires a reviewed target update, not an unexplained exception.
+Engineering acceptance profile, updated by user review on 2026-10-02: an 8 GiB combined runtime budget, enforced as PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB and web server 1 GiB. The local Docker host provides up to 8 CPUs and approximately 98 GiB of storage; record actual CPU allocations, available storage, PostgreSQL buffer settings and contention for each run. Browser memory is measured separately with the thresholds below. Browser-to-API RTT is at most 50 ms; API-to-PostgreSQL RTT is at most 10 ms. All dataset sizes and engineering thresholds remain unchanged. The earlier 32 GiB PostgreSQL / 500 GiB SSD profile described a larger deployment and is not required for this v1 acceptance run. A further changed profile requires a reviewed target update.
 
 Use a five-million-live-row table with 24 fields spanning all eight types and average canonical row size 0.5-1 KiB. Add indexed/unindexed, selective/nonselective and sorted filters, a smaller 200-field near-limit dataset, null/duplicate edge cases, and retained history with at least ten million events including repeated edits to benchmark rows. Record how fixtures were seeded; performance seeding does not substitute for mutation/audit correctness tests. Cold and warm runs are separate. Use at least 1,000 timed requests per interactive scenario, with p50/p95/p99 and errors.
 

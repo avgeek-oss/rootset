@@ -1,0 +1,381 @@
+"use client";
+
+import {
+  Button,
+  Description,
+  FieldError,
+  Input,
+  Label,
+  ListBox,
+  Modal,
+  Select,
+  Switch,
+  TextArea,
+  TextField,
+} from "@heroui/react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type FormEvent,
+} from "react";
+import type { SettingsError } from "./api";
+
+export function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="settings-section">
+      <div className="settings-section-heading">
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  description,
+  required,
+  min,
+  max,
+  step,
+  pattern,
+  minLength,
+  maxLength,
+  error,
+  autoComplete,
+  readOnly,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  description?: string;
+  required?: boolean;
+  min?: number | string;
+  max?: number | string;
+  step?: string | number;
+  pattern?: string;
+  minLength?: number;
+  maxLength?: number;
+  error?: string;
+  autoComplete?: string;
+  readOnly?: boolean;
+  multiline?: boolean;
+}) {
+  return (
+    <TextField
+      className="settings-field"
+      type={type}
+      value={value}
+      onChange={onChange}
+      isRequired={required}
+      isInvalid={Boolean(error)}
+      isReadOnly={readOnly}
+    >
+      <Label>{label}</Label>
+      {multiline ? (
+        <TextArea rows={3} autoComplete={autoComplete ?? "off"} />
+      ) : (
+        <Input
+          min={min}
+          max={max}
+          step={step}
+          pattern={pattern}
+          minLength={minLength}
+          maxLength={maxLength}
+          autoComplete={autoComplete ?? "off"}
+          spellCheck={false}
+        />
+      )}
+      {error ? (
+        <FieldError>{error}</FieldError>
+      ) : (
+        description && <Description>{description}</Description>
+      )}
+    </TextField>
+  );
+}
+
+export function Choice({
+  label,
+  value,
+  onChange,
+  options,
+  description,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly (string | { value: string; label: string })[];
+  description?: string;
+  required?: boolean;
+}) {
+  return (
+    <Select
+      className="settings-field"
+      value={value || null}
+      onChange={(key) => onChange(String(key ?? ""))}
+      isRequired={required}
+    >
+      <Label>{label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          {options.map((option) => {
+            const item =
+              typeof option === "string"
+                ? { value: option, label: option }
+                : option;
+            return (
+              <ListBox.Item
+                key={item.value}
+                id={item.value}
+                textValue={item.label}
+              >
+                {item.label}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            );
+          })}
+        </ListBox>
+      </Select.Popover>
+      {description && <Description>{description}</Description>}
+    </Select>
+  );
+}
+
+export function Toggle({
+  label,
+  selected,
+  onChange,
+  description,
+}: {
+  label: string;
+  selected: boolean;
+  onChange: (value: boolean) => void;
+  description?: string;
+}) {
+  return (
+    <Switch
+      className="settings-toggle"
+      isSelected={selected}
+      onChange={onChange}
+    >
+      <Switch.Content>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        {label}
+      </Switch.Content>
+      {description && <Description>{description}</Description>}
+    </Switch>
+  );
+}
+
+export function Form({
+  children,
+  busy,
+  onSubmit,
+  submit = "Save changes",
+}: {
+  children: ReactNode;
+  busy: boolean;
+  onSubmit: () => void | Promise<void>;
+  submit?: string;
+}) {
+  function submitForm(event: FormEvent) {
+    event.preventDefault();
+    if (!busy) void onSubmit();
+  }
+  return (
+    <form className="settings-form" onSubmit={submitForm} aria-busy={busy}>
+      <fieldset disabled={busy}>{children}</fieldset>
+      <div className="settings-actions">
+        <Button type="submit" isPending={busy} isDisabled={busy}>
+          {busy ? "Working…" : submit}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function Feedback({
+  error,
+  message,
+}: {
+  error?: SettingsError;
+  message?: string;
+}) {
+  const approval =
+    typeof error?.details?.approvalUrl === "string"
+      ? error.details.approvalUrl
+      : undefined;
+  return (
+    <>
+      {error && (
+        <div role="alert" className="settings-feedback settings-feedback-error">
+          <strong>
+            {error.code === "ACCESS_DENIED"
+              ? "Access denied"
+              : error.code === "STEP_UP_REQUIRED"
+                ? "Confirm your identity"
+                : "Request failed"}
+          </strong>
+          <p>{error.message}</p>
+          {approval && (
+            <a href={approval} target="_blank" rel="noopener noreferrer">
+              Review and approve this action
+            </a>
+          )}
+          {error.requestId && <small>Reference: {error.requestId}</small>}
+        </div>
+      )}
+      {message && (
+        <p
+          role="status"
+          className="settings-feedback settings-feedback-success"
+        >
+          {message}
+        </p>
+      )}
+    </>
+  );
+}
+
+export function Loading({
+  loading,
+  error,
+  retry,
+}: {
+  loading: boolean;
+  error?: SettingsError;
+  retry: () => void;
+}) {
+  return (
+    <>
+      {loading && (
+        <p role="status" className="settings-muted">
+          Loading…
+        </p>
+      )}
+      {error && (
+        <>
+          <Feedback error={error} />
+          <Button variant="secondary" onPress={retry}>
+            Try again
+          </Button>
+        </>
+      )}
+    </>
+  );
+}
+
+export function Empty({ children }: { children: ReactNode }) {
+  return <p className="settings-empty">{children}</p>;
+}
+
+export function useConfirmation() {
+  const [pending, setPending] = useState<{
+    title: string;
+    message: string;
+    label: string;
+    resolve: (approved: boolean) => void;
+  }>();
+  const current = useRef(pending);
+  current.current = pending;
+  useEffect(() => () => current.current?.resolve(false), []);
+  function decide(approved: boolean) {
+    pending?.resolve(approved);
+    setPending(undefined);
+  }
+  return {
+    confirm: (title: string, message: string, label = "Confirm") =>
+      new Promise<boolean>((resolve) =>
+        setPending({ title, message, label, resolve }),
+      ),
+    dialog: (
+      <Modal
+        isOpen={Boolean(pending)}
+        onOpenChange={(open) => {
+          if (!open) decide(false);
+        }}
+      >
+        <Modal.Backdrop>
+          <Modal.Container>
+            <Modal.Dialog>
+              <Modal.CloseTrigger />
+              <Modal.Header>
+                <Modal.Heading>{pending?.title}</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body>
+                <p>{pending?.message}</p>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="secondary" onPress={() => decide(false)}>
+                  Cancel
+                </Button>
+                <Button variant="danger" onPress={() => decide(true)}>
+                  {pending?.label}
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+    ),
+  };
+}
+
+export function DateLabel({ value }: { value?: string | null }) {
+  return <span>{value ? new Date(value).toLocaleString() : "—"}</span>;
+}
+export function Status({ value }: { value: string }) {
+  return (
+    <span
+      className={`settings-status settings-status-${value.replace(/[^a-z_]/g, "")}`}
+    >
+      {value.replaceAll("_", " ")}
+    </span>
+  );
+}
+export function RecordList({ children }: { children: ReactNode }) {
+  return <ul className="settings-records">{children}</ul>;
+}
+export function Record({
+  title,
+  description,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <li className="settings-record">
+      <div className="settings-record-content">
+        <strong>{title}</strong>
+        {description && <div className="settings-muted">{description}</div>}
+      </div>
+      <div className="settings-record-actions">{children}</div>
+    </li>
+  );
+}

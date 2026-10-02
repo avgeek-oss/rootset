@@ -1,0 +1,23 @@
+{
+  "name": "@rootset/identity",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rootset/access": "workspace:*",
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "@rootset/email": "workspace:*",
+    "@rootset/idempotency": "workspace:*",
+    "better-auth": "catalog:",
+    "@better-auth/passkey": "catalog:",
+    "@better-auth/drizzle-adapter": "catalog:",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  }
+}

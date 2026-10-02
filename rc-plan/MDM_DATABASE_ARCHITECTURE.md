@@ -1,6 +1,6 @@
 # MDM database architecture
 
-Baseline: 2026-10-02. Status: v1 design contract; implementation pending. Related contracts: [accounts](ACCOUNT_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), [stack](STACK_ARCHITECTURE.md), and [verification](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
+Baseline: 2026-10-02. Status: v1 design contract; implementation and verification are in progress. Final acceptance requires the [verification checklist](IMPLEMENTATION_VERIFICATION_CHECKLIST.md). Related contracts: [accounts](ACCOUNT_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), and [stack](STACK_ARCHITECTURE.md).
 
 ## Storage model
 
@@ -89,7 +89,7 @@ Measure row bytes from deterministic, minified UTF-8 JSON of the user values key
 
 A table's row-count admission is transactional. A statement-level trigger/counter update or equivalent database-enforced operation reserves the net insert/delete delta while holding the table counter lock. Imports and concurrent writers cannot exceed the limit by racing a prior count query. Updates do not consume new row slots. Deletes release live slots after commit; audit records do not count as live rows. An aborted transaction releases its reservation.
 
-Installation capacity depends on total data, indexes, history, and backups. Operators configure storage quotas and an operational minimum of free disk; the system reports admission failures before exhausting its storage. V1 does not promise five million rows for unlimited tables on arbitrary hardware.
+Installation capacity depends on total data, indexes, history, and backups. Operators configure optional PostgreSQL storage quotas and an operational minimum of free disk. Installation quota usage is actual PostgreSQL database allocation; organisation quota usage is native relation allocation plus retained control values. The host reporter measures PostgreSQL data, WAL and custom tablespace filesystems. S3 artifacts have separate measured usage and retention; they do not count as PostgreSQL filesystem space. The [capacity service contract](../packages/capacity/README.md) defines these metrics, growth reservations, stale-report refusal and concurrent-index admission. Configured capacity failures refuse growth while existing data remains readable. V1 does not promise five million rows for unlimited tables on arbitrary hardware.
 
 ## Uniqueness
 
@@ -115,7 +115,7 @@ Changes made by imports, restores, schema conversions, and approved operator rep
 
 History storage is append-only for ordinary actors. Use partitions appropriate to measured volume, with organisation/table/row/field/time indexes. History remains accessible after row/field deletion under the retained table's permissions. Table/database deletion tombstones metadata and revokes normal data access; retained history requires the explicit history/archive grant. Account and organisation deletion follow the configured retention policy, including backup expiry.
 
-History defaults to retained indefinitely, subject to explicit storage quotas and a configured archive/retention policy. Do not silently purge it to fit a row limit. A retention job must record the covered time range and any cold-storage manifest; the history API exposes retention gaps. Ordinary backups include the retained history and reference any retained external archive needed for a complete restore.
+History defaults to retained indefinitely, subject to explicit storage quotas and a configured archive/retention policy. Do not silently purge it to fit a row limit. Each table has an optional retention policy and can run a manual archive job. The worker snapshots a half-open UTC range, encrypts the cells and row events with their field metadata, verifies the uploaded object and checksum, publishes its manifest, and then purges hot events in resumable batches. The history API exposes the covered range and archive ID. Cold artifacts remain retained. Database backups materialise referenced cold events into the encrypted backup payload and fail verification if a required archive is missing; restoring a materialised archive does not report a false hot-history gap.
 
 ## Schema changes
 
@@ -164,6 +164,10 @@ Store encrypted artifacts in S3-compatible storage. Credentials are encrypted in
 Backup states are queued, snapshotting, uploading, verifying, succeeded, failed, or cancelled. A succeeded run requires checksums and a successful restore/validation into an isolated temporary namespace; the restore compares schema, constraints, row/history counts, and canonical content checksums. Upload completion alone is not backup success. Clean up verification namespaces without touching the source, and record cleanup failures.
 
 Default restore creates a new database within the authorised organisation. Reassign database/table IDs and physical names, preserve row IDs, and map historical field/table identities consistently. Rebuild uniqueness/index enforcement, validate values/counts/checksums, and expose the restored database only after validation. Preserve original audit attribution as historical information; add a restore provenance event. Cross-organisation migration requires an explicit authorised mapping and does not recreate memberships or keys.
+
+Restore activates only rules and indexes that were active in the captured snapshot. Failed or unfinished definitions retain their source state and safe failure attribution as inactive definitions; they require an explicit rebuild and review. Restore cannot turn a previously failed uniqueness declaration into enforced production behavior. Verification compares the original definition attribution as well as the resulting active enforcement.
+
+Discarding a temporary verification namespace removes its copied rows, cell/row history, schema definitions, rule/index metadata and mutation outcomes. Retain only a scrubbed database tombstone, minimal discard audit and restore provenance. An isolated validation copy must not silently accumulate a second retained copy of master data or historical values.
 
 Replacement restore needs a bound step-up action, a current recovery backup, a write barrier, staged restore, verification, and atomic publication of the target generation/mappings. On failure, the existing database remains usable or is returned to its prior state. Document the recovery route for a crash on either side of cutover. Policy editing, manual backup, backup listing, restore, and job inspection have API/MCP equivalents.
 

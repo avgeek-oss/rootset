@@ -1,0 +1,14 @@
+{
+  "name": "@rootset/access",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*"
+  }
+}

@@ -1,39 +1,77 @@
 # Rootset
 
-Rootset is a simple MDM structured-storage application. Organisations create databases containing typed tables, edit data through a spreadsheet interface, and use the same operations through a public API and OAuth-authenticated MCP tools.
+Rootset is simple MDM structured storage: organisations own logical databases,
+each database contains typed tables, and people or API/MCP clients maintain the
+same records with validation and cell history. The project domain is
+`rootset.fyi`; this repository does not configure production hosting or DNS.
 
-Project domain: [rootset.fyi](https://rootset.fyi). Repository: [avgeek-inc/rootset](https://github.com/avgeek-inc/rootset).
+The v1 implementation includes PostgreSQL tables, bounded queries and spreadsheet
+windows, row revisions, uniqueness rules, durable jobs, encrypted artifacts,
+account administration, API keys and OAuth-protected MCP. The architecture and
+[205-gate verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md)
+remain the acceptance contract. Features and verification are reviewed separately;
+an installed development instance does not establish release readiness.
 
-## Current state
+## Run a local installation
 
-This repository contains the v1 architecture, implementation plan, and verification contract. Application implementation has not started. The presence of these documents does not establish working features, deployment, performance, or release readiness.
+Use Node.js 24, pnpm 11.5.3, Docker and Docker Compose v2. Installation uses public
+dependencies and does not require Towbar registry credentials.
 
-The product direction and reviewed architectural proposals were accepted on 2026-10-02. Engineering defaults are recorded explicitly in the plan and can change through a reviewed decision with corresponding checklist updates.
+```sh
+pnpm install --frozen-lockfile
+pnpm setup:env
+docker compose --profile local up --build -d
+docker compose --profile local ps
+```
 
-## V1 decisions
+`setup:env` creates `.env` once with independent random credentials and persistent
+keys; it refuses to overwrite an existing file. Protect a recovery copy before
+storing data. Visit `http://localhost:4300` and claim setup with the bootstrap
+secret from your protected `.env`. Local email appears at
+`http://localhost:8025`. Mailpit captures development email; configure a real
+SMTP service for an operational installation.
 
-- PostgreSQL stores management metadata, typed user tables, and cell change history. Each user-created table has a physical PostgreSQL table.
-- Databases are logical containers. A logical database has a managed PostgreSQL schema; it does not provision a new server.
-- Field types are text, integer, float, boolean, date, time, date-time, and JSON.
-- Tables support up to 5,000,000 live rows, bounded row sizes, optional scalar uniqueness rules, and structured column queries.
-- Date-time values are stored and accepted in UTC, with user timezone preferences applied in the UI. Time-only cells display UTC. Calendar dates do not undergo timezone conversion.
-- Every committed cell change has an atomic history entry. Internal row IDs are alphanumeric and hidden from the grid.
-- Public REST queries default to 5,000 rows; MCP queries default to 200. Page sizes are 1 through 25,000, subject to byte and execution limits.
-- The spreadsheet loads bounded windows and renders visible cells. Scale claims require measured evidence against the release candidate.
-- Accounts, authentication screens, emails, 2FA, passkeys, preferences, and API-key behavior use Towbar as the implementation reference, with Rootset-specific permissions.
-- Database-wide backups use consistent snapshots and include restore verification.
+The local profile creates non-root PostgreSQL 18, RustFS artifact storage and
+Mailpit containers. Web, API and worker run as UID 10001. PostgreSQL owner
+credentials are passed only to the one-shot migration service; runtime services
+receive separate application, identity and DDL role credentials. Rootset data and
+objects use named volumes scoped to the Compose project.
 
-## Plan documents
+Read the [installation runbook](docs/operations/installation.md) for external
+PostgreSQL/S3/SMTP, HTTPS routing, resource budgets and startup diagnosis.
 
-Start with the [plan index](rc-plan/README.md).
+## Develop and verify
 
-| Document                                                                                      | Purpose                                                                                                   |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [Account architecture](rc-plan/ACCOUNT_ARCHITECTURE.md)                                       | Organisations, memberships, roles, authentication, API keys, preferences, and account maintenance.        |
-| [MDM database architecture](rc-plan/MDM_DATABASE_ARCHITECTURE.md)                             | Physical storage, field semantics, uniqueness, history, queries, limits, backups, and schema changes.     |
-| [API and MCP architecture](rc-plan/API_AND_MCP_ARCHITECTURE.md)                               | Authentication, public and browser APIs, MCP tools, operation inventory, OpenAPI, and protocol contracts. |
-| [Stack architecture](rc-plan/STACK_ARCHITECTURE.md)                                           | Backend, PostgreSQL, workers, storage, UI, grid, packaging, and deployment.                               |
-| [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)                                         | Work packages, dependencies, deliverables, and acceptance evidence.                                       |
-| [Implementation and verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) | Complete v1 sign-off gates, failure scenarios, performance targets, and release evidence.                 |
+```sh
+pnpm contracts:generate
+pnpm verify
+pnpm test:integration
+```
 
-The repository starts private. Public distribution, project licensing, and a hosted offering remain separate release decisions. No DNS or hosting configuration is established by this plan.
+The integration command requires an isolated PostgreSQL 18 fixture with the four
+documented test URLs and finalized migrations. It fails when prerequisites are
+missing. Configure test SMTP and S3 for outbox/job/artifact scenarios; do not use
+customer data. The [verification guide](docs/verification/README.md) describes
+evidence collection and the acceptance profile. Generated OpenAPI 3.1.2,
+TypeScript client and MCP inventory live in `packages/contracts/generated`.
+
+`pnpm build` emits Next.js standalone output and bundled Node.js production entry
+points under `dist`; Docker copies those artifacts into non-root images. Candidate
+CI checks generated drift, formatting, lint, strict types, tests, production builds,
+real-service integration, dependency vulnerabilities and image construction.
+
+## Architecture and operations
+
+| Document                                                                   | Covers                                                                      |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Account architecture](rc-plan/ACCOUNT_ARCHITECTURE.md)                    | Organisation membership, roles, keys, factors, preferences and recovery.    |
+| [Database architecture](rc-plan/MDM_DATABASE_ARCHITECTURE.md)              | Typed PostgreSQL tables, limits, history, uniqueness, querying and backups. |
+| [API and MCP architecture](rc-plan/API_AND_MCP_ARCHITECTURE.md)            | Shared operations, OpenAPI, OAuth, tools and transport contracts.           |
+| [Stack architecture](rc-plan/STACK_ARCHITECTURE.md)                        | Runtime boundaries, storage, frontend, packaging and observability.         |
+| [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)                      | Implementation work packages and evidence requirements.                     |
+| [Verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) | Complete v1 implementation and verification sign-off.                       |
+| [Operations runbooks](docs/operations/README.md)                           | Installation, upgrades, recovery, key rotation and failures.                |
+
+This initial repository is private. Public source licensing, image publication,
+production deployment and production health are separate release records. Adapted
+Towbar material retains its applicable licence and source notices.

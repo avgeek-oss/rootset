@@ -1,0 +1,276 @@
+import { randomBytes, randomUUID } from "node:crypto";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseEnv } from "node:util";
+import { request, type APIRequestContext } from "@playwright/test";
+import type { BrowserDatabaseFixture } from "./browser-fixture";
+
+const root = resolve(import.meta.dirname, "../../../../..");
+const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
+const mailboxURL =
+  process.env.ROOTSET_BROWSER_MAILBOX_URL ?? "http://localhost:59080";
+const origin = new URL(baseURL).origin;
+const fixtureRole = process.env.ROOTSET_BROWSER_FIXTURE_ROLE ?? "admin";
+if (!["admin", "editor", "viewer"].includes(fixtureRole))
+  throw new Error(
+    "Browser fixture invitation role must be admin, editor or viewer.",
+  );
+const fixture = JSON.parse(
+  readFileSync(
+    process.env.ROOTSET_UI_FIXTURE_PATH ??
+      resolve(root, "apps/rootset-web/test-results/browser/fixture.json"),
+    "utf8",
+  ),
+) as BrowserDatabaseFixture;
+const credentialsPath =
+  process.env.ROOTSET_BROWSER_CREDENTIALS_PATH ??
+  resolve(root, "apps/rootset-web/.env.cells-browser-test");
+
+class ProvisionError extends Error {}
+
+interface Credentials {
+  ROOTSET_TEST_OWNER_EMAIL: string;
+  ROOTSET_TEST_OWNER_PASSWORD: string;
+}
+interface Mailbox {
+  messages: { ID: string; To: { Address: string }[] }[];
+}
+
+async function authenticate(
+  context: APIRequestContext,
+  credentials: Credentials,
+): Promise<boolean> {
+  const signedIn = await context.post(`${baseURL}/v1/auth/sign-in/email`, {
+    data: {
+      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+    },
+  });
+  if (!signedIn.ok()) return false;
+  if ((await signedIn.json()).twoFactorRedirect)
+    throw new ProvisionError(
+      "The isolated browser account requires a second factor.",
+    );
+  return true;
+}
+
+async function findMailLink(
+  email: string,
+  path: RegExp,
+  wait = true,
+): Promise<URL | undefined> {
+  const deadline = Date.now() + (wait ? 60_000 : 1);
+  do {
+    const mailboxResponse = await fetch(`${mailboxURL}/api/v1/messages`);
+    if (!mailboxResponse.ok)
+      throw new ProvisionError(
+        `The test mailbox returned ${mailboxResponse.status}.`,
+      );
+    const mailbox = (await mailboxResponse.json()) as Mailbox;
+    for (const message of mailbox.messages.filter((message) =>
+      message.To.some((recipient) => recipient.Address === email),
+    )) {
+      const response = await fetch(
+        `${mailboxURL}/api/v1/message/${encodeURIComponent(message.ID)}`,
+      );
+      if (!response.ok)
+        throw new ProvisionError(
+          `The test message endpoint returned ${response.status}.`,
+        );
+      const body = (await response.json()) as { HTML?: string; Text?: string };
+      const links =
+        `${body.HTML ?? ""}\n${body.Text ?? ""}`.match(
+          /https?:\/\/[^\s"<>]+/g,
+        ) ?? [];
+      for (const link of links) {
+        const url = new URL(link.replaceAll("&amp;", "&"));
+        if (url.origin === origin && path.test(url.pathname)) return url;
+      }
+    }
+    if (wait) await new Promise((resolve) => setTimeout(resolve, 1_000));
+  } while (Date.now() < deadline);
+  if (wait)
+    throw new ProvisionError(
+      "The expected account email did not arrive within 60 seconds.",
+    );
+}
+
+async function selectOrganisation(context: APIRequestContext): Promise<void> {
+  const response = await context.post(`${baseURL}/v1/auth/organisation`, {
+    data: { orgId: fixture.orgId },
+  });
+  if (!response.ok())
+    throw new ProvisionError(
+      `The isolated account could not select the fixture organisation (${response.status()}).`,
+    );
+}
+
+async function main() {
+  const own = await request.newContext({
+    extraHTTPHeaders: { Origin: origin },
+  });
+  const inviter = await request.newContext({
+    extraHTTPHeaders: { Origin: origin },
+  });
+  let credentials: Credentials;
+  try {
+    if (existsSync(credentialsPath)) {
+      const stored = parseEnv(readFileSync(credentialsPath, "utf8"));
+      if (
+        !stored.ROOTSET_TEST_OWNER_EMAIL ||
+        !stored.ROOTSET_TEST_OWNER_PASSWORD
+      )
+        throw new ProvisionError(
+          "The isolated account credentials file is incomplete.",
+        );
+      credentials = {
+        ROOTSET_TEST_OWNER_EMAIL: stored.ROOTSET_TEST_OWNER_EMAIL,
+        ROOTSET_TEST_OWNER_PASSWORD: stored.ROOTSET_TEST_OWNER_PASSWORD,
+      };
+      chmodSync(credentialsPath, 0o600);
+      if (await authenticate(own, credentials)) {
+        await selectOrganisation(own);
+        console.log("The separate verified browser account is ready.");
+        return;
+      }
+    } else {
+      credentials = {
+        ROOTSET_TEST_OWNER_EMAIL: `rootset-cells-${randomUUID().slice(0, 8)}@example.test`,
+        ROOTSET_TEST_OWNER_PASSWORD: `Rootset verification ${randomBytes(32).toString("base64url")}`,
+      };
+      writeFileSync(
+        credentialsPath,
+        Object.entries(credentials)
+          .map(([key, value]) => `${key}=${value}`)
+          .join("\n"),
+        { mode: 0o600, flag: "wx" },
+      );
+    }
+    let invitation = await findMailLink(
+      credentials.ROOTSET_TEST_OWNER_EMAIL,
+      /^\/invitations\/[A-Za-z0-9_-]{43}$/,
+      false,
+    );
+    if (!invitation) {
+      const stored = parseEnv(
+        readFileSync(
+          resolve(root, "apps/rootset-web/.env.browser-test"),
+          "utf8",
+        ),
+      );
+      if (
+        !stored.ROOTSET_TEST_OWNER_EMAIL ||
+        !stored.ROOTSET_TEST_OWNER_PASSWORD
+      )
+        throw new ProvisionError(
+          "Verified fixture owner credentials are required to invite the isolated account.",
+        );
+      if (
+        !(await authenticate(inviter, {
+          ROOTSET_TEST_OWNER_EMAIL: stored.ROOTSET_TEST_OWNER_EMAIL,
+          ROOTSET_TEST_OWNER_PASSWORD: stored.ROOTSET_TEST_OWNER_PASSWORD,
+        }))
+      )
+        throw new ProvisionError(
+          "The verified fixture owner could not sign in.",
+        );
+      await selectOrganisation(inviter);
+      const pending = await inviter.get(
+        `${baseURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
+      );
+      if (!pending.ok())
+        throw new ProvisionError(
+          `The invitation listing endpoint returned ${pending.status()}.`,
+        );
+      const listing = (await pending.json()) as {
+        data: { email: string; state: string }[];
+      };
+      if (
+        !listing.data.some(
+          (item) =>
+            item.email === credentials.ROOTSET_TEST_OWNER_EMAIL &&
+            item.state === "pending",
+        )
+      ) {
+        const response = await inviter.post(
+          `${baseURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
+          {
+            headers: { "Idempotency-Key": randomUUID() },
+            data: {
+              email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+              role: fixtureRole,
+            },
+          },
+        );
+        if (!response.ok())
+          throw new ProvisionError(
+            `The real invitation endpoint returned ${response.status()}.`,
+          );
+      }
+      invitation = await findMailLink(
+        credentials.ROOTSET_TEST_OWNER_EMAIL,
+        /^\/invitations\/[A-Za-z0-9_-]{43}$/,
+      );
+    }
+    if (!invitation)
+      throw new ProvisionError("The invitation link is missing.");
+    const token = invitation.pathname.split("/").at(-1);
+    const accepted = await own.post(`${baseURL}/v1/auth/invitations/accept`, {
+      data: {
+        token,
+        name: "Cell editor verification",
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
+    });
+    if (accepted.status() !== 202)
+      throw new ProvisionError(
+        `The invitation registration endpoint returned ${accepted.status()}.`,
+      );
+    const verification = await findMailLink(
+      credentials.ROOTSET_TEST_OWNER_EMAIL,
+      /^\/v1\/auth\/verify-email$/,
+    );
+    if (!verification)
+      throw new ProvisionError("The verification link is missing.");
+    const verified = await own.get(verification.toString(), {
+      maxRedirects: 0,
+    });
+    if (verified.status() !== 302 && !verified.ok())
+      throw new ProvisionError(
+        `The real email verification endpoint returned ${verified.status()}.`,
+      );
+    if (!(await authenticate(own, credentials)))
+      throw new ProvisionError(
+        "The email-verified invited account could not sign in.",
+      );
+    const confirmed = await own.post(`${baseURL}/v1/auth/invitations/accept`, {
+      data: { token },
+    });
+    if (!confirmed.ok())
+      throw new ProvisionError(
+        `The verified invitation acceptance endpoint returned ${confirmed.status()}.`,
+      );
+    await selectOrganisation(own);
+    console.log(
+      "The separate browser account was invited, email verified, and accepted through the real application endpoints.",
+    );
+  } finally {
+    await own.dispose();
+    await inviter.dispose();
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error(
+    error instanceof ProvisionError
+      ? error.message
+      : error instanceof Error
+        ? error.name +
+          ": " +
+          (error.message.split("\n")[0] ?? error.name)
+            .replace(/https?:\/\/\S+/g, "[redacted URL]")
+            .replace(/[A-Za-z0-9_-]{43,}/g, "[redacted token]")
+        : "Account provisioning failed",
+  );
+  process.exitCode = 1;
+});

@@ -1,6 +1,6 @@
 # Account architecture
 
-Baseline: 2026-10-02. Status: v1 design contract; implementation pending. Related contracts: [database](MDM_DATABASE_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), [stack](STACK_ARCHITECTURE.md), and [verification](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
+Baseline: 2026-10-02. Status: v1 design contract; implementation and verification are in progress. Final acceptance requires the [verification checklist](IMPLEMENTATION_VERIFICATION_CHECKLIST.md). Related contracts: [database](MDM_DATABASE_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), and [stack](STACK_ARCHITECTURE.md).
 
 ## Organisation structure
 
@@ -52,9 +52,13 @@ All active members can read shared data by default. Administrators can replace t
 
 At least one enabled, verified Owner must remain. Owner removal, demotion, transfer, and organisation deletion lock the relevant organisation/memberships and validate that invariant under concurrency. Invitations cannot create Owners; ownership transfer is a separate step-up operation.
 
+A successful ownership transfer promotes the selected enabled, verified member to Owner and demotes the initiating Owner to Admin in the same transaction. For example, transferring from Alice to Bob changes Alice from Owner to Admin and Bob from Editor to Owner. Other existing Owners keep their roles. Selecting the current Owner does not change that membership. The request requires recent browser authentication or an approval bound to the exact user, organisation and initiating credential/client.
+
 ## Setup and invitations
 
 Setup is a one-time, transactional claim gated by an installation bootstrap secret available through deployment configuration. It creates the first organisation and Owner, requires email verification, and disables the bootstrap path after success. Two simultaneous setup requests cannot create competing first owners. A lost initial response can be reconciled by the setup status endpoint without revealing credentials.
+
+Bootstrap claim and bound account-action digests use HMAC with the installation key-hash secret. Password-bearing inputs are never retained as an unkeyed digest. Migration `036_bound_digest_protocol.sql` erases earlier unkeyed digests, expires pending approval tickets and clears their protected payloads while preserving consumed outcomes. Users start a fresh action after this upgrade. Existing installations remain claimed; old-protocol setup retries return `SETUP_ALREADY_CLAIMED`, and verification can be resent through the authentication flow.
 
 Invitation acceptance requires a valid, unexpired token, verified control of the invited email, and the correct organisation. Existing users authenticate and accept the membership. New users establish their account through the invitation flow. Tokens are single-use and stored hashed. Cancellation, inviter loss of authority, organisation suspension, and membership creation must be handled before acceptance. Replays return an intelligible terminal result without adding a second membership.
 

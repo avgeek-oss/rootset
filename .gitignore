@@ -1,4 +1,8 @@
 .DS_Store
+/verification/
+test-results/
+playwright-report/
+.turbo/
 .env
 .env.*
 !.env.example
@@ -9,3 +13,4 @@ coverage/
 .turbo/
 tmp/
 *.log
+*.tsbuildinfo

@@ -1,6 +1,6 @@
 # Implementation plan
 
-Baseline: 2026-10-02. Status: implementation has not started. This document describes work packages and their evidence, not completed work. The [verification checklist](IMPLEMENTATION_VERIFICATION_CHECKLIST.md) defines final sign-off.
+Baseline: 2026-10-02. Status: implementation and verification in progress. This document describes work packages and their required evidence. Source and development checks are available, but final completion is determined by the [verification checklist](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
 
 ## Contract and dependencies
 

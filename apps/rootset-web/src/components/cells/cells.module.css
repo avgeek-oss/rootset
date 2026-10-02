@@ -1,0 +1,76 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  max-height: min(44rem, calc(100dvh - 4rem));
+  overflow: auto;
+  padding: 1.25rem;
+}
+
+.editor input,
+.editor textarea,
+.editor [contenteditable] {
+  font-size: 16px;
+}
+
+.editor button,
+.editor input,
+.editor textarea {
+  touch-action: manipulation;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.actions button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.feedback {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--danger, #b42318);
+}
+
+.hint {
+  color: var(--muted, #526071);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.json {
+  min-height: 10rem;
+  max-height: 28rem;
+  overflow: auto;
+  border: 1px solid var(--border, #ccd2d9);
+  border-radius: 0.5rem;
+}
+
+.json:focus-within {
+  outline: 2px solid var(--accent, #235a8f);
+  outline-offset: 2px;
+}
+
+.json :global(.cm-editor) {
+  min-height: 10rem;
+}
+
+.json :global(.cm-scroller) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.json :global(.cm-content) {
+  padding: 0.625rem;
+}

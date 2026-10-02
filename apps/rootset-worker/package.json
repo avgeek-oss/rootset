@@ -1,0 +1,24 @@
+{
+  "name": "@rootset/worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@rootset/core": "workspace:*",
+    "@rootset/jobs": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "@rootset/table-storage": "workspace:*",
+    "@rootset/identity": "workspace:*",
+    "tsx": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

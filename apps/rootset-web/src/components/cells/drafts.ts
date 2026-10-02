@@ -1,0 +1,288 @@
+import {
+  canonicalJson,
+  limits,
+  parseStrictJson,
+  validateCell,
+  type FieldDefinition,
+  type JsonValue,
+  type Preferences,
+} from "@rootset/contracts";
+import {
+  formatUtcDateTime,
+  localDateTimeToUtc,
+  timeInputToUtc,
+  utcDateTimeToLocal,
+  utcTimeToInput,
+} from "./temporal";
+
+export interface CellDraft {
+  text: string;
+  isNull: boolean;
+  selectedInstant?: string;
+}
+
+const numberFormatters = new Map<string, Intl.NumberFormat>();
+const clockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+export type DisplayPreferences = Pick<Preferences, "dateFormat" | "timeFormat">;
+export interface CellDisplayOptions {
+  timeZone?: string;
+  locale?: string;
+  dateFormat?: Preferences["dateFormat"];
+  timeFormat?: Preferences["timeFormat"];
+}
+
+function numberFormatter(locale: string, integer: boolean): Intl.NumberFormat {
+  const key = `${locale}\0${integer}`;
+  const cached = numberFormatters.get(key);
+  if (cached) return cached;
+  const formatter = new Intl.NumberFormat(
+    locale,
+    integer ? { maximumFractionDigits: 0 } : { maximumSignificantDigits: 17 },
+  );
+  if (numberFormatters.size >= 16)
+    numberFormatters.delete(numberFormatters.keys().next().value!);
+  numberFormatters.set(key, formatter);
+  return formatter;
+}
+
+function displayDate(value: string, format: Preferences["dateFormat"]): string {
+  const [rawYear, month, day] = value.split("-");
+  const year = rawYear === "0000" ? "0001" : rawYear;
+  const result =
+    format === "DD/MM/YYYY"
+      ? `${day}/${month}/${year}`
+      : format === "MM/DD/YYYY"
+        ? `${month}/${day}/${year}`
+        : `${year}-${month}-${day}`;
+  return rawYear === "0000" ? `${result} BCE` : result;
+}
+
+function displayClock(
+  value: string,
+  locale: string,
+  format: Preferences["timeFormat"],
+): string {
+  const key = `${locale}\0${format}`;
+  let formatter = clockFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      timeZone: "UTC",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      fractionalSecondDigits: 3,
+      hourCycle: format === "12h" ? "h12" : "h23",
+    });
+    if (clockFormatters.size >= 16)
+      clockFormatters.delete(clockFormatters.keys().next().value!);
+    clockFormatters.set(key, formatter);
+  }
+  const [clock, fraction = "000"] = value.split(".");
+  const [hour, minute, second] = clock!.split(":").map(Number);
+  // This fixed UTC anchor is only for locale formatting, never for timezone conversion.
+  return formatter.format(
+    Date.UTC(2000, 0, 1, hour, minute, second, Number(fraction)),
+  );
+}
+
+export function createCellDraft(
+  field: FieldDefinition,
+  value: JsonValue,
+  timeZone = "UTC",
+): CellDraft {
+  if (value === null)
+    return {
+      text: field.type === "boolean" ? "false" : "",
+      isNull: !field.required,
+    };
+  switch (field.type) {
+    case "json":
+      return { text: canonicalJson(value), isNull: false };
+    case "date-time":
+      return {
+        text: utcDateTimeToLocal(String(value), timeZone),
+        isNull: false,
+        selectedInstant: String(value),
+      };
+    case "time":
+      return { text: utcTimeToInput(String(value)), isNull: false };
+    default:
+      return { text: String(value), isNull: false };
+  }
+}
+
+export function parseCellDraft(
+  field: FieldDefinition,
+  draft: CellDraft,
+  timeZone = "UTC",
+): JsonValue {
+  if (draft.isNull) return validateCell(field, null);
+  let value: JsonValue;
+  switch (field.type) {
+    case "text":
+      value = draft.text;
+      break;
+    case "integer": {
+      const input = draft.text.trim();
+      if (!/^-?\d+$/.test(input)) throw new Error("Enter a whole number.");
+      value = Number(input);
+      break;
+    }
+    case "float": {
+      const input = draft.text.trim();
+      if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(input))
+        throw new Error("Enter a finite number.");
+      value = Number(input);
+      break;
+    }
+    case "boolean": {
+      if (draft.text !== "true" && draft.text !== "false")
+        throw new Error("Choose true or false.");
+      value = draft.text === "true";
+      break;
+    }
+    case "date":
+      value = draft.text;
+      break;
+    case "time":
+      value = timeInputToUtc(draft.text);
+      break;
+    case "date-time":
+      value = localDateTimeToUtc(draft.text, timeZone, draft.selectedInstant);
+      break;
+    case "json":
+      value = parseStrictJson(draft.text, { maxBytes: limits.requestBytes });
+      break;
+  }
+  return validateCell(field, value);
+}
+
+export function validateCellDraft(
+  field: FieldDefinition,
+  draft: CellDraft,
+  timeZone = "UTC",
+): string | null {
+  try {
+    parseCellDraft(field, draft, timeZone);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "This value is invalid.";
+  }
+}
+
+/** A visible preview does bounded work; it does not stringify an entire JSON value. */
+export function jsonCellPreview(value: JsonValue, maximum = 160): string {
+  const cap = Math.max(8, Math.floor(maximum));
+  let remaining = cap;
+  function append(text: string): string {
+    if (!remaining) return "";
+    const output =
+      text.length > remaining
+        ? `${text.slice(0, Math.max(0, remaining - 1))}…`
+        : text;
+    remaining -= output.length;
+    return output;
+  }
+  function visit(input: JsonValue, depth: number): string {
+    if (
+      input === null ||
+      typeof input === "boolean" ||
+      typeof input === "number"
+    )
+      return append(String(input));
+    if (typeof input === "string") {
+      const bounded =
+        input.length > remaining ? `${input.slice(0, remaining)}…` : input;
+      return append(JSON.stringify(bounded));
+    }
+    if (depth > 1) return append(Array.isArray(input) ? "[…]" : "{…}");
+    if (Array.isArray(input)) {
+      let result = append("[");
+      for (let i = 0; i < Math.min(input.length, 4) && remaining > 2; i++) {
+        if (i) result += append(", ");
+        result += visit(input[i]!, depth + 1);
+      }
+      if (input.length > 4) result += append(", …");
+      return result + append("]");
+    }
+    let result = append("{");
+    let count = 0;
+    for (const key in input) {
+      if (!Object.hasOwn(input, key)) continue;
+      if (count++ === 4 || remaining < 8) {
+        result += append(", …");
+        break;
+      }
+      if (count > 1) result += append(", ");
+      result += append(`${JSON.stringify(key.slice(0, 40))}: `);
+      result += visit(input[key]!, depth + 1);
+    }
+    return result + append("}");
+  }
+  return visit(value, 0);
+}
+
+export function formatCellValue(
+  field: FieldDefinition,
+  value: JsonValue,
+  options?: CellDisplayOptions,
+): string;
+export function formatCellValue(
+  field: FieldDefinition,
+  value: JsonValue,
+  timeZone?: string,
+  locale?: string,
+  preferences?: DisplayPreferences,
+): string;
+export function formatCellValue(
+  field: FieldDefinition,
+  value: JsonValue,
+  timeZoneOrOptions: string | CellDisplayOptions = "UTC",
+  localeArgument = "en-GB",
+  preferenceArgument?: DisplayPreferences,
+): string {
+  const options =
+    typeof timeZoneOrOptions === "string"
+      ? { timeZone: timeZoneOrOptions, locale: localeArgument }
+      : timeZoneOrOptions;
+  const timeZone = options.timeZone ?? "UTC";
+  const locale = options.locale ?? "en-GB";
+  const preferences =
+    preferenceArgument ??
+    (options.dateFormat || options.timeFormat
+      ? {
+          dateFormat: options.dateFormat ?? "YYYY-MM-DD",
+          timeFormat: options.timeFormat ?? "24h",
+        }
+      : undefined);
+  if (value === null) return "—";
+  switch (field.type) {
+    case "date-time": {
+      if (!preferences)
+        return formatUtcDateTime(String(value), timeZone, locale);
+      const [date, clock] = utcDateTimeToLocal(String(value), timeZone).split(
+        "T",
+      );
+      return `${displayDate(date!, preferences.dateFormat)} ${displayClock(clock!, locale, preferences.timeFormat)}`;
+    }
+    case "time":
+      return `${preferences ? displayClock(utcTimeToInput(String(value)), locale, preferences.timeFormat) : utcTimeToInput(String(value))} UTC`;
+    case "date":
+      return preferences
+        ? displayDate(String(value), preferences.dateFormat)
+        : String(value);
+    case "integer":
+      return numberFormatter(locale, true).format(Number(value));
+    case "float":
+      return numberFormatter(locale, false).format(Number(value));
+    case "boolean":
+      return value ? "True" : "False";
+    case "json":
+      return jsonCellPreview(value);
+    case "text":
+      return String(value).length > 512
+        ? `${String(value).slice(0, 511)}…`
+        : String(value);
+  }
+}

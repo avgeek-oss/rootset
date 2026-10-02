@@ -1,0 +1,10 @@
+Rootset public-distribution licence: pending release decision.
+
+This repository is currently private. This notice does not grant an additional
+licence to Rootset source code. See rc-plan/ACCOUNT_ARCHITECTURE.md and the separate
+publication record in rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md.
+
+Third-party software and adapted reference material retain their applicable
+licences and notices. Towbar-derived authentication and email components record
+their source provenance and applicable Apache-2.0 notices in their package
+documentation. A future Rootset distribution must preserve those notices.

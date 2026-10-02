@@ -1,0 +1,22 @@
+{
+  "name": "@rootset/email",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "nodemailer": "catalog:",
+    "react": "catalog:",
+    "@react-email/components": "catalog:",
+    "@react-email/render": "catalog:"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "catalog:"
+  }
+}

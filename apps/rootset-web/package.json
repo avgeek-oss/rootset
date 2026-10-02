@@ -1,0 +1,41 @@
+{
+  "name": "@rootset/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 4300",
+    "build": "next build",
+    "start": "next start --port 4300",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/web-client": "workspace:*",
+    "@rootset/identity-web-ui": "workspace:*",
+    "@rootset/observability": "workspace:*",
+    "@heroui/react": "catalog:",
+    "@heroui/styles": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@codemirror/state": "catalog:",
+    "@codemirror/view": "catalog:",
+    "@codemirror/lang-json": "catalog:",
+    "@codemirror/commands": "catalog:",
+    "@better-auth/passkey": "catalog:",
+    "better-auth": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "lucide-react": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "tailwindcss": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
