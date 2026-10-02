@@ -5,6 +5,7 @@ import {
   limits,
   RootsetError,
   ViewPreferencesResultSchema,
+  OperatorRepairAccountActionSchema,
   type Actor,
 } from "@rootset/contracts";
 import { type PoolClient, type Queryable } from "@rootset/database";
@@ -38,6 +39,8 @@ export const jobsMutationSet: ReadonlySet<string> = new Set([
   "retryJob",
 ]);
 export const queuedMutationSet: ReadonlySet<string> = new Set([
+  "deleteAccount",
+  "deleteOrganisation",
   "deleteBackup",
   "deleteDatabase",
   "deleteTable",
@@ -65,6 +68,114 @@ export const recordedOps = mutationSet;
 
 export type MutationLookup =
   { found: false } | { found: true; result: unknown };
+
+export function resolveAdmissionApproval(
+  input: Record<string, unknown>,
+  context: { approvalId?: string; actionId?: string } = {},
+): string | undefined {
+  const claims = [
+    input.approvalId,
+    input.actionId,
+    context.approvalId,
+    context.actionId,
+  ].filter((value) => value !== undefined);
+  const ids = claims.map((value) => IdSchema.parse(value));
+  if (new Set(ids).size > 1)
+    throw new RootsetError(
+      "STEP_UP_REQUIRED",
+      "Approval claims identify different requests",
+      403,
+    );
+  return ids[0];
+}
+
+export function operationAdmissionBinding(
+  actor: Actor,
+  operationId: string,
+  input: Record<string, unknown>,
+  key: string,
+  approvalId: string | undefined,
+  secret: string,
+  context: { source?: string; stepUpApproved?: boolean } = {},
+): string {
+  binding(actor, operationId, input, key, secret);
+  const effective = resolveAdmissionApproval(input, { approvalId });
+  return (
+    "v1:" +
+    createHmac("sha256", secret)
+      .update("rootset:queued-admission:v1:")
+      .update(
+        canonicalJson(
+          {
+            orgId: actor.orgId,
+            principal: {
+              kind: actor.kind,
+              id: actor.id,
+              userId: actor.userId ?? null,
+              credentialId: actor.credentialId ?? null,
+              clientId: actor.clientId ?? null,
+            },
+            operationId,
+            key,
+            input: inputValue(input),
+            approvalId: effective ?? null,
+            context: {
+              source: context.source ?? null,
+              stepUpApproved: context.stepUpApproved ?? null,
+            },
+          },
+          { maxDepth: 96 },
+        ),
+      )
+      .digest("hex")
+  );
+}
+
+export async function lockOperationAdmission(
+  client: PoolClient,
+  actor: Actor,
+  operationId: string,
+  key: string,
+  secret: string,
+): Promise<void> {
+  const lock = binding(actor, operationId, {}, key, secret)
+    .slice(0, 4)
+    .join(":");
+  const state = (
+    await client.query<{ value: string; active: boolean }>(
+      "SELECT current_setting('lock_timeout') AS value,transaction_timestamp()<>statement_timestamp() AS active",
+    )
+  ).rows[0];
+  if (!state?.active)
+    throw new RootsetError(
+      "CONFIGURATION_INVALID",
+      "Queued admission requires an active transaction",
+      500,
+    );
+  const milliseconds = /^\d+(ms)?$/.test(state.value)
+    ? Number.parseInt(state.value, 10)
+    : undefined;
+  await client.query("SELECT set_config('lock_timeout',$1,true)", [
+    milliseconds && milliseconds < 2000 ? state.value : "2000ms",
+  ]);
+  try {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+      "rootset:queued-admission:" + lock,
+    ]);
+    await client.query("SELECT set_config('lock_timeout',$1,true)", [
+      state.value,
+    ]);
+  } catch (error) {
+    if ((error as { code?: string }).code === "55P03")
+      throw new RootsetError(
+        "DEPENDENCY_UNAVAILABLE",
+        "An identical admission is still running; retry the unchanged request",
+        503,
+        { retryable: true },
+      );
+    throw error;
+  }
+}
 
 function inputValue(input: unknown): unknown {
   if (!input || typeof input !== "object" || Array.isArray(input)) return input;
@@ -138,6 +249,14 @@ export function stripMutationSecrets(value: unknown): unknown {
 }
 
 function mutationOutcome(operationId: string, value: unknown): unknown {
+  if (
+    operationId === "beginAccountAction" &&
+    value &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === "operator_repair"
+  )
+    return OperatorRepairAccountActionSchema.parse(value);
   if (operationId !== "updateViewPreferences")
     return stripMutationSecrets(value);
   const result = ViewPreferencesResultSchema.safeParse(value);

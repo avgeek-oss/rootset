@@ -1,5 +1,5 @@
 import {
-  getOperation,
+  getRuntimeOperation,
   limits,
   operatorsByType,
   operationMap,
@@ -21,7 +21,11 @@ import { assertAccess, targetAllows } from "@rootset/access";
 import { withOrg, type Pool, type PoolClient } from "@rootset/database";
 import type { IdentityService } from "@rootset/identity";
 import type { CapacityService } from "@rootset/capacity";
-import { lookupMutation, recordedOps } from "@rootset/idempotency";
+import {
+  lookupMutation,
+  recordedOps,
+  resolveAdmissionApproval,
+} from "@rootset/idempotency";
 import type {
   TableStorage,
   DatabaseRecord,
@@ -49,6 +53,7 @@ export interface OperationContext {
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
   beforePublish?: () => Promise<void>;
+  admissionSource?: string;
   numericLexemes?: readonly NumberLexeme[];
   approvalClient?: PoolClient;
 }
@@ -210,6 +215,16 @@ const asynchronous = new Set([
   "countRows",
   "testEmail",
 ]);
+const queuedFamilies = new Set([
+  "deleteAccount",
+  "deleteOrganisation",
+  "validateImport",
+  "importRows",
+  "exportRows",
+  "createBackup",
+  "restoreBackup",
+  "archiveHistory",
+]);
 const jobOperations = new Set([
   "getHistoryRetentionPolicy",
   "setHistoryRetentionPolicy",
@@ -248,7 +263,7 @@ export class RootsetCore {
     input: Record<string, unknown>,
   ): Promise<Actor> {
     const actor = await this.options.identity.refreshActor(incoming),
-      op = getOperation(operationId);
+      op = getRuntimeOperation(operationId);
     const orgId = typeof input.orgId === "string" ? input.orgId : actor.orgId;
     if (
       operationId === "createDatabase" &&
@@ -342,6 +357,13 @@ export class RootsetCore {
         "Resource was not found",
         404,
       );
+    if (operationId === "mutateRows" && input.repair !== undefined)
+      assertAccess(actor, {
+        scope: "installation:manage",
+        operator: true,
+        personal: true,
+        orgId,
+      });
     if (operationId === "restoreBackup" && input.mode === "replace") {
       const replacementId =
         typeof input.targetDatabaseId === "string"
@@ -436,7 +458,7 @@ export class RootsetCore {
     context: OperationContext,
     worker: boolean,
   ): Promise<unknown> {
-    const operation = getOperation(operationId),
+    const operation = getRuntimeOperation(operationId),
       input = record(operation.inputSchema.parse(value));
     let actor = await this.authorise(incoming, operationId, input);
     const lexemes = context.numericLexemes ?? [];
@@ -521,16 +543,50 @@ export class RootsetCore {
           surface: context.surface === "operator" ? "worker" : context.surface,
         },
       );
-      if (operationMap[bound.operationId])
+      if (
+        operationMap[bound.operationId] ||
+        bound.operationId === "deleteAccount"
+      )
         await this.authorise(actor, bound.operationId, bound.input);
+      if (
+        bound.operationId === "mutateRows" &&
+        Array.isArray(bound.input.mutations)
+      ) {
+        const table = await this.options.storage.getTable(
+          actor,
+          str(bound.input.tableId),
+        );
+        bound.input.mutations.forEach((_, i) =>
+          assertValueLexemes(table.fields, lexemes, [
+            "input",
+            "mutations",
+            i,
+            "values",
+          ]),
+        );
+      }
     }
-    if (!worker && jobOperations.has(operationId))
+    const repair = operationId === "mutateRows" && input.repair !== undefined;
+    const queued =
+      !worker &&
+      (repair ||
+        queuedFamilies.has(operationId) ||
+        (asynchronous.has(operationId) &&
+          (operationId !== "countRows" ||
+            input.exact === true ||
+            !!(input.query && record(input.query).where))));
+    if (!worker && (jobOperations.has(operationId) || repair))
       actor = await this.options.jobs.authoriseRequest(
         actor,
         operationId,
         input,
       );
-    if (!worker && context.idempotencyKey && recordedOps.has(operationId)) {
+    if (
+      !worker &&
+      !queued &&
+      context.idempotencyKey &&
+      recordedOps.has(operationId)
+    ) {
       const replay = await withOrg(
         this.options.identityPool,
         actor.orgId,
@@ -549,7 +605,7 @@ export class RootsetCore {
     const perform = async (approvedContext: OperationContext) => {
       if (
         !worker &&
-        asynchronous.has(operationId) &&
+        (asynchronous.has(operationId) || repair) &&
         (operationId !== "countRows" ||
           input.exact === true ||
           !!(input.query && record(input.query).where))
@@ -559,6 +615,7 @@ export class RootsetCore {
             approvedContext.idempotencyKey ??
             (operationId === "countRows" ? `count:${newId()}` : undefined),
           requestId: approvedContext.requestId,
+          source: approvedContext.surface,
           approvalId: approvedContext.actionId,
           client: approvedContext.approvalClient,
           stepUpApproved: true,
@@ -601,31 +658,70 @@ export class RootsetCore {
         );
       return JSON.parse(JSON.stringify(output)) as unknown;
     };
-    if (operation.stepUp !== "never" && !worker) {
-      const approvalContext = {
-        ...context,
-        actionId:
-          context.actionId ??
-          (typeof input.approvalId === "string" ? input.approvalId : undefined),
-        surface:
-          context.surface === "operator"
-            ? ("worker" as const)
-            : context.surface,
-      };
-      return this.options.identity.withOperationApproval(
-        actor,
-        operationId,
-        input,
-        approvalContext,
-        (client) =>
-          perform({
-            ...context,
-            actionId: approvalContext.actionId,
-            approvalClient: client,
-          }),
-      );
+    const runApproved = async (effectiveContext: OperationContext) => {
+      if (
+        operation.stepUp !== "never" &&
+        !worker &&
+        (operationId !== "mutateRows" || repair)
+      ) {
+        const approvalContext = {
+          ...effectiveContext,
+          actionId:
+            effectiveContext.actionId ??
+            (typeof input.approvalId === "string"
+              ? input.approvalId
+              : undefined),
+          surface:
+            effectiveContext.surface === "operator"
+              ? ("worker" as const)
+              : effectiveContext.surface,
+        };
+        return this.options.identity.withOperationApproval(
+          actor,
+          operationId,
+          input,
+          approvalContext,
+          (client) =>
+            perform({
+              ...effectiveContext,
+              actionId: approvalContext.actionId,
+              approvalClient: client,
+            }),
+        );
+      }
+      return perform(effectiveContext);
+    };
+    if (queued) {
+      const approvalId = resolveAdmissionApproval(input, context);
+      const idempotencyKey =
+        context.idempotencyKey ??
+        (operationId === "countRows" ? `count:${newId()}` : undefined);
+      const admit = (client: PoolClient) =>
+        this.options.jobs.withOperationAdmission(
+          actor,
+          operationId,
+          input,
+          {
+            idempotencyKey,
+            requestId: context.requestId,
+            source: context.surface ?? "rest",
+            approvalId,
+            stepUpApproved: true,
+            client,
+          },
+          (client) =>
+            runApproved({
+              ...context,
+              idempotencyKey,
+              approvalClient: client,
+              actionId: approvalId,
+            }),
+        );
+      return context.approvalClient
+        ? admit(context.approvalClient)
+        : withOrg(this.options.identityPool, actor.orgId, admit);
     }
-    return perform(context);
+    return runApproved(context);
   }
   private async schemaResult(actor: Actor, tableId: string) {
     const table = await this.options.storage.getTable(actor, tableId);
@@ -1007,27 +1103,85 @@ export class RootsetCore {
         return { deleted: true, mutationId: r.mutationId };
       }
       case "mutateRows": {
-        const ops = mutations(input.mutations),
-          r = await s.mutateRows(a, tableId, {
-            operations: ops,
-            ...mutationOptions(input, ctx),
-          });
-        let cursor = 0;
-        return {
-          mutationId: r.mutationId,
-          results: ops.map((op) => {
-            if (op.kind === "delete")
-              return { type: "delete", rowId: op.rowId, deleted: true };
-            const row = r.rows[cursor++];
-            if (!row)
-              throw new RootsetError(
-                "INTERNAL_ERROR",
-                "Committed mutation outcome is incomplete",
-                500,
-              );
-            return { type: op.kind, rowId: row.id, row: rowPublic(row) };
-          }),
+        const ops = mutations(input.mutations);
+        const format = (r: import("@rootset/table-storage").MutationResult) => {
+          let cursor = 0;
+          return {
+            mutationId: r.mutationId,
+            results: ops.map((op) => {
+              if (op.kind === "delete")
+                return { type: "delete", rowId: op.rowId, deleted: true };
+              const row = r.rows[cursor++];
+              if (!row)
+                throw new RootsetError(
+                  "INTERNAL_ERROR",
+                  "Committed mutation outcome is incomplete",
+                  500,
+                );
+              return { type: op.kind, rowId: row.id, row: rowPublic(row) };
+            }),
+          };
         };
+        const repair = input.repair as { reason: string } | undefined;
+        if (
+          repair &&
+          (ctx.surface !== "worker" ||
+            !ctx.jobId ||
+            !ctx.actionId ||
+            !ctx.jobFence ||
+            !ctx.beforePublish)
+        )
+          throw new RootsetError(
+            "ACCESS_DENIED",
+            "Operator repair can execute only through its approved durable job",
+            403,
+          );
+        const repairBudget = repair
+          ? ctx.admissionSource === "mcp"
+            ? limits.mcpResultBytes - 1024
+            : ["browser", "rest", "operator"].includes(
+                  ctx.admissionSource ?? "",
+                )
+              ? limits.restResultBytes
+              : undefined
+          : undefined;
+        if (repair && repairBudget === undefined)
+          throw new RootsetError(
+            "ACCESS_DENIED",
+            "Operator repair requires its authenticated admission source",
+            403,
+          );
+        const r = await s.mutateRows(a, tableId, {
+          operations: ops,
+          ...mutationOptions(input, ctx),
+          ...(repair
+            ? {
+                responseBudget: repairBudget,
+                context: {
+                  ...mutationOptions(input, ctx).context,
+                  source: "operator" as const,
+                  repair: {
+                    reason: repair.reason,
+                    approvalId: ctx.actionId!,
+                    jobId: ctx.jobId!,
+                  },
+                },
+                onCommit: async (
+                  client: PoolClient,
+                  outcome: import("@rootset/table-storage").MutationResult,
+                ) => {
+                  await this.recordOperationOutcome(
+                    client,
+                    a,
+                    id,
+                    ctx,
+                    format(outcome),
+                  );
+                },
+              }
+            : {}),
+        });
+        return format(r);
       }
       case "getTableStatistics": {
         const stats = await s.statistics(a, tableId),

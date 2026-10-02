@@ -357,10 +357,10 @@ export function parseConfiguredClients(
 ): OAuthConfig["clients"] {
   if (source === undefined) return undefined;
   const value = parseStrictJson(source, { maxBytes: 65_536, maxDepth: 8 });
-  if (!Array.isArray(value) || value.length < 1 || value.length > 100)
+  if (!Array.isArray(value) || value.length > 100)
     throw new OAuthError(
       "invalid_client",
-      "Configured OAuth clients must be an array containing 1 to 100 clients.",
+      "Configured OAuth clients must be an array containing 0 to 100 clients.",
     );
   const clients = value.map((entry) => validateMetadata(entry));
   if (new Set(clients.map((entry) => entry.client_id)).size !== clients.length)

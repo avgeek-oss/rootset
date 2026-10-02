@@ -21,6 +21,8 @@ import {
 import { MetadataPaging } from "../../core/src/paging.js";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { snapshotTransaction } from "./queue.js";
+import { stableStringify } from "./types.js";
+import { runMutation } from "@rootset/idempotency";
 
 if (!process.env.ROOTSET_TEST_DATABASE_URL)
   throw new Error(
@@ -132,6 +134,75 @@ async function terminal(id: string, service = jobs) {
     );
   }
   throw new Error(`Job ${id} did not reach a terminal state`);
+}
+
+async function completePastHistoryRange(
+  tableId: string,
+  expected: { cells: string; rows: string },
+) {
+  const native = await withOrg(
+    ddlPool,
+    actor.orgId,
+    async (client) =>
+      (
+        await client.query<{
+          cells: string;
+          rows: string;
+          cutoff_ms: string | null;
+        }>(
+          `WITH events AS (
+        SELECT 'cell' AS kind,changed_at FROM rootset_control.cell_changes WHERE table_id=$1
+        UNION ALL
+        SELECT 'row' AS kind,changed_at FROM rootset_control.row_events WHERE table_id=$1
+      ) SELECT count(*) FILTER(WHERE kind='cell')::text AS cells,
+        count(*) FILTER(WHERE kind='row')::text AS rows,
+        (floor(extract(epoch FROM max(changed_at))*1000)+1)::bigint::text AS cutoff_ms FROM events`,
+          [tableId],
+        )
+      ).rows[0]!,
+  );
+  assert.deepEqual({ cells: native.cells, rows: native.rows }, expected);
+  assert.ok(native.cutoff_ms);
+  const cutoff = new Date(Number(native.cutoff_ms)).toISOString();
+  const deadline = performance.now() + 1000;
+  for (;;) {
+    const databasePast = await withOrg(
+      ddlPool,
+      actor.orgId,
+      async (client) =>
+        (
+          await client.query<{ past: boolean }>(
+            "SELECT $1::timestamptz < clock_timestamp() AS past",
+            [cutoff],
+          )
+        ).rows[0]!.past,
+    );
+    assert.ok(
+      performance.now() < deadline,
+      "The native cutoff did not become past in both observed fixture clocks within one second",
+    );
+    if (Date.parse(cutoff) < Date.now() && databasePast) break;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  const eligible = await withOrg(
+    ddlPool,
+    actor.orgId,
+    async (client) =>
+      (
+        await client.query<{
+          cells: string;
+          rows: string;
+          database_past: boolean;
+        }>(
+          "SELECT (SELECT count(*) FROM rootset_control.cell_changes WHERE table_id=$1 AND changed_at<$2::timestamptz)::text AS cells,(SELECT count(*) FROM rootset_control.row_events WHERE table_id=$1 AND changed_at<$2::timestamptz)::text AS rows,$2::timestamptz<clock_timestamp() AS database_past",
+          [tableId, cutoff],
+        )
+      ).rows[0]!,
+  );
+  assert.deepEqual({ cells: eligible.cells, rows: eligible.rows }, expected);
+  assert.equal(eligible.database_past, true);
+  assert.ok(Date.parse(cutoff) < Date.now());
+  return cutoff;
 }
 
 async function upload(content: string, format = "csv") {
@@ -1776,8 +1847,6 @@ test("AUD-09 BKP-05/12 JOB-03: verified archive survives interrupted purge and d
       ),
       idempotencyKey: newId(),
     });
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  const cutoff = new Date().toISOString();
   const original = await withOrg(
     ddlPool,
     actor.orgId,
@@ -1789,6 +1858,10 @@ test("AUD-09 BKP-05/12 JOB-03: verified archive survives interrupted purge and d
         )
       ).rows[0]!,
   );
+  const cutoff = await completePastHistoryRange(target.id, {
+    cells: "4002",
+    rows: "2001",
+  });
   const defaultPolicy = (await jobs.execute(
     "getHistoryRetentionPolicy",
     actor,
@@ -1952,13 +2025,12 @@ test("AUD-09 BKP-12: corrupt history archive is refused before gap publication o
     fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
-  await storage.createRow(
+  const protectedRow = await storage.createRow(
     actor,
     target.id,
     { value: "must survive" },
     { idempotencyKey: newId() },
   );
-  await new Promise((resolve) => setTimeout(resolve, 10));
   const beforeCount = await withOrg(
     ddlPool,
     actor.orgId,
@@ -1970,19 +2042,58 @@ test("AUD-09 BKP-12: corrupt history archive is refused before gap publication o
         )
       ).rows[0]!.count,
   );
+  const cutoff = await completePastHistoryRange(target.id, {
+    cells: "1",
+    rows: "1",
+  });
   hook = async (point, jobId) => {
     if (point !== "archive.afterUpload") return;
+    const archivedCounts = await withOrg(
+      ddlPool,
+      actor.orgId,
+      async (client) =>
+        (
+          await client.query<{ cell_count: string; row_count: string }>(
+            "SELECT cell_count,row_count FROM rootset_control.history_archives WHERE job_id=$1",
+            [jobId],
+          )
+        ).rows[0]!,
+    );
+    assert.deepEqual(archivedCounts, { cell_count: "1", row_count: "1" });
     const artifact = await withOrg(
       ddlPool,
       actor.orgId,
       async (client) =>
         (
-          await client.query<{ object_key: string }>(
-            "SELECT a.object_key FROM rootset_control.artifacts a JOIN rootset_control.history_archives h ON h.artifact_id=a.id WHERE h.job_id=$1",
+          await client.query<{ id: string; object_key: string }>(
+            "SELECT a.id,a.object_key FROM rootset_control.artifacts a JOIN rootset_control.history_archives h ON h.artifact_id=a.id WHERE h.job_id=$1",
             [jobId],
           )
         ).rows[0]!,
     );
+    const opened = await jobs.artifacts.openVerified(
+      actor,
+      await jobs.artifacts.get(actor, artifact.id),
+    );
+    const archivedBytes: Buffer[] = [];
+    try {
+      for await (const chunk of opened.stream)
+        archivedBytes.push(Buffer.from(chunk));
+    } finally {
+      await opened.cleanup();
+    }
+    const events = Buffer.concat(archivedBytes)
+      .toString("utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const cells = events.filter((event) => event.recordType === "cell"),
+      rows = events.filter((event) => event.recordType === "row");
+    assert.equal(cells.length, 1);
+    assert.equal(rows.length, 1);
+    assert.equal(cells[0].data.new_value, "must survive");
+    assert.equal(cells[0].data.row_id, protectedRow.id);
+    assert.equal(rows[0].data.row_id, protectedRow.id);
     await jobs.artifacts.client.send(
       new PutObjectCommand({
         Bucket: config.artifacts.bucket,
@@ -1994,7 +2105,7 @@ test("AUD-09 BKP-12: corrupt history archive is refused before gap publication o
   const started = (await jobs.execute(
     "archiveHistory",
     actor,
-    { tableId: target.id, before: new Date().toISOString() },
+    { tableId: target.id, before: cutoff },
     { idempotencyKey: newId() },
   )) as { jobId: string };
   let failed;
@@ -3859,4 +3970,1243 @@ test("BKP-05 JOB-06: slow immutable history read precedes the native verificatio
     id: "literal",
     nested: [null, false, "changed"],
   });
+});
+
+test("AUD-03/05/08 BKP-05/09 JOB-04: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Audit restore ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Original attributed history",
+    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 128 }],
+    idempotencyKey: newId(),
+  });
+  const originalContext = {
+    requestId: newId(),
+    source: "mcp" as const,
+    jobId: newId(),
+  };
+  const row = await storage.createRow(
+    actor,
+    target.id,
+    { value: "original history remains attributed" },
+    { idempotencyKey: newId(), context: originalContext },
+  );
+  const backupRequestId = newId(),
+    newRequestId = newId(),
+    replaceRequestId = newId();
+  const privateCanary = `private-approval-${newId()}`;
+  const leaseTokens: string[] = [];
+  hook = async (_point, jobId) => {
+    const current = (
+      await owner.query<{ lease_token: string | null }>(
+        "SELECT lease_token FROM rootset_control.jobs WHERE id=$1",
+        [jobId],
+      )
+    ).rows[0];
+    if (current?.lease_token) leaseTokens.push(current.lease_token);
+  };
+  try {
+    const backupKey = newId();
+    const admitted = (await jobs.execute(
+      "createBackup",
+      actor,
+      { databaseId: database.id },
+      {
+        idempotencyKey: backupKey,
+        requestId: backupRequestId,
+        approvalId: privateCanary,
+      },
+    )) as { jobId: string };
+    const backed = await terminal(admitted.jobId);
+    assert.equal(backed.state, "succeeded", JSON.stringify(backed.error));
+    const backupId = String(backed.result!.backupId);
+    const expired = await owner.query(
+      "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='createBackup' AND outcome->>'jobId'=$2 RETURNING operation_id",
+      [actor.orgId, admitted.jobId],
+    );
+    assert.equal(expired.rowCount, 1);
+    const replayed = (await jobs.execute(
+      "createBackup",
+      actor,
+      { databaseId: database.id },
+      {
+        idempotencyKey: backupKey,
+        requestId: newId(),
+        approvalId: privateCanary,
+      },
+    )) as { jobId: string };
+    assert.equal(replayed.jobId, admitted.jobId);
+    const legacyReplay = async (
+      operationId: string,
+      id: string,
+      businessInput: Record<string, unknown>,
+      key: string,
+    ) => {
+      const stored = (
+        await owner.query("SELECT * FROM rootset_control.jobs WHERE id=$1", [
+          id,
+        ])
+      ).rows[0]!;
+      const legacyDigest = createHash("sha256")
+        .update(
+          stableStringify({
+            actor: stored.requester_id,
+            orgId: stored.org_id,
+            operationId: stored.operation_id,
+            target: { type: stored.target_type, id: stored.target_id },
+            input: stored.input,
+          }),
+        )
+        .digest("hex");
+      assert.notEqual(legacyDigest, stored.input_digest);
+      await owner.query(
+        "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+        [id, legacyDigest],
+      );
+      const expired = await owner.query(
+        "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id=$2 AND outcome->>'jobId'=$3 RETURNING operation_id",
+        [actor.orgId, operationId, id],
+      );
+      assert.equal(expired.rowCount, 1);
+      const replay = (await jobs.execute(operationId, actor, businessInput, {
+        idempotencyKey: key,
+        requestId: newId(),
+        approvalId: privateCanary,
+      })) as { jobId: string };
+      assert.equal(replay.jobId, id);
+      const retained = (
+        await owner.query(
+          "SELECT input,input_digest,state,result FROM rootset_control.jobs WHERE id=$1",
+          [id],
+        )
+      ).rows[0]!;
+      assert.deepEqual(retained.input, stored.input);
+      assert.equal(retained.input_digest, legacyDigest);
+      assert.equal(retained.state, stored.state);
+      assert.deepEqual(retained.result, stored.result);
+      await owner.query(
+        "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id=$2 AND outcome->>'jobId'=$3",
+        [actor.orgId, operationId, id],
+      );
+      const corruptedDigest = "0".repeat(64);
+      assert.notEqual(legacyDigest, corruptedDigest);
+      await owner.query(
+        "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+        [id, corruptedDigest],
+      );
+      try {
+        await assert.rejects(
+          () =>
+            jobs.execute(operationId, actor, businessInput, {
+              idempotencyKey: key,
+              requestId: newId(),
+              approvalId: privateCanary,
+            }),
+          (error: unknown) =>
+            error instanceof RootsetError &&
+            error.code === "IDEMPOTENCY_CONFLICT",
+        );
+      } finally {
+        await owner.query(
+          "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+          [id, legacyDigest],
+        );
+      }
+    };
+    await legacyReplay(
+      "createBackup",
+      admitted.jobId,
+      { databaseId: database.id },
+      backupKey,
+    );
+
+    const newRestoreKey = newId();
+    const newRestore = (await jobs.execute(
+      "restoreBackup",
+      actor,
+      {
+        databaseId: database.id,
+        id: backupId,
+        mode: "new",
+        name: "Attributed logical restore",
+      },
+      {
+        idempotencyKey: newRestoreKey,
+        requestId: newRequestId,
+        approvalId: privateCanary,
+      },
+    )) as { jobId: string };
+    const created = await terminal(newRestore.jobId);
+    assert.equal(created.state, "succeeded", JSON.stringify(created.error));
+    const expiredRestore = await owner.query(
+      "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='restoreBackup' AND outcome->>'jobId'=$2 RETURNING operation_id",
+      [actor.orgId, newRestore.jobId],
+    );
+    assert.equal(expiredRestore.rowCount, 1);
+    const restoreReplay = (await jobs.execute(
+      "restoreBackup",
+      actor,
+      {
+        databaseId: database.id,
+        id: backupId,
+        mode: "new",
+        name: "Attributed logical restore",
+      },
+      {
+        idempotencyKey: newRestoreKey,
+        requestId: newId(),
+        approvalId: privateCanary,
+      },
+    )) as { jobId: string };
+    assert.equal(restoreReplay.jobId, newRestore.jobId);
+    await legacyReplay(
+      "restoreBackup",
+      newRestore.jobId,
+      {
+        databaseId: database.id,
+        id: backupId,
+        mode: "new",
+        name: "Attributed logical restore",
+      },
+      newRestoreKey,
+    );
+
+    await owner.query(
+      "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='restoreBackup' AND outcome->>'jobId'=$2",
+      [actor.orgId, newRestore.jobId],
+    );
+    await assert.rejects(
+      () =>
+        jobs.execute(
+          "restoreBackup",
+          actor,
+          {
+            databaseId: database.id,
+            id: backupId,
+            mode: "new",
+            name: "Different business name",
+          },
+          {
+            idempotencyKey: newRestoreKey,
+            requestId: newId(),
+            approvalId: privateCanary,
+          },
+        ),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+    currentAccess = false;
+    try {
+      await assert.rejects(
+        () =>
+          jobs.execute(
+            "createBackup",
+            actor,
+            { databaseId: database.id },
+            { idempotencyKey: backupKey, requestId: newId() },
+          ),
+        (error: unknown) =>
+          error instanceof RootsetError && error.code === "ACCESS_DENIED",
+      );
+    } finally {
+      currentAccess = true;
+    }
+    assert.equal(
+      (
+        await owner.query(
+          "SELECT count(*)::text AS count FROM rootset_control.backups WHERE job_id=$1",
+          [admitted.jobId],
+        )
+      ).rows[0]!.count,
+      "1",
+    );
+    assert.equal(
+      (
+        await owner.query(
+          "SELECT count(*)::text AS count FROM rootset_control.restore_publications WHERE job_id=$1 AND state='published'",
+          [newRestore.jobId],
+        )
+      ).rows[0]!.count,
+      "1",
+    );
+    const createdResult = created.result as {
+      databaseId: string;
+      tableMapping: Record<string, string>;
+    };
+    const restoredTable = createdResult.tableMapping[target.id]!;
+    const copied = await storage.getRow(actor, restoredTable, row.id);
+    assert.deepEqual(copied.values, row.values);
+    const copiedHistory = (
+      await owner.query<{ context: unknown }>(
+        "SELECT context FROM rootset_control.cell_changes WHERE table_id=$1 AND row_id=$2",
+        [restoredTable, row.id],
+      )
+    ).rows;
+    assert.equal(copiedHistory.length, 1);
+    assert.deepEqual(copiedHistory[0]!.context, originalContext);
+    await storage.updateRow(
+      actor,
+      restoredTable,
+      row.id,
+      { value: "prior target recovery content" },
+      { expectedVersion: copied.version, idempotencyKey: newId() },
+    );
+    const replace = (await jobs.execute(
+      "restoreBackup",
+      actor,
+      {
+        databaseId: database.id,
+        id: backupId,
+        mode: "replace",
+        targetDatabaseId: createdResult.databaseId,
+      },
+      {
+        idempotencyKey: newId(),
+        requestId: replaceRequestId,
+        approvalId: privateCanary,
+        stepUpApproved: true,
+      },
+    )) as { jobId: string };
+    const replaced = await terminal(replace.jobId);
+    assert.equal(replaced.state, "succeeded", JSON.stringify(replaced.error));
+    const replacedResult = replaced.result as {
+      databaseId: string;
+      tableMapping: Record<string, string>;
+    };
+    assert.equal(replacedResult.databaseId, createdResult.databaseId);
+    const after = await storage.getRow(
+      actor,
+      replacedResult.tableMapping[target.id]!,
+      row.id,
+    );
+    assert.deepEqual(after.values, row.values);
+    const historical = (
+      await owner.query<{ context: unknown }>(
+        "SELECT context FROM rootset_control.cell_changes WHERE table_id=$1 AND row_id=$2",
+        [replacedResult.tableMapping[target.id], row.id],
+      )
+    ).rows;
+    assert.equal(historical.length, 1);
+    assert.deepEqual(historical[0]!.context, originalContext);
+    const recovery = (
+      await owner.query<{ id: string }>(
+        "SELECT id FROM rootset_control.jobs WHERE id=(SELECT checkpoint->>'recoveryJobId' FROM rootset_control.jobs WHERE id=$1)",
+        [replace.jobId],
+      )
+    ).rows[0]!;
+    assert.ok(recovery.id && recovery.id !== replace.jobId);
+    const expected = [
+      {
+        jobId: admitted.jobId,
+        requestId: backupRequestId,
+        operations: ["database.restore.stage", "database.restore.discard"],
+      },
+      {
+        jobId: newRestore.jobId,
+        requestId: newRequestId,
+        operations: ["database.restore.stage", "database.restore.publish"],
+      },
+      {
+        jobId: replace.jobId,
+        requestId: replaceRequestId,
+        operations: [
+          "database.restore.stage",
+          "database.restore.replace",
+          "database.restore.publish",
+        ],
+      },
+      {
+        jobId: recovery.id,
+        requestId: replaceRequestId,
+        operations: ["database.restore.stage", "database.restore.discard"],
+      },
+    ];
+    for (const binding of expected) {
+      const events = (
+        await owner.query<{ operation: string; context: unknown }>(
+          "SELECT operation,context FROM rootset_control.resource_history WHERE operation LIKE 'database.restore.%' AND context->>'jobId'=$1 ORDER BY id",
+          [binding.jobId],
+        )
+      ).rows;
+      assert.deepEqual(
+        events.map((event) => event.operation).sort(),
+        [...binding.operations].sort(),
+      );
+      for (const event of events) {
+        assert.deepEqual(event.context, {
+          requestId: binding.requestId,
+          source: "restore",
+          jobId: binding.jobId,
+        });
+        const serialized = JSON.stringify(event.context);
+        assert.equal(serialized.includes(privateCanary), false);
+        for (const leaseToken of leaseTokens)
+          assert.equal(serialized.includes(leaseToken), false);
+      }
+      const persisted = (
+        await owner.query<{ input: { operationContext: unknown } }>(
+          "SELECT input FROM rootset_control.jobs WHERE id=$1",
+          [binding.jobId],
+        )
+      ).rows[0]!;
+      assert.deepEqual(persisted.input.operationContext, {
+        requestId: binding.requestId,
+      });
+    }
+
+    const boundContext = {
+      requestId: newId(),
+      source: "mcp",
+      approvalId: privateCanary,
+      stepUpApproved: true,
+      credentialId: newId(),
+      scopes: ["backups:manage"],
+    };
+    const boundInput = {
+      databaseId: database.id,
+      maxRuntimeSeconds: 3600,
+      operationContext: boundContext,
+    };
+    const boundTarget = { type: "database" as const, id: database.id };
+    const boundKey = newId();
+    const firstBound = await jobs.queue.enqueue(
+      actor,
+      "createBackup",
+      "backup",
+      boundTarget,
+      boundInput,
+      boundKey,
+    );
+    const correlationReplay = await jobs.queue.enqueue(
+      actor,
+      "createBackup",
+      "backup",
+      boundTarget,
+      {
+        ...boundInput,
+        operationContext: { ...boundContext, requestId: newId() },
+      },
+      boundKey,
+    );
+    assert.equal(correlationReplay.id, firstBound.id);
+    assert.deepEqual(correlationReplay.input, firstBound.input);
+    for (const changedContext of [
+      { source: "rest" },
+      { approvalId: newId() },
+      { stepUpApproved: false },
+      { credentialId: newId() },
+      { scopes: ["*"] },
+    ])
+      await assert.rejects(
+        () =>
+          jobs.queue.enqueue(
+            actor,
+            "createBackup",
+            "backup",
+            boundTarget,
+            {
+              ...boundInput,
+              operationContext: {
+                ...boundContext,
+                ...changedContext,
+                requestId: newId(),
+              },
+            },
+            boundKey,
+          ),
+        (error: unknown) =>
+          error instanceof RootsetError &&
+          error.code === "IDEMPOTENCY_CONFLICT",
+      );
+    await assert.rejects(
+      () =>
+        jobs.queue.enqueue(
+          actor,
+          "createBackup",
+          "backup",
+          boundTarget,
+          { ...boundInput, maxRuntimeSeconds: 3601 },
+          boundKey,
+        ),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+    assert.ok(leaseTokens.length > 0);
+  } finally {
+    hook = null;
+  }
+});
+
+test("JOB-04 AUD-05: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Generic replay ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Count receipt",
+    fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+    idempotencyKey: newId(),
+  });
+  await storage.createRow(
+    actor,
+    target.id,
+    { value: 1 },
+    { idempotencyKey: newId() },
+  );
+  await storage.createRow(
+    actor,
+    target.id,
+    { value: 2 },
+    { idempotencyKey: newId() },
+  );
+  let executions = 0;
+  const service = new JobsService({
+    pool,
+    ddlPool,
+    storage,
+    config: {
+      ...config,
+      executeOperation: async (a, operation, input) => {
+        assert.equal(operation, "countRows");
+        executions++;
+        return {
+          count: await storage.exactCount(
+            a,
+            String(input.tableId),
+            input.query as Parameters<TableStorage["exactCount"]>[2],
+          ),
+          kind: "exact",
+          asOf: new Date().toISOString(),
+        };
+      },
+    },
+    authorise: async (a) => {
+      if (!currentAccess)
+        throw new RootsetError("ACCESS_DENIED", "Access revoked", 403);
+      return a;
+    },
+  });
+  const key = newId(),
+    requestId = newId();
+  const input = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    exact: true,
+    query: { where: { field: "value", op: "eq", value: 1 } },
+  };
+  getOperation("countRows").inputSchema.parse(input);
+  const accepted = (await service.enqueueOperation(actor, "countRows", input, {
+    idempotencyKey: key,
+    requestId,
+    source: "mcp",
+  })) as { jobId: string };
+  const completed = await terminal(accepted.jobId, service);
+  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
+  assert.equal(completed.result!.count, 1);
+  const read = async () =>
+    (
+      await owner.query("SELECT * FROM rootset_control.jobs WHERE id=$1", [
+        accepted.jobId,
+      ])
+    ).rows[0]!;
+  const original = await read();
+  const expire = async () => {
+    const expired = await owner.query(
+      "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='countRows' AND outcome->>'jobId'=$2 RETURNING operation_id",
+      [actor.orgId, accepted.jobId],
+    );
+    assert.equal(expired.rowCount, 1);
+  };
+  await expire();
+  const replay = (await service.enqueueOperation(actor, "countRows", input, {
+    idempotencyKey: key,
+    requestId: newId(),
+    source: "mcp",
+  })) as { jobId: string };
+  assert.equal(replay.jobId, accepted.jobId);
+  assert.deepEqual((await read()).input, original.input);
+  const legacyDigest = createHash("sha256")
+    .update(
+      stableStringify({
+        actor: original.requester_id,
+        orgId: original.org_id,
+        operationId: original.operation_id,
+        target: { type: original.target_type, id: original.target_id },
+        input: original.input,
+      }),
+    )
+    .digest("hex");
+  assert.notEqual(legacyDigest, original.input_digest);
+  await owner.query(
+    "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+    [accepted.jobId, legacyDigest],
+  );
+  await expire();
+  const legacy = (await service.enqueueOperation(actor, "countRows", input, {
+    idempotencyKey: key,
+    requestId: newId(),
+    source: "mcp",
+  })) as { jobId: string };
+  assert.equal(legacy.jobId, accepted.jobId);
+  assert.equal((await read()).input_digest, legacyDigest);
+  await expire();
+  await assert.rejects(
+    () =>
+      service.enqueueOperation(
+        actor,
+        "countRows",
+        { ...input, query: { where: { field: "value", op: "eq", value: 2 } } },
+        { idempotencyKey: key, requestId: newId(), source: "mcp" },
+      ),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+  );
+  for (const changed of [
+    { source: "rest" as const },
+    { approvalId: newId() },
+    { stepUpApproved: true },
+  ])
+    await assert.rejects(
+      () =>
+        service.enqueueOperation(actor, "countRows", input, {
+          idempotencyKey: key,
+          requestId: newId(),
+          source: "mcp",
+          ...changed,
+        }),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+  const nativeTarget = { type: original.target_type, id: original.target_id };
+  for (const changed of [
+    { clientId: newId() },
+    { credentialId: newId() },
+    { scopes: ["*"] },
+  ])
+    await assert.rejects(
+      () =>
+        service.queue.enqueue(
+          actor,
+          "countRows",
+          "operation",
+          nativeTarget,
+          {
+            ...original.input,
+            operationContext: {
+              ...original.input.operationContext,
+              requestId: newId(),
+              ...changed,
+            },
+          },
+          key,
+        ),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+  await assert.rejects(
+    () =>
+      service.queue.enqueue(
+        actor,
+        "countRows",
+        "operation",
+        { ...nativeTarget, id: newId() },
+        original.input,
+        key,
+      ),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+  );
+  await owner.query(
+    "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+    [accepted.jobId, "0".repeat(64)],
+  );
+  try {
+    await assert.rejects(
+      () =>
+        service.enqueueOperation(actor, "countRows", input, {
+          idempotencyKey: key,
+          requestId: newId(),
+          source: "mcp",
+        }),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+  } finally {
+    await owner.query(
+      "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+      [accepted.jobId, legacyDigest],
+    );
+  }
+  currentAccess = false;
+  try {
+    await assert.rejects(
+      () =>
+        service.enqueueOperation(actor, "countRows", input, {
+          idempotencyKey: key,
+          requestId: newId(),
+          source: "mcp",
+        }),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "ACCESS_DENIED",
+    );
+  } finally {
+    currentAccess = true;
+  }
+  assert.equal(executions, 1);
+  const retained = await read();
+  assert.deepEqual(retained.input, original.input);
+  assert.equal(retained.input_digest, legacyDigest);
+  assert.equal(retained.state, original.state);
+  assert.deepEqual(retained.result, original.result);
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::text AS count FROM rootset_control.jobs WHERE operation_id='countRows' AND idempotency_key=$1",
+        [key],
+      )
+    ).rows[0]!.count,
+    "1",
+  );
+  assert.equal(await storage.exactCount(actor, target.id), 2);
+});
+
+test("BKP-01 JOB-04 AUD-05: marked manual backup policy defaults preserve lifetime replay and captured runtime while legacy/explicit/scheduled/recovery inputs remain bound", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Policy lifetime ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Captured budget",
+    fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+    idempotencyKey: newId(),
+  });
+  await storage.createRow(
+    actor,
+    target.id,
+    { value: 1 },
+    { idempotencyKey: newId() },
+  );
+  const input = { orgId: actor.orgId, databaseId: database.id },
+    key = newId(),
+    requestId = newId();
+  getOperation("createBackup").inputSchema.parse(input);
+  const accepted = (await jobs.execute("createBackup", actor, input, {
+    idempotencyKey: key,
+    requestId,
+  })) as { jobId: string };
+  const completed = await terminal(accepted.jobId);
+  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
+  const read = async () =>
+    (
+      await owner.query("SELECT * FROM rootset_control.jobs WHERE id=$1", [
+        accepted.jobId,
+      ])
+    ).rows[0]!;
+  const original = await read();
+  assert.equal(original.input.maxRuntimeSeconds, 3600);
+  assert.equal(original.input.backupRuntimeSource, "policy");
+  const setRuntime = async (maxRuntimeSeconds: number) => {
+    const policy = await jobs.execute("setBackupPolicy", actor, {
+      databaseId: database.id,
+      enabled: false,
+      cron: "0 4 * * *",
+      timezone: "UTC",
+      destination: "installation",
+      retentionDays: 30,
+      retentionCount: 10,
+      encryption: true,
+      maxRuntimeSeconds,
+      notifications: false,
+    });
+    getOperation("setBackupPolicy").outputSchema.parse(policy);
+  };
+  const expire = async () => {
+    const expired = await owner.query(
+      "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='createBackup' AND outcome->>'jobId'=$2 RETURNING operation_id",
+      [actor.orgId, accepted.jobId],
+    );
+    assert.equal(expired.rowCount, 1);
+  };
+  await setRuntime(7200);
+  await expire();
+  const replay = (await jobs.execute("createBackup", actor, input, {
+    idempotencyKey: key,
+    requestId: newId(),
+  })) as { jobId: string };
+  assert.equal(replay.jobId, accepted.jobId);
+  const retained = await read();
+  assert.deepEqual(retained.input, original.input);
+  assert.equal(retained.input_digest, original.input_digest);
+  assert.equal(retained.state, original.state);
+  assert.deepEqual(retained.result, original.result);
+  await expire();
+  const otherDatabase = await storage.createDatabase(actor, {
+    name: `Different policy target ${newId()}`,
+  });
+  await assert.rejects(
+    () =>
+      jobs.execute(
+        "createBackup",
+        actor,
+        { ...input, databaseId: otherDatabase.id },
+        { idempotencyKey: key, requestId: newId() },
+      ),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+  );
+  currentAccess = false;
+  try {
+    await assert.rejects(
+      () =>
+        jobs.execute("createBackup", actor, input, {
+          idempotencyKey: key,
+          requestId: newId(),
+        }),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "ACCESS_DENIED",
+    );
+  } finally {
+    currentAccess = true;
+  }
+
+  const unmarked = { ...original.input };
+  delete unmarked.backupRuntimeSource;
+  const legacyDigest = createHash("sha256")
+    .update(
+      stableStringify({
+        actor: original.requester_id,
+        orgId: original.org_id,
+        operationId: original.operation_id,
+        target: { type: original.target_type, id: original.target_id },
+        input: unmarked,
+      }),
+    )
+    .digest("hex");
+  await owner.query(
+    "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
+    [accepted.jobId, unmarked, legacyDigest],
+  );
+  await assert.rejects(
+    () =>
+      jobs.execute("createBackup", actor, input, {
+        idempotencyKey: key,
+        requestId: newId(),
+      }),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+  );
+  await setRuntime(3600);
+  const legacy = (await jobs.execute("createBackup", actor, input, {
+    idempotencyKey: key,
+    requestId: newId(),
+  })) as { jobId: string };
+  assert.equal(legacy.jobId, accepted.jobId);
+  const legacyRetained = await read();
+  assert.deepEqual(legacyRetained.input, unmarked);
+  assert.equal(legacyRetained.input_digest, legacyDigest);
+  assert.deepEqual(legacyRetained.result, original.result);
+  await expire();
+  await owner.query(
+    "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+    [accepted.jobId, "0".repeat(64)],
+  );
+  try {
+    await assert.rejects(
+      () =>
+        jobs.execute("createBackup", actor, input, {
+          idempotencyKey: key,
+          requestId: newId(),
+        }),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+  } finally {
+    await owner.query(
+      "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
+      [accepted.jobId, original.input, original.input_digest],
+    );
+  }
+
+  const nativeTarget = { type: "database" as const, id: database.id };
+  for (const binding of [
+    {},
+    { policyId: newId(), scheduledAt: new Date().toISOString() },
+    { recoveryFor: database.id },
+  ]) {
+    const explicit = { ...input, ...binding, maxRuntimeSeconds: 3600 };
+    const explicitKey = newId();
+    const first = await jobs.queue.enqueue(
+      actor,
+      "createBackup",
+      "backup",
+      nativeTarget,
+      explicit,
+      explicitKey,
+    );
+    assert.equal(first.input.backupRuntimeSource, undefined);
+    await assert.rejects(
+      () =>
+        jobs.queue.enqueue(
+          actor,
+          "createBackup",
+          "backup",
+          nativeTarget,
+          { ...explicit, maxRuntimeSeconds: 3601 },
+          explicitKey,
+        ),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+  }
+  await assert.rejects(
+    () =>
+      jobs.queue.enqueue(
+        actor,
+        "createBackup",
+        "backup",
+        nativeTarget,
+        { ...input, maxRuntimeSeconds: 3600, backupRuntimeSource: "policy" },
+        newId(),
+      ),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "CONFIGURATION_INVALID",
+  );
+  await assert.rejects(
+    () =>
+      jobs.queue.enqueue(
+        actor,
+        "exportRows",
+        "export",
+        nativeTarget,
+        { ...input, maxRuntimeSeconds: 3600 },
+        newId(),
+        undefined,
+        { manualBackupPolicyRuntime: true },
+      ),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "CONFIGURATION_INVALID",
+  );
+  const counts = (
+    await owner.query(
+      "SELECT (SELECT count(*)::text FROM rootset_control.jobs WHERE operation_id='createBackup' AND idempotency_key=$1) AS jobs,(SELECT count(*)::text FROM rootset_control.backups WHERE job_id=$2) AS backups",
+      [key, accepted.jobId],
+    )
+  ).rows[0]!;
+  assert.deepEqual(counts, { jobs: "1", backups: "1" });
+  assert.equal(await storage.exactCount(actor, target.id), 1);
+});
+
+test("JOB-01/04 API-09 AUD-05: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Signed admission ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Admission count data",
+    fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+    idempotencyKey: newId(),
+  });
+  for (const value of [1, 2])
+    await storage.createRow(
+      actor,
+      target.id,
+      { value },
+      { idempotencyKey: newId() },
+    );
+  let admissions = 0,
+    executions = 0;
+  const service = new JobsService({
+    pool,
+    ddlPool,
+    storage,
+    config: {
+      ...config,
+      executeOperation: async (a, operation, input) => {
+        assert.equal(operation, "countRows");
+        executions++;
+        return {
+          count: await storage.exactCount(
+            a,
+            String(input.tableId),
+            input.query as Parameters<TableStorage["exactCount"]>[2],
+          ),
+          kind: "exact",
+          asOf: new Date().toISOString(),
+        };
+      },
+    },
+    authorise: async (a) => {
+      if (!currentAccess)
+        throw new RootsetError("ACCESS_DENIED", "Access revoked", 403);
+      return a;
+    },
+  });
+  const business = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    query: { where: { field: "value", op: "eq", value: 1 } },
+  };
+  const admit = (
+    key: string,
+    input: Record<string, unknown> = business,
+    options: Partial<OperationContext> = {},
+    principal: Actor = actor,
+  ) =>
+    withOrg(fixture.identity, actor.orgId, (client) => {
+      const context = {
+        idempotencyKey: key,
+        requestId: newId(),
+        source: "mcp",
+        stepUpApproved: true,
+        ...options,
+        client,
+      };
+      return service.withOperationAdmission(
+        principal,
+        "countRows",
+        input,
+        context,
+        async (connection) => {
+          admissions++;
+          return service.enqueueOperation(principal, "countRows", input, {
+            ...context,
+            client: connection,
+          });
+        },
+      );
+    });
+  const conflict = (error: unknown) =>
+    error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT";
+  const key = newId();
+  const firstInput = { ...business, exact: undefined };
+  assert.equal(
+    Object.hasOwn(
+      getOperation("countRows").inputSchema.parse(firstInput) as Record<
+        string,
+        unknown
+      >,
+      "exact",
+    ),
+    true,
+  );
+  const replies = await Promise.all([
+    admit(key, firstInput),
+    admit(key, firstInput),
+    admit(key, firstInput),
+  ]);
+  for (const reply of replies)
+    getOperation("countRows").outputSchema.parse(reply);
+  assert.deepEqual(replies[0], replies[1]);
+  assert.deepEqual(replies[0], replies[2]);
+  assert.equal(admissions, 1);
+  const acceptance = replies[0] as { jobId: string; state: string };
+  assert.equal(acceptance.state, "queued");
+  const completed = await terminal(acceptance.jobId, service);
+  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
+  assert.equal(completed.result!.count, 1);
+  const read = async () =>
+    (
+      await owner.query("SELECT * FROM rootset_control.jobs WHERE id=$1", [
+        acceptance.jobId,
+      ])
+    ).rows[0]!;
+  const original = await read();
+  assert.deepEqual(
+    original.input.operationContext.admissionFields,
+    Object.keys(business).sort(),
+  );
+  assert.match(
+    original.input.operationContext.admissionBinding,
+    /^v1:[a-f0-9]{64}$/,
+  );
+  assert.equal(original.input.operationContext.admissionSource, "mcp");
+  assert.equal(original.input.operationContext.source, "mcp");
+  assert.equal(original.input.operationContext.admissionStepUpApproved, true);
+  assert.equal(original.input.operationContext.stepUpApproved, true);
+  assert.equal(original.input.operationContext.idempotencyKey, key);
+  assert.equal(original.input.operationContext.publicInput, undefined);
+  assert.equal(
+    (
+      await owner.query(
+        "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='countRows' AND outcome->>'jobId'=$2 RETURNING operation_id",
+        [actor.orgId, acceptance.jobId],
+      )
+    ).rowCount,
+    1,
+  );
+  assert.deepEqual(await admit(key), acceptance);
+  assert.deepEqual(await admit(key, firstInput), acceptance);
+  assert.deepEqual(await read(), original);
+  assert.equal(admissions, 1);
+  assert.equal(executions, 1);
+  for (const input of [
+    { ...business, query: { where: { field: "value", op: "eq", value: 2 } } },
+    { ...business, tableId: newId() },
+    { ...business, databaseId: newId() },
+  ])
+    await assert.rejects(() => admit(key, input), conflict);
+  for (const options of [
+    { source: "rest" },
+    { stepUpApproved: false },
+    { stepUpApproved: undefined },
+    { approvalId: newId() },
+  ])
+    await assert.rejects(() => admit(key, business, options), conflict);
+  for (const principal of [
+    { ...actor, userId: newId() },
+    { ...actor, credentialId: newId() },
+    { ...actor, clientId: "different-current-client" },
+  ])
+    await assert.rejects(() => admit(key, business, {}, principal), conflict);
+
+  const digest = (input: Record<string, unknown>) => {
+    const context = { ...(input.operationContext as Record<string, unknown>) };
+    delete context.requestId;
+    return createHash("sha256")
+      .update(
+        stableStringify({
+          actor: original.requester_id,
+          orgId: original.org_id,
+          operationId: original.operation_id,
+          target: { type: original.target_type, id: original.target_id },
+          input: { ...input, operationContext: context },
+        }),
+      )
+      .digest("hex");
+  };
+  const changedContexts = [
+    { admissionFields: ["orgId", "databaseId", "tableId", "query", "query"] },
+    { admissionFields: ["orgId", "databaseId", "tableId", "absentField"] },
+    { admissionBinding: "v1:" + "0".repeat(64) },
+    { admissionSource: "rest", source: "rest" },
+    { admissionStepUpApproved: false, stepUpApproved: false },
+    { approvalId: newId() },
+    { idempotencyKey: newId() },
+    { admissionSource: 1 },
+    { admissionStepUpApproved: "true" },
+    { admissionFields: undefined, admissionBinding: undefined },
+  ];
+  for (const changed of changedContexts) {
+    const altered = {
+      ...original.input,
+      operationContext: { ...original.input.operationContext, ...changed },
+    };
+    await owner.query(
+      "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
+      [acceptance.jobId, altered, digest(altered)],
+    );
+    try {
+      await assert.rejects(() => admit(key), conflict);
+    } finally {
+      await owner.query(
+        "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
+        [acceptance.jobId, original.input, original.input_digest],
+      );
+    }
+  }
+  const alteredBusiness = {
+    ...original.input,
+    query: { where: { field: "value", op: "eq", value: 2 } },
+  };
+  await owner.query(
+    "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
+    [acceptance.jobId, alteredBusiness, digest(alteredBusiness)],
+  );
+  try {
+    await assert.rejects(() => admit(key), conflict);
+  } finally {
+    await owner.query(
+      "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
+      [acceptance.jobId, original.input, original.input_digest],
+    );
+  }
+
+  const staleKey = newId();
+  await withOrg(fixture.identity, actor.orgId, (client) =>
+    runMutation(
+      client,
+      actor,
+      "countRows",
+      business,
+      staleKey,
+      config.idempotencySecret!,
+      async () => acceptance,
+    ),
+  );
+  await assert.rejects(() => admit(staleKey), conflict);
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::text AS count FROM rootset_control.jobs WHERE org_id=$1 AND operation_id='countRows' AND idempotency_key=$2",
+        [actor.orgId, staleKey],
+      )
+    ).rows[0]!.count,
+    "0",
+  );
+  const rollbackKey = newId();
+  await assert.rejects(() =>
+    withOrg(fixture.identity, actor.orgId, async (client) => {
+      const context = {
+        idempotencyKey: rollbackKey,
+        source: "rest",
+        stepUpApproved: true,
+        client,
+      };
+      await service.withOperationAdmission(
+        actor,
+        "countRows",
+        business,
+        context,
+        (connection) =>
+          service.enqueueOperation(actor, "countRows", business, {
+            ...context,
+            client: connection,
+          }),
+      );
+      throw new Error(
+        "Rollback the admission, receipt and durable job together",
+      );
+    }),
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::text AS count FROM rootset_control.jobs WHERE org_id=$1 AND operation_id='countRows' AND idempotency_key=$2",
+        [actor.orgId, rollbackKey],
+      )
+    ).rows[0]!.count,
+    "0",
+  );
+  currentAccess = false;
+  try {
+    await assert.rejects(
+      () => admit(key),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "ACCESS_DENIED",
+    );
+  } finally {
+    currentAccess = true;
+  }
+  await assert.rejects(
+    () =>
+      admit(newId(), {
+        orgId: actor.orgId,
+        databaseId: database.id,
+        tableId: target.id,
+      }),
+    (error: unknown) =>
+      error instanceof RootsetError && error.code === "CONFIGURATION_INVALID",
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::text AS count FROM rootset_control.jobs WHERE org_id=$1 AND operation_id='countRows' AND idempotency_key=$2",
+        [actor.orgId, key],
+      )
+    ).rows[0]!.count,
+    "1",
+  );
+  assert.equal(executions, 1);
+  assert.equal(await storage.exactCount(actor, target.id), 2);
+  assert.deepEqual(await read(), original);
 });

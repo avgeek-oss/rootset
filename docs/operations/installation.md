@@ -35,9 +35,14 @@ worker 2 GiB and web 1 GiB. Compose enforces those cgroup limits and sets each
 combined memory/swap limit to the same value, so swap cannot add hidden headroom.
 Node heap limits
 leave native/pool/buffer headroom: API 768 MiB, worker 1536 MiB and web 768 MiB.
-CPU limits are PostgreSQL 4, API 2, worker 2 and web 1; the services still share the
-host's physical cores. Measure actual memory/CPU usage and latency on the declared
-host, including browser memory separately. S3 and SMTP are prerequisite services
+CPU limits default to PostgreSQL 4, API 2, worker 2 and web 1; the services still
+share the host's physical cores. An operator can set `ROOTSET_POSTGRES_CPUS` to a
+positive CPU limit that does not exceed Docker's available CPU count. The other
+service CPU limits require at least two CPUs on the Docker host. The CI
+installation smoke explicitly limits PostgreSQL to `min(4, Docker CPU count)` on
+its runner and records that functional-test override. The approved performance
+profile keeps PostgreSQL at four CPUs and the combined 8 GiB memory ceiling.
+Measure actual memory/CPU usage and latency on the declared host, including browser memory separately. S3 and SMTP are prerequisite services
 with separate operating budgets. The local prerequisites are capped separately:
 RustFS 1 GiB/one CPU and Mailpit 128 MiB/half a CPU, with no additional swap.
 These prerequisite limits are outside the four-service allocation. Reserve durable disk and monitor

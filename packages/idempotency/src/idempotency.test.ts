@@ -4,7 +4,120 @@ import { randomBytes } from "node:crypto";
 import { withOrg } from "@rootset/database";
 import { newId, type Actor } from "@rootset/contracts";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
-import { lookupMutation, runMutation, stripMutationSecrets } from "./index";
+import {
+  lookupMutation,
+  runMutation,
+  stripMutationSecrets,
+  operationAdmissionBinding,
+  resolveAdmissionApproval,
+} from "./index";
+
+test("Queued admission HMAC preserves exact business/proof and principal binding without retaining raw secrets", () => {
+  const actor: Actor = {
+    kind: "oauth",
+    id: "oauth:" + newId(),
+    userId: newId(),
+    credentialId: newId(),
+    clientId: "reviewed-client",
+    orgId: newId(),
+    role: "owner",
+    scopes: [],
+    targets: [],
+  };
+  const proof = newId(),
+    key = newId(),
+    secret = randomBytes(32).toString("hex");
+  const input = {
+    orgId: actor.orgId,
+    databaseId: newId(),
+    id: newId(),
+    mode: "replace",
+    approvalId: proof,
+    query: {
+      value: {
+        password: "ordinary business value",
+        token: "ordinary business value",
+      },
+    },
+  };
+  const sign = (
+    principal = actor,
+    body = input,
+    approval = proof,
+    context = { source: "rest", stepUpApproved: true },
+  ) =>
+    operationAdmissionBinding(
+      principal,
+      "restoreBackup",
+      body,
+      key,
+      approval,
+      secret,
+      context,
+    );
+  const first = sign();
+  assert.match(first, /^v1:[a-f0-9]{64}$/);
+  assert.ok(!first.includes(secret));
+  assert.equal(
+    sign(actor, {
+      ...input,
+      query: {
+        value: {
+          token: "ordinary business value",
+          password: "ordinary business value",
+        },
+      },
+    }),
+    first,
+  );
+  assert.notEqual(
+    sign(actor, {
+      ...input,
+      query: {
+        value: {
+          password: "changed business value",
+          token: "ordinary business value",
+        },
+      },
+    }),
+    first,
+  );
+  for (const principal of [
+    { ...actor, id: "oauth:" + newId() },
+    { ...actor, credentialId: newId() },
+    { ...actor, userId: newId() },
+    { ...actor, clientId: "different-client" },
+    { ...actor, kind: "personal_key" as const },
+    { ...actor, orgId: newId() },
+  ])
+    assert.notEqual(sign(principal), first);
+  const otherProof = newId();
+  assert.notEqual(
+    sign(actor, { ...input, approvalId: otherProof }, otherProof),
+    first,
+  );
+  assert.throws(
+    () => sign(actor, input, otherProof),
+    (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
+  );
+  assert.notEqual(
+    sign(actor, input, proof, { source: "mcp", stepUpApproved: true }),
+    first,
+  );
+  assert.notEqual(
+    sign(actor, input, proof, { source: "rest", stepUpApproved: false }),
+    first,
+  );
+  assert.equal(
+    resolveAdmissionApproval({ approvalId: proof }, { actionId: proof }),
+    proof,
+  );
+  assert.throws(
+    () =>
+      resolveAdmissionApproval({ approvalId: proof }, { actionId: newId() }),
+    (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
+  );
+});
 
 test("Replay redaction preserves domain codes and credential IDs while removing explicit one-time secrets", () => {
   assert.deepEqual(

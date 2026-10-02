@@ -2019,7 +2019,8 @@
                       "delete_database",
                       "delete_table",
                       "update_installation_configuration",
-                      "test_email"
+                      "test_email",
+                      "operator_repair"
                     ]
                   },
                   "operationId": { "type": "string" },
@@ -4467,7 +4468,7 @@
       "post": {
         "operationId": "inviteMember",
         "tags": ["accounts"],
-        "summary": "Invite a member with email proof; invitations cannot create owners.",
+        "summary": "Invite a member as a personal Owner or Admin with email proof; invitations cannot create owners.",
         "parameters": [
           {
             "name": "orgId",
@@ -4627,7 +4628,7 @@
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
         "x-rootset-minimum-role": "admin",
-        "x-rootset-personal": false,
+        "x-rootset-personal": true,
         "x-rootset-operator": false,
         "x-rootset-mcp-tool": "rootset_invite_member",
         "x-rootset-error-codes": [
@@ -4636,6 +4637,7 @@
           "ACCESS_DENIED",
           "FORBIDDEN",
           "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
           "RESOURCE_NOT_FOUND",
           "DEPENDENCY_UNAVAILABLE",
           "REQUEST_TIMEOUT",
@@ -16003,7 +16005,7 @@
       "post": {
         "operationId": "mutateRows",
         "tags": ["data"],
-        "summary": "Commit at most 1,000 create/update/delete mutations atomically.",
+        "summary": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal installation operator with installation:manage, rows:write and current edit access, plus an explicit approval bound to the exact target, schema, revisions, values and reason, even for a recent session. Ordinary batches return the synchronous result.",
         "parameters": [
           {
             "name": "orgId",
@@ -16056,6 +16058,10 @@
                     "minimum": 1,
                     "maximum": 2147483647
                   },
+                  "approvalId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
                   "mutations": {
                     "minItems": 1,
                     "maxItems": 1000,
@@ -16095,7 +16101,6 @@
                         {
                           "type": "object",
                           "properties": {
-                            "type": { "type": "string", "const": "update" },
                             "rowId": {
                               "type": "string",
                               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -16125,13 +16130,14 @@
                                   }
                                 ]
                               }
-                            }
+                            },
+                            "type": { "type": "string", "const": "update" }
                           },
                           "required": [
-                            "type",
                             "rowId",
                             "expectedVersion",
-                            "values"
+                            "values",
+                            "type"
                           ],
                           "additionalProperties": false
                         },
@@ -16153,10 +16159,36 @@
                         }
                       ]
                     }
+                  },
+                  "repair": {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": ["reason"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["expectedSchemaVersion", "mutations"],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": { "required": ["repair"] },
+                    "then": {
+                      "properties": {
+                        "mutations": {
+                          "items": {
+                            "properties": { "type": { "const": "update" } }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
               },
               "example": {
                 "expectedSchemaVersion": 1,
@@ -16167,7 +16199,15 @@
         },
         "responses": {
           "201": {
-            "description": "Authorised operation result.",
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/mutateRowsOutput" }
+              }
+            }
+          },
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/mutateRowsOutput" }
@@ -16277,8 +16317,8 @@
         },
         "x-rootset-scopes": ["rows:write"],
         "x-rootset-read-only": false,
-        "x-rootset-step-up": "never",
-        "x-rootset-job": false,
+        "x-rootset-step-up": "conditional",
+        "x-rootset-job": true,
         "x-rootset-minimum-role": "editor",
         "x-rootset-personal": false,
         "x-rootset-operator": false,
@@ -16289,6 +16329,9 @@
           "ACCESS_DENIED",
           "FORBIDDEN",
           "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "OPERATOR_REQUIRED",
+          "STEP_UP_REQUIRED",
           "RESOURCE_NOT_FOUND",
           "DEPENDENCY_UNAVAILABLE",
           "REQUEST_TIMEOUT",
@@ -25459,7 +25502,8 @@
               "delete_database",
               "delete_table",
               "update_installation_configuration",
-              "test_email"
+              "test_email",
+              "operator_repair"
             ]
           },
           "operationId": { "type": "string" },
@@ -25489,6 +25533,18 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "approved", "consumed", "expired", "denied"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+            "format": "date-time",
+            "description": "UTC instant with mandatory Z and at most three fractional digits.",
+            "examples": ["2024-01-01T12:30:00.000Z"]
+          },
+          "approvalUrl": { "type": "string" },
           "type": {
             "type": "string",
             "enum": [
@@ -25512,21 +25568,81 @@
               "delete_database",
               "delete_table",
               "update_installation_configuration",
-              "test_email"
+              "test_email",
+              "operator_repair"
             ]
           },
-          "state": {
-            "type": "string",
-            "enum": ["pending", "approved", "consumed", "expired", "denied"]
+          "repairIntent": {
+            "type": "object",
+            "properties": {
+              "orgId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "databaseId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "tableId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "expectedSchemaVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "updates": {
+                "minItems": 1,
+                "maxItems": 1000,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rowId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "expectedVersion": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]{0,18}$"
+                    },
+                    "values": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "additionalProperties": {
+                        "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                        "anyOf": [
+                          { "type": "null" },
+                          { "type": "boolean" },
+                          { "type": "number" },
+                          { "type": "string" },
+                          { "type": "array", "items": {} },
+                          { "type": "object", "additionalProperties": {} }
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["rowId", "expectedVersion", "values"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "orgId",
+              "databaseId",
+              "tableId",
+              "expectedSchemaVersion",
+              "reason",
+              "updates"
+            ],
+            "additionalProperties": false
           },
-          "expiresAt": {
-            "type": "string",
-            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
-            "format": "date-time",
-            "description": "UTC instant with mandatory Z and at most three fractional digits.",
-            "examples": ["2024-01-01T12:30:00.000Z"]
-          },
-          "approvalUrl": { "type": "string" },
           "result": {
             "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
             "anyOf": [
@@ -25539,8 +25655,55 @@
             ]
           }
         },
-        "required": ["id", "type", "state", "expiresAt", "approvalUrl"],
-        "additionalProperties": false
+        "required": ["id", "state", "expiresAt", "approvalUrl", "type"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "const": "operator_repair" } },
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "result": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "partially_completed"
+                      ]
+                    },
+                    "statusUrl": { "type": "string" }
+                  },
+                  "required": ["jobId", "state", "statusUrl"],
+                  "additionalProperties": false
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "state": { "enum": ["pending", "approved"] }
+                    },
+                    "required": ["state"]
+                  },
+                  "then": { "required": ["repairIntent"] }
+                }
+              ]
+            },
+            "else": { "not": { "required": ["repairIntent"] } }
+          }
+        ]
       },
       "getAccountActionInput": {
         "type": "object",
@@ -25557,6 +25720,18 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "approved", "consumed", "expired", "denied"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+            "format": "date-time",
+            "description": "UTC instant with mandatory Z and at most three fractional digits.",
+            "examples": ["2024-01-01T12:30:00.000Z"]
+          },
+          "approvalUrl": { "type": "string" },
           "type": {
             "type": "string",
             "enum": [
@@ -25580,21 +25755,81 @@
               "delete_database",
               "delete_table",
               "update_installation_configuration",
-              "test_email"
+              "test_email",
+              "operator_repair"
             ]
           },
-          "state": {
-            "type": "string",
-            "enum": ["pending", "approved", "consumed", "expired", "denied"]
+          "repairIntent": {
+            "type": "object",
+            "properties": {
+              "orgId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "databaseId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "tableId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "expectedSchemaVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "updates": {
+                "minItems": 1,
+                "maxItems": 1000,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rowId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "expectedVersion": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]{0,18}$"
+                    },
+                    "values": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "additionalProperties": {
+                        "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                        "anyOf": [
+                          { "type": "null" },
+                          { "type": "boolean" },
+                          { "type": "number" },
+                          { "type": "string" },
+                          { "type": "array", "items": {} },
+                          { "type": "object", "additionalProperties": {} }
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["rowId", "expectedVersion", "values"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "orgId",
+              "databaseId",
+              "tableId",
+              "expectedSchemaVersion",
+              "reason",
+              "updates"
+            ],
+            "additionalProperties": false
           },
-          "expiresAt": {
-            "type": "string",
-            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
-            "format": "date-time",
-            "description": "UTC instant with mandatory Z and at most three fractional digits.",
-            "examples": ["2024-01-01T12:30:00.000Z"]
-          },
-          "approvalUrl": { "type": "string" },
           "result": {
             "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
             "anyOf": [
@@ -25607,8 +25842,55 @@
             ]
           }
         },
-        "required": ["id", "type", "state", "expiresAt", "approvalUrl"],
-        "additionalProperties": false
+        "required": ["id", "state", "expiresAt", "approvalUrl", "type"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "const": "operator_repair" } },
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "result": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "partially_completed"
+                      ]
+                    },
+                    "statusUrl": { "type": "string" }
+                  },
+                  "required": ["jobId", "state", "statusUrl"],
+                  "additionalProperties": false
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "state": { "enum": ["pending", "approved"] }
+                    },
+                    "required": ["state"]
+                  },
+                  "then": { "required": ["repairIntent"] }
+                }
+              ]
+            },
+            "else": { "not": { "required": ["repairIntent"] } }
+          }
+        ]
       },
       "completeAccountActionInput": {
         "type": "object",
@@ -25625,6 +25907,18 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "approved", "consumed", "expired", "denied"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+            "format": "date-time",
+            "description": "UTC instant with mandatory Z and at most three fractional digits.",
+            "examples": ["2024-01-01T12:30:00.000Z"]
+          },
+          "approvalUrl": { "type": "string" },
           "type": {
             "type": "string",
             "enum": [
@@ -25648,21 +25942,81 @@
               "delete_database",
               "delete_table",
               "update_installation_configuration",
-              "test_email"
+              "test_email",
+              "operator_repair"
             ]
           },
-          "state": {
-            "type": "string",
-            "enum": ["pending", "approved", "consumed", "expired", "denied"]
+          "repairIntent": {
+            "type": "object",
+            "properties": {
+              "orgId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "databaseId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "tableId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "expectedSchemaVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "updates": {
+                "minItems": 1,
+                "maxItems": 1000,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rowId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "expectedVersion": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]{0,18}$"
+                    },
+                    "values": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "additionalProperties": {
+                        "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                        "anyOf": [
+                          { "type": "null" },
+                          { "type": "boolean" },
+                          { "type": "number" },
+                          { "type": "string" },
+                          { "type": "array", "items": {} },
+                          { "type": "object", "additionalProperties": {} }
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["rowId", "expectedVersion", "values"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "orgId",
+              "databaseId",
+              "tableId",
+              "expectedSchemaVersion",
+              "reason",
+              "updates"
+            ],
+            "additionalProperties": false
           },
-          "expiresAt": {
-            "type": "string",
-            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
-            "format": "date-time",
-            "description": "UTC instant with mandatory Z and at most three fractional digits.",
-            "examples": ["2024-01-01T12:30:00.000Z"]
-          },
-          "approvalUrl": { "type": "string" },
           "result": {
             "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
             "anyOf": [
@@ -25675,8 +26029,55 @@
             ]
           }
         },
-        "required": ["id", "type", "state", "expiresAt", "approvalUrl"],
-        "additionalProperties": false
+        "required": ["id", "state", "expiresAt", "approvalUrl", "type"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "const": "operator_repair" } },
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "result": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "partially_completed"
+                      ]
+                    },
+                    "statusUrl": { "type": "string" }
+                  },
+                  "required": ["jobId", "state", "statusUrl"],
+                  "additionalProperties": false
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "state": { "enum": ["pending", "approved"] }
+                    },
+                    "required": ["state"]
+                  },
+                  "then": { "required": ["repairIntent"] }
+                }
+              ]
+            },
+            "else": { "not": { "required": ["repairIntent"] } }
+          }
+        ]
       },
       "listOrganisationsInput": {
         "type": "object",
@@ -36505,6 +36906,10 @@
             "minimum": 1,
             "maximum": 2147483647
           },
+          "approvalId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
           "mutations": {
             "minItems": 1,
             "maxItems": 1000,
@@ -36541,7 +36946,6 @@
                 {
                   "type": "object",
                   "properties": {
-                    "type": { "type": "string", "const": "update" },
                     "rowId": {
                       "type": "string",
                       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -36568,9 +36972,10 @@
                           { "type": "object", "additionalProperties": {} }
                         ]
                       }
-                    }
+                    },
+                    "type": { "type": "string", "const": "update" }
                   },
-                  "required": ["type", "rowId", "expectedVersion", "values"],
+                  "required": ["rowId", "expectedVersion", "values", "type"],
                   "additionalProperties": false
                 },
                 {
@@ -36591,6 +36996,14 @@
                 }
               ]
             }
+          },
+          "repair": {
+            "type": "object",
+            "properties": {
+              "reason": { "type": "string", "minLength": 1, "maxLength": 512 }
+            },
+            "required": ["reason"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -36600,85 +37013,124 @@
           "expectedSchemaVersion",
           "mutations"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "required": ["repair"] },
+            "then": {
+              "properties": {
+                "mutations": {
+                  "items": { "properties": { "type": { "const": "update" } } }
+                }
+              }
+            }
+          }
+        ]
       },
       "mutateRowsOutput": {
-        "type": "object",
-        "properties": {
-          "mutationId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "results": {
-            "maxItems": 1000,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "enum": ["create", "update", "delete"]
-                },
-                "rowId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "row": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mutationId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "results": {
+                "maxItems": 1000,
+                "type": "array",
+                "items": {
                   "type": "object",
                   "properties": {
-                    "id": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["create", "update", "delete"]
+                    },
+                    "rowId": {
                       "type": "string",
                       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                     },
-                    "version": {
-                      "type": "string",
-                      "pattern": "^[1-9][0-9]{0,18}$"
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
-                    },
-                    "updatedAt": {
-                      "type": "string",
-                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
-                    },
-                    "values": {
+                    "row": {
                       "type": "object",
-                      "propertyNames": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "version": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,18}$"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                        },
+                        "values": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                          },
+                          "additionalProperties": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          }
+                        }
                       },
-                      "additionalProperties": {
-                        "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
-                        "anyOf": [
-                          { "type": "null" },
-                          { "type": "boolean" },
-                          { "type": "number" },
-                          { "type": "string" },
-                          { "type": "array", "items": {} },
-                          { "type": "object", "additionalProperties": {} }
-                        ]
-                      }
-                    }
+                      "required": [
+                        "id",
+                        "version",
+                        "createdAt",
+                        "updatedAt",
+                        "values"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "deleted": { "type": "boolean" }
                   },
-                  "required": [
-                    "id",
-                    "version",
-                    "createdAt",
-                    "updatedAt",
-                    "values"
-                  ],
+                  "required": ["type", "rowId"],
                   "additionalProperties": false
-                },
-                "deleted": { "type": "boolean" }
+                }
+              }
+            },
+            "required": ["mutationId", "results"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
               },
-              "required": ["type", "rowId"],
-              "additionalProperties": false
-            }
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "partially_completed"
+                ]
+              },
+              "statusUrl": { "type": "string" }
+            },
+            "required": ["jobId", "state", "statusUrl"],
+            "additionalProperties": false
           }
-        },
-        "required": ["mutationId", "results"],
-        "additionalProperties": false
+        ]
       },
       "getTableStatisticsInput": {
         "type": "object",
@@ -42095,7 +42547,7 @@
       "path": "/v1/auth/*",
       "methods": ["GET", "POST"],
       "kind": "identity",
-      "reason": "Identity/factor proof is browser-mediated."
+      "reason": "Identity/factor proof is browser-mediated. Personal account deletion is admitted by the existing bound account-action/auth adapters with exact DELETE confirmation, account:security, explicit approval and the current last-Owner check. Its internal deleteAccount execution descriptor returns a queued job and is not a public catalog operation or separate MCP tool."
     },
     {
       "path": "/oauth/*",

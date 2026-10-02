@@ -1,0 +1,109 @@
+.review {
+  min-width: 0;
+  border-block: 1px solid var(--rs-border);
+  padding-block: 16px;
+  margin-block: 16px;
+}
+.review h2 {
+  font-size: 17px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+.review h3 {
+  font-size: 15px;
+  margin: 16px 0 10px;
+}
+.review p {
+  margin: 8px 0;
+}
+.target {
+  margin: 14px 0;
+  display: grid;
+  gap: 10px;
+}
+.target div {
+  min-width: 0;
+}
+.target dt {
+  color: var(--rs-muted);
+  font-size: 12px;
+}
+.target dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.reason {
+  white-space: pre-wrap;
+}
+.pager,
+.jump {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block: 12px;
+}
+.pager p {
+  flex: 1 1 120px;
+  font-size: 12px;
+  color: var(--rs-muted);
+}
+.pager button,
+.fieldHeading button,
+.jump button {
+  min-height: 44px;
+}
+.jump label {
+  flex: 1 1 140px;
+}
+.jump input {
+  width: 80px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--rs-border);
+  border-radius: 6px;
+  background: var(--rs-canvas);
+  color: var(--rs-text);
+  font-size: 16px;
+}
+.jump input:focus-visible,
+.value pre:focus-visible {
+  outline: 2px solid var(--rs-focus);
+  outline-offset: 2px;
+}
+.update {
+  border-top: 1px solid var(--rs-border);
+}
+.fields {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.fields li {
+  padding-block: 10px;
+  border-bottom: 1px solid var(--rs-border);
+}
+.fieldHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.fieldHeading code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.value pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  max-height: 320px;
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--rs-border);
+  border-radius: 6px;
+  background: var(--rs-subtle);
+  color: var(--rs-text);
+  font-size: 12px;
+  line-height: 1.6;
+}

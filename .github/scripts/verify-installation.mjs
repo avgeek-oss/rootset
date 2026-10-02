@@ -4,6 +4,15 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
+import {
+  classifyChildFailure,
+  dockerHostSummary,
+  failureContainerSummaries,
+} from "./installation-diagnostics.mjs";
+import {
+  assertMigrationLedger,
+  candidateMigrationInventory,
+} from "./migration-inventory.mjs";
 
 const root = process.cwd();
 const project = `rootset-install-${Date.now()}`;
@@ -75,6 +84,22 @@ function sql(query, role = "rootset_owner") {
 }
 
 try {
+  report.stage = "docker_host";
+  report.dockerHost = dockerHostSummary(
+    JSON.parse(
+      execFileSync("docker", ["info", "--format", "{{json .}}"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    ),
+  );
+  report.postgresCPUProfile = {
+    shippedDefaultCPUs: 4,
+    configuredCPUs: 4,
+    ciHostOverride: false,
+  };
+  report.stage = "candidate_migration_inventory";
+  report.migrationInventory = await candidateMigrationInventory(root);
   report.stage = "protected_configuration";
   execFileSync(process.execPath, [resolve(root, "tools", "setup-env.ts")], {
     cwd: directory,
@@ -101,6 +126,13 @@ try {
   content += `ROOTSET_WEB_PORT=${webPort}\nROOTSET_MAIL_UI_PORT=${mailPort}\n`;
   content += `ROOTSET_RUNTIME_IMAGE=${process.env.ROOTSET_SMOKE_RUNTIME_IMAGE ?? "rootset-runtime:ci"}\n`;
   content += `ROOTSET_WEB_IMAGE=${process.env.ROOTSET_SMOKE_WEB_IMAGE ?? "rootset-web:ci"}\n`;
+  if (process.env.ROOTSET_SMOKE_CI_HOST_CPU === "1") {
+    assert.equal(process.env.CI, "true");
+    const configuredCPUs = Math.min(4, report.dockerHost.availableCPUs);
+    content += `ROOTSET_POSTGRES_CPUS=${configuredCPUs}\n`;
+    report.postgresCPUProfile.configuredCPUs = configuredCPUs;
+    report.postgresCPUProfile.ciHostOverride = true;
+  }
   await writeFile(envPath, content, { mode: 0o600 });
   started = true;
   report.stage = "compose_start";
@@ -143,6 +175,13 @@ try {
       );
   }
   report.checks.nonrootAndReadonly = true;
+  report.stage = "installed_migration_inventory";
+  const installedMigrations = () =>
+    sql(
+      "SELECT coalesce(json_agg(json_build_object('name',name,'digest',digest) ORDER BY name),'[]'::json) FROM rootset_control.migrations",
+    );
+  assertMigrationLedger(installedMigrations(), report.migrationInventory);
+  report.checks.exactCandidateMigrationLedger = true;
   const expectedMemory = {
     postgres: 4 * 1024 ** 3,
     api: 1024 ** 3,
@@ -156,6 +195,11 @@ try {
     assert.equal(container.memoryBytes, bytes);
     assert.equal(container.memorySwapBytes, bytes);
   }
+  assert.equal(
+    report.containers.find((container) => container.service === "postgres")
+      .cpuQuota,
+    report.postgresCPUProfile.configuredCPUs,
+  );
   report.checks.eightGiBRuntimeLimits = true;
   report.nodeHeaps = {};
   for (const service of ["api", "worker", "web"]) {
@@ -317,7 +361,7 @@ try {
   const before = sql(
     "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships WHERE state='active'),'operatorBindings',(SELECT count(*) FROM rootset_control.operator_bindings),'operatorAudit',(SELECT count(*) FROM rootset_control.account_audit WHERE operation='bindOperator'))",
   );
-  assert.ok(before.migrations > 0);
+  assert.equal(before.migrations, report.migrationInventory.count);
   assert.equal(before.users, 1);
   assert.equal(before.memberships, 1);
   assert.equal(before.operatorBindings, 1);
@@ -353,6 +397,8 @@ try {
     "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships WHERE state='active'),'operatorBindings',(SELECT count(*) FROM rootset_control.operator_bindings),'operatorAudit',(SELECT count(*) FROM rootset_control.account_audit WHERE operation='bindOperator'))",
   );
   assert.deepEqual(after, before);
+  assertMigrationLedger(installedMigrations(), report.migrationInventory);
+  report.checks.restartPreservesExactMigrationLedger = true;
   report.checks.restartPreservesControlState = true;
   report.status = "passed";
   report.stage = "complete";
@@ -360,6 +406,24 @@ try {
   report.status = "failed";
   report.errorKind = error?.constructor?.name;
   if (typeof error?.status === "number") report.childExitStatus = error.status;
+  report.childFailure = classifyChildFailure(error);
+  if (started) {
+    try {
+      const ids = compose("ps", "--all", "--quiet").split("\n").filter(Boolean);
+      if (ids.length)
+        report.failureContainers = failureContainerSummaries(
+          JSON.parse(
+            execFileSync("docker", ["inspect", ...ids], {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+            }),
+          ),
+          project,
+        );
+    } catch {
+      report.failureStateUnavailable = true;
+    }
+  }
   report.error =
     error instanceof assert.AssertionError
       ? `Assertion failed: ${error.code}`

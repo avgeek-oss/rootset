@@ -1,11 +1,14 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { timingSafeEqual } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { stringify } from "csv-stringify/sync";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { writeFile } from "node:fs/promises";
 import {
   canonicalJson,
-  getOperation,
+  getRuntimeOperation,
   IdSchema,
+  JobAcceptedSchema,
   newId,
   RootsetError,
   type Actor,
@@ -16,6 +19,9 @@ import {
   jobsMutationSet,
   queuedMutationSet,
   runMutation,
+  resolveAdmissionApproval,
+  operationAdmissionBinding,
+  lockOperationAdmission,
 } from "@rootset/idempotency";
 import { ArtifactStore } from "./artifacts.js";
 import { BackupRunner, RecoveryPending } from "./backups.js";
@@ -79,13 +85,37 @@ const scopes: Record<string, string[]> = {
   listHistoryArchives: ["history:read"],
   getHistoryArchive: ["history:read"],
 };
-function target(job: JobRecord): Target {
-  return job.target_type === "table"
-    ? { tableId: job.target_id }
-    : job.target_type === "database"
-      ? { databaseId: job.target_id }
-      : {};
+function repairReason(
+  operationId: string,
+  input: Record<string, unknown>,
+): string | undefined {
+  if (operationId !== "mutateRows" || input.repair === undefined)
+    return undefined;
+  const repair = input.repair;
+  const reason =
+    repair && typeof repair === "object" && !Array.isArray(repair)
+      ? (repair as Record<string, unknown>).reason
+      : undefined;
+  if (typeof reason !== "string" || !reason.trim())
+    throw new RootsetError(
+      "VALIDATION_FAILED",
+      "Operator repair requires an explicit reason",
+      422,
+    );
+  return reason;
 }
+function target(job: JobRecord): Target {
+  const value: Target =
+    job.target_type === "table"
+      ? { tableId: job.target_id }
+      : job.target_type === "database"
+        ? { databaseId: job.target_id }
+        : {};
+  const reason = repairReason(job.operation_id, job.input);
+  if (reason !== undefined) value.repair = { reason };
+  return value;
+}
+
 function accepted(job: JobRecord) {
   return {
     jobId: job.id,
@@ -101,7 +131,11 @@ function jobView(job: JobRecord): Record<string, unknown> {
     operationId: job.operation_id,
     state: job.state,
     stage: job.stage,
-    ...target(job),
+    ...(job.target_type === "table"
+      ? { tableId: job.target_id }
+      : job.target_type === "database"
+        ? { databaseId: job.target_id }
+        : {}),
     progress: {
       completed: Number(job.progress.completed ?? job.progress.committed ?? 0),
       ...(job.progress.total === undefined
@@ -213,6 +247,18 @@ export class JobsService {
   readonly config: JobsOptions["config"];
   readonly storage: JobsOptions["storage"];
   private readonly authoriseCallback: JobsOptions["authorise"];
+  private readonly admissions = new AsyncLocalStorage<{
+    client: PoolClient;
+    actor: Actor;
+    operationId: string;
+    key: string;
+    binding: string;
+    fields: string[];
+    approvalId?: string;
+    source?: string;
+    stepUpApproved?: boolean;
+    operatorRepair: boolean;
+  }>();
   constructor(options: JobsOptions) {
     this.config = options.config;
     this.storage = options.storage;
@@ -222,6 +268,33 @@ export class JobsService {
       options.ddlPool,
       options.config.leaseSeconds ?? 30,
       options.config.maxAttempts ?? 3,
+      (actor, operationId, key, client) => {
+        const current = this.admissions.getStore();
+        if (!current || client !== current.client) return undefined;
+        if (
+          operationId !== current.operationId ||
+          key !== current.key ||
+          actor.orgId !== current.actor.orgId ||
+          actor.kind !== current.actor.kind ||
+          actor.id !== current.actor.id ||
+          actor.userId !== current.actor.userId ||
+          actor.credentialId !== current.actor.credentialId ||
+          actor.clientId !== current.actor.clientId
+        )
+          throw new RootsetError(
+            "CONFIGURATION_INVALID",
+            "Queued admission changed its bound principal or operation",
+            500,
+          );
+        return {
+          binding: current.binding,
+          fields: current.fields,
+          approvalId: current.approvalId,
+          source: current.source,
+          stepUpApproved: current.stepUpApproved,
+          operatorRepair: current.operatorRepair,
+        };
+      },
     );
     this.artifacts = new ArtifactStore(options.pool, options.config.artifacts);
     this.backups = new BackupRunner(
@@ -258,10 +331,26 @@ export class JobsService {
         operationId,
         inputTarget,
       );
-      return current ?? actor;
+      actor = current ?? actor;
+      if (!inputTarget.repair) return actor;
     }
     if (
-      (scopes[operationId] ?? []).some(
+      inputTarget.repair &&
+      (!actor.operator ||
+        !actor.userId ||
+        actor.kind === "team_key" ||
+        actor.role === "viewer")
+    )
+      throw new RootsetError(
+        "ACCESS_DENIED",
+        "Operator repair requires a current personal operator with edit authority",
+        403,
+      );
+    if (
+      [
+        ...(scopes[operationId] ?? []),
+        ...(inputTarget.repair ? ["rows:write", "installation:manage"] : []),
+      ].some(
         (scope) => !actor.scopes.includes(scope) && !actor.scopes.includes("*"),
       )
     )
@@ -284,7 +373,7 @@ export class JobsService {
       );
     if (
       !actor.unrestricted &&
-      !actor.operator &&
+      (!actor.operator || inputTarget.repair) &&
       (inputTarget.databaseId || inputTarget.tableId)
     ) {
       const dbId =
@@ -302,7 +391,8 @@ export class JobsService {
           operationId.startsWith("list") ||
           operationId.startsWith("preview")
         );
-      const needEdit = importOperations.has(operationId);
+      const needEdit =
+        importOperations.has(operationId) || Boolean(inputTarget.repair);
       if (
         !actor.targets.some(
           (grant) =>
@@ -338,6 +428,8 @@ export class JobsService {
         : {}),
       ...(typeof input.tableId === "string" ? { tableId: input.tableId } : {}),
     };
+    const reason = repairReason(operationId, input);
+    if (reason !== undefined) inputTarget.repair = { reason };
     actor = await this.authorise(actor, operationId, inputTarget);
     if (operationId === "cancelJob" || operationId === "retryJob") {
       const original = await this.authorisedJob(actor, String(input.id));
@@ -353,6 +445,296 @@ export class JobsService {
         databaseId: input.targetDatabaseId,
       });
     return actor;
+  }
+
+  private storedAdmission(job: JobRecord) {
+    const secret = this.config.idempotencySecret;
+    if (!secret)
+      throw new RootsetError(
+        "CONFIGURATION_INVALID",
+        "Queued admission signing is unavailable",
+        500,
+      );
+    const stored = job.input.operationContext as
+      Record<string, unknown> | undefined;
+    const storedFields = stored?.admissionFields;
+    if (
+      !stored ||
+      !Array.isArray(storedFields) ||
+      !storedFields.every(
+        (field) => typeof field === "string" && field !== "operationContext",
+      ) ||
+      new Set(storedFields).size !== storedFields.length ||
+      (stored.approvalId !== undefined &&
+        typeof stored.approvalId !== "string") ||
+      !Object.hasOwn(stored, "admissionSource") ||
+      !(
+        stored.admissionSource === null ||
+        typeof stored.admissionSource === "string"
+      ) ||
+      !Object.hasOwn(stored, "admissionStepUpApproved") ||
+      !(
+        stored.admissionStepUpApproved === null ||
+        typeof stored.admissionStepUpApproved === "boolean"
+      ) ||
+      !this.queue.authenticInput(job)
+    )
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Queued admission provenance is missing or inconsistent",
+        409,
+      );
+    const projected = Object.fromEntries(
+      storedFields.map((field) => [field, job.input[field]]),
+    );
+    if (storedFields.some((field) => !Object.hasOwn(job.input, field)))
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Queued admission public input is incomplete",
+        409,
+      );
+    if (
+      !getRuntimeOperation(job.operation_id).inputSchema.safeParse(projected)
+        .success
+    )
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Queued admission public input is invalid",
+        409,
+      );
+    const source =
+        typeof stored.admissionSource === "string"
+          ? stored.admissionSource
+          : undefined,
+      stepUpApproved =
+        typeof stored.admissionStepUpApproved === "boolean"
+          ? stored.admissionStepUpApproved
+          : undefined;
+    if (
+      stored.source !==
+        (repairReason(job.operation_id, projected) !== undefined
+          ? "operator"
+          : source) ||
+      stored.stepUpApproved !== stepUpApproved ||
+      stored.idempotencyKey !== job.idempotency_key
+    )
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Queued admission source or approval state is inconsistent",
+        409,
+      );
+    let storedBinding: string;
+    try {
+      storedBinding = operationAdmissionBinding(
+        job.actor,
+        job.operation_id,
+        projected,
+        job.idempotency_key,
+        typeof stored.approvalId === "string" ? stored.approvalId : undefined,
+        secret,
+        { source, stepUpApproved },
+      );
+    } catch {
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Queued admission proof is inconsistent",
+        409,
+      );
+    }
+    const saved =
+      typeof stored.admissionBinding === "string"
+        ? stored.admissionBinding
+        : "";
+    if (
+      !/^v1:[a-f0-9]{64}$/.test(saved) ||
+      !timingSafeEqual(Buffer.from(saved), Buffer.from(storedBinding))
+    )
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Stored queued admission proof is inconsistent",
+        409,
+      );
+    const expectedType =
+      typeof projected.tableId === "string"
+        ? "table"
+        : typeof projected.databaseId === "string"
+          ? "database"
+          : "organisation";
+    const expectedId = String(
+      projected.tableId ?? projected.databaseId ?? job.actor.orgId,
+    );
+    if (
+      job.org_id !== job.actor.orgId ||
+      job.requester_id !== `${job.actor.kind}:${job.actor.id}` ||
+      job.target_type !== expectedType ||
+      job.target_id !== expectedId
+    )
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Stored queued admission principal or target is inconsistent",
+        409,
+      );
+    return {
+      binding: saved,
+      source,
+      stepUpApproved,
+      approvalId:
+        typeof stored.approvalId === "string" ? stored.approvalId : undefined,
+    };
+  }
+
+  private repairAdmissionSource(
+    job: JobRecord,
+  ): NonNullable<OperationContext["admissionSource"]> {
+    const admission = this.storedAdmission(job);
+    if (
+      job.kind !== "operation" ||
+      job.operation_id !== "mutateRows" ||
+      !repairReason(job.operation_id, job.input) ||
+      admission.stepUpApproved !== true ||
+      !admission.approvalId
+    )
+      throw new RootsetError(
+        "ACCESS_DENIED",
+        "Repair has no authenticated approved admission",
+        403,
+      );
+    switch (admission.source) {
+      case "rest":
+      case "browser":
+      case "mcp":
+      case "operator":
+        return admission.source;
+      default:
+        throw new RootsetError(
+          "ACCESS_DENIED",
+          "Repair has no authenticated request origin",
+          403,
+        );
+    }
+  }
+
+  async withOperationAdmission(
+    actor: Actor,
+    operationId: string,
+    input: Record<string, unknown>,
+    context: OperationContext,
+    work: (client: PoolClient) => Promise<unknown>,
+  ): Promise<unknown> {
+    actor = await this.authoriseRequest(actor, operationId, input);
+    if (
+      !(
+        queuedMutationSet.has(operationId) ||
+        repairReason(operationId, input) !== undefined
+      ) ||
+      (operationId === "countRows" &&
+        input.exact !== true &&
+        !Boolean(
+          input.query &&
+          typeof input.query === "object" &&
+          !Array.isArray(input.query) &&
+          (input.query as Record<string, unknown>).where,
+        ))
+    )
+      throw new RootsetError(
+        "CONFIGURATION_INVALID",
+        "This operation does not admit a durable job",
+        500,
+      );
+    const parsedInput =
+      getRuntimeOperation(operationId).inputSchema.safeParse(input);
+    if (!parsedInput.success)
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Queued admission input is invalid",
+        422,
+      );
+    input = parsedInput.data as Record<string, unknown>;
+    const client = context.client,
+      secret = this.config.idempotencySecret;
+    if (!client || !secret)
+      throw new RootsetError(
+        "CONFIGURATION_INVALID",
+        "Queued admission requires its supplied transaction and signing secret",
+        500,
+      );
+    const key = this.requireKey(context.idempotencyKey);
+    const approvalId = resolveAdmissionApproval(input, {
+      approvalId: context.approvalId,
+    });
+    const binding = operationAdmissionBinding(
+      actor,
+      operationId,
+      input,
+      key,
+      approvalId,
+      secret,
+      { source: context.source, stepUpApproved: context.stepUpApproved },
+    );
+    const fields = Object.keys(input)
+      .filter((field) => input[field] !== undefined)
+      .sort();
+    if (fields.includes("operationContext"))
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Queued admission context is server owned",
+        422,
+      );
+    await lockOperationAdmission(client, actor, operationId, key, secret);
+    const read = async () =>
+      (
+        await client.query<JobRecord>(
+          "SELECT * FROM rootset_control.jobs WHERE org_id=$1 AND requester_id=$2 AND operation_id=$3 AND idempotency_key=$4",
+          [actor.orgId, `${actor.kind}:${actor.id}`, operationId, key],
+        )
+      ).rows[0];
+    const originalAccepted = (job: JobRecord) => {
+      const stored = this.storedAdmission(job);
+      if (!timingSafeEqual(Buffer.from(stored.binding), Buffer.from(binding)))
+        throw new RootsetError(
+          "IDEMPOTENCY_CONFLICT",
+          "This queued request has different bound input or proof",
+          409,
+        );
+      return JobAcceptedSchema.parse({ ...accepted(job), state: "queued" });
+    };
+    const existing = await read();
+    if (existing) return originalAccepted(existing);
+    return this.admissions.run(
+      {
+        client,
+        actor,
+        operationId,
+        key,
+        binding,
+        fields,
+        approvalId,
+        source: context.source,
+        stepUpApproved: context.stepUpApproved,
+        operatorRepair: repairReason(operationId, input) !== undefined,
+      },
+      async () => {
+        const result = JobAcceptedSchema.safeParse(await work(client));
+        const saved = await read();
+        if (!result.success || !saved || result.data.jobId !== saved.id)
+          throw new RootsetError(
+            "IDEMPOTENCY_CONFLICT",
+            "Queued admission did not produce its bound durable job",
+            409,
+          );
+        const expected = originalAccepted(saved);
+        if (
+          result.data.state !== expected.state ||
+          result.data.statusUrl !== expected.statusUrl
+        )
+          throw new RootsetError(
+            "IDEMPOTENCY_CONFLICT",
+            "Queued admission acknowledgement is inconsistent",
+            409,
+          );
+        return expected;
+      },
+    );
   }
 
   async execute(
@@ -419,7 +801,7 @@ export class JobsService {
         async () => {
           const value = await work(client);
           const parsed =
-            getOperation(operationId).outputSchema.safeParse(value);
+            getRuntimeOperation(operationId).outputSchema.safeParse(value);
           if (!parsed.success)
             throw new RootsetError(
               "JOB_FAILED",
@@ -582,9 +964,16 @@ export class JobsService {
           operationId,
           "backup",
           { type: "database", id: String(input.databaseId) },
-          { ...input, maxRuntimeSeconds: policy?.maxRuntimeSeconds ?? 3600 },
+          {
+            ...input,
+            maxRuntimeSeconds: policy?.maxRuntimeSeconds ?? 3600,
+            ...(context.requestId
+              ? { operationContext: { requestId: context.requestId } }
+              : {}),
+          },
           this.requireKey(idempotencyKey),
           context.client,
+          { manualBackupPolicyRuntime: true },
         );
         await this.backups.ensureRecord(
           actor,
@@ -653,6 +1042,9 @@ export class JobsService {
               ...input,
               stepUpApproved:
                 input.mode === "replace" && !!context.stepUpApproved,
+              ...(context.requestId
+                ? { operationContext: { requestId: context.requestId } }
+                : {}),
             },
             this.requireKey(idempotencyKey),
             context.client,
@@ -718,28 +1110,63 @@ export class JobsService {
         : "organisation";
     const id =
       operationTarget.tableId ?? operationTarget.databaseId ?? actor.orgId;
-    const enqueue = async (client?: PoolClient) =>
-      accepted(
-        await this.queue.enqueue(
-          actor,
-          operationId,
-          operationId === "deleteBackup" ? "delete_backup" : "operation",
-          { type, id },
-          {
-            ...input,
-            operationContext: {
-              idempotencyKey: context.idempotencyKey,
-              requestId: context.requestId,
-              source: context.source,
-              approvalId: context.approvalId,
-              stepUpApproved: context.stepUpApproved,
-            },
+    const repair = repairReason(operationId, input);
+    if (repair !== undefined) {
+      const parsed =
+        getRuntimeOperation(operationId).inputSchema.safeParse(input);
+      if (!parsed.success)
+        throw new RootsetError(
+          "VALIDATION_FAILED",
+          "Operator repair input is invalid",
+          422,
+        );
+      input = parsed.data as Record<string, unknown>;
+    }
+    const enqueue = async (client?: PoolClient) => {
+      if (
+        repair !== undefined &&
+        (!client ||
+          !context.client ||
+          !context.approvalId ||
+          !context.stepUpApproved ||
+          !this.config.recordRepairIntent)
+      )
+        throw new RootsetError(
+          "STEP_UP_REQUIRED",
+          "Operator repair requires a bound approved transaction",
+          403,
+        );
+      const job = await this.queue.enqueue(
+        actor,
+        operationId,
+        operationId === "deleteBackup" ? "delete_backup" : "operation",
+        { type, id },
+        {
+          ...input,
+          operationContext: {
+            idempotencyKey: context.idempotencyKey,
+            requestId: context.requestId,
+            source: repair !== undefined ? "operator" : context.source,
+            approvalId: context.approvalId,
+            stepUpApproved: context.stepUpApproved,
           },
-          this.requireKey(context.idempotencyKey),
-          client,
-        ),
+        },
+        this.requireKey(context.idempotencyKey),
+        client,
       );
-    if (queuedMutationSet.has(operationId))
+      if (repair !== undefined) {
+        const original = job.input.operationContext as OperationContext;
+        await this.config.recordRepairIntent!(client!, actor, {
+          jobId: job.id,
+          tableId: job.target_id,
+          reason: repairReason(job.operation_id, job.input)!,
+          approvalId: original.approvalId!,
+          requestId: original.requestId ?? job.id,
+        });
+      }
+      return accepted(job);
+    };
+    if (queuedMutationSet.has(operationId) || repair !== undefined)
       return this.runReceipt(actor, operationId, input, context, enqueue);
     return enqueue(context.client);
   }
@@ -2453,11 +2880,23 @@ export class JobsService {
           job.input,
           {
             ...((job.input.operationContext as OperationContext) ?? {}),
+            ...(repairReason(job.operation_id, job.input) !== undefined
+              ? { admissionSource: this.repairAdmissionSource(job) }
+              : {}),
             jobId: job.id,
             jobFence: { jobId: job.id, leaseToken: job.lease_token! },
-            requestId: job.id,
+            requestId:
+              repairReason(job.operation_id, job.input) !== undefined
+                ? String(
+                    (job.input.operationContext as OperationContext)
+                      ?.requestId ?? job.id,
+                  )
+                : job.id,
             idempotencyKey: `job:${job.id}:operation`,
-            source: "worker",
+            source:
+              repairReason(job.operation_id, job.input) !== undefined
+                ? "operator"
+                : "worker",
           },
         );
       else

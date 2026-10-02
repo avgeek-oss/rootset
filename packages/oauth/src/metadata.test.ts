@@ -5,6 +5,9 @@ import https, { type RequestOptions } from "node:https";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { setImmediate } from "node:timers/promises";
+import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   fetchClientMetadata,
   OAuthError,
@@ -22,7 +25,9 @@ test("configured public OAuth clients validate bounded strict JSON, unique IDs a
     { ...client, token_endpoint_auth_method: "none" },
   ]);
   for (const value of [
-    [],
+    null,
+    {},
+    "not an array",
     [client, client],
     [{ ...client, client_id: "" }],
     [{ ...client, redirect_uris: ["http://private.example/callback"] }],
@@ -33,6 +38,97 @@ test("configured public OAuth clients validate bounded strict JSON, unique IDs a
     parseConfiguredClients('[{"client_id":"a","client_id":"b"}]'),
   );
   assert.throws(() => parseConfiguredClients(" "));
+  const maximum = Array.from({ length: 100 }, (_, index) => ({
+    ...client,
+    client_id: `registered-${index}`,
+  }));
+  assert.equal(parseConfiguredClients(JSON.stringify(maximum))?.length, 100);
+  assert.throws(() =>
+    parseConfiguredClients(
+      JSON.stringify([...maximum, { ...client, client_id: "registered-101" }]),
+    ),
+  );
+});
+
+test("shipped optional OAuth defaults reach the actual API entrypoint with zero static clients", async () => {
+  const example = await readFile(
+    new URL("../../../.env.example", import.meta.url),
+    "utf8",
+  );
+  const compose = await readFile(
+    new URL("../../../compose.yaml", import.meta.url),
+    "utf8",
+  );
+  const exampleDefault = /^ROOTSET_OAUTH_CLIENTS=(.*)$/m.exec(example)?.[1];
+  const composeDefault =
+    /ROOTSET_OAUTH_CLIENTS:\s*\$\{ROOTSET_OAUTH_CLIENTS:-([^}]*)\}/.exec(
+      compose,
+    )?.[1];
+  assert.equal(exampleDefault, "[]");
+  assert.equal(composeDefault, exampleDefault);
+  const entrypoint = new URL(
+    "../../../apps/rootset-api/src/index.ts",
+    import.meta.url,
+  );
+  const hook = `
+    import { registerHooks } from "node:module";
+    const modules = new Map([
+      ["@rootset/core/runtime", "export async function createRuntime(_,options){if(!Array.isArray(options.oauthClients)||options.oauthClients.length!==0)throw Error('Expected optional empty clients');console.info(JSON.stringify({event:'rootset_entrypoint_options',clients:options.oauthClients}));return{config:{port:4310},close:async()=>{}}}"],
+      ["@hono/node-server", "export function serve(options){if(typeof options.fetch!=='function'||options.port!==4310)throw Error('Server options invalid');return{close:callback=>callback()}}"],
+      ["./runtime-app.js", "export function createRuntimeApp(){return{fetch:()=>new Response('fixture')}}"],
+      ["./http-server.js", "export const httpServerOptions={}"]
+    ]);
+    registerHooks({resolve(specifier,context,next){const source=context.parentURL===${JSON.stringify(entrypoint.href)}?modules.get(specifier):undefined;return source===undefined?next(specifier,context):{url:'data:text/javascript;base64,'+Buffer.from(source).toString('base64'),shortCircuit:true}}});
+  `;
+  for (const source of [exampleDefault, composeDefault]) {
+    assert.deepEqual(parseConfiguredClients(source), []);
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        "--import",
+        "data:text/javascript;base64," + Buffer.from(hook).toString("base64"),
+        fileURLToPath(entrypoint),
+      ],
+      {
+        encoding: "utf8",
+        timeout: 10_000,
+        maxBuffer: 65_536,
+        env: {
+          ...process.env,
+          ROOTSET_OAUTH_CLIENTS: source,
+          ROOTSET_HOST: "127.0.0.1",
+        },
+      },
+    );
+    assert.equal(child.error, undefined);
+    assert.equal(
+      child.status,
+      0,
+      "Actual entrypoint must accept shipped optional defaults before opening injected runtime/server boundaries",
+    );
+    const output = child.stdout
+      .trim()
+      .split("\n")
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            event: string;
+            clients?: unknown;
+            port?: number;
+          },
+      );
+    assert.deepEqual(
+      output.find((line) => line.event === "rootset_entrypoint_options")
+        ?.clients,
+      [],
+    );
+    assert.equal(
+      output.find((line) => line.event === "rootset_api_listening")?.port,
+      4310,
+    );
+  }
 });
 
 const clientId = "https://metadata.rootset.example/client.json";

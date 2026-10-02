@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
     mem_limit: 4g
     memswap_limit: 4g
-    cpus: 4
+    cpus: ${ROOTSET_POSTGRES_CPUS:-4}
     environment:
       POSTGRES_USER: rootset_owner
       POSTGRES_DB: rootset

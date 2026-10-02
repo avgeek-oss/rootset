@@ -12,8 +12,10 @@ import type {
 export interface Target {
   databaseId?: string;
   tableId?: string;
+  repair?: { reason: string };
 }
 export interface OperationContext {
+  admissionSource?: "browser" | "rest" | "mcp" | "operator";
   jobFence?: { jobId: string; leaseToken: string };
   client?: PoolClient;
   idempotencyKey?: string;
@@ -39,6 +41,17 @@ export interface ArtifactConfig {
   uploadBaseURL?: string;
 }
 export interface JobsConfig {
+  recordRepairIntent?: (
+    client: PoolClient,
+    actor: Actor,
+    intent: {
+      jobId: string;
+      tableId: string;
+      reason: string;
+      approvalId: string;
+      requestId: string;
+    },
+  ) => Promise<void>;
   idempotencySecret?: string;
   authoriseHistoryPolicy?: (
     actor: Actor,

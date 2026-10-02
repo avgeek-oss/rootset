@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+  AccountActionSchema,
+  OperatorRepairIntent,
+} from "@rootset/contracts";
+import type { z } from "zod";
 import { RootsetClient } from "@rootset/web-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveSettingsOperation } from "./requests";
@@ -8,6 +13,8 @@ const client = new RootsetClient({ baseUrl: "/api/internal/v1" });
 
 export interface AccountActionTicket {
   id: string;
+  type?: z.infer<typeof AccountActionSchema>["type"];
+  repairIntent?: OperatorRepairIntent;
   operationId?: string;
   status?: string;
   state?: string;

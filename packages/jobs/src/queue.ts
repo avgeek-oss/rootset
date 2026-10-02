@@ -20,13 +20,71 @@ export class JobCancelled extends Error {
   }
 }
 
+function durableInput(input: Record<string, unknown>, policyRuntime = false) {
+  const result = { ...input };
+  const correlation = input.operationContext;
+  if (
+    correlation &&
+    typeof correlation === "object" &&
+    !Array.isArray(correlation)
+  ) {
+    const retained = { ...(correlation as Record<string, unknown>) };
+    delete retained.requestId;
+    if (Object.values(retained).some((value) => value !== undefined))
+      result.operationContext = retained;
+    else delete result.operationContext;
+  }
+  if (policyRuntime) delete result.maxRuntimeSeconds;
+  return result;
+}
+
 export class DurableQueue {
   constructor(
     readonly pool: Pool,
     readonly workerPool: Pool,
     readonly leaseSeconds = 30,
     readonly maxAttempts = 3,
+    private readonly admission?: (
+      actor: Actor,
+      operationId: string,
+      key: string,
+      client?: PoolClient,
+    ) =>
+      | {
+          binding: string;
+          fields: string[];
+          approvalId?: string;
+          source?: string;
+          stepUpApproved?: boolean;
+          operatorRepair: boolean;
+        }
+      | undefined,
   ) {}
+
+  authenticInput(job: JobRecord): boolean {
+    const digest = (input: Record<string, unknown>) =>
+      createHash("sha256")
+        .update(
+          stableStringify({
+            actor: job.requester_id,
+            orgId: job.org_id,
+            operationId: job.operation_id,
+            target: { type: job.target_type, id: job.target_id },
+            input,
+          }),
+        )
+        .digest("hex");
+    const policyRuntime =
+      job.operation_id === "createBackup" &&
+      job.kind === "backup" &&
+      job.target_type === "database" &&
+      job.input.backupRuntimeSource === "policy";
+    return [
+      job.input,
+      durableInput(job.input),
+      ...(policyRuntime ? [durableInput(job.input, true)] : []),
+    ].some((input) => digest(input) === job.input_digest);
+  }
 
   async enqueue(
     actor: Actor,
@@ -36,6 +94,7 @@ export class DurableQueue {
     input: Record<string, unknown>,
     idempotencyKey: string,
     client?: PoolClient,
+    options?: { manualBackupPolicyRuntime?: true },
   ): Promise<JobRecord> {
     if (
       !OperationContextSchema.shape.idempotencyKey.safeParse(idempotencyKey)
@@ -46,18 +105,103 @@ export class DurableQueue {
         "VALIDATION_FAILED",
         "A bounded idempotency key is required",
       );
+    const policyRuntime = options?.manualBackupPolicyRuntime === true;
+    if (
+      Object.hasOwn(input, "backupRuntimeSource") ||
+      (policyRuntime &&
+        (operationId !== "createBackup" ||
+          kind !== "backup" ||
+          target.type !== "database" ||
+          !Number.isInteger(input.maxRuntimeSeconds) ||
+          Number(input.maxRuntimeSeconds) < 30 ||
+          Number(input.maxRuntimeSeconds) > 86400))
+    )
+      throw new RootsetError(
+        "CONFIGURATION_INVALID",
+        "Reserved backup runtime provenance is invalid",
+        500,
+      );
+    const provenance = this.admission?.(
+      actor,
+      operationId,
+      idempotencyKey,
+      client,
+    );
+    const context = input.operationContext;
+    const originalContext =
+      context && typeof context === "object" && !Array.isArray(context)
+        ? (context as Record<string, unknown>)
+        : {};
+    if (
+      Object.hasOwn(originalContext, "admissionBinding") ||
+      Object.hasOwn(originalContext, "admissionFields") ||
+      Object.hasOwn(originalContext, "admissionSource") ||
+      Object.hasOwn(originalContext, "admissionStepUpApproved")
+    )
+      throw new RootsetError(
+        "CONFIGURATION_INVALID",
+        "Queued admission provenance is reserved",
+        500,
+      );
+    const admittedSource = provenance?.operatorRepair
+      ? "operator"
+      : provenance?.source;
+    if (
+      provenance &&
+      ((originalContext.approvalId !== undefined &&
+        originalContext.approvalId !== provenance.approvalId) ||
+        (originalContext.source !== undefined &&
+          originalContext.source !== admittedSource) ||
+        (originalContext.stepUpApproved !== undefined &&
+          originalContext.stepUpApproved !== provenance.stepUpApproved) ||
+        (originalContext.idempotencyKey !== undefined &&
+          originalContext.idempotencyKey !== idempotencyKey))
+    )
+      throw new RootsetError(
+        "STEP_UP_REQUIRED",
+        "Queued admission context does not match the approved request",
+        403,
+      );
+    const persistedInput: Record<string, unknown> = {
+      ...input,
+      ...(policyRuntime ? { backupRuntimeSource: "policy" } : {}),
+      ...(provenance
+        ? {
+            operationContext: {
+              ...originalContext,
+              admissionBinding: provenance.binding,
+              admissionFields: provenance.fields,
+              admissionSource: provenance.source ?? null,
+              admissionStepUpApproved: provenance.stepUpApproved ?? null,
+              idempotencyKey,
+              ...(admittedSource ? { source: admittedSource } : {}),
+              ...(provenance.stepUpApproved !== undefined
+                ? { stepUpApproved: provenance.stepUpApproved }
+                : {}),
+              ...(provenance.approvalId
+                ? { approvalId: provenance.approvalId }
+                : {}),
+            },
+          }
+        : {}),
+    };
     const requesterId = `${actor.kind}:${actor.id}`;
-    const digest = createHash("sha256")
-      .update(
-        stableStringify({
-          actor: requesterId,
-          orgId: actor.orgId,
-          operationId,
-          target,
-          input,
-        }),
-      )
-      .digest("hex");
+    const digestInput = (
+      value: Record<string, unknown>,
+      boundTarget = target,
+    ) =>
+      createHash("sha256")
+        .update(
+          stableStringify({
+            actor: requesterId,
+            orgId: actor.orgId,
+            operationId,
+            target: boundTarget,
+            input: value,
+          }),
+        )
+        .digest("hex");
+    const digest = digestInput(durableInput(persistedInput, policyRuntime));
     const run = async (connection: PoolClient) => {
       const inserted = await connection.query<JobRecord>(
         `INSERT INTO rootset_control.jobs
@@ -73,7 +217,7 @@ export class DurableQueue {
           requesterId,
           target.type,
           target.id,
-          input,
+          persistedInput,
           digest,
           idempotencyKey,
           this.maxAttempts,
@@ -87,7 +231,38 @@ export class DurableQueue {
             [actor.orgId, requesterId, operationId, idempotencyKey],
           )
         ).rows[0];
-      if (!existing || existing.input_digest !== digest)
+      const existingTarget = existing && {
+        type: existing.target_type,
+        id: existing.target_id,
+      };
+      const legacyAuthentic =
+        existing &&
+        existingTarget &&
+        (existing.input_digest ===
+          digestInput(existing.input, existingTarget) ||
+          existing.input_digest ===
+            digestInput(durableInput(existing.input), existingTarget));
+      const markedPolicyRuntime =
+        policyRuntime &&
+        existing?.kind === "backup" &&
+        existing.input.backupRuntimeSource === "policy";
+      const legacyIncoming = { ...persistedInput };
+      delete legacyIncoming.backupRuntimeSource;
+      const matches =
+        existing &&
+        existingTarget &&
+        (!policyRuntime || existing.kind === "backup") &&
+        (existing.input_digest === digest ||
+          (legacyAuthentic &&
+            (digestInput(
+              durableInput(existing.input, markedPolicyRuntime),
+              existingTarget,
+            ) === digest ||
+              (policyRuntime &&
+                !Object.hasOwn(existing.input, "backupRuntimeSource") &&
+                digestInput(durableInput(existing.input), existingTarget) ===
+                  digestInput(durableInput(legacyIncoming))))));
+      if (!matches)
         throw new RootsetError(
           "IDEMPOTENCY_CONFLICT",
           "This idempotency key has different job input",

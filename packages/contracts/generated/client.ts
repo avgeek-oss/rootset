@@ -261,13 +261,17 @@ export type beginAccountActionInput = {
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
-    | "test_email";
+    | "test_email"
+    | "operator_repair";
   operationId?: string;
   input: null | boolean | number | string | unknown[] | Record<string, unknown>;
   orgId: string;
 };
 export type beginAccountActionOutput = {
   id: string;
+  state: "pending" | "approved" | "consumed" | "expired" | "denied";
+  expiresAt: string;
+  approvalUrl: string;
   type:
     | "change_password"
     | "change_email"
@@ -289,16 +293,32 @@ export type beginAccountActionOutput = {
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
-    | "test_email";
-  state: "pending" | "approved" | "consumed" | "expired" | "denied";
-  expiresAt: string;
-  approvalUrl: string;
+    | "test_email"
+    | "operator_repair";
+  repairIntent?: {
+    orgId: string;
+    databaseId: string;
+    tableId: string;
+    expectedSchemaVersion: number;
+    reason: string;
+    updates: {
+      rowId: string;
+      expectedVersion: string;
+      values: Record<
+        string,
+        null | boolean | number | string | unknown[] | Record<string, unknown>
+      >;
+    }[];
+  };
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
 export type getAccountActionInput = { id: string };
 export type getAccountActionOutput = {
   id: string;
+  state: "pending" | "approved" | "consumed" | "expired" | "denied";
+  expiresAt: string;
+  approvalUrl: string;
   type:
     | "change_password"
     | "change_email"
@@ -320,16 +340,32 @@ export type getAccountActionOutput = {
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
-    | "test_email";
-  state: "pending" | "approved" | "consumed" | "expired" | "denied";
-  expiresAt: string;
-  approvalUrl: string;
+    | "test_email"
+    | "operator_repair";
+  repairIntent?: {
+    orgId: string;
+    databaseId: string;
+    tableId: string;
+    expectedSchemaVersion: number;
+    reason: string;
+    updates: {
+      rowId: string;
+      expectedVersion: string;
+      values: Record<
+        string,
+        null | boolean | number | string | unknown[] | Record<string, unknown>
+      >;
+    }[];
+  };
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
 export type completeAccountActionInput = { id: string };
 export type completeAccountActionOutput = {
   id: string;
+  state: "pending" | "approved" | "consumed" | "expired" | "denied";
+  expiresAt: string;
+  approvalUrl: string;
   type:
     | "change_password"
     | "change_email"
@@ -351,10 +387,23 @@ export type completeAccountActionOutput = {
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
-    | "test_email";
-  state: "pending" | "approved" | "consumed" | "expired" | "denied";
-  expiresAt: string;
-  approvalUrl: string;
+    | "test_email"
+    | "operator_repair";
+  repairIntent?: {
+    orgId: string;
+    databaseId: string;
+    tableId: string;
+    expectedSchemaVersion: number;
+    reason: string;
+    updates: {
+      rowId: string;
+      expectedVersion: string;
+      values: Record<
+        string,
+        null | boolean | number | string | unknown[] | Record<string, unknown>
+      >;
+    }[];
+  };
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
@@ -3533,6 +3582,7 @@ export type mutateRowsInput = {
   databaseId: string;
   tableId: string;
   expectedSchemaVersion: number;
+  approvalId?: string;
   mutations: (
     | {
         type: "create";
@@ -3542,35 +3592,53 @@ export type mutateRowsInput = {
         >;
       }
     | {
-        type: "update";
         rowId: string;
         expectedVersion: string;
         values: Record<
           string,
           null | boolean | number | string | unknown[] | Record<string, unknown>
         >;
+        type: "update";
       }
     | { type: "delete"; rowId: string; expectedVersion: string }
   )[];
+  repair?: { reason: string };
 };
-export type mutateRowsOutput = {
-  mutationId: string;
-  results: {
-    type: "create" | "update" | "delete";
-    rowId: string;
-    row?: {
-      id: string;
-      version: string;
-      createdAt: string;
-      updatedAt: string;
-      values: Record<
-        string,
-        null | boolean | number | string | unknown[] | Record<string, unknown>
-      >;
+export type mutateRowsOutput =
+  | {
+      mutationId: string;
+      results: {
+        type: "create" | "update" | "delete";
+        rowId: string;
+        row?: {
+          id: string;
+          version: string;
+          createdAt: string;
+          updatedAt: string;
+          values: Record<
+            string,
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>
+          >;
+        };
+        deleted?: boolean;
+      }[];
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
     };
-    deleted?: boolean;
-  }[];
-};
 export type getTableStatisticsInput = {
   orgId: string;
   databaseId: string;

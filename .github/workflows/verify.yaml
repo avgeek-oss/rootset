@@ -121,7 +121,10 @@ jobs:
           docker build --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target web --tag rootset-web:ci .
           docker image inspect rootset-runtime:ci rootset-web:ci --format '{{.Id}} {{.Config.User}}' > verification/ci/images.txt
       - name: Verify actual fresh Compose installation and preserved restart
-        run: ROOTSET_SMOKE_SOURCE_REVISION=$(git rev-parse HEAD) node .github/scripts/verify-installation.mjs
+        run: |
+          node --test .github/scripts/installation-diagnostics.test.mjs
+          node --test .github/scripts/migration-inventory.test.mjs
+          ROOTSET_SMOKE_CI_HOST_CPU=1 ROOTSET_SMOKE_SOURCE_REVISION=$(git rev-parse HEAD) node .github/scripts/verify-installation.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

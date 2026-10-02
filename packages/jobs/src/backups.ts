@@ -216,6 +216,17 @@ export class HistoryFingerprint {
   }
 }
 
+function restoreAuditContext(job: JobRecord) {
+  const stored = job.input.operationContext as
+    { requestId?: unknown } | undefined;
+  return {
+    requestId:
+      typeof stored?.requestId === "string" ? stored.requestId : job.id,
+    source: "restore" as const,
+    jobId: job.id,
+  };
+}
+
 export class BackupRunner {
   constructor(
     readonly queue: DurableQueue,
@@ -454,6 +465,7 @@ export class BackupRunner {
           jobId: job.id,
           staged: true,
           verification: true,
+          context: restoreAuditContext(job),
           jobFence: { jobId: job.id, leaseToken: job.lease_token! },
         },
       );
@@ -965,7 +977,11 @@ export class BackupRunner {
         "createBackup",
         "backup",
         { type: "database", id: targetId! },
-        { databaseId: targetId, recoveryFor: targetId },
+        {
+          databaseId: targetId,
+          recoveryFor: targetId,
+          operationContext: { requestId: restoreAuditContext(job).requestId },
+        },
         `restore:${job.id}:${String(job.checkpoint.recoveryEpoch ?? "initial")}:recovery`,
       );
       await this.queue.checkpoint(
@@ -1018,6 +1034,7 @@ export class BackupRunner {
             : `${String(manifest.metadata.database.name)} restored`,
         jobId: job.id,
         staged: true,
+        context: restoreAuditContext(job),
         jobFence: { jobId: job.id, leaseToken: job.lease_token! },
         ...(targetId ? { targetDatabaseId: targetId } : {}),
       }));
@@ -1051,6 +1068,7 @@ export class BackupRunner {
       );
     const published = await this.storage.publishRestore(actor, staged, {
       jobId: job.id,
+      context: restoreAuditContext(job),
       leaseToken: job.lease_token ?? undefined,
       ...(targetId
         ? {

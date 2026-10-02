@@ -17,6 +17,8 @@ import {
   FieldDefinitionSchema,
   IdSchema,
   VersionSchema,
+  SchemaVersionSchema,
+  OperatorRepairReasonSchema,
   limits,
   newId,
   canonicalJson,
@@ -65,11 +67,14 @@ export interface MutationContext {
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
   beforePublish?: () => Promise<unknown>;
+  repair?: { reason: string; approvalId: string; jobId: string };
 }
 export interface MutationOptions {
   idempotencyKey?: string;
   expectedSchemaVersion?: number;
   context?: MutationContext;
+  onCommit?: (client: PoolClient, outcome: MutationResult) => Promise<void>;
+  responseBudget?: number;
 }
 export type RowOperation =
   | { kind: "create"; values: Record<string, JsonValue> }
@@ -142,7 +147,11 @@ function schemaPayload(value: unknown): unknown {
   return Object.fromEntries(
     Object.entries(value as Raw).filter(
       ([key, v]) =>
-        key !== "context" && key !== "idempotencyKey" && v !== undefined,
+        key !== "context" &&
+        key !== "idempotencyKey" &&
+        key !== "onCommit" &&
+        key !== "responseBudget" &&
+        v !== undefined,
     ),
   );
 }
@@ -1530,6 +1539,83 @@ export class TableStorage {
           "Mutation transaction has an invalid organisation context",
           403,
         );
+      const sourceBudget =
+        input.context?.source === "mcp"
+          ? limits.mcpResultBytes
+          : limits.restResultBytes;
+      if (
+        input.responseBudget !== undefined &&
+        (!Number.isSafeInteger(input.responseBudget) ||
+          input.responseBudget < 1 ||
+          input.responseBudget > sourceBudget)
+      )
+        fail("VALIDATION_FAILED", "Invalid trusted mutation response budget");
+      const resultBudget = Math.min(
+        input.responseBudget ?? sourceBudget,
+        sourceBudget,
+      );
+      const checkedOutcome = (outcome: MutationResult): string => {
+        const serialized = JSON.stringify(outcome);
+        if (
+          Buffer.byteLength(serialized) + 2048 + input.operations.length * 200 >
+          resultBudget
+        )
+          fail(
+            "PAYLOAD_TOO_LARGE",
+            "Complete mutation result exceeds the transport byte budget; use a smaller batch",
+            413,
+          );
+        return serialized;
+      };
+      let repair = input.context?.repair;
+      if (repair) {
+        if (!a.operator || !a.userId || a.kind === "team_key")
+          fail("OPERATOR_REQUIRED", "Repair requires a personal operator", 403);
+        if (
+          input.context?.source !== "operator" ||
+          typeof input.context.beforePublish !== "function" ||
+          typeof input.onCommit !== "function" ||
+          !input.context.jobFence ||
+          input.context.jobId !== repair.jobId ||
+          input.context.jobFence.jobId !== repair.jobId
+        )
+          fail("ACCESS_DENIED", "Repair requires a bound approved worker", 403);
+        const reason = OperatorRepairReasonSchema.safeParse(repair.reason);
+        if (
+          !reason.success ||
+          !SchemaVersionSchema.safeParse(input.expectedSchemaVersion).success ||
+          !IdSchema.safeParse(repair.approvalId).success ||
+          !IdSchema.safeParse(repair.jobId).success ||
+          !input.idempotencyKey ||
+          input.idempotencyKey.length > 128 ||
+          !Array.isArray(input.operations) ||
+          !input.operations.length ||
+          input.operations.some(
+            (operation) =>
+              operation.kind !== "update" ||
+              !VersionSchema.safeParse(operation.expectedVersion).success,
+          )
+        )
+          fail(
+            "VALIDATION_FAILED",
+            "Repair requires a bounded reason and updates",
+          );
+        repair = { ...repair, reason: reason.data };
+        canonicalJson({ reason: repair.reason });
+      }
+      const mutationInput = {
+        operations: input.operations,
+        expectedSchemaVersion: input.expectedSchemaVersion ?? null,
+        ...(repair
+          ? {
+              repair: {
+                reason: repair.reason,
+                approvalId: repair.approvalId,
+                jobId: repair.jobId,
+              },
+            }
+          : {}),
+      };
       let t = await this.table(c, a, tableId, false, true);
       if (input.idempotencyKey) {
         const existing = (
@@ -1539,19 +1625,21 @@ export class TableStorage {
           )
         ).rows[0];
         if (existing) {
-          if (
-            existing.input_hash !==
-            hash({
-              operations: input.operations,
-              expectedSchemaVersion: input.expectedSchemaVersion ?? null,
-            })
-          )
+          if (existing.input_hash !== hash(mutationInput))
             fail(
               "IDEMPOTENCY_CONFLICT",
               "Idempotency key was used with different input",
               409,
             );
-          if (existing.outcome) return existing.outcome as MutationResult;
+          if (existing.outcome) {
+            const outcome = existing.outcome as MutationResult;
+            if (input.responseBudget !== undefined) checkedOutcome(outcome);
+            if (input.onCommit) {
+              await this.assertPublication(c, a, input.context);
+              await input.onCommit(c, outcome);
+            }
+            return outcome;
+          }
         }
       }
       await this.database(c, a, t.databaseId);
@@ -1622,14 +1710,16 @@ export class TableStorage {
         c,
         a,
         t,
-        {
-          operations: input.operations,
-          expectedSchemaVersion: input.expectedSchemaVersion ?? null,
-        },
+        mutationInput,
         input.idempotencyKey,
         input.context ?? {},
       );
       if (m.replay) {
+        if (input.responseBudget !== undefined) checkedOutcome(m.replay);
+        if (input.onCommit) {
+          await this.assertPublication(c, a, input.context);
+          await input.onCommit(c, m.replay);
+        }
         await this.capacity.finish(c, reservation);
         return m.replay;
       }
@@ -1702,25 +1792,18 @@ export class TableStorage {
         rows,
         deletedIds,
       };
-      const outcomeJson = JSON.stringify(outcome);
-      const resultBudget =
-        input.context?.source === "mcp"
-          ? limits.mcpResultBytes
-          : limits.restResultBytes;
-      if (
-        Buffer.byteLength(outcomeJson) + 2048 + input.operations.length * 200 >
-        resultBudget
-      )
-        fail(
-          "PAYLOAD_TOO_LARGE",
-          "Complete mutation result exceeds the transport byte budget; use a smaller batch",
-          413,
-        );
+      const outcomeJson = checkedOutcome(outcome);
       await this.assertPublication(c, a, input.context);
       await c.query(
         "UPDATE rootset_control.mutations SET outcome=$2::jsonb WHERE id=$1",
         [m.id, outcomeJson],
       );
+      if (repair)
+        await c.query(
+          "SELECT rootset_control.append_operator_repair_completion($1,$2,$3,$4)",
+          [a.orgId, repair.jobId, input.context!.jobFence!.leaseToken, m.id],
+        );
+      await input.onCommit?.(c, outcome);
       await this.capacity.finish(c, reservation);
       return outcome;
     };
@@ -3243,6 +3326,7 @@ export class TableStorage {
                 "index.create",
                 null,
                 { fieldId: f.id, kind },
+                input.context,
               );
               await this.capacity.finish(c, publicationReservation);
             });
@@ -3942,6 +4026,7 @@ export class TableStorage {
       verification?: boolean;
       targetDatabaseId?: string;
       jobFence?: { jobId: string; leaseToken: string };
+      context?: MutationContext;
     },
   ): Promise<RestoreResult> {
     if (
@@ -3957,6 +4042,11 @@ export class TableStorage {
     if (snapshot.metadata.formatVersion !== 1)
       fail("VALIDATION_FAILED", "Unsupported backup format");
     const metadata = snapshot.metadata;
+    const restoreContext = context({
+      ...options.context,
+      source: "restore",
+      jobId: options.jobId,
+    });
     const restoreRun = <T>(
       actor: Actor,
       work: (c: PoolClient) => Promise<T>,
@@ -4114,6 +4204,7 @@ export class TableStorage {
               fieldMapping,
               resourceMapping,
               mutationMapping: {},
+              context: restoreContext,
               rowCount: 0,
               historyCount: 0,
               state: "restoring",
@@ -4407,6 +4498,7 @@ export class TableStorage {
               jobId: options.jobId,
               verification: options.verification ?? false,
             },
+            restoreContext,
           );
           await c.query(
             "UPDATE rootset_control.restore_provenance SET manifest=$2::jsonb,state='staged' WHERE database_id=$1",
@@ -4414,6 +4506,7 @@ export class TableStorage {
               dbId,
               JSON.stringify({
                 ...result,
+                context: restoreContext,
                 verification: options.verification ?? false,
                 sourceTableStates: Object.fromEntries(
                   metadata.tables.map((t) => [tableMapping[t.id], t.state]),
@@ -4428,6 +4521,7 @@ export class TableStorage {
         return this.publishRestore(a, result, {
           jobId: options.jobId,
           targetDatabaseId: options.targetDatabaseId,
+          context: restoreContext,
         });
       return result;
     } catch (error) {
@@ -4680,6 +4774,7 @@ export class TableStorage {
       targetDatabaseId?: string;
       recoveryBackupId?: string;
       leaseToken?: string;
+      context?: MutationContext;
     },
   ): Promise<RestoreResult> {
     return this.run(
@@ -4785,6 +4880,7 @@ export class TableStorage {
               recoveryBackupId: options.recoveryBackupId,
               tableMapping: result.tableMapping,
             },
+            { ...options.context, source: "restore", jobId: options.jobId },
           );
         }
         await c.query(
@@ -4836,6 +4932,7 @@ export class TableStorage {
           "database.restore.publish",
           null,
           { jobId: options.jobId, sourceDatabaseId: result.sourceDatabaseId },
+          { ...options.context, source: "restore", jobId: options.jobId },
         );
         return publishedResult;
       },
@@ -4854,8 +4951,8 @@ export class TableStorage {
             403,
           );
         const provenance = (
-          await c.query<{ manifest: Raw; state: string }>(
-            "SELECT manifest,state FROM rootset_control.restore_provenance WHERE database_id=$1 AND org_id=$2 FOR UPDATE",
+          await c.query<{ manifest: Raw; state: string; job_id: string }>(
+            "SELECT manifest,state,job_id FROM rootset_control.restore_provenance WHERE database_id=$1 AND org_id=$2 FOR UPDATE",
             [d.id, a.orgId],
           )
         ).rows[0];
@@ -4930,6 +5027,11 @@ export class TableStorage {
           "database.restore.discard",
           null,
           { sourceDatabaseId: result.sourceDatabaseId },
+          {
+            ...(provenance?.manifest.context as MutationContext | undefined),
+            source: "restore",
+            jobId: provenance?.job_id,
+          },
         );
       },
       true,

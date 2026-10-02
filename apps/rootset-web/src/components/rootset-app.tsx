@@ -27,8 +27,14 @@ import {
   IdSchema,
   type Database,
   type Table,
+  type OperatorRepairIntent,
 } from "@rootset/contracts";
 import type { z } from "zod";
+import { RepairIntentReview } from "./repair-intent-review";
+import {
+  repairReviewUnavailable,
+  repairReviewError,
+} from "./repair-review-status";
 import { AuthScreen } from "./auth-screen";
 import { authClient } from "../lib/auth-client";
 import { MutationAttempt } from "../lib/mutation-attempt";
@@ -1005,6 +1011,7 @@ function AccountActionApproval({ id }: { id: string }) {
     queryFn: ({ signal }) =>
       client.request<{
         type: string;
+        repairIntent?: OperatorRepairIntent;
         state: string;
         expiresAt: string;
         clientName?: string;
@@ -1027,6 +1034,7 @@ function AccountActionApproval({ id }: { id: string }) {
   const [verified, setVerified] = useState(false);
   const [factor, setFactor] = useState<"totp" | "recovery" | null>(null);
   const [pending, setPending] = useState(false);
+  const repairUnavailable = repairReviewUnavailable(request.data);
   async function finishReauthentication() {
     const details = await request.refetch();
     if (details.error) throw details.error;
@@ -1034,6 +1042,20 @@ function AccountActionApproval({ id }: { id: string }) {
     setVerified(true);
   }
   async function approve() {
+    if (
+      repairUnavailable ||
+      !request.data ||
+      request.isPending ||
+      request.isError ||
+      request.data.state !== "pending"
+    ) {
+      setError(
+        repairUnavailable
+          ? repairReviewError
+          : "This request is not available for approval.",
+      );
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -1070,26 +1092,40 @@ function AccountActionApproval({ id }: { id: string }) {
             {request.data.result?.clientId && (
               <p>Requesting client: {request.data.result.clientId}</p>
             )}
-            {request.data.result?.input && (
-              <dl className="action-review">
-                {Object.entries(request.data.result.input).map(
-                  ([name, value]) => (
-                    <div key={name}>
-                      <dt>
-                        {name.replaceAll(/([A-Z])/g, " $1").toLowerCase()}
-                      </dt>
-                      <dd>
-                        {typeof value === "object" && value !== null ? (
-                          <pre>{JSON.stringify(value, null, 2)}</pre>
-                        ) : (
-                          String(value ?? "null")
-                        )}
-                      </dd>
-                    </div>
-                  ),
-                )}
-              </dl>
+            {request.data.type === "operator_repair" &&
+              request.data.repairIntent &&
+              !repairUnavailable && (
+                <RepairIntentReview
+                  key={id}
+                  intent={request.data.repairIntent}
+                />
+              )}
+            {repairUnavailable && (
+              <p role="alert" className="error-message">
+                {repairReviewError}
+              </p>
             )}
+            {request.data.type !== "operator_repair" &&
+              request.data.result?.input && (
+                <dl className="action-review">
+                  {Object.entries(request.data.result.input).map(
+                    ([name, value]) => (
+                      <div key={name}>
+                        <dt>
+                          {name.replaceAll(/([A-Z])/g, " $1").toLowerCase()}
+                        </dt>
+                        <dd>
+                          {typeof value === "object" && value !== null ? (
+                            <pre>{JSON.stringify(value, null, 2)}</pre>
+                          ) : (
+                            String(value ?? "null")
+                          )}
+                        </dd>
+                      </div>
+                    ),
+                  )}
+                </dl>
+              )}
             <p>Expires {new Date(request.data.expiresAt).toLocaleString()}.</p>
           </>
         )}
@@ -1110,7 +1146,13 @@ function AccountActionApproval({ id }: { id: string }) {
               let the requesting application complete it.
             </p>
             <Button
-              isDisabled={pending || request.data?.state !== "pending"}
+              isDisabled={
+                pending ||
+                request.isPending ||
+                request.isError ||
+                repairUnavailable ||
+                request.data?.state !== "pending"
+              }
               onPress={() => void approve()}
             >
               {pending ? "Approving…" : "Approve this action"}

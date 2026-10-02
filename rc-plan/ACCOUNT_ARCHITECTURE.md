@@ -10,6 +10,8 @@ Initial self-hosted onboarding creates one organisation and its first Owner. Gen
 
 An installation operator controls deployment, migrations, secrets, and recovery. Operator authority is separate from an organisation role. A deployment-controlled CLI can bind operator authority to a verified Rootset user for installation settings through the browser, REST or OAuth/MCP; an organisation Owner cannot grant it through organisation administration. Delegated access also requires explicit installation scopes, and team keys cannot acquire this authority. An operator recovery action must have a bounded CLI/runbook, an audit record, and a notification. Database ownership is never inferred from knowing a resource ID.
 
+Approved row repair additionally requires the normal table write scope and edit grant. It uses an `operator_repair` account action whose immutable review includes the organisation, database, table, schema version, row IDs and revisions, proposed business values and incident reason. The initiating browser identity, personal API key or OAuth credential remains bound to the approval. Team keys cannot initiate repair. Recheck the current operator binding and resource authority at review, admission and worker publication; operator status never replaces table authority. The [repair procedure](../docs/operations/operator-repair.md) describes admission, completion and audit readback.
+
 ## Management records
 
 | Record              | Main attributes                                                                                                                                  |
@@ -59,6 +61,8 @@ A successful ownership transfer promotes the selected enabled, verified member t
 Setup is a one-time, transactional claim gated by an installation bootstrap secret available through deployment configuration. It creates the first organisation and Owner, requires email verification, and disables the bootstrap path after success. Two simultaneous setup requests cannot create competing first owners. A lost initial response can be reconciled by the setup status endpoint without revealing credentials.
 
 Bootstrap claim and bound account-action digests use HMAC with the installation key-hash secret. Password-bearing inputs are never retained as an unkeyed digest. Migration `036_bound_digest_protocol.sql` erases earlier unkeyed digests, expires pending approval tickets and clears their protected payloads while preserving consumed outcomes. Users start a fresh action after this upgrade. Existing installations remain claimed; old-protocol setup retries return `SETUP_ALREADY_CLAIMED`, and verification can be resent through the authentication flow.
+
+Invitation creation requires a personal Owner or Admin identity with `members:manage`, so the invitation records a user whose authority can be rechecked at acceptance. Team keys can list and cancel invitations or perform versioned member updates within their current Owner/Admin authority; creating an invitation requires a user identity.
 
 Invitation acceptance requires a valid, unexpired token, verified control of the invited email, and the correct organisation. Existing users authenticate and accept the membership. New users establish their account through the invitation flow. Tokens are single-use and stored hashed. Cancellation, inviter loss of authority, organisation suspension, and membership creation must be handled before acceptance. Replays return an intelligible terminal result without adding a second membership.
 
@@ -111,6 +115,8 @@ Preference changes do not mutate table values or add cell-history entries. Local
 Adapt Towbar's React Email templates for invitation, invitation verification, account verification, reset, password change, email-change verification and notices, factor changes, team-key creation/revocation, and account recovery. Replace branding, domains, sender names, links, issuer labels, and contact copy. Keep template rendering independent of delivery.
 
 Use a transactional outbox so a committed account action cannot lose its email merely because SMTP was unavailable. Worker retries have dedupe keys, bounded backoff, and visible failures. A reused dedupe key must not suppress a later distinct security event. SMTP/object-storage secrets are encrypted and are never returned by a read endpoint. Account deletion and organisation deletion are durable jobs with explicit confirmation, resource accounting, retention handling, and auditable terminal states.
+
+Deletion admission preserves the original validated request envelope when it passes from the account service to the durable queue. An explicitly supplied `approvalId` remains a declared input field; completion through an account action keeps its business-only envelope and supplies the effective approved ID through trusted context. The admission HMAC binds that effective proof separately from the business input, so either entry path can return the same original job for an exact retry. Missing optional fields are not synthesized, and conflicting proof claims, changed business input, or a different current credential cannot reuse an admission. The account service still excludes proof fields from its business-action and mutation-receipt digests.
 
 ## Towbar reuse map
 

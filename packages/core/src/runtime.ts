@@ -41,6 +41,8 @@ export async function createRuntime(
       },
       oauthResolver: (request, audience) =>
         oauth.resolveActor(request, audience === "mcp" ? "mcp" : "api"),
+      authoriseRepair: (actor, input) =>
+        core.authorise(actor, "mutateRows", input),
       enqueueDeletion: (actor, kind, input, context) =>
         jobs.enqueueOperation(
           actor,
@@ -53,6 +55,8 @@ export async function createRuntime(
                 ? `delete:${input.approvalId}`
                 : `delete:${newId()}`),
             requestId: context.requestId,
+            source:
+              context.surface === "api" ? "rest" : (context.surface ?? "rest"),
             approvalId: context.actionId,
             stepUpApproved: true,
             client: context.approvalClient,
@@ -95,6 +99,8 @@ export async function createRuntime(
         ),
         metadataPaging: paging,
         idempotencySecret: config.keyHashSecret,
+        recordRepairIntent: (client, actor, intent) =>
+          identity.recordRepairIntent(client, actor, intent),
         authorisePolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
           await storage.getDatabase(current, target.databaseId);

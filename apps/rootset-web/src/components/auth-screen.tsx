@@ -8,16 +8,10 @@ import {
   IdentityCredentialsForm,
 } from "@rootset/identity-web-ui";
 import { authClient } from "../lib/auth-client";
+import { authFailure } from "../lib/auth-failure";
 import { RootsetClient } from "@rootset/web-client";
 
 const publicApi = new RootsetClient({ baseUrl: "/v1" });
-
-function authFailure(result: { error?: { message?: string } | null }) {
-  if (result.error)
-    throw new Error(
-      result.error.message ?? "Authentication could not be completed",
-    );
-}
 
 export function AuthScreen({
   path,

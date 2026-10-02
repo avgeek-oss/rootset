@@ -3,6 +3,7 @@ import {
   IdSchema,
   ApiKeySchema,
   FieldTypeSchema,
+  JobAcceptedSchema,
   JsonValueSchema,
   PreferencesSchema,
   ResourceTargetSchema,
@@ -263,6 +264,31 @@ export const KeyCreatedSchema = z.strictObject({
   secret: z.string().optional(),
   replayed: z.boolean().optional(),
 });
+export const DeleteAccountInputSchema = z.strictObject({
+  orgId: IdSchema.optional(),
+  confirmation: z.literal("DELETE"),
+  approvalId: IdSchema.optional(),
+});
+export type DeleteAccountInput = z.infer<typeof DeleteAccountInputSchema>;
+export const RowValuesInputSchema = preservingRecordSchema(
+  z.string().min(1).max(64),
+  JsonValueSchema,
+);
+export const OperatorRepairReasonSchema = z.string().trim().min(1).max(512);
+export const OperatorRepairUpdateSchema = z.strictObject({
+  rowId: IdSchema,
+  expectedVersion: VersionSchema,
+  values: RowValuesInputSchema,
+});
+export const OperatorRepairIntentSchema = z.strictObject({
+  orgId: IdSchema,
+  databaseId: IdSchema,
+  tableId: IdSchema,
+  expectedSchemaVersion: SchemaVersionSchema,
+  reason: OperatorRepairReasonSchema,
+  updates: z.array(OperatorRepairUpdateSchema).min(1).max(limits.mutationBatch),
+});
+export type OperatorRepairIntent = z.infer<typeof OperatorRepairIntentSchema>;
 export const AccountActionTypeSchema = z.enum([
   "change_password",
   "change_email",
@@ -285,15 +311,87 @@ export const AccountActionTypeSchema = z.enum([
   "delete_table",
   "update_installation_configuration",
   "test_email",
+  "operator_repair",
 ]);
-export const AccountActionSchema = z.strictObject({
+const accountActionFields = {
   id: IdSchema,
-  type: AccountActionTypeSchema,
   state: z.enum(["pending", "approved", "consumed", "expired", "denied"]),
   expiresAt: DateTimeSchema,
   approvalUrl: z.string(),
-  result: JsonValueSchema.optional(),
+};
+const pendingRepairIntent = {
+  if: {
+    properties: { state: { enum: ["pending", "approved"] } },
+    required: ["state"],
+  },
+  then: { required: ["repairIntent"] },
+};
+export const OperatorRepairAccountActionSchema = z
+  .strictObject({
+    ...accountActionFields,
+    type: z.literal("operator_repair"),
+    repairIntent: OperatorRepairIntentSchema.optional(),
+    result: JobAcceptedSchema.optional(),
+  })
+  .superRefine((action, context) => {
+    if (
+      (action.state === "pending" || action.state === "approved") &&
+      !action.repairIntent
+    )
+      context.addIssue({
+        code: "custom",
+        message: "Pending operator repair requires its exact requested intent",
+        path: ["repairIntent"],
+      });
+  })
+  .meta({ allOf: [pendingRepairIntent] });
+export type OperatorRepairAccountAction = z.infer<
+  typeof OperatorRepairAccountActionSchema
+>;
+const repairResultJsonSchema = z.toJSONSchema(JobAcceptedSchema, {
+  io: "input",
+  target: "draft-2020-12",
 });
+delete repairResultJsonSchema.$schema;
+export const AccountActionSchema = z
+  .strictObject({
+    ...accountActionFields,
+    type: AccountActionTypeSchema,
+    repairIntent: OperatorRepairIntentSchema.optional(),
+    result: JsonValueSchema.optional(),
+  })
+  .superRefine((action, context) => {
+    if (action.type === "operator_repair") {
+      const result = OperatorRepairAccountActionSchema.safeParse(action);
+      if (!result.success)
+        for (const issue of result.error.issues)
+          context.addIssue({
+            code: "custom",
+            message: issue.message,
+            path: issue.path,
+          });
+    } else if (action.repairIntent)
+      context.addIssue({
+        code: "custom",
+        message: "Repair intent belongs to an operator repair action",
+        path: ["repairIntent"],
+      });
+  })
+  .meta({
+    allOf: [
+      {
+        if: {
+          properties: { type: { const: "operator_repair" } },
+          required: ["type"],
+        },
+        then: {
+          properties: { result: repairResultJsonSchema },
+          allOf: [pendingRepairIntent],
+        },
+        else: { not: { required: ["repairIntent"] } },
+      },
+    ],
+  });
 export const ContextSchema = z.strictObject({
   principal: z.strictObject({
     id: z.string(),

@@ -2,6 +2,12 @@
 
 import { Button, Modal } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
+import { RepairIntentReview } from "../repair-intent-review";
+import {
+  repairReviewUnavailable,
+  repairReviewError,
+} from "../repair-review-status";
+import type { OperatorRepairIntent } from "@rootset/contracts";
 import { authClient } from "../../lib/auth-client";
 import {
   performAction,
@@ -47,9 +53,20 @@ export function AccountActionApproval({ orgId }: { orgId: string }) {
   >(undefined);
   const mutation = useMutation();
   const review = useResource<{
+    id: string;
+    type?: AccountActionTicket["type"];
+    state?: string;
+    repairIntent?: OperatorRepairIntent;
     operationId: string;
     result?: { input?: unknown; requestDigest?: string; clientId?: string };
   } | null>(ticket ? `/me/actions/${ticket.id}` : undefined, null);
+  const repairUnavailable = repairReviewUnavailable(
+    review.data
+      ? { ...review.data, type: review.data.type ?? ticket?.type }
+      : ticket?.type === "operator_repair"
+        ? { type: ticket.type }
+        : undefined,
+  );
   useEffect(() => {
     const unregister = registerApprovalHandler(
       (next) =>
@@ -81,6 +98,13 @@ export function AccountActionApproval({ orgId }: { orgId: string }) {
   }
   async function approve() {
     if (!ticket) return;
+    if (
+      repairUnavailable ||
+      review.loading ||
+      review.error ||
+      review.data?.id !== ticket.id
+    )
+      return;
     const result = await mutation.run(async () => {
       if (needsProof) {
         const response = await fetch("/v1/auth/reauthenticate", {
@@ -139,20 +163,38 @@ export function AccountActionApproval({ orgId }: { orgId: string }) {
                 <DateLabel value={ticket?.expiresAt} />
               </p>
               <Loading {...review} retry={review.reload} />
-              {review.data?.result && (
-                <dl className="action-review">
-                  <dt>Application</dt>
-                  <dd>{review.data.result.clientId ?? "Rootset browser"}</dd>
-                  <dt>Requested changes</dt>
-                  <dd>
-                    <pre>
-                      {JSON.stringify(review.data.result.input ?? {}, null, 2)}
-                    </pre>
-                  </dd>
-                  <dt>Request fingerprint</dt>
-                  <dd>{review.data.result.requestDigest ?? "Unavailable"}</dd>
-                </dl>
+              {review.data?.type === "operator_repair" &&
+                review.data.repairIntent &&
+                !repairUnavailable && (
+                  <RepairIntentReview
+                    key={ticket?.id}
+                    intent={review.data.repairIntent}
+                  />
+                )}
+              {repairUnavailable && (
+                <p role="alert" className="error-message">
+                  {repairReviewError}
+                </p>
               )}
+              {review.data?.type !== "operator_repair" &&
+                review.data?.result && (
+                  <dl className="action-review">
+                    <dt>Application</dt>
+                    <dd>{review.data.result.clientId ?? "Rootset browser"}</dd>
+                    <dt>Requested changes</dt>
+                    <dd>
+                      <pre>
+                        {JSON.stringify(
+                          review.data.result.input ?? {},
+                          null,
+                          2,
+                        )}
+                      </pre>
+                    </dd>
+                    <dt>Request fingerprint</dt>
+                    <dd>{review.data.result.requestDigest ?? "Unavailable"}</dd>
+                  </dl>
+                )}
               <Feedback {...mutation} />
               {needsProof && (
                 <>
@@ -201,7 +243,9 @@ export function AccountActionApproval({ orgId }: { orgId: string }) {
                   mutation.busy ||
                   review.loading ||
                   !!review.error ||
-                  !review.data
+                  !review.data ||
+                  review.data.id !== ticket?.id ||
+                  repairUnavailable
                 }
                 onPress={approve}
               >

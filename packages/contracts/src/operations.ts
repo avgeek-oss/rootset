@@ -16,7 +16,6 @@ import {
   VersionSchema,
   ViewPreferencesSchema,
   limits,
-  preservingRecordSchema,
   type Role,
 } from "./models";
 import {
@@ -50,7 +49,10 @@ import {
   KeyMetadataSchema,
   MemberSchema,
   OrganisationSchema,
+  OperatorRepairReasonSchema,
+  OperatorRepairUpdateSchema,
   ProfileSchema,
+  RowValuesInputSchema,
   SchemaChangeSchema,
   SchemaOperationReportSchema,
   SessionMetadataSchema,
@@ -102,10 +104,7 @@ const names = {
   name: z.string().min(1).max(255),
   description: z.string().max(4096).nullable().optional(),
 };
-const values = preservingRecordSchema(
-  z.string().min(1).max(64),
-  JsonValueSchema,
-);
+const values = RowValuesInputSchema;
 const empty = z.strictObject({});
 const outcome = z.strictObject({
   mutationId: IdSchema,
@@ -214,6 +213,9 @@ function operation(
       "INSUFFICIENT_SCOPE",
       ...(settings.personal ? ["PERSONAL_IDENTITY_REQUIRED"] : []),
       ...(settings.operator ? ["OPERATOR_REQUIRED"] : []),
+      ...(id === "mutateRows"
+        ? ["PERSONAL_IDENTITY_REQUIRED", "OPERATOR_REQUIRED"]
+        : []),
       ...(settings.stepUp && settings.stepUp !== "never"
         ? ["STEP_UP_REQUIRED"]
         : []),
@@ -533,8 +535,8 @@ operation(
     role: z.enum(["admin", "editor", "viewer"]),
   }),
   InvitationSchema,
-  "Invite a member with email proof; invitations cannot create owners.",
-  { minimumRole: "admin" },
+  "Invite a member as a personal Owner or Admin with email proof; invitations cannot create owners.",
+  { minimumRole: "admin", personal: true },
 );
 operation(
   "cancelInvitation",
@@ -1149,12 +1151,7 @@ operation(
 );
 const rowMutation = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("create"), values }),
-  z.strictObject({
-    type: z.literal("update"),
-    rowId: IdSchema,
-    expectedVersion: VersionSchema,
-    values,
-  }),
+  OperatorRepairUpdateSchema.extend({ type: z.literal("update") }),
   z.strictObject({
     type: z.literal("delete"),
     rowId: IdSchema,
@@ -1167,26 +1164,55 @@ operation(
   "POST",
   `${T}/rows/batch`,
   ["rows:write"],
-  z.strictObject({
-    ...table,
-    ...expected,
-    mutations: z.array(rowMutation).min(1).max(limits.mutationBatch),
-  }),
-  z.strictObject({
-    mutationId: IdSchema,
-    results: z
-      .array(
-        z.strictObject({
-          type: z.enum(["create", "update", "delete"]),
-          rowId: IdSchema,
-          row: RowSchema.optional(),
-          deleted: z.boolean().optional(),
-        }),
-      )
-      .max(limits.mutationBatch),
-  }),
-  "Commit at most 1,000 create/update/delete mutations atomically.",
-  { destructive: true },
+  z
+    .strictObject({
+      ...table,
+      ...expected,
+      ...approval,
+      mutations: z.array(rowMutation).min(1).max(limits.mutationBatch),
+      repair: z.strictObject({ reason: OperatorRepairReasonSchema }).optional(),
+    })
+    .superRefine((input, context) => {
+      if (input.repair)
+        for (const [index, mutation] of input.mutations.entries())
+          if (mutation.type !== "update")
+            context.addIssue({
+              code: "custom",
+              message: "Operator repair accepts revision-bound updates only",
+              path: ["mutations", index, "type"],
+            });
+    })
+    .meta({
+      allOf: [
+        {
+          if: { required: ["repair"] },
+          then: {
+            properties: {
+              mutations: {
+                items: { properties: { type: { const: "update" } } },
+              },
+            },
+          },
+        },
+      ],
+    }),
+  jobOr(
+    z.strictObject({
+      mutationId: IdSchema,
+      results: z
+        .array(
+          z.strictObject({
+            type: z.enum(["create", "update", "delete"]),
+            rowId: IdSchema,
+            row: RowSchema.optional(),
+            deleted: z.boolean().optional(),
+          }),
+        )
+        .max(limits.mutationBatch),
+    }),
+  ),
+  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal installation operator with installation:manage, rows:write and current edit access, plus an explicit approval bound to the exact target, schema, revisions, values and reason, even for a recent session. Ordinary batches return the synchronous result.",
+  { destructive: true, job: true, stepUp: "conditional" },
 );
 operation(
   "getTableStatistics",
@@ -1871,7 +1897,8 @@ export const ProtocolAdapterInventory = Object.freeze([
     path: "/v1/auth/*",
     methods: ["GET", "POST"],
     kind: "identity",
-    reason: "Identity/factor proof is browser-mediated.",
+    reason:
+      "Identity/factor proof is browser-mediated. Personal account deletion is admitted by the existing bound account-action/auth adapters with exact DELETE confirmation, account:security, explicit approval and the current last-Owner check. Its internal deleteAccount execution descriptor returns a queued job and is not a public catalog operation or separate MCP tool.",
   },
   {
     path: "/oauth/*",

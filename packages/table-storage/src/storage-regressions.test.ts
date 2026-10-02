@@ -1,8 +1,29 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
-import { createPool, migrate, withOrg, type Pool } from "@rootset/database";
-import { canonicalJson, newId, rowBytes, type Actor } from "@rootset/contracts";
-import { TableStorage } from "./index.js";
+import {
+  createPool,
+  migrate,
+  withOrg,
+  type Pool,
+  type PoolClient,
+} from "@rootset/database";
+import {
+  canonicalJson,
+  limits,
+  newId,
+  rowBytes,
+  RootsetError,
+  type Actor,
+} from "@rootset/contracts";
+import {
+  TableStorage,
+  type MutationOptions,
+  type MutationResult,
+  type RowOperation,
+  type TableRecord,
+} from "./index.js";
+import { operationAdmissionBinding } from "../../idempotency/src/index.js";
 
 const configured = Boolean(
   process.env.ROOTSET_TEST_DATABASE_URL &&
@@ -975,6 +996,1001 @@ async function runningJob(targetId: string, operationId = "createField") {
   );
   return { jobId, leaseToken };
 }
+
+const suppliedRepairActor: Actor = { ...actor, userId: actor.id };
+async function repairOptions(
+  tableId: string,
+  operations: RowOperation[],
+  reason = "Correct the verified source value",
+): Promise<MutationOptions> {
+  const fence = { jobId: newId(), leaseToken: newId() },
+    table = await storage!.getTable(actor, tableId),
+    approvalId = newId(),
+    originalKey = `approved-repair-${fence.jobId}`,
+    requestId = `repair-request-${fence.jobId}`,
+    admittedActor = { ...suppliedRepairActor, grantVersion: 1 },
+    publicInput = {
+      orgId: actor.orgId,
+      databaseId: table.databaseId,
+      tableId,
+      expectedSchemaVersion: table.schemaVersion,
+      mutations: operations.map((operation) => {
+        assert(operation.kind === "update");
+        return {
+          type: "update",
+          rowId: operation.rowId,
+          expectedVersion: operation.expectedVersion,
+          values: operation.values,
+        };
+      }),
+      repair: { reason },
+    },
+    admission = {
+      source: "mcp",
+      stepUpApproved: true,
+    },
+    operationContext = {
+      idempotencyKey: originalKey,
+      requestId,
+      source: "operator",
+      approvalId,
+      stepUpApproved: true,
+      admissionBinding: operationAdmissionBinding(
+        admittedActor,
+        "mutateRows",
+        publicInput,
+        originalKey,
+        approvalId,
+        "trusted-storage-fixture-admission-secret-at-least32-bytes",
+        admission,
+      ),
+      admissionFields: Object.keys(publicInput).sort(),
+      admissionSource: admission.source,
+      admissionStepUpApproved: admission.stepUpApproved,
+    },
+    input = { ...publicInput, operationContext },
+    requester = `${admittedActor.kind}:${admittedActor.id}`;
+  const { requestId: omittedRequest, ...durableContext } = operationContext;
+  assert.equal(omittedRequest, requestId);
+  const digest = createHash("sha256")
+    .update(
+      canonicalJson({
+        actor: requester,
+        orgId: actor.orgId,
+        operationId: "mutateRows",
+        target: { type: "table", id: tableId },
+        input: { ...publicInput, operationContext: durableContext },
+      }),
+    )
+    .digest("hex");
+  await withOrg(owner!, actor.orgId, (c) =>
+    c.query(
+      "INSERT INTO rootset_control.jobs(id,org_id,kind,operation_id,actor,requester_id,target_type,target_id,input,input_digest,idempotency_key,state,lease_token,lease_until) VALUES($1,$2,'operation','mutateRows',$3::jsonb,$4,'table',$5,$6::jsonb,$7,$8,'running',$9,clock_timestamp()+interval '5 minutes')",
+      [
+        fence.jobId,
+        actor.orgId,
+        JSON.stringify(admittedActor),
+        requester,
+        tableId,
+        JSON.stringify(input),
+        digest,
+        originalKey,
+        fence.leaseToken,
+      ],
+    ),
+  );
+  return {
+    idempotencyKey: `job:${fence.jobId}:operation`,
+    expectedSchemaVersion: table.schemaVersion,
+    context: {
+      requestId,
+      source: "operator",
+      jobId: fence.jobId,
+      jobFence: fence,
+      repair: {
+        reason,
+        approvalId,
+        jobId: fence.jobId,
+      },
+      beforePublish: async () => undefined,
+    },
+    onCommit: async (client, outcome) => {
+      const role = (
+        await client.query(
+          "SELECT current_user,(SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user) AS privileged",
+        )
+      ).rows[0]!;
+      assert.deepEqual(role, {
+        current_user: "rootset_app",
+        privileged: false,
+      });
+      await client.query(
+        "INSERT INTO rootset_control.operation_outcomes(job_id,org_id,operation_id,job_input_digest,result) SELECT id,org_id,operation_id,input_digest,$2::jsonb FROM rootset_control.jobs WHERE id=$1 ON CONFLICT(job_id) DO NOTHING",
+        [fence.jobId, JSON.stringify(outcome)],
+      );
+    },
+  };
+}
+async function repairState(table: TableRecord): Promise<string> {
+  const data: Record<string, unknown> = {
+    table: await storage!.getTable(actor, table.id),
+  };
+  data.rows = (
+    await owner!.query(
+      `SELECT to_jsonb(r) AS value FROM "${table.schemaName}"."${table.physicalName}" r ORDER BY row_id`,
+    )
+  ).rows;
+  for (const relation of [
+    "cell_changes",
+    "row_events",
+    "mutations",
+    "resource_history",
+    "unique_rules",
+    "indexes",
+    "schema_operations",
+  ])
+    data[relation] = (
+      await owner!.query(
+        `SELECT to_jsonb(r) AS value FROM rootset_control.${relation} r WHERE table_id=$1 ORDER BY id`,
+        [table.id],
+      )
+    ).rows;
+  data.entries = (
+    await owner!.query(
+      "SELECT rule_id,row_id,tuple,digest FROM rootset_control.unique_entries WHERE rule_id IN(SELECT id FROM rootset_control.unique_rules WHERE table_id=$1) ORDER BY rule_id,row_id",
+      [table.id],
+    )
+  ).rows;
+  data.outcomes = (
+    await owner!.query(
+      "SELECT to_jsonb(o) AS value FROM rootset_control.operation_outcomes o JOIN rootset_control.jobs j ON j.id=o.job_id WHERE j.target_id=$1 ORDER BY o.job_id",
+      [table.id],
+    )
+  ).rows;
+  return canonicalJson(data, { maxDepth: 96 });
+}
+
+async function assertRepairCapability(
+  table: TableRecord,
+  options: MutationOptions,
+  result: MutationResult,
+) {
+  const signature =
+      "rootset_control.append_operator_repair_completion(character varying,character varying,character varying,character varying)",
+    permissions = (
+      await owner!.query(
+        "SELECT r.rolname,r.rolcanlogin,r.rolsuper,r.rolbypassrls,p.prosecdef,p.proconfig,has_function_privilege('rootset_app',p.oid,'EXECUTE') AS app_execute,EXISTS(SELECT 1 FROM aclexplode(p.proacl) acl WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE') AS public_execute,has_table_privilege('rootset_app','rootset_control.resource_history','INSERT') AS app_insert,has_table_privilege('rootset_app','rootset_control.resource_history','UPDATE') AS app_update,has_table_privilege('rootset_app','rootset_control.resource_history','DELETE') AS app_delete,has_table_privilege(r.rolname,'rootset_control.jobs','UPDATE') AS owner_table_update,has_column_privilege(r.rolname,'rootset_control.jobs','id','UPDATE') AS owner_id_update,(SELECT bool_and(NOT has_column_privilege(r.rolname,'rootset_control.jobs',attname,'UPDATE')) FROM pg_attribute WHERE attrelid='rootset_control.jobs'::regclass AND attnum>0 AND NOT attisdropped AND attname<>'id') AS owner_other_updates_denied,(SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='rootset_control.resource_history'::regclass) AS forced_rls FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid=$1::regprocedure",
+        [signature],
+      )
+    ).rows[0]!;
+  assert.equal(permissions.rolname, "rootset_managed_owner");
+  for (const key of [
+    "rolcanlogin",
+    "rolsuper",
+    "rolbypassrls",
+    "public_execute",
+    "app_insert",
+    "app_update",
+    "app_delete",
+    "owner_table_update",
+  ])
+    assert.equal(permissions[key], false, key);
+  for (const key of [
+    "prosecdef",
+    "app_execute",
+    "owner_id_update",
+    "owner_other_updates_denied",
+    "forced_rls",
+  ])
+    assert.equal(permissions[key], true, key);
+  assert.deepEqual(
+    permissions.proconfig.map((value: string) => value.toLowerCase()).sort(),
+    ["row_security=on", "search_path=pg_catalog, pg_temp", "timezone=utc"],
+  );
+  const fence = options.context!.jobFence!,
+    args = [actor.orgId, fence.jobId, fence.leaseToken, result.mutationId],
+    sql =
+      "SELECT rootset_control.append_operator_repair_completion($1,$2,$3,$4)",
+    baseline = await repairState(table);
+  await withOrg(app!, actor.orgId, (c) => c.query(sql, args));
+  assert.equal(await repairState(table), baseline);
+  async function denied(
+    prepare: (client: PoolClient) => Promise<unknown> = async () => undefined,
+    bound = args,
+    statement = sql,
+    organisation = actor.orgId,
+  ) {
+    const client = await owner!.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('rootset.org_id',$1,true)", [
+        actor.orgId,
+      ]);
+      await prepare(client);
+      await client.query("SET LOCAL ROLE rootset_app");
+      await client.query("SELECT set_config('rootset.org_id',$1,true)", [
+        organisation,
+      ]);
+      assert.equal(
+        (await client.query("SELECT current_user AS role")).rows[0]!.role,
+        "rootset_app",
+      );
+      await assert.rejects(client.query(statement, bound), { code: "42501" });
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    assert.equal(await repairState(table), baseline);
+  }
+  await denied(undefined, [
+    actor.orgId,
+    fence.jobId,
+    newId(),
+    result.mutationId,
+  ]);
+  await denied(undefined, [
+    actor.orgId,
+    fence.jobId,
+    fence.leaseToken,
+    newId(),
+  ]);
+  await denied(undefined, [
+    newId(),
+    fence.jobId,
+    fence.leaseToken,
+    result.mutationId,
+  ]);
+  await denied(undefined, args, sql, newId());
+  for (const key of ["orgId", "databaseId", "tableId", "expectedSchemaVersion"])
+    await denied((c) =>
+      c.query("UPDATE rootset_control.jobs SET input=input-$2 WHERE id=$1", [
+        fence.jobId,
+        key,
+      ]),
+    );
+  for (const expectedSchemaVersion of ["1", 0, 1.5, 2147483648])
+    await denied((c) =>
+      c.query(
+        "UPDATE rootset_control.jobs SET input=jsonb_set(input,'{expectedSchemaVersion}',$2::jsonb) WHERE id=$1",
+        [fence.jobId, JSON.stringify(expectedSchemaVersion)],
+      ),
+    );
+  for (const [path, value] of [
+    ["{operationContext,admissionSource}", "worker"],
+    ["{operationContext,stepUpApproved}", false],
+    ["{operationContext,admissionBinding}", "invalid"],
+    ["{operationContext,approvalId}", "unbound"],
+    ["{operationContext,requestId}", "different original request"],
+    ["{mutations,0,expectedVersion}", "0"],
+    ["{mutations,0,expectedVersion}", "9223372036854775808"],
+    ["{mutations,0,expectedVersion}", 1],
+    ["{mutations,0,type}", "delete"],
+    ["{repair,reason}", "p".repeat(513)],
+    ["{repair,reason}", "🙂".repeat(257)],
+    ["{repair,reason}", "\u00a0untrimmed"],
+  ] as const)
+    await denied((c) =>
+      c.query(
+        "UPDATE rootset_control.jobs SET input=jsonb_set(input,$2::text[],$3::jsonb) WHERE id=$1",
+        [fence.jobId, path, JSON.stringify(value)],
+      ),
+    );
+  await denied((c) =>
+    c.query(
+      "UPDATE rootset_control.jobs SET input=input #- '{mutations,0,expectedVersion}' WHERE id=$1",
+      [fence.jobId],
+    ),
+  );
+  await denied((c) =>
+    c.query(
+      "UPDATE rootset_control.jobs SET cancel_requested=true WHERE id=$1",
+      [fence.jobId],
+    ),
+  );
+  await denied((c) =>
+    c.query(
+      "UPDATE rootset_control.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+      [fence.jobId],
+    ),
+  );
+  await denied((c) =>
+    c.query(
+      "UPDATE rootset_control.jobs SET actor=jsonb_set(actor,'{credentialId}',to_jsonb($2::text)) WHERE id=$1",
+      [fence.jobId, newId()],
+    ),
+  );
+  await denied((c) =>
+    c.query(
+      "UPDATE rootset_control.mutations SET actor=jsonb_set(actor,'{kind}','\"invented\"') WHERE id=$1",
+      [result.mutationId],
+    ),
+  );
+  await denied((c) =>
+    c.query("UPDATE rootset_control.mutations SET outcome=NULL WHERE id=$1", [
+      result.mutationId,
+    ]),
+  );
+  await denied((c) =>
+    c.query(
+      "INSERT INTO rootset_control.resource_history(org_id,database_id,table_id,resource_id,operation,before_value,after_value,actor,context) SELECT org_id,database_id,table_id,resource_id,operation,before_value,after_value,actor,context FROM rootset_control.resource_history WHERE table_id=$1 AND operation='operatorRepair'",
+      [table.id],
+    ),
+  );
+  await denied((c) =>
+    c.query(
+      "UPDATE rootset_control.resource_history SET after_value=jsonb_set(after_value,'{reason}','\"conflicting completion\"') WHERE table_id=$1 AND operation='operatorRepair'",
+      [table.id],
+    ),
+  );
+  for (const statement of [
+    "INSERT INTO rootset_control.resource_history(org_id,resource_id,operation,actor,context) VALUES($1,$2,'operatorRepair','{}','{}')",
+    "UPDATE rootset_control.resource_history SET operation='untracked' WHERE org_id=$1 AND table_id=$2",
+    "DELETE FROM rootset_control.resource_history WHERE org_id=$1 AND table_id=$2",
+  ])
+    await denied(undefined, [actor.orgId, table.id], statement);
+}
+
+test(
+  "Supplied approved repair commits native history, one redacted completion and durable outcome together; replay and no-op preserve exact effects",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Native repair completion",
+      fields: [
+        { apiKey: "value", label: "Value", type: "integer" },
+        { apiKey: "original", label: "Original", type: "json" },
+      ],
+    });
+    const original = { context: "literal original value", source: "original" };
+    const row = await storage!.createRow(actor, table.id, {
+      value: 1,
+      original,
+    });
+    const operations: RowOperation[] = [
+      {
+        kind: "update",
+        rowId: row.id,
+        expectedVersion: "1",
+        values: { value: 2 },
+      },
+    ];
+    const input = {
+      ...(await repairOptions(table.id, operations, "r".repeat(512))),
+      operations,
+    };
+    input.context!.repair!.reason = `  ${"r".repeat(512)}  `;
+    const refreshedActor = { ...suppliedRepairActor, grantVersion: 2 };
+    const result = await storage!.mutateRows(refreshedActor, table.id, input);
+    assert.equal(result.rows[0]!.version, "2");
+    assert.deepEqual(result.rows[0]!.values, { value: 2, original });
+    const cells = (
+      await owner!.query(
+        "SELECT old_value,new_value,old_version::text,new_version::text,actor,context FROM rootset_control.cell_changes WHERE mutation_id=$1",
+        [result.mutationId],
+      )
+    ).rows;
+    assert.equal(cells.length, 1);
+    assert.deepEqual(
+      {
+        old: cells[0]!.old_value,
+        next: cells[0]!.new_value,
+        previousVersion: cells[0]!.old_version,
+        version: cells[0]!.new_version,
+      },
+      { old: 1, next: 2, previousVersion: "1", version: "2" },
+    );
+    assert.deepEqual(cells[0]!.actor, refreshedActor);
+    assert.deepEqual(cells[0]!.context, {
+      requestId: input.context!.requestId,
+      source: "operator",
+      jobId: input.context!.jobId,
+    });
+    const events = (
+      await owner!.query(
+        "SELECT operation,before_value,after_value,actor,context FROM rootset_control.resource_history WHERE table_id=$1 AND operation='operatorRepair'",
+        [table.id],
+      )
+    ).rows;
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.before_value, null);
+    assert.deepEqual(events[0]!.after_value, {
+      ...input.context!.repair,
+      reason: "r".repeat(512),
+      mutationId: result.mutationId,
+    });
+    assert.deepEqual(events[0]!.actor, refreshedActor);
+    assert.equal(
+      (
+        await owner!.query(
+          "SELECT result FROM rootset_control.operation_outcomes WHERE job_id=$1",
+          [input.context!.jobId],
+        )
+      ).rows[0]!.result.mutationId,
+      result.mutationId,
+    );
+    await assertRepairCapability(table, input, result);
+    const before = await repairState(table);
+    assert.deepEqual(
+      await storage!.mutateRows(refreshedActor, table.id, input),
+      result,
+    );
+    assert.equal(await repairState(table), before);
+    assert.deepEqual(
+      await storage!.mutateRows(refreshedActor, table.id, {
+        ...input,
+        context: {
+          ...input.context!,
+          repair: { ...input.context!.repair!, reason: "r".repeat(512) },
+        },
+      }),
+      result,
+    );
+    assert.equal(await repairState(table), before);
+    await assert.rejects(
+      storage!.mutateRows(refreshedActor, table.id, {
+        ...input,
+        context: {
+          ...input.context!,
+          repair: {
+            ...input.context!.repair!,
+            reason: "A different approved business reason",
+          },
+        },
+      }),
+      { code: "IDEMPOTENCY_CONFLICT" },
+    );
+    assert.equal(await repairState(table), before);
+    const noOpOperations: RowOperation[] = [
+      {
+        kind: "update",
+        rowId: row.id,
+        expectedVersion: "2",
+        values: { value: 2 },
+      },
+    ];
+    const noOp = {
+      ...(await repairOptions(table.id, noOpOperations)),
+      operations: noOpOperations,
+    };
+    const unchanged = await storage!.mutateRows(
+      suppliedRepairActor,
+      table.id,
+      noOp,
+    );
+    assert.equal(unchanged.rows[0]!.version, "2");
+    assert.equal(
+      (
+        await owner!.query(
+          "SELECT count(*)::int n FROM rootset_control.cell_changes WHERE table_id=$1",
+          [table.id],
+        )
+      ).rows[0]!.n,
+      3,
+    );
+    assert.equal(
+      (
+        await owner!.query(
+          "SELECT count(*)::int n FROM rootset_control.row_events WHERE table_id=$1",
+          [table.id],
+        )
+      ).rows[0]!.n,
+      2,
+    );
+    assert.equal(
+      (
+        await owner!.query(
+          "SELECT count(*)::int n FROM rootset_control.resource_history WHERE table_id=$1 AND operation='operatorRepair'",
+          [table.id],
+        )
+      ).rows[0]!.n,
+      2,
+    );
+    const persisted = await repairState(table);
+    assert(!persisted.includes(input.context!.jobFence!.leaseToken));
+    assert(!persisted.includes("beforePublish"));
+    assert(!persisted.includes("onCommit"));
+    const peer = newId();
+    await owner!.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Repair audit peer')",
+      [peer],
+    );
+    assert.equal(
+      (
+        await withOrg(app!, peer, (c) =>
+          c.query(
+            "SELECT id FROM rootset_control.resource_history WHERE table_id=$1",
+            [table.id],
+          ),
+        )
+      ).rowCount,
+      0,
+    );
+  },
+);
+
+test(
+  "Repair callback failure, late stale/unique members, lost authority and invalid live worker fences atomically reject every native and completion effect",
+  { skip: !configured },
+  async () => {
+    let table = await storage!.createTable(actor, databaseId, {
+      name: "Repair rollback",
+      fields: [
+        { apiKey: "code", label: "Code", type: "text", charLimit: 20 },
+        { apiKey: "value", label: "Value", type: "integer" },
+      ],
+    });
+    await storage!.createUniqueRule(actor, table.id, {
+      expectedSchemaVersion: 1,
+      fieldIds: [table.fields[0]!.id],
+    });
+    table = await storage!.getTable(actor, table.id);
+    const a = await storage!.createRow(actor, table.id, {
+        code: "a",
+        value: 1,
+      }),
+      b = await storage!.createRow(actor, table.id, { code: "b", value: 2 });
+    const operations: RowOperation[] = [
+      {
+        kind: "update",
+        rowId: a.id,
+        expectedVersion: "1",
+        values: { value: 3 },
+      },
+    ];
+    async function refused(
+      input: MutationOptions & { operations: RowOperation[] },
+      code: string,
+      incoming = suppliedRepairActor,
+    ) {
+      const before = await repairState(table);
+      await assert.rejects(storage!.mutateRows(incoming, table.id, input), {
+        code,
+      });
+      assert.equal(await repairState(table), before);
+    }
+    const invalidActor = await repairOptions(table.id, operations);
+    await refused(
+      {
+        ...invalidActor,
+        operations,
+        context: {
+          ...invalidActor.context!,
+          repair: { ...invalidActor.context!.repair!, reason: "r".repeat(513) },
+        },
+      },
+      "VALIDATION_FAILED",
+    );
+    await refused(
+      { ...invalidActor, operations, expectedSchemaVersion: undefined },
+      "VALIDATION_FAILED",
+    );
+    await refused({ ...invalidActor, operations }, "OPERATOR_REQUIRED", {
+      ...suppliedRepairActor,
+      operator: false,
+    });
+    await refused({ ...invalidActor, operations }, "OPERATOR_REQUIRED", {
+      ...suppliedRepairActor,
+      kind: "team_key",
+    });
+    await refused(
+      { ...invalidActor, operations, onCommit: undefined },
+      "ACCESS_DENIED",
+    );
+    await refused(
+      {
+        ...invalidActor,
+        operations,
+        context: {
+          ...invalidActor.context!,
+          repair: { ...invalidActor.context!.repair!, jobId: newId() },
+        },
+      },
+      "ACCESS_DENIED",
+    );
+    await refused(
+      {
+        ...invalidActor,
+        operations: [
+          { kind: "create", values: { code: "not a repair", value: 5 } },
+        ],
+      },
+      "VALIDATION_FAILED",
+    );
+    const failed = await repairOptions(table.id, operations),
+      saved = failed.onCommit!;
+    await refused(
+      {
+        ...failed,
+        operations,
+        onCommit: async (c, outcome) => {
+          await saved(c, outcome);
+          assert.equal(
+            (
+              await c.query(
+                "SELECT count(*)::int n FROM rootset_control.resource_history WHERE table_id=$1 AND operation='operatorRepair'",
+                [table.id],
+              )
+            ).rows[0]!.n,
+            1,
+          );
+          throw new RootsetError("INTERNAL_ERROR", "Fail before commit", 500);
+        },
+      },
+      "INTERNAL_ERROR",
+    );
+    let callbacks = 0;
+    const stale = await repairOptions(table.id, operations);
+    const input = {
+      ...stale,
+      onCommit: async () => {
+        callbacks++;
+      },
+      operations,
+    };
+    await refused(
+      {
+        ...input,
+        operations: [
+          ...operations,
+          {
+            kind: "update",
+            rowId: b.id,
+            expectedVersion: "999",
+            values: { value: 4 },
+          },
+        ],
+      },
+      "ROW_VERSION_CONFLICT",
+    );
+    await refused(
+      {
+        ...input,
+        operations: [
+          ...operations,
+          {
+            kind: "update",
+            rowId: b.id,
+            expectedVersion: "1",
+            values: { code: "a" },
+          },
+        ],
+      },
+      "UNIQUE_CONFLICT",
+    );
+    await refused(
+      {
+        ...input,
+        context: {
+          ...input.context!,
+          beforePublish: async () => {
+            throw new RootsetError(
+              "ACCESS_DENIED",
+              "Current target authority revoked",
+              403,
+            );
+          },
+        },
+      },
+      "ACCESS_DENIED",
+    );
+    await owner!.query(
+      "UPDATE rootset_control.jobs SET cancel_requested=true WHERE id=$1",
+      [input.context!.jobId],
+    );
+    await refused(input, "JOB_LEASE_LOST");
+    assert.equal(callbacks, 0);
+    const committed = {
+        ...(await repairOptions(table.id, operations)),
+        operations,
+      },
+      outcome = await storage!.mutateRows(
+        suppliedRepairActor,
+        table.id,
+        committed,
+      ),
+      afterCommit = await repairState(table);
+    await refused(
+      {
+        ...committed,
+        context: {
+          ...committed.context!,
+          beforePublish: async () => {
+            throw new RootsetError(
+              "ACCESS_DENIED",
+              "Replay target authority revoked",
+              403,
+            );
+          },
+        },
+      },
+      "ACCESS_DENIED",
+    );
+    await owner!.query(
+      "UPDATE rootset_control.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+      [committed.context!.jobId],
+    );
+    await refused(committed, "JOB_LEASE_LOST");
+    assert.equal(await repairState(table), afterCommit);
+    assert.equal((await storage!.getRow(actor, table.id, a.id)).version, "2");
+    assert.equal(outcome.rows[0]!.values.value, 3);
+  },
+);
+
+test(
+  "Trusted repair response cap rejects oversized results before commit and preserves operator audit, bounded replay and ordinary mutation budgets",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Repair response budget",
+      fields: [
+        { apiKey: "text", label: "Text", type: "text", charLimit: 64000 },
+        { apiKey: "flag", label: "Flag", type: "boolean" },
+      ],
+    });
+    const rows = [];
+    for (let index = 0; index < 20; index++)
+      rows.push(
+        await storage!.createRow(actor, table.id, {
+          text: "x".repeat(60000),
+          flag: false,
+        }),
+      );
+    let callbacks = 0;
+    const operations = rows.map((row) => ({
+        kind: "update" as const,
+        rowId: row.id,
+        expectedVersion: row.version,
+        values: { flag: true },
+      })),
+      options = await repairOptions(table.id, operations),
+      saved = options.onCommit!,
+      input = {
+        ...options,
+        responseBudget: limits.mcpResultBytes - 1024,
+        onCommit: async (client: PoolClient, outcome: MutationResult) => {
+          callbacks++;
+          await saved(client, outcome);
+        },
+        operations,
+      },
+      before = await repairState(table);
+    for (const responseBudget of [
+      0,
+      -1,
+      0.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      limits.restResultBytes + 1,
+    ]) {
+      await assert.rejects(
+        storage!.mutateRows(suppliedRepairActor, table.id, {
+          ...input,
+          responseBudget,
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      assert.equal(await repairState(table), before);
+    }
+    await assert.rejects(
+      storage!.mutateRows(actor, table.id, {
+        operations: input.operations,
+        context: { source: "mcp" },
+        responseBudget: limits.mcpResultBytes + 1,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    assert.equal(await repairState(table), before);
+    await assert.rejects(
+      storage!.mutateRows(suppliedRepairActor, table.id, input),
+      { code: "PAYLOAD_TOO_LARGE" },
+    );
+    assert.equal(callbacks, 0);
+    assert.equal(await repairState(table), before);
+    const boundedOperations = operations.slice(0, 16),
+      boundedOptions = await repairOptions(table.id, boundedOperations),
+      bounded = {
+        ...boundedOptions,
+        responseBudget: input.responseBudget,
+        operations: boundedOperations,
+        onCommit: async (client: PoolClient, outcome: MutationResult) => {
+          callbacks++;
+          await boundedOptions.onCommit!(client, outcome);
+        },
+      },
+      result = await storage!.mutateRows(
+        suppliedRepairActor,
+        table.id,
+        bounded,
+      );
+    assert.equal(result.rows.length, 16);
+    assert.equal(callbacks, 1);
+    assert(
+      Buffer.byteLength(JSON.stringify(result)) +
+        2048 +
+        bounded.operations.length * 200 <=
+        bounded.responseBudget,
+    );
+    const committed = await repairState(table);
+    assert(!committed.includes("responseBudget"));
+    assert.deepEqual(
+      await storage!.mutateRows(suppliedRepairActor, table.id, {
+        ...bounded,
+        responseBudget: limits.mcpResultBytes - 2048,
+      }),
+      result,
+    );
+    assert.equal(callbacks, 2);
+    assert.equal(await repairState(table), committed);
+    await assert.rejects(
+      storage!.mutateRows(suppliedRepairActor, table.id, {
+        ...bounded,
+        responseBudget: 128,
+      }),
+      { code: "PAYLOAD_TOO_LARGE" },
+    );
+    assert.equal(callbacks, 2);
+    assert.equal(await repairState(table), committed);
+    const audit = (
+      await owner!.query(
+        "SELECT context FROM rootset_control.cell_changes WHERE mutation_id=$1 UNION ALL SELECT context FROM rootset_control.resource_history WHERE table_id=$2 AND operation='operatorRepair'",
+        [result.mutationId, table.id],
+      )
+    ).rows;
+    assert.equal(audit.length, 17);
+    for (const event of audit)
+      assert.deepEqual(event.context, {
+        requestId: bounded.context!.requestId,
+        source: "operator",
+        jobId: bounded.context!.jobId,
+      });
+    const ordinary = await storage!.mutateRows(actor, table.id, {
+      idempotencyKey: `ordinary-${newId()}`,
+      operations: rows.map((row, index) => ({
+        kind: "update" as const,
+        rowId: row.id,
+        expectedVersion: index < 16 ? "2" : "1",
+        values: { flag: false },
+      })),
+    });
+    assert.equal(ordinary.rows.length, 20);
+    assert(Buffer.byteLength(JSON.stringify(ordinary)) > limits.mcpResultBytes);
+    assert.equal(
+      (
+        await owner!.query(
+          "SELECT count(*)::int n FROM rootset_control.resource_history WHERE table_id=$1 AND operation='operatorRepair'",
+          [table.id],
+        )
+      ).rows[0]!.n,
+      1,
+    );
+  },
+);
+
+test(
+  "Concurrent repair retry exercises the locked native replay branch and invokes fenced idempotent outcome hooks without duplicate completion or cell history",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Concurrent repair receipt",
+      fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+    });
+    const row = await storage!.createRow(actor, table.id, { value: 1 });
+    const operations: RowOperation[] = [
+        {
+          kind: "update",
+          rowId: row.id,
+          expectedVersion: "1",
+          values: { value: 2 },
+        },
+      ],
+      options = await repairOptions(table.id, operations),
+      input = {
+        ...options,
+        responseBudget: limits.mcpResultBytes - 1024,
+        operations,
+      };
+    let reached = 0,
+      release!: () => void,
+      abort!: (error: Error) => void,
+      lockedReplay = 0,
+      callbacks = 0;
+    const together = new Promise<void>((resolve, reject) => {
+      release = resolve;
+      abort = reject;
+    });
+    void together.catch(() => undefined);
+    const deadline = setTimeout(
+      () => abort(new Error("Both actual repair dispatches did not arrive")),
+      limits.queryTimeoutMs,
+    );
+    const observedPool = new Proxy(app!, {
+      get(target, key) {
+        if (key === "connect")
+          return async () => {
+            const client = await target.connect();
+            return new Proxy(client, {
+              get(c, member) {
+                if (member === "query")
+                  return async (sql: string, params?: unknown[]) => {
+                    const result = await c.query(sql, params);
+                    if (
+                      sql.startsWith(
+                        "SELECT input_hash,outcome FROM rootset_control.mutations",
+                      ) &&
+                      params?.[2] === input.idempotencyKey
+                    ) {
+                      assert.equal(result.rowCount, 0);
+                      if (++reached === 2) release();
+                      await together;
+                    }
+                    if (
+                      sql.startsWith(
+                        "SELECT * FROM rootset_control.mutations WHERE",
+                      ) &&
+                      params?.[2] === input.idempotencyKey &&
+                      result.rows[0]?.outcome
+                    )
+                      lockedReplay++;
+                    return result;
+                  };
+                const value = Reflect.get(c, member);
+                return typeof value === "function" ? value.bind(c) : value;
+              },
+            });
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const observed = new TableStorage({
+        pool: observedPool,
+        ddlPool: ddl!,
+        cursorSecret: "repair-concurrent-replay-secret-at-least32-bytes",
+      }),
+      saved = input.onCommit!;
+    input.onCommit = async (client, outcome: MutationResult) => {
+      callbacks++;
+      await saved(client, outcome);
+    };
+    let result: MutationResult[];
+    try {
+      const settled = await Promise.allSettled(
+        [
+          observed.mutateRows(suppliedRepairActor, table.id, input),
+          observed.mutateRows(suppliedRepairActor, table.id, input),
+        ].map((request) =>
+          request.catch((error: unknown) => {
+            abort(error instanceof Error ? error : new Error(String(error)));
+            throw error;
+          }),
+        ),
+      );
+      result = settled.map((entry) => {
+        if (entry.status === "rejected") throw entry.reason;
+        return entry.value;
+      });
+    } finally {
+      clearTimeout(deadline);
+    }
+    assert.deepEqual(result[0], result[1]);
+    assert.equal(reached, 2);
+    assert.equal(lockedReplay, 1);
+    assert.equal(callbacks, 2);
+    assert.equal((await storage!.getRow(actor, table.id, row.id)).version, "2");
+    const facts = (
+      await owner!.query(
+        "SELECT (SELECT count(*)::int FROM rootset_control.mutations WHERE table_id=$1 AND idempotency_key=$2) AS receipts,(SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.resource_history WHERE table_id=$1 AND operation='operatorRepair') AS completions,(SELECT count(*)::int FROM rootset_control.operation_outcomes WHERE job_id=$3) AS outcomes",
+        [table.id, input.idempotencyKey, input.context!.jobId],
+      )
+    ).rows[0]!;
+    assert.deepEqual(facts, {
+      receipts: 1,
+      cells: 2,
+      completions: 1,
+      outcomes: 1,
+    });
+  },
+);
 
 async function frozenSnapshot(dbId: string) {
   const c = await ddl!.connect();
@@ -2220,5 +3236,251 @@ test(
         await ended;
       }
     }
+  },
+);
+
+test(
+  "Concurrent index resource audit preserves supplied worker correlation and replay without exposing lease hooks or creating cell edits",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Index resource correlation",
+      fields: [{ apiKey: "CODE", label: "Code", type: "text", charLimit: 20 }],
+    });
+    await storage!.createRow(actor, table.id, { CODE: "unchanged" });
+    const fence = await runningJob(table.id, "createIndex");
+    const input = {
+      fieldId: table.fields[0]!.id,
+      kind: "btree" as const,
+      expectedSchemaVersion: 1,
+      idempotencyKey: newId(),
+      context: {
+        requestId: "index-public-request",
+        source: "mcp" as const,
+        jobId: fence.jobId,
+        jobFence: fence,
+        beforePublish: async () => undefined,
+      },
+    };
+    const index = await storage!.createIndex(actor, table.id, input);
+    const replay = await storage!.createIndex(actor, table.id, input);
+    assert.equal(replay.id, index.id);
+    const events = (
+      await owner!.query(
+        "SELECT actor,context,before_value,after_value FROM rootset_control.resource_history WHERE resource_id=$1 AND operation='index.create'",
+        [index.id],
+      )
+    ).rows;
+    assert.equal(events.length, 1);
+    assert.deepEqual(events[0]!.context, {
+      requestId: "index-public-request",
+      source: "mcp",
+      jobId: fence.jobId,
+    });
+    assert.equal(events[0]!.actor.id, actor.id);
+    assert.equal(events[0]!.before_value, null);
+    assert.deepEqual(events[0]!.after_value, {
+      fieldId: input.fieldId,
+      kind: "btree",
+    });
+    const current = await storage!.getTable(actor, table.id);
+    assert.equal(current.schemaVersion, 2);
+    const native = (
+      await owner!.query(
+        "SELECT indisvalid,indrelid::regclass::text AS relation FROM pg_index WHERE indexrelid=$1::regclass",
+        [`"${current.schemaName}"."${index.physicalName}"`],
+      )
+    ).rows[0]!;
+    assert.equal(native.indisvalid, true);
+    assert.equal(
+      native.relation,
+      `${current.schemaName}.${current.physicalName}`,
+    );
+    const facts = (
+      await owner!.query(
+        "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.row_events WHERE table_id=$1) AS rows",
+        [table.id],
+      )
+    ).rows[0]!;
+    assert.deepEqual(facts, { cells: 1, rows: 1 });
+    const peer = newId();
+    await owner!.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+      [peer, "Index audit peer"],
+    );
+    assert.equal(
+      (
+        await withOrg(app!, peer, (client) =>
+          client.query(
+            "SELECT id FROM rootset_control.resource_history WHERE resource_id=$1",
+            [index.id],
+          ),
+        )
+      ).rowCount,
+      0,
+    );
+    const persisted = JSON.stringify(events);
+    assert.equal(persisted.includes(fence.leaseToken), false);
+    assert.equal(persisted.includes("beforePublish"), false);
+  },
+);
+
+test(
+  "Restore stage publication replacement and discard audit current correlation while copied history retains original attribution",
+  { skip: !configured },
+  async () => {
+    const database = await storage!.createDatabase(actor, {
+      name: "Restore audit source",
+    });
+    const table = await storage!.createTable(actor, database.id, {
+      name: "Original attributed cells",
+      fields: [
+        { apiKey: "CODE", label: "Original", type: "text", charLimit: 20 },
+      ],
+    });
+    const row = await storage!.createRow(
+      actor,
+      table.id,
+      { CODE: "original" },
+      { context: { source: "import", requestId: "original-import-request" } },
+    );
+    const source = await frozenSnapshot(database.id);
+    const fence = await runningJob(table.id, "restoreDatabase");
+    const correlation = {
+      source: "mcp" as const,
+      requestId: "current-restore-request",
+      jobId: "ignored-spoofed-job",
+      jobFence: fence,
+      beforePublish: async () => undefined,
+    };
+    const result = await storage!.restoreDatabase(actor, source, {
+      name: "Audited new restore",
+      jobId: fence.jobId,
+      staged: true,
+      jobFence: fence,
+      context: correlation,
+    });
+    await storage!.publishRestore(actor, result, {
+      jobId: fence.jobId,
+      leaseToken: fence.leaseToken,
+      context: correlation,
+    });
+    const copied = await storage!.cellHistory(
+      actor,
+      result.tableMapping[table.id]!,
+      row.id,
+      result.fieldMapping[table.fields[0]!.id]!,
+    );
+    assert.equal(copied.data.length, 1);
+    assert.equal(
+      (copied.data[0]!.context as { requestId: string; source: string })
+        .requestId,
+      "original-import-request",
+    );
+    assert.equal(
+      (copied.data[0]!.context as { source: string }).source,
+      "import",
+    );
+    assert.equal((copied.data[0]!.actor as Actor).id, actor.id);
+    assert.equal(copied.data[0]!.new_value, "original");
+    const discardedFence = await runningJob(table.id, "verifyBackup");
+    const discarded = await storage!.restoreDatabase(actor, source, {
+      name: "Audited verification",
+      jobId: discardedFence.jobId,
+      staged: true,
+      verification: true,
+      jobFence: discardedFence,
+      context: {
+        ...correlation,
+        requestId: "verification-request",
+        jobFence: discardedFence,
+      },
+    });
+    await storage!.discardRestore(actor, discarded);
+    const target = await storage!.createDatabase(actor, {
+      name: "Native replacement target",
+    });
+    const targetTable = await storage!.createTable(actor, target.id, {
+      name: "Target rows",
+      fields: [{ apiKey: "CODE", label: "Code", type: "text", charLimit: 20 }],
+    });
+    await storage!.createRow(actor, targetTable.id, { CODE: "target-before" });
+    const replacementFence = await runningJob(table.id, "restoreDatabase");
+    await storage!.acquireRestoreBarrier(actor, target.id, replacementFence);
+    const replacement = await storage!.restoreDatabase(actor, source, {
+      name: "Native replacement stage",
+      jobId: replacementFence.jobId,
+      staged: true,
+      jobFence: replacementFence,
+      context: {
+        ...correlation,
+        requestId: "replacement-request",
+        jobFence: replacementFence,
+      },
+    });
+    await storage!.publishRestore(actor, replacement, {
+      jobId: replacementFence.jobId,
+      leaseToken: replacementFence.leaseToken,
+      targetDatabaseId: target.id,
+      recoveryBackupId: newId(),
+      context: { ...correlation, requestId: "replacement-request" },
+    });
+    const events = (
+      await owner!.query(
+        "SELECT operation,actor,context FROM rootset_control.resource_history WHERE operation LIKE 'database.restore.%' AND resource_id=ANY($1::varchar(26)[]) ORDER BY id",
+        [
+          [
+            result.databaseId,
+            discarded.databaseId,
+            replacement.databaseId,
+            target.id,
+          ],
+        ],
+      )
+    ).rows;
+    assert.deepEqual(
+      events.map((e) => e.operation).sort(),
+      [
+        "database.restore.stage",
+        "database.restore.publish",
+        "database.restore.discard",
+        "database.restore.stage",
+        "database.restore.stage",
+        "database.restore.replace",
+        "database.restore.publish",
+      ].sort(),
+    );
+    for (const event of events) {
+      assert.equal(event.actor.id, actor.id);
+      assert.equal(event.context.source, "restore");
+      assert.equal(
+        event.context.jobId,
+        event.context.requestId === "current-restore-request"
+          ? fence.jobId
+          : event.context.requestId === "verification-request"
+            ? discardedFence.jobId
+            : replacementFence.jobId,
+      );
+      assert.equal(event.context.jobFence, undefined);
+      assert.equal(event.context.beforePublish, undefined);
+    }
+    const original = await storage!.cellHistory(
+      actor,
+      table.id,
+      row.id,
+      table.fields[0]!.id,
+    );
+    assert.equal(original.data.length, 1);
+    assert.equal(
+      (original.data[0]!.context as { requestId: string }).requestId,
+      "original-import-request",
+    );
+    const body = JSON.stringify(events);
+    for (const token of [
+      fence.leaseToken,
+      discardedFence.leaseToken,
+      replacementFence.leaseToken,
+    ])
+      assert.equal(body.includes(token), false);
   },
 );
