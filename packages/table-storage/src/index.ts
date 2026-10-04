@@ -5,7 +5,14 @@ import {
   mapCapacityError,
   type CapacityAdmission,
 } from "@rootset/capacity";
-import { Pool, type PoolClient, withOrg } from "@rootset/database";
+import {
+  Pool,
+  type PoolClient,
+  withOrg,
+  withOrgRead,
+  ReadCancelledError,
+  ReadCancellationFailure,
+} from "@rootset/database";
 import {
   type Actor,
   type FieldDefinition,
@@ -179,6 +186,19 @@ function fail(
   throw new RootsetError(code, message, status, details);
 }
 function storageError(error: unknown): never {
+  if (error instanceof ReadCancelledError)
+    fail(
+      "REQUEST_TIMEOUT",
+      "Client request ended before its table read completed",
+      408,
+    );
+  if (error instanceof ReadCancellationFailure)
+    throw new RootsetError(
+      "DEPENDENCY_UNAVAILABLE",
+      "Native read cancellation could not be confirmed safely",
+      503,
+      { retryAfter: 1 },
+    );
   const mapped = mapCapacityError(error);
   if (mapped) throw mapped;
   const e = error as { code?: string; message?: string; detail?: string };
@@ -365,6 +385,19 @@ export class TableStorage {
     this.ddlPool = options.ddlPool;
     this.cursor = new CursorCodec(options.cursorSecret);
     this.capacity = options.capacity ?? new CapacityService(options.ddlPool);
+  }
+  private async read<T>(
+    actor: Actor,
+    work: (c: PoolClient) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    try {
+      return await (signal
+        ? withOrgRead(this.pool, id(actor.orgId), work, signal)
+        : withOrg(this.pool, id(actor.orgId), work));
+    } catch (error) {
+      return storageError(error);
+    }
   }
   private async run<T>(
     actor: Actor,
@@ -1894,162 +1927,170 @@ export class TableStorage {
     a: Actor,
     tableId: string,
     input: QuerySpec = {},
-    options: { surface?: "rest" | "mcp" | "ui"; byteLimit?: number } = {},
+    options: {
+      surface?: "rest" | "mcp" | "ui";
+      byteLimit?: number;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<QueryResult> {
-    return this.run(a, async (c) => {
-      const t = await this.table(c, a, tableId);
-      const defaultRows =
-        options.surface === "mcp"
-          ? limits.mcpDefaultRows
-          : options.surface === "ui"
-            ? limits.uiDefaultRows
-            : limits.restDefaultRows;
-      const compiled = compileQuery(t.fields, {
-        ...input,
-        limit: input.limit ?? defaultRows,
-      });
-      const binding = {
-        orgId: a.orgId,
-        tableId: t.id,
-        schemaVersion: t.schemaVersion,
-        grantVersion: a.grantVersion ?? 0,
-        actorId: a.id,
-        queryHash: compiled.queryHash,
-      };
-      const params = [...compiled.params];
-      let where = compiled.where;
-      if (input.cursor) {
-        const last = this.cursor.decode(input.cursor, binding);
-        const keyset = compileKeyset(compiled.sorts, last, params.length + 1);
-        where = `(${where}) AND (${keyset.where})`;
-        params.push(...keyset.params);
-      }
-      const needed = new Map(
-        [
-          ...compiled.projection,
-          ...compiled.sorts.flatMap((s) =>
-            s.fieldId ? t.fields.filter((f) => f.id === s.fieldId) : [],
-          ),
-        ].map((f) => [f.id, f]),
-      );
-      params.push(compiled.limit + 1);
-      await c.query("SELECT set_config('statement_timeout',$1,true)", [
-        String(limits.queryTimeoutMs),
-      ]);
-      const byteLimit = Math.min(
-        options.byteLimit ??
-          (options.surface === "mcp"
+    return this.read(
+      a,
+      async (c) => {
+        const t = await this.table(c, a, tableId);
+        const defaultRows =
+          options.surface === "mcp"
+            ? limits.mcpDefaultRows
+            : options.surface === "ui"
+              ? limits.uiDefaultRows
+              : limits.restDefaultRows;
+        const compiled = compileQuery(t.fields, {
+          ...input,
+          limit: input.limit ?? defaultRows,
+        });
+        const binding = {
+          orgId: a.orgId,
+          tableId: t.id,
+          schemaVersion: t.schemaVersion,
+          grantVersion: a.grantVersion ?? 0,
+          actorId: a.id,
+          queryHash: compiled.queryHash,
+        };
+        const params = [...compiled.params];
+        let where = compiled.where;
+        if (input.cursor) {
+          const last = this.cursor.decode(input.cursor, binding);
+          const keyset = compileKeyset(compiled.sorts, last, params.length + 1);
+          where = `(${where}) AND (${keyset.where})`;
+          params.push(...keyset.params);
+        }
+        const needed = new Map(
+          [
+            ...compiled.projection,
+            ...compiled.sorts.flatMap((s) =>
+              s.fieldId ? t.fields.filter((f) => f.id === s.fieldId) : [],
+            ),
+          ].map((f) => [f.id, f]),
+        );
+        params.push(compiled.limit + 1);
+        await c.query("SELECT set_config('statement_timeout',$1,true)", [
+          String(limits.queryTimeoutMs),
+        ]);
+        const byteLimit = Math.min(
+          options.byteLimit ??
+            (options.surface === "mcp"
+              ? limits.mcpResultBytes
+              : limits.restResultBytes),
+          options.surface === "mcp"
             ? limits.mcpResultBytes
-            : limits.restResultBytes),
-        options.surface === "mcp"
-          ? limits.mcpResultBytes
-          : limits.restResultBytes,
-      );
-      if (!Number.isSafeInteger(byteLimit) || byteLimit < 1)
-        fail("VALIDATION_FAILED", "Invalid response byte budget");
-      const deadline = Date.now() + limits.queryTimeoutMs;
-      await c.query(
-        `DECLARE rootset_page NO SCROLL CURSOR FOR SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length}`,
-        params,
-      );
-      const data: Row[] = [];
-      let valueBytes = 0,
-        nextCursor: string | null = null,
-        hasMore = false,
-        stop = false;
-      let stopReason: QueryResult["page"]["stopReason"] = "end";
-      while (!stop && data.length <= compiled.limit) {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0)
+            : limits.restResultBytes,
+        );
+        if (!Number.isSafeInteger(byteLimit) || byteLimit < 1)
+          fail("VALIDATION_FAILED", "Invalid response byte budget");
+        const deadline = Date.now() + limits.queryTimeoutMs;
+        await c.query(
+          `DECLARE rootset_page NO SCROLL CURSOR FOR SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length}`,
+          params,
+        );
+        const data: Row[] = [];
+        let valueBytes = 0,
+          nextCursor: string | null = null,
+          hasMore = false,
+          stop = false;
+        let stopReason: QueryResult["page"]["stopReason"] = "end";
+        while (!stop && data.length <= compiled.limit) {
+          const remaining = deadline - Date.now();
+          if (remaining <= 0)
+            fail(
+              "QUERY_TIMEOUT",
+              "Query exceeded its ten-second execution budget",
+              408,
+            );
+          await c.query("SELECT set_config('statement_timeout',$1,true)", [
+            String(remaining),
+          ]);
+          const batch = await c.query<Raw>(
+            `FETCH FORWARD ${Math.min(200, compiled.limit + 1 - data.length)} FROM rootset_page`,
+          );
+          if (!batch.rows.length) break;
+          for (const raw of batch.rows) {
+            if (data.length >= compiled.limit) {
+              hasMore = true;
+              stopReason = "row_limit";
+              stop = true;
+              break;
+            }
+            const row = rowFrom(raw, compiled.projection);
+            const full = rowFrom(raw, [...needed.values()]);
+            const cursor = this.cursor.encode(
+              binding,
+              compiled.sorts.map((s) =>
+                s.fieldId ? (full.values[s.apiKey!] ?? null) : row.id,
+              ),
+            );
+            const rowSize = Buffer.byteLength(JSON.stringify(row));
+            const envelope = {
+              data: [],
+              schemaVersion: t.schemaVersion,
+              page: {
+                returned: data.length + 1,
+                requestedLimit: compiled.limit,
+                hasMore: true,
+                nextCursor: cursor,
+                stopReason: "byte_limit",
+                consistency: "live",
+              },
+            };
+            const size =
+              Buffer.byteLength(JSON.stringify(envelope)) +
+              valueBytes +
+              rowSize +
+              data.length;
+            if (size > byteLimit) {
+              if (!data.length)
+                fail(
+                  "PAYLOAD_TOO_LARGE",
+                  "One complete row cannot fit the result budget",
+                  413,
+                );
+              hasMore = true;
+              stopReason = "byte_limit";
+              stop = true;
+              break;
+            }
+            data.push(row);
+            valueBytes += rowSize;
+            nextCursor = cursor;
+          }
+          if (batch.rows.length < 200) break;
+        }
+        if (Date.now() > deadline)
           fail(
             "QUERY_TIMEOUT",
             "Query exceeded its ten-second execution budget",
             408,
           );
-        await c.query("SELECT set_config('statement_timeout',$1,true)", [
-          String(remaining),
-        ]);
-        const batch = await c.query<Raw>(
-          `FETCH FORWARD ${Math.min(200, compiled.limit + 1 - data.length)} FROM rootset_page`,
-        );
-        if (!batch.rows.length) break;
-        for (const raw of batch.rows) {
-          if (data.length >= compiled.limit) {
-            hasMore = true;
-            stopReason = "row_limit";
-            stop = true;
-            break;
-          }
-          const row = rowFrom(raw, compiled.projection);
-          const full = rowFrom(raw, [...needed.values()]);
-          const cursor = this.cursor.encode(
-            binding,
-            compiled.sorts.map((s) =>
-              s.fieldId ? (full.values[s.apiKey!] ?? null) : row.id,
-            ),
+        const result: QueryResult = {
+          data,
+          schemaVersion: t.schemaVersion,
+          page: {
+            returned: data.length,
+            requestedLimit: compiled.limit,
+            hasMore,
+            nextCursor: hasMore ? nextCursor : null,
+            stopReason: hasMore ? stopReason : "end",
+            consistency: "live",
+          },
+        };
+        if (Buffer.byteLength(JSON.stringify(result)) > byteLimit)
+          fail(
+            "PAYLOAD_TOO_LARGE",
+            "Response metadata exceeds the result budget",
+            413,
           );
-          const rowSize = Buffer.byteLength(JSON.stringify(row));
-          const envelope = {
-            data: [],
-            schemaVersion: t.schemaVersion,
-            page: {
-              returned: data.length + 1,
-              requestedLimit: compiled.limit,
-              hasMore: true,
-              nextCursor: cursor,
-              stopReason: "byte_limit",
-              consistency: "live",
-            },
-          };
-          const size =
-            Buffer.byteLength(JSON.stringify(envelope)) +
-            valueBytes +
-            rowSize +
-            data.length;
-          if (size > byteLimit) {
-            if (!data.length)
-              fail(
-                "PAYLOAD_TOO_LARGE",
-                "One complete row cannot fit the result budget",
-                413,
-              );
-            hasMore = true;
-            stopReason = "byte_limit";
-            stop = true;
-            break;
-          }
-          data.push(row);
-          valueBytes += rowSize;
-          nextCursor = cursor;
-        }
-        if (batch.rows.length < 200) break;
-      }
-      if (Date.now() > deadline)
-        fail(
-          "QUERY_TIMEOUT",
-          "Query exceeded its ten-second execution budget",
-          408,
-        );
-      const result: QueryResult = {
-        data,
-        schemaVersion: t.schemaVersion,
-        page: {
-          returned: data.length,
-          requestedLimit: compiled.limit,
-          hasMore,
-          nextCursor: hasMore ? nextCursor : null,
-          stopReason: hasMore ? stopReason : "end",
-          consistency: "live",
-        },
-      };
-      if (Buffer.byteLength(JSON.stringify(result)) > byteLimit)
-        fail(
-          "PAYLOAD_TOO_LARGE",
-          "Response metadata exceeds the result budget",
-          413,
-        );
-      return result;
-    });
+        return result;
+      },
+      options.signal,
+    );
   }
   async cellHistory(
     a: Actor,
@@ -5045,6 +5086,7 @@ export class TableStorage {
       position?: "first" | "middle" | "last" | number;
       sessionId?: string;
     } = {},
+    options: { signal?: AbortSignal } = {},
   ): Promise<{
     result: QueryResult;
     sessionId: string;
@@ -5054,184 +5096,194 @@ export class TableStorage {
     countKind: "live" | "exact" | "unknown";
     anchorsReady: boolean;
   }> {
-    return this.run(a, async (c) => {
-      const t = await this.table(c, a, tableId);
-      const query = {
-        ...input.query,
-        limit: Math.min(
-          input.query?.limit ?? limits.uiDefaultRows,
-          limits.uiDefaultRows,
-        ),
-        cursor: undefined,
-      };
-      const compiled = compileQuery(t.fields, query);
-      const grantHash = hash({
-        actor: a.id,
-        grantVersion: a.grantVersion ?? 0,
-        targets: a.targets,
-      });
-      const anchorHash = hash({
-        where: compiled.where,
-        params: compiled.params,
-        sorts: compiled.sorts,
-      });
-      let sessionId = input.sessionId,
-        anchors: Record<string, JsonValue[]> = {};
-      if (sessionId) {
-        const old = await c.query<Raw>(
-          "SELECT * FROM rootset_control.query_sessions WHERE id=$1 AND org_id=$2 AND table_id=$3 AND expires_at>now()",
-          [id(sessionId), a.orgId, t.id],
-        );
-        const s = old.rows[0];
-        if (
-          !s ||
-          Number(s.schema_version) !== t.schemaVersion ||
-          s.query_hash !== anchorHash ||
-          s.grant_hash !== grantHash
-        )
-          fail(
-            "CURSOR_INVALID",
-            "Window session expired or schema/query/authority changed",
-            409,
+    return this.read(
+      a,
+      async (c) => {
+        const t = await this.table(c, a, tableId);
+        const query = {
+          ...input.query,
+          limit: Math.min(
+            input.query?.limit ?? limits.uiDefaultRows,
+            limits.uiDefaultRows,
+          ),
+          cursor: undefined,
+        };
+        const compiled = compileQuery(t.fields, query);
+        const grantHash = hash({
+          actor: a.id,
+          grantVersion: a.grantVersion ?? 0,
+          targets: a.targets,
+        });
+        const anchorHash = hash({
+          where: compiled.where,
+          params: compiled.params,
+          sorts: compiled.sorts,
+        });
+        let sessionId = input.sessionId,
+          anchors: Record<string, JsonValue[]> = {};
+        if (sessionId) {
+          const old = await c.query<Raw>(
+            "SELECT * FROM rootset_control.query_sessions WHERE id=$1 AND org_id=$2 AND table_id=$3 AND expires_at>now()",
+            [id(sessionId), a.orgId, t.id],
           );
-        anchors = s.anchors as Record<string, JsonValue[]>;
-      } else {
-        sessionId = newId();
-        await c.query(
-          "INSERT INTO rootset_control.query_sessions(id,org_id,table_id,schema_version,query_hash,grant_hash,expires_at) VALUES($1,$2,$3,$4,$5,$6,now()+interval '1 hour')",
-          [sessionId, a.orgId, t.id, t.schemaVersion, anchorHash, grantHash],
-        );
-      }
-      const position =
-        input.position === 0 ? "first" : (input.position ?? "first");
-      if (
-        typeof position === "number" &&
-        (!Number.isSafeInteger(position) || position < 0)
-      )
-        fail(
-          "VALIDATION_FAILED",
-          "Window position must be a nonnegative integer",
-        );
-      let totalRows: number | null = query.where
-        ? ((anchors.__count?.[0] as number) ?? null)
-        : t.rowCount;
-      let desired =
-        position === "first"
-          ? 0
-          : position === "middle"
-            ? Math.floor((totalRows ?? t.rowCount) / 2)
-            : position === "last"
-              ? Math.max(0, (totalRows ?? t.rowCount) - compiled.limit)
-              : Math.max(
-                  0,
-                  Math.min(
-                    Math.floor(position),
-                    Math.max(0, (totalRows ?? t.rowCount) - 1),
-                  ),
-                );
-      if (
-        (desired > 0 ||
-          ((position === "middle" || position === "last") &&
-            totalRows === null)) &&
-        !Object.keys(anchors).length
-      ) {
-        const cols = compiled.sorts.map((s) => q(s.column));
-        const r = await c.query<Raw>(
-          `WITH ranked AS (SELECT row_number() OVER(ORDER BY ${compiled.orderBy})-1 AS rank,count(*) OVER() AS matching_count,${cols.join(",")} FROM ${tablePath(t)} WHERE ${compiled.where}) SELECT * FROM ranked WHERE rank%10000=0 ORDER BY rank`,
-          compiled.params,
-        );
-        for (const raw of r.rows) {
-          const whole = rowFrom(raw, t.fields);
-          anchors[String(raw.rank)] = compiled.sorts.map((s) =>
-            s.fieldId ? (whole.values[s.apiKey!] ?? null) : String(raw.row_id),
+          const s = old.rows[0];
+          if (
+            !s ||
+            Number(s.schema_version) !== t.schemaVersion ||
+            s.query_hash !== anchorHash ||
+            s.grant_hash !== grantHash
+          )
+            fail(
+              "CURSOR_INVALID",
+              "Window session expired or schema/query/authority changed",
+              409,
+            );
+          anchors = s.anchors as Record<string, JsonValue[]>;
+        } else {
+          sessionId = newId();
+          await c.query(
+            "INSERT INTO rootset_control.query_sessions(id,org_id,table_id,schema_version,query_hash,grant_hash,expires_at) VALUES($1,$2,$3,$4,$5,$6,now()+interval '1 hour')",
+            [sessionId, a.orgId, t.id, t.schemaVersion, anchorHash, grantHash],
           );
         }
-        anchors.__count = [Number(r.rows[0]?.matching_count ?? 0)];
-        totalRows = Number(anchors.__count[0]);
-        desired =
-          position === "middle"
-            ? Math.floor(totalRows / 2)
-            : position === "last"
-              ? Math.max(0, totalRows - compiled.limit)
-              : typeof position === "number"
-                ? Math.min(position, Math.max(0, totalRows - 1))
-                : 0;
-        await c.query(
-          "UPDATE rootset_control.query_sessions SET anchors=$2::jsonb WHERE id=$1",
-          [sessionId, JSON.stringify(anchors)],
+        const position =
+          input.position === 0 ? "first" : (input.position ?? "first");
+        if (
+          typeof position === "number" &&
+          (!Number.isSafeInteger(position) || position < 0)
+        )
+          fail(
+            "VALIDATION_FAILED",
+            "Window position must be a nonnegative integer",
+          );
+        let totalRows: number | null = query.where
+          ? ((anchors.__count?.[0] as number) ?? null)
+          : t.rowCount;
+        let desired =
+          position === "first"
+            ? 0
+            : position === "middle"
+              ? Math.floor((totalRows ?? t.rowCount) / 2)
+              : position === "last"
+                ? Math.max(0, (totalRows ?? t.rowCount) - compiled.limit)
+                : Math.max(
+                    0,
+                    Math.min(
+                      Math.floor(position),
+                      Math.max(0, (totalRows ?? t.rowCount) - 1),
+                    ),
+                  );
+        if (
+          (desired > 0 ||
+            ((position === "middle" || position === "last") &&
+              totalRows === null)) &&
+          !Object.keys(anchors).length
+        ) {
+          const cols = compiled.sorts.map((s) => q(s.column));
+          const r = await c.query<Raw>(
+            `WITH ranked AS (SELECT row_number() OVER(ORDER BY ${compiled.orderBy})-1 AS rank${query.where ? ",count(*) OVER() AS matching_count" : ""},${cols.join(",")} FROM ${tablePath(t)} WHERE ${compiled.where}) SELECT * FROM ranked WHERE rank%10000=0 ORDER BY rank`,
+            compiled.params,
+          );
+          for (const raw of r.rows) {
+            const whole = rowFrom(raw, t.fields);
+            anchors[String(raw.rank)] = compiled.sorts.map((s) =>
+              s.fieldId
+                ? (whole.values[s.apiKey!] ?? null)
+                : String(raw.row_id),
+            );
+          }
+          anchors.__count = [
+            query.where ? Number(r.rows[0]?.matching_count ?? 0) : t.rowCount,
+          ];
+          totalRows = Number(anchors.__count[0]);
+          desired =
+            position === "middle"
+              ? Math.floor(totalRows / 2)
+              : position === "last"
+                ? Math.max(0, totalRows - compiled.limit)
+                : typeof position === "number"
+                  ? Math.min(position, Math.max(0, totalRows - 1))
+                  : 0;
+          await c.query(
+            "UPDATE rootset_control.query_sessions SET anchors=$2::jsonb WHERE id=$1",
+            [sessionId, JSON.stringify(anchors)],
+          );
+        }
+        const rank = Math.max(
+          0,
+          ...Object.keys(anchors)
+            .map(Number)
+            .filter((n) => n <= desired),
         );
-      }
-      const rank = Math.max(
-        0,
-        ...Object.keys(anchors)
-          .map(Number)
-          .filter((n) => n <= desired),
-      );
-      let where = compiled.where;
-      const params = [...compiled.params];
-      if (rank > 0 && anchors[String(rank)]) {
-        const keyset = compileKeyset(
-          compiled.sorts,
-          anchors[String(rank)]!,
-          params.length + 1,
+        let where = compiled.where;
+        const params = [...compiled.params];
+        if (rank > 0 && anchors[String(rank)]) {
+          const keyset = compileKeyset(
+            compiled.sorts,
+            anchors[String(rank)]!,
+            params.length + 1,
+          );
+          where = `(${where}) AND ((${keyset.where}) OR ${q("row_id")}=$${params.length + keyset.params.length}::text)`;
+          params.push(...keyset.params);
+        }
+        const localOffset = Math.max(0, desired - rank);
+        if (localOffset >= 10000)
+          fail("QUERY_TIMEOUT", "Window anchors need refreshing");
+        params.push(compiled.limit + 1, localOffset);
+        const needed = new Map(compiled.projection.map((f) => [f.id, f]));
+        for (const sort of compiled.sorts)
+          if (sort.fieldId) needed.set(sort.fieldId, fieldFor(t, sort.fieldId));
+        const raw = await c.query<Raw>(
+          `SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+          params,
         );
-        where = `(${where}) AND (${keyset.where})`;
-        params.push(...keyset.params);
-      }
-      const localOffset = Math.max(0, desired - rank - (rank > 0 ? 1 : 0));
-      if (localOffset >= 10000)
-        fail("QUERY_TIMEOUT", "Window anchors need refreshing");
-      params.push(compiled.limit + 1, localOffset);
-      const needed = new Map(compiled.projection.map((f) => [f.id, f]));
-      for (const sort of compiled.sorts)
-        if (sort.fieldId) needed.set(sort.fieldId, fieldFor(t, sort.fieldId));
-      const raw = await c.query<Raw>(
-        `SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length - 1} OFFSET $${params.length}`,
-        params,
-      );
-      const binding = {
-        orgId: a.orgId,
-        tableId: t.id,
-        schemaVersion: t.schemaVersion,
-        grantVersion: a.grantVersion ?? 0,
-        actorId: a.id,
-        queryHash: compiled.queryHash,
-      };
-      const full = new Map(
-        raw.rows.map((v) => [
-          String(v.row_id),
-          rowFrom(v, [...needed.values()]),
-        ]),
-      );
-      const page = buildPage(
-        raw.rows.map((v) => rowFrom(v, compiled.projection)),
-        {
-          limit: compiled.limit,
-          byteLimit: limits.restResultBytes - 512,
+        const binding = {
+          orgId: a.orgId,
+          tableId: t.id,
           schemaVersion: t.schemaVersion,
-          cursorForRow: (r) =>
-            this.cursor.encode(
-              binding,
-              compiled.sorts.map((s) =>
-                s.fieldId ? (full.get(r.id)!.values[s.apiKey!] ?? null) : r.id,
+          grantVersion: a.grantVersion ?? 0,
+          actorId: a.id,
+          queryHash: compiled.queryHash,
+        };
+        const full = new Map(
+          raw.rows.map((v) => [
+            String(v.row_id),
+            rowFrom(v, [...needed.values()]),
+          ]),
+        );
+        const page = buildPage(
+          raw.rows.map((v) => rowFrom(v, compiled.projection)),
+          {
+            limit: compiled.limit,
+            byteLimit: limits.restResultBytes - 512,
+            schemaVersion: t.schemaVersion,
+            cursorForRow: (r) =>
+              this.cursor.encode(
+                binding,
+                compiled.sorts.map((s) =>
+                  s.fieldId
+                    ? (full.get(r.id)!.values[s.apiKey!] ?? null)
+                    : r.id,
+                ),
               ),
-            ),
-        },
-      );
-      return {
-        result: page,
-        sessionId,
-        position: desired,
-        totalRows,
-        tableRowCount: t.rowCount,
-        countKind: query.where
-          ? totalRows === null
-            ? "unknown"
-            : "exact"
-          : "live",
-        anchorsReady: Object.keys(anchors).length > 0,
-      };
-    });
+          },
+        );
+        return {
+          result: page,
+          sessionId,
+          position: desired,
+          totalRows,
+          tableRowCount: t.rowCount,
+          countKind: query.where
+            ? totalRows === null
+              ? "unknown"
+              : "exact"
+            : "live",
+          anchorsReady: Object.keys(anchors).length > 0,
+        };
+      },
+      options.signal,
+    );
   }
 }
 function literal(value: string): string {

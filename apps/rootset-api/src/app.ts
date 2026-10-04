@@ -8,6 +8,7 @@ import {
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  CancelledNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   operations,
@@ -32,6 +33,7 @@ import type { OAuthService } from "@rootset/oauth";
 import { Admission } from "./admission.js";
 import { readJson, numberLexemes } from "./json.js";
 import { normaliseTransportError } from "./transport-errors.js";
+import { McpReadRegistry, validMcpRequestId } from "./mcp-read-registry.js";
 
 export interface OperationContext {
   requestId: string;
@@ -40,7 +42,16 @@ export interface OperationContext {
   surface: "browser" | "rest" | "mcp";
   responseBudget: number;
   request?: Request;
+  signal?: AbortSignal;
   numericLexemes?: NumberLexeme[];
+}
+export function mcpOperationSignal(
+  request: Request,
+  signal: AbortSignal,
+): AbortSignal {
+  return signal === request.signal
+    ? signal
+    : AbortSignal.any([request.signal, signal]);
 }
 export const MCP_PROTOCOL_VERSION = "2025-11-25";
 export interface AdmissionLimits {
@@ -230,7 +241,8 @@ export function createApp(deps: ApiDependencies) {
       Variables: { requestId: string; operationId: string; errorCode: string };
     }>(),
     origin = new URL(deps.config.baseURL).origin,
-    admission = new Admission(deps.admissionPool ?? deps.pool);
+    admission = new Admission(deps.admissionPool ?? deps.pool),
+    mcpReads = new McpReadRegistry();
   const publicSpec = buildOpenAPI(origin),
     internalSpec = buildOpenAPI(origin, true),
     coverage = generateCoverageInventory(),
@@ -968,6 +980,43 @@ export function createApp(deps: ApiDependencies) {
       parsedBody &&
       typeof parsedBody === "object" &&
       "method" in parsedBody &&
+      parsedBody.method === "notifications/cancelled"
+    ) {
+      const notification = CancelledNotificationSchema.safeParse(parsedBody);
+      const id = notification.success
+        ? notification.data.params.requestId
+        : undefined;
+      if (
+        !notification.success ||
+        "id" in parsedBody ||
+        (id !== undefined &&
+          (!validMcpRequestId(id) ||
+            (typeof id === "number" &&
+              numericLexemes.some(
+                (number) =>
+                  number.path.length === 2 &&
+                  number.path[0] === "params" &&
+                  number.path[1] === "requestId" &&
+                  (!number.integer || !number.safeInteger),
+              ))))
+      )
+        return json(
+          {
+            jsonrpc: "2.0",
+            id: null,
+            error: {
+              code: -32600,
+              message:
+                "Use a cancellation notification with a bounded string or safe integer identifier.",
+            },
+          },
+          400,
+        );
+    }
+    if (
+      parsedBody &&
+      typeof parsedBody === "object" &&
+      "method" in parsedBody &&
       parsedBody.method === "tools/call" &&
       "params" in parsedBody &&
       parsedBody.params &&
@@ -1000,11 +1049,19 @@ export function createApp(deps: ApiDependencies) {
       { name: "Rootset", version: deps.config.version ?? "1.0.0" },
       { capabilities: { tools: {}, resources: {} } },
     );
+    server.setNotificationHandler(
+      CancelledNotificationSchema,
+      (notification) => {
+        if (notification.params.requestId !== undefined)
+          mcpReads.cancel(actor, notification.params.requestId);
+      },
+    );
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: tools as { name: string; inputSchema: { type: "object" } }[],
     }));
-    server.setRequestHandler(CallToolRequestSchema, async (message) => {
+    server.setRequestHandler(CallToolRequestSchema, async (message, extra) => {
       const requestId = c.get("requestId");
+      let read: ReturnType<McpReadRegistry["begin"]> | undefined;
       try {
         const operation = operations.find(
           (op) => op.toolName === message.params.name,
@@ -1044,6 +1101,13 @@ export function createApp(deps: ApiDependencies) {
           typeof input.query === "object"
         )
           input.query = { limit: limits.mcpDefaultRows, ...input.query };
+        mcpReads.assertAvailable(actor, extra.requestId);
+        if (operation.id === "listRows" || operation.id === "queryRows")
+          read = mcpReads.begin(
+            actor,
+            extra.requestId,
+            mcpOperationSignal(request, extra.signal),
+          );
         const release = await enterActor(actor, operation.readOnly);
         let result: unknown;
         try {
@@ -1058,6 +1122,8 @@ export function createApp(deps: ApiDependencies) {
                 surface: "mcp",
                 responseBudget: limits.mcpResultBytes - 1024,
                 request,
+                signal:
+                  read?.signal ?? mcpOperationSignal(request, extra.signal),
                 numericLexemes: argumentLexemes,
                 ...(typeof idempotencyKey === "string"
                   ? { idempotencyKey }
@@ -1106,6 +1172,8 @@ export function createApp(deps: ApiDependencies) {
           ],
           structuredContent: errorEnvelope(failure, requestId),
         };
+      } finally {
+        read?.release();
       }
     });
     server.setRequestHandler(ListResourcesRequestSchema, async () => ({

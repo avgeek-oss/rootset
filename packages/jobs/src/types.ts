@@ -135,6 +135,8 @@ export type RestoreResult = NativeRestoreResult;
 export type StoragePort = Pick<
   TableStorage,
   | "getTable"
+  | "getArchivedTable"
+  | "getArchivedDatabase"
   | "getRow"
   | "getDatabase"
   | "listUniqueRules"

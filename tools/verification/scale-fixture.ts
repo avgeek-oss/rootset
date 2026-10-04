@@ -485,7 +485,7 @@ export async function seedScaleFixture(destination: string): Promise<void> {
       const end = Math.min(historyEvents, start + 99999);
       await connection.query(
         `INSERT INTO rootset_control.cell_changes(org_id,database_id,table_id,row_id,field_id,mutation_id,old_value,new_value,field_definition,old_version,new_version,operation,actor,context,changed_at)
-        SELECT $1,$2,$3,upper(lpad(to_hex((n-1)%1000+1),26,'0')),$4,$5,to_jsonb((n-1)/1000),to_jsonb((n-1)/1000+1),$6::jsonb,(n-1)/1000+1,(n-1)/1000+2,'performance_seed',$7::jsonb,'{"source":"performance_seed","correctnessEvidence":false}'::jsonb,timestamptz '2026-01-01T00:00:00Z'+n*interval '1 millisecond'
+        SELECT $1,$2,$3,upper(lpad(to_hex((n-1)%1000+1),26,'0')),$4,$5,to_jsonb((n-1)/1000),to_jsonb((n-1)/1000+1),$6::jsonb,(n-1)/1000+1,(n-1)/1000+2,'update',$7::jsonb,'{"source":"performance_seed","correctnessEvidence":false}'::jsonb,timestamptz '2026-01-01T00:00:00Z'+n*interval '1 millisecond'
         FROM generate_series($8::bigint,$9::bigint) n`,
         [
           orgId,

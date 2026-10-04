@@ -3,6 +3,7 @@ import {
   assertQueryLexemes,
   type QuerySpec,
 } from "@rootset/contracts";
+import { readSignal } from "@rootset/core";
 import type { createRuntime } from "@rootset/core/runtime";
 import { createApp } from "./app.js";
 
@@ -45,6 +46,7 @@ export function createRuntimeApp(
         authorised,
         request.tableId,
         request,
+        { signal: readSignal(context) },
       );
       return {
         ...window.result,

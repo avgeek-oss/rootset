@@ -50,12 +50,30 @@ export interface OperationContext {
   surface?: "browser" | "rest" | "mcp" | "worker" | "operator";
   responseBudget?: number;
   request?: Request;
+  signal?: AbortSignal;
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
   beforePublish?: () => Promise<void>;
   admissionSource?: string;
   numericLexemes?: readonly NumberLexeme[];
   approvalClient?: PoolClient;
+}
+export function readSignal(context: {
+  request?: Request;
+  signal?: AbortSignal;
+}): AbortSignal | undefined {
+  const requestSignal = context.request?.signal;
+  return context.signal && requestSignal && context.signal !== requestSignal
+    ? AbortSignal.any([requestSignal, context.signal])
+    : (context.signal ?? requestSignal);
+}
+function assertReadOpen(context: OperationContext): void {
+  if (readSignal(context)?.aborted)
+    throw new RootsetError(
+      "REQUEST_TIMEOUT",
+      "Client request ended before its table read completed",
+      408,
+    );
 }
 export interface CoreOptions {
   storage: TableStorage;
@@ -282,8 +300,13 @@ export class RootsetCore {
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
       typeof input.tableId === "string" ? input.tableId : undefined;
-    const history =
-        operationId === "getCellHistory" || operationId === "queryHistory",
+    const historyArchive =
+        operationId === "getHistoryArchive" ||
+        operationId === "listHistoryArchives",
+      history =
+        operationId === "getCellHistory" ||
+        operationId === "queryHistory" ||
+        historyArchive,
       destructiveReplay =
         operationId === "deleteDatabase" || operationId === "deleteTable";
     let archived = false;
@@ -297,6 +320,15 @@ export class RootsetCore {
           "Resource was not found",
           404,
         );
+      if (
+        historyArchive &&
+        !["active", "maintenance", "deleted"].includes(table.state)
+      )
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Retained history was not found",
+          404,
+        );
       databaseId = table.databaseId;
       archived = table.state === "deleted";
     }
@@ -304,6 +336,12 @@ export class RootsetCore {
       const database = await (history || destructiveReplay
         ? this.options.storage.getArchivedDatabase(actor, databaseId)
         : this.options.storage.getDatabase(actor, databaseId));
+      if (historyArchive && !["active", "deleted"].includes(database.state))
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Retained history was not found",
+          404,
+        );
       archived = archived || database.state === "deleted";
     }
     if (
@@ -460,6 +498,8 @@ export class RootsetCore {
   ): Promise<unknown> {
     const operation = getRuntimeOperation(operationId),
       input = record(operation.inputSchema.parse(value));
+    if (["listRows", "queryRows"].includes(operationId))
+      assertReadOpen(context);
     let actor = await this.authorise(incoming, operationId, input);
     const lexemes = context.numericLexemes ?? [];
     if (lexemes.length) {
@@ -1059,6 +1099,7 @@ export class RootsetCore {
                   ? "ui"
                   : "rest",
             byteLimit: ctx.responseBudget,
+            signal: readSignal(ctx),
           },
         );
       case "queryRows":
@@ -1070,6 +1111,7 @@ export class RootsetCore {
                 ? "ui"
                 : "rest",
           byteLimit: ctx.responseBudget,
+          signal: readSignal(ctx),
         });
       case "getRow":
         return rowPublic(await s.getRow(a, tableId, str(input.rowId)));
@@ -1302,6 +1344,7 @@ export class RootsetCore {
     value: unknown,
     context: OperationContext = {},
   ) {
+    assertReadOpen(context);
     const input = record(value),
       tableId = str(input.tableId);
     const a = await this.authorise(incoming, "queryRows", input);
@@ -1312,13 +1355,18 @@ export class RootsetCore {
         query,
         context.numericLexemes,
       );
-    return this.options.storage.queryWindow(a, tableId, {
-      query,
-      position: input.position as
-        number | "first" | "middle" | "last" | undefined,
-      sessionId:
-        typeof input.sessionId === "string" ? input.sessionId : undefined,
-    });
+    return this.options.storage.queryWindow(
+      a,
+      tableId,
+      {
+        query,
+        position: input.position as
+          number | "first" | "middle" | "last" | undefined,
+        sessionId:
+          typeof input.sessionId === "string" ? input.sessionId : undefined,
+      },
+      { signal: readSignal(context) },
+    );
   }
 }
 function historyPublic(r: Record<string, unknown>) {

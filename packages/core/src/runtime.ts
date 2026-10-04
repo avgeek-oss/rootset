@@ -20,10 +20,10 @@ export async function createRuntime(
   baseline: Config = loadConfig(),
   options: { oauthClients?: OAuthConfig["clients"] } = {},
 ) {
-  const pool = createPool(baseline.databaseURL),
-    admissionPool = createPool(baseline.databaseURL, 2),
-    ddlPool = createPool(baseline.ddlDatabaseURL, 5),
-    identityPool = createPool(baseline.identityDatabaseURL);
+  const pool = createPool(baseline.databaseURL, 10, "api"),
+    admissionPool = createPool(baseline.databaseURL, 2, "admission"),
+    ddlPool = createPool(baseline.ddlDatabaseURL, 5, "ddl"),
+    identityPool = createPool(baseline.identityDatabaseURL, 10, "identity");
   try {
     const resolved = await resolveInstallationConfig(identityPool, baseline),
       config = resolved.config;

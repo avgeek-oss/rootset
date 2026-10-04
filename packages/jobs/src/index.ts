@@ -371,6 +371,50 @@ export class JobsService {
         "Backup administration requires an Owner or Admin",
         403,
       );
+    const historyArchive =
+      operationId === "getHistoryArchive" ||
+      operationId === "listHistoryArchives";
+    let historyDatabaseId: string | undefined;
+    if (historyArchive && inputTarget.tableId) {
+      const table = await this.storage.getArchivedTable(
+        actor,
+        inputTarget.tableId,
+      );
+      const database = await this.storage.getArchivedDatabase(
+        actor,
+        table.databaseId,
+      );
+      if (
+        (inputTarget.databaseId &&
+          inputTarget.databaseId !== table.databaseId) ||
+        !["active", "maintenance", "deleted"].includes(table.state) ||
+        !["active", "deleted"].includes(database.state)
+      )
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Retained history was not found",
+          404,
+        );
+      historyDatabaseId = table.databaseId;
+      const explicitManage = actor.targets.some(
+        (grant) =>
+          grant.level === "manage" &&
+          (!grant.databaseId || grant.databaseId === table.databaseId) &&
+          (!grant.tableId || grant.tableId === table.id),
+      );
+      // Standalone Jobs uses the same retained-history target/role condition as
+      // Core.authorise; the configured current-actor callback takes precedence.
+      if (
+        (table.state === "deleted" || database.state === "deleted") &&
+        (!(actor.unrestricted || explicitManage) ||
+          (!["owner", "admin"].includes(actor.role) && !explicitManage))
+      )
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Retained history was not found",
+          404,
+        );
+    }
     if (
       !actor.unrestricted &&
       (!actor.operator || inputTarget.repair) &&
@@ -378,6 +422,7 @@ export class JobsService {
     ) {
       const dbId =
         inputTarget.databaseId ??
+        historyDatabaseId ??
         (inputTarget.tableId
           ? (await this.storage.getTable(actor, inputTarget.tableId)).databaseId
           : undefined);
@@ -396,7 +441,9 @@ export class JobsService {
       if (
         !actor.targets.some(
           (grant) =>
-            grant.databaseId === dbId &&
+            (historyArchive
+              ? !grant.databaseId || grant.databaseId === dbId
+              : grant.databaseId === dbId) &&
             (!grant.tableId || grant.tableId === inputTarget.tableId) &&
             (!needManage || grant.level === "manage") &&
             (!needEdit || grant.level !== "read"),
@@ -1469,7 +1516,7 @@ export class JobsService {
     tableId: string,
     input: Record<string, unknown>,
   ) {
-    await this.storage.getTable(actor, tableId);
+    await this.storage.getArchivedTable(actor, tableId);
     const paging = this.config.metadataPaging;
     if (!paging)
       throw new RootsetError(
@@ -1499,7 +1546,7 @@ export class JobsService {
   }
 
   private async getHistoryArchive(actor: Actor, tableId: string, id: string) {
-    await this.storage.getTable(actor, tableId);
+    await this.storage.getArchivedTable(actor, tableId);
     const row = await withOrg(
       this.queue.pool,
       actor.orgId,

@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
 export { Pool };
+export {
+  withOrgRead,
+  ReadCancelledError,
+  ReadCancellationFailure,
+} from "./read.js";
 export type { PoolClient, QueryResultRow };
 export type Queryable = Pool | PoolClient;
 
@@ -37,8 +42,32 @@ export async function migrationStatus(
   };
 }
 
-export function createPool(connectionString: string, max = 10): Pool {
-  return new Pool({
+export type PoolPurpose =
+  "database" | "api" | "admission" | "ddl" | "identity" | "worker";
+
+const connectionFailureCodes = new Set([
+  "57P01",
+  "57P02",
+  "57P03",
+  "08000",
+  "08001",
+  "08003",
+  "08004",
+  "08006",
+  "08007",
+  "08P01",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+]);
+
+export function createPool(
+  connectionString: string,
+  max = 10,
+  purpose: PoolPurpose = "database",
+): Pool {
+  const pool = new Pool({
     connectionString,
     max,
     idleTimeoutMillis: 30_000,
@@ -47,6 +76,34 @@ export function createPool(connectionString: string, max = 10): Pool {
     options:
       "-c timezone=UTC -c statement_timeout=10000 -c idle_in_transaction_session_timeout=30000",
   });
+  const leased = new WeakSet<PoolClient>();
+  const observe = (state: "idle" | "checked_out", error: Error) => {
+    const code = (error as { code?: unknown }).code;
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "postgres_pool_connection_failed",
+        timestamp: new Date().toISOString(),
+        pool: purpose,
+        state,
+        error_code:
+          typeof code === "string" && connectionFailureCodes.has(code)
+            ? code
+            : "UNKNOWN",
+        message:
+          "PostgreSQL connection was lost; check database availability. Failed work remains failed; later checkouts can reconnect.",
+      }),
+    );
+  };
+  pool.on("error", (error) => observe("idle", error));
+  pool.on("connect", (client) => {
+    client.on("error", (error) => {
+      if (leased.has(client)) observe("checked_out", error);
+    });
+  });
+  pool.on("acquire", (client) => leased.add(client));
+  pool.on("release", (_error, client) => leased.delete(client));
+  return pool;
 }
 
 export async function transaction<T>(

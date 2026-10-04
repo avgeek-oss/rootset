@@ -45,6 +45,8 @@ export async function ownedPostgres() {
       name,
       "--label",
       "rootset.disposable=runtime-ownership",
+      "--label",
+      `rootset.verification-run=${process.env.ROOTSET_VERIFICATION_RUN ?? `standalone-${id}`}`,
       "--memory",
       "512m",
       "--cpus",
