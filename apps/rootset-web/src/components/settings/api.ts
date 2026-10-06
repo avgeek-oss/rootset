@@ -22,8 +22,6 @@ export interface AccountActionTicket {
   approvalUrl: string;
 }
 export interface ApprovalOptions {
-  requirePassword?: boolean;
-  code?: string;
   idempotencyKey?: string;
 }
 type ApprovalHandler = (
@@ -56,8 +54,6 @@ export async function performAction<T = unknown>(
     changeEmail: "change_email",
     registerPasskey: "register_passkey",
     removePasskey: "remove_passkey",
-    enableTwoFactor: "enable_totp",
-    disableTwoFactor: "disable_totp",
     rotateRecoveryCodes: "rotate_recovery_codes",
     signOutEverywhere: "sign_out_everywhere",
     createPersonalKey: "create_key",

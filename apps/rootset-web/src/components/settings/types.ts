@@ -11,7 +11,7 @@ export type SettingsSection =
   | "profile"
   | "preferences"
   | "email-password"
-  | "2fa"
+  | "passkeys"
   | "sessions"
   | "mcp"
   | "database"
@@ -92,7 +92,6 @@ export interface Passkey {
 }
 export interface SecurityStatus {
   twoFactorEnabled?: boolean;
-  totpEnabled?: boolean;
   recoveryCodesRemaining?: number;
   passkeys?: Passkey[];
 }
@@ -205,7 +204,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   profile: "Profile",
   preferences: "Preferences",
   "email-password": "Email & Password",
-  "2fa": "Two-factor Auth",
+  passkeys: "Passkeys",
   sessions: "Sessions",
   mcp: "MCP Guide",
   database: "Database settings",
@@ -245,7 +244,8 @@ export function resolveSettingsSection(
   value: string | null,
 ): SettingsSection | null {
   const aliases: Record<string, SettingsSection> = {
-    security: "2fa",
+    security: "passkeys",
+    "2fa": "passkeys",
     keys: "api-keys",
     connections: "api-keys",
   };

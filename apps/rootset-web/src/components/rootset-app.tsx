@@ -14,12 +14,7 @@ import {
   resourcePath,
   unwrapData,
 } from "@rootset/web-client";
-import {
-  AuthForm,
-  AuthPage,
-  AsyncActionButton,
-  IdentityCredentialsForm,
-} from "@avgeek-oss/design-system";
+import { AuthPage, AsyncActionButton } from "@avgeek-oss/design-system";
 import { AuthFrame } from "./auth-frame";
 import {
   ContextSchema,
@@ -35,6 +30,7 @@ import {
   repairReviewError,
 } from "./repair-review-status";
 import { AuthScreen } from "./auth-screen";
+import { ReauthenticationDialog } from "./settings/account/reauthentication-dialog";
 import { NotificationCenter } from "./notification-center";
 import { authClient } from "../lib/auth-client";
 import { MutationAttempt } from "../lib/mutation-attempt";
@@ -559,7 +555,7 @@ export function RootsetApp() {
                             icon: icon(Settings01Icon),
                           },
                           {
-                            id: "2fa",
+                            id: "passkeys",
                             label: "Two-factor Auth",
                             icon: icon(SecurityCheckIcon),
                           },
@@ -796,26 +792,16 @@ function ConsentScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [needsProof, setNeedsProof] = useState(false);
-  const [proofPassword, setProofPassword] = useState("");
-  const [proofCode, setProofCode] = useState("");
-  async function decide(approve: boolean) {
+  const security = useQuery({
+    queryKey: ["consent-security"],
+    queryFn: ({ signal }) =>
+      client.request<{ twoFactorEnabled: boolean }>("/me/security", { signal }),
+    enabled: !!request.data,
+  });
+  async function decide(approve: boolean, proofVerified = false) {
     setPending(true);
     setError(null);
     try {
-      if (approve && needsProof) {
-        await new RootsetClient({ baseUrl: "/v1" }).request(
-          "/auth/reauthenticate",
-          {
-            method: "POST",
-            body: {
-              password: proofPassword,
-              ...(proofCode ? { code: proofCode } : {}),
-            },
-          },
-        );
-        setProofPassword("");
-        setProofCode("");
-      }
       const result = await client.request<{ redirectUri: string }>(
         `/oauth/requests/${encodeURIComponent(requestId)}/decision`,
         { method: "POST", body: { approve } },
@@ -832,6 +818,7 @@ function ConsentScreen() {
         ].includes(failure.code)
       )
         setNeedsProof(true);
+      if (proofVerified) throw failure;
     } finally {
       setPending(false);
     }
@@ -901,48 +888,20 @@ function ConsentScreen() {
                   {error}
                 </p>
               )}
-              {needsProof && (
-                <div className="content-grid">
-                  <TextField
-                    value={proofPassword}
-                    onChange={setProofPassword}
-                    type="password"
-                    isRequired
-                  >
-                    <Label>Current password</Label>
-                    <Input autoComplete="current-password" />
-                  </TextField>
-                  <TextField value={proofCode} onChange={setProofCode}>
-                    <Label>Authenticator code (if enabled)</Label>
-                    <Input autoComplete="one-time-code" />
-                  </TextField>
-                  <Button
-                    variant="secondary"
-                    isDisabled={pending}
-                    onPress={() => {
-                      setPending(true);
-                      void authClient.signIn
-                        .passkey()
-                        .then((result) => {
-                          if (result.error)
-                            setError(
-                              result.error.message ??
-                                "Passkey verification failed",
-                            );
-                          else {
-                            setNeedsProof(false);
-                            setProofPassword("");
-                            setProofCode("");
-                            setError(null);
-                          }
-                        })
-                        .finally(() => setPending(false));
-                    }}
-                  >
-                    Verify with a passkey
-                  </Button>
-                </div>
+              {security.isError && (
+                <p role="alert" className="error-message">
+                  {security.error.message}
+                </p>
               )}
+              <ReauthenticationDialog
+                isOpen={needsProof && !!security.data}
+                onOpenChange={setNeedsProof}
+                hasPasskey={Boolean(security.data?.twoFactorEnabled)}
+                onConfirmed={async () => {
+                  await decide(true, true);
+                  setNeedsProof(false);
+                }}
+              />
               <div className="action-row">
                 <Button
                   variant="secondary"
@@ -951,8 +910,11 @@ function ConsentScreen() {
                 >
                   Deny access
                 </Button>
-                <Button isDisabled={pending} onPress={() => void decide(true)}>
-                  {needsProof ? "Verify and allow access" : "Allow access"}
+                <Button
+                  isDisabled={pending || !security.data}
+                  onPress={() => void decide(true)}
+                >
+                  Allow access
                 </Button>
               </div>
             </>
@@ -989,13 +951,20 @@ function AccountActionApproval({ id }: { id: string }) {
   });
   const [approved, setApproved] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [factor, setFactor] = useState<"totp" | "recovery" | null>(null);
+  const session = authClient.useSession();
+  const [proofOpen, setProofOpen] = useState(false);
+  const security = useQuery({
+    queryKey: ["approval-security", session.data?.user.id],
+    queryFn: ({ signal }) =>
+      client.request<{ twoFactorEnabled: boolean }>("/me/security", { signal }),
+    enabled: Boolean(session.data),
+  });
   const [pending, setPending] = useState(false);
   const repairUnavailable = repairReviewUnavailable(request.data);
   async function finishReauthentication() {
     const details = await request.refetch();
     if (details.error) throw details.error;
-    setFactor(null);
+    setProofOpen(false);
     setVerified(true);
   }
   async function approve() {
@@ -1023,6 +992,14 @@ function AccountActionApproval({ id }: { id: string }) {
       setPending(false);
     }
   }
+  if (!session.data)
+    return (
+      <AuthScreen
+        path="/login"
+        claimed
+        onSignedIn={() => void finishReauthentication()}
+      />
+    );
   return (
     <AuthPage>
       <AuthFrame
@@ -1114,107 +1091,26 @@ function AccountActionApproval({ id }: { id: string }) {
               Approve this action
             </AsyncActionButton>
           </>
-        ) : factor ? (
-          <AuthForm
-            key={factor}
-            fields={[
-              {
-                name: "code",
-                label:
-                  factor === "totp" ? "Authenticator code" : "Recovery code",
-                required: true,
-                autoComplete: "one-time-code",
-                inputMode: factor === "totp" ? "numeric" : "text",
-                ...(factor === "totp"
-                  ? { minLength: 6, maxLength: 6, pattern: "[0-9]{6}" }
-                  : {}),
-              },
-            ]}
-            submitLabel="Verify identity"
-            busyLabel="Verifying…"
-            onSubmit={async ({ code }) => {
-              setPending(true);
-              try {
-                const result =
-                  factor === "totp"
-                    ? await authClient.twoFactor.verifyTotp({
-                        code: code ?? "",
-                        trustDevice: false,
-                      })
-                    : await authClient.twoFactor.verifyBackupCode({
-                        code: code ?? "",
-                        trustDevice: false,
-                      });
-                if (result.error) throw new Error(result.error.message);
-                await finishReauthentication();
-              } finally {
-                setPending(false);
-              }
-            }}
-          >
-            <Button
-              variant="secondary"
-              isDisabled={pending}
-              onPress={() => setFactor(factor === "totp" ? "recovery" : "totp")}
-            >
-              {factor === "totp"
-                ? "Use a recovery code"
-                : "Use an authenticator code"}
-            </Button>
-          </AuthForm>
         ) : (
-          <>
-            <p>Confirm your identity to approve only this bound request.</p>
-            <IdentityCredentialsForm
-              identifierLabel="Email"
-              identifierType="email"
-              identifierAutoComplete="email"
-              disabled={pending}
-              onSubmit={async ({ identifier, password }) => {
-                setPending(true);
-                try {
-                  const result = await authClient.signIn.email({
-                    email: identifier,
-                    password,
-                  });
-                  if (result.error) throw new Error(result.error.message);
-                  if (
-                    result.data &&
-                    "twoFactorRedirect" in result.data &&
-                    result.data.twoFactorRedirect
-                  ) {
-                    setFactor("totp");
-                    return;
-                  }
-                  await finishReauthentication();
-                } finally {
-                  setPending(false);
-                }
-              }}
-              submitLabel="Verify identity"
-            />
-            <AsyncActionButton
-              variant="secondary"
-              isDisabled={pending}
-              pendingLabel="Waiting for your passkey…"
-              onAction={async () => {
-                setPending(true);
-                try {
-                  const result = await authClient.signIn.passkey();
-                  if (result.error)
-                    throw new Error(
-                      result.error.message ?? "Passkey verification failed",
-                    );
-                  await finishReauthentication();
-                } finally {
-                  setPending(false);
-                }
-              }}
-            >
-              Verify with passkey
-            </AsyncActionButton>
-          </>
+          <Button
+            isDisabled={
+              security.isPending ||
+              security.isError ||
+              request.isPending ||
+              request.isError ||
+              repairUnavailable
+            }
+            onPress={() => setProofOpen(true)}
+          >
+            Confirm identity
+          </Button>
         )}
+        <ReauthenticationDialog
+          isOpen={proofOpen}
+          onOpenChange={setProofOpen}
+          hasPasskey={Boolean(security.data?.twoFactorEnabled)}
+          onConfirmed={finishReauthentication}
+        />
       </AuthFrame>
     </AuthPage>
   );

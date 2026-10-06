@@ -40,6 +40,7 @@ async function fixture(
       orgId,
       role: "admin",
       scopes: ["*"],
+      authenticatedAt: Date.now(),
     };
   await owner.query(
     "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
@@ -597,6 +598,7 @@ function consentUnitFixture() {
     orgId,
     role: "admin",
     scopes: [],
+    authenticatedAt: Date.now(),
   };
   const row = {
     id: requestId,

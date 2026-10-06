@@ -690,17 +690,13 @@ CREATE TABLE rootset_control.auth_passkeys (
 
 ALTER TABLE rootset_control.auth_passkeys OWNER TO rootset_owner;
 
-CREATE TABLE rootset_control.auth_two_factors (
-    id character varying(26) NOT NULL,
+CREATE TABLE rootset_control.auth_recovery_codes (
     user_id character varying(26) NOT NULL,
-    secret text NOT NULL,
-    backup_codes text NOT NULL,
-    verified boolean DEFAULT false NOT NULL,
-    failed_verification_count integer DEFAULT 0 NOT NULL,
-    locked_until timestamp with time zone
+    code_hashes text[] NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.auth_two_factors OWNER TO rootset_owner;
+ALTER TABLE rootset_control.auth_recovery_codes OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.auth_verifications (
     id character varying(26) NOT NULL,
@@ -874,14 +870,6 @@ CREATE TABLE rootset_control.email_outbox (
 );
 
 ALTER TABLE rootset_control.email_outbox OWNER TO rootset_owner;
-
-CREATE TABLE rootset_control.factor_proofs (
-    user_id character varying(26) NOT NULL,
-    proof_hash text NOT NULL,
-    expires_at timestamp with time zone NOT NULL
-);
-
-ALTER TABLE rootset_control.factor_proofs OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.fields (
     id character varying(26) NOT NULL,
@@ -1505,7 +1493,6 @@ CREATE TABLE rootset_control.users (
     email_verified boolean DEFAULT false NOT NULL,
     image text,
     authentication_version bigint DEFAULT 1 NOT NULL,
-    two_factor_enabled boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT users_email_check CHECK (((email)::text = lower(TRIM(BOTH FROM email))))
@@ -1568,11 +1555,8 @@ ALTER TABLE ONLY rootset_control.auth_passkeys
 ALTER TABLE ONLY rootset_control.auth_passkeys
     ADD CONSTRAINT auth_passkeys_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.auth_two_factors
-    ADD CONSTRAINT auth_two_factors_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY rootset_control.auth_two_factors
-    ADD CONSTRAINT auth_two_factors_user_id_key UNIQUE (user_id);
+ALTER TABLE ONLY rootset_control.auth_recovery_codes
+    ADD CONSTRAINT auth_recovery_codes_pkey PRIMARY KEY (user_id);
 
 ALTER TABLE ONLY rootset_control.auth_verifications
     ADD CONSTRAINT auth_verifications_pkey PRIMARY KEY (id);
@@ -1609,9 +1593,6 @@ ALTER TABLE ONLY rootset_control.email_outbox
 
 ALTER TABLE ONLY rootset_control.email_outbox
     ADD CONSTRAINT email_outbox_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY rootset_control.factor_proofs
-    ADD CONSTRAINT factor_proofs_pkey PRIMARY KEY (user_id, proof_hash);
 
 ALTER TABLE ONLY rootset_control.fields
     ADD CONSTRAINT fields_pkey PRIMARY KEY (id);
@@ -1898,8 +1879,8 @@ ALTER TABLE ONLY rootset_control.auth_accounts
 ALTER TABLE ONLY rootset_control.auth_passkeys
     ADD CONSTRAINT auth_passkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY rootset_control.auth_two_factors
-    ADD CONSTRAINT auth_two_factors_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY rootset_control.auth_recovery_codes
+    ADD CONSTRAINT auth_recovery_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY rootset_control.backups
     ADD CONSTRAINT backups_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
@@ -1912,9 +1893,6 @@ ALTER TABLE ONLY rootset_control.databases
 
 ALTER TABLE ONLY rootset_control.email_changes
     ADD CONSTRAINT email_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
-
-ALTER TABLE ONLY rootset_control.factor_proofs
-    ADD CONSTRAINT factor_proofs_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
 
 ALTER TABLE ONLY rootset_control.fields
     ADD CONSTRAINT fields_table_id_fkey FOREIGN KEY (table_id) REFERENCES rootset_control.tables(id);
@@ -2236,7 +2214,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_accounts TO root
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_passkeys TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_two_factors TO rootset_identity;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_recovery_codes TO rootset_identity;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_verifications TO rootset_identity;
 
@@ -2299,7 +2277,6 @@ GRANT SELECT(attempts) ON TABLE rootset_control.email_outbox TO rootset_metrics_
 
 GRANT SELECT(created_at) ON TABLE rootset_control.email_outbox TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.factor_proofs TO rootset_identity;
 
 GRANT SELECT ON TABLE rootset_control.fields TO rootset_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.fields TO rootset_ddl;

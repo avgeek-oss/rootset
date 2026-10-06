@@ -174,8 +174,6 @@ export const AccountActionTypeSchema = z.enum([
   "change_email",
   "register_passkey",
   "remove_passkey",
-  "enable_totp",
-  "disable_totp",
   "rotate_recovery_codes",
   "sign_out_everywhere",
   "create_key",

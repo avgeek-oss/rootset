@@ -7,8 +7,7 @@ const personalAccountActions = new Set([
   "changePassword",
   "registerPasskey",
   "removePasskey",
-  "enableTwoFactor",
-  "disableTwoFactor",
+  "rotateRecoveryCodes",
 ]);
 
 export function usesAccountConfirmation(

@@ -12,6 +12,7 @@ import {
   PasswordSetup,
   TeamSetup,
   InvitationUnavailable,
+  InvitationPasswordSetup,
 } from "@avgeek-oss/design-system";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Modal } from "@avgeek-oss/design-system/overlays/modal";
@@ -282,6 +283,27 @@ export function InvitationScreen({ token }: { token: string }) {
       />
     );
   const details = invitation.data;
+  if (!created && !session.data)
+    return (
+      <InvitationPasswordSetup
+        brand={<AuthBrand />}
+        teamName={details.organisationName}
+        email={details.email}
+        role={details.role}
+        onBackToSignIn={() =>
+          window.location.assign(
+            `/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`,
+          )
+        }
+        onSubmit={async ({ name, password }) => {
+          await publicApi.request("/auth/invitations/accept", {
+            method: "POST",
+            body: { token, name, password },
+          });
+          setCreated(true);
+        }}
+      />
+    );
   return (
     <AuthFrame
       title="Join your team"
@@ -321,65 +343,7 @@ export function InvitationScreen({ token }: { token: string }) {
             Accept invitation
           </AsyncActionButton>
         </>
-      ) : (
-        <>
-          <AuthForm
-            fields={[
-              {
-                name: "name",
-                label: "Your Name",
-                required: true,
-                autoComplete: "name",
-                maxLength: 120,
-              },
-              {
-                name: "email",
-                label: "Email",
-                type: "email",
-                autoComplete: "email",
-                defaultValue: details.email,
-                readOnly: true,
-              },
-              {
-                name: "password",
-                label: "Password",
-                type: "password",
-                autoComplete: "new-password",
-                required: true,
-                minLength: 15,
-                maxLength: 1024,
-                description:
-                  "Use at least 15 characters. A long, unique passphrase works well.",
-              },
-              {
-                name: "confirmPassword",
-                label: "Confirm password",
-                type: "password",
-                autoComplete: "new-password",
-                required: true,
-                minLength: 15,
-                maxLength: 1024,
-              },
-            ]}
-            submitLabel="Create account and accept"
-            onSubmit={async ({ name, password, confirmPassword }) => {
-              if (password !== confirmPassword)
-                throw new Error("Passwords do not match");
-              await publicApi.request("/auth/invitations/accept", {
-                method: "POST",
-                body: { token, name, password },
-              });
-              setCreated(true);
-            }}
-          />
-          <Link
-            href={`/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`}
-            className={authTextActionClassName}
-          >
-            Already have an account? Sign in
-          </Link>
-        </>
-      )}
+      ) : null}
     </AuthFrame>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { identityRequest } from "../../../lib/identity-request";
+import { registerWebAuthnPasskey } from "../../../lib/passkeys";
 import { authClient } from "../../../lib/auth-client";
 import { describeError, performAction, read, write } from "../api";
 import type {
@@ -27,28 +29,13 @@ type Context = {
   organisation: { id: string } | null;
   principal: { role: string };
 };
-export type InteractiveProof = { actionId: string; password: string };
+export type InteractiveProof = { actionId: string };
 
 export function refreshApiQueries() {
   window.dispatchEvent(new Event("rootset:account-refresh"));
 }
 
-export async function identityRequest<T>(
-  path: string,
-  method = "GET",
-  body?: unknown,
-): Promise<T> {
-  const response = await fetch(`/v1/auth${path}`, {
-    method,
-    credentials: "same-origin",
-    headers:
-      body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const result: unknown = await response.json();
-  if (!response.ok) throw new Error(describeError(result).message);
-  return result as T;
-}
+export { identityRequest } from "../../../lib/identity-request";
 
 function check<T extends { error?: { message?: string } | null }>(
   result: T,
@@ -221,45 +208,16 @@ async function mutate(
       return method === "DELETE"
         ? identityRequest("/email-change", "DELETE")
         : performAction("changeEmail", { newEmail: values.email });
-    if (path === "/v1/core/profile/two-factor/setup") {
+    if (path === "/v1/core/profile/passkeys/recovery-codes") {
       const proof = await performAction<InteractiveProof>(
-        "enableTwoFactor",
+        "rotateRecoveryCodes",
         {},
-        { requirePassword: true },
       );
-      const result = check(
-        await authClient.twoFactor.enable({
-          password: proof.password,
-          fetchOptions: proofHeaders(proof.actionId),
-        }),
-      );
-      if (!result.data || !("totpURI" in result.data))
-        throw new Error("Authenticator setup did not return a setup key.");
-      return {
-        totpURI: result.data.totpURI,
-        actionId: proof.actionId,
-        backupCodes: result.data.backupCodes,
-      };
-    }
-    if (path === "/v1/public/auth/identity/two-factor/verify-totp") {
-      return check(
-        await authClient.twoFactor.verifyTotp({
-          code: String(values.code),
-          fetchOptions: proofHeaders(String(values.actionId)),
-        }),
-      );
-    }
-    if (path === "/v1/core/profile/two-factor/manage") {
-      const proof = await performAction<InteractiveProof>(
-        "disableTwoFactor",
+      return identityRequest(
+        "/passkey/replace-recovery-codes",
+        "POST",
         {},
-        { requirePassword: true, code: String(values.code) },
-      );
-      return check(
-        await authClient.twoFactor.disable({
-          password: proof.password,
-          fetchOptions: proofHeaders(proof.actionId),
-        }),
+        proof.actionId,
       );
     }
     if (path === "/v1/public/auth/identity/passkey/delete-passkey") {
@@ -327,12 +285,7 @@ export const api = {
 
 export async function registerPasskey(name: string) {
   const proof = await performAction<InteractiveProof>("registerPasskey", {});
-  check(
-    await authClient.passkey.addPasskey({
-      name,
-      fetchOptions: proofHeaders(proof.actionId),
-    }),
-  );
+  return registerWebAuthnPasskey(name, proof.actionId);
 }
 export function passkeyError(error: unknown) {
   return describeError(error).message;

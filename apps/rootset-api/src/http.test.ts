@@ -126,6 +126,7 @@ test(
       orgId,
       role: "admin",
       scopes: ["rows:read"],
+      authenticatedAt: Date.now(),
     };
     await owner.query(
       "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",

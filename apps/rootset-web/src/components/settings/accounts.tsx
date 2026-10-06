@@ -8,11 +8,13 @@ import {
   MembersTable,
   MemberEditDialog,
   InvitationsTable,
+  RemoveMemberDialog,
+  RevokeInvitationDialog,
+  TeamGeneralSettings,
 } from "@avgeek-oss/design-system";
 import type { ChoiceOption } from "@avgeek-oss/design-system/patterns/choice-field";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Modal } from "@avgeek-oss/design-system/overlays/modal";
-import { Widget } from "@avgeek-oss/design-system/data-display/widget";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import {
   QueryError,
@@ -22,7 +24,7 @@ import { RootsetClient } from "@rootset/web-client";
 import { MemberSchema, InvitationSchema } from "@rootset/contracts";
 import type { z } from "zod";
 import { organisationPath, useResource, write } from "./api";
-import { ActionButton, FormCard } from "./account/page-parts";
+import { FormCard } from "./account/page-parts";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { RelativeTime } from "./account/last-synced-time";
 import type { Organisation, SettingsPanelProps } from "./types";
@@ -55,31 +57,15 @@ export function OrganisationSettings(props: SettingsPanelProps) {
   if (!resource.data) return <QueryLoading />;
   return (
     <div className="content-grid lg:grid-cols-2 lg:items-start">
-      <Widget>
-        <Widget.Content>
-          <AuthForm
-            key={resource.data.name}
-            variant="secondary"
-            fields={[
-              {
-                name: "name",
-                label: "Team name",
-                required: true,
-                maxLength: 255,
-                defaultValue: resource.data.name,
-              },
-            ]}
-            submitLabel="Update"
-            submitButtonClassName="w-auto"
-            onSubmit={async ({ name }) => {
-              await write(path, "PATCH", { name });
-              toast.success("Team updated");
-              resource.reload();
-              props.onChanged?.();
-            }}
-          />
-        </Widget.Content>
-      </Widget>
+      <TeamGeneralSettings
+        value={resource.data.name}
+        maxLength={120}
+        onSave={async (name) => {
+          await write(path, "PATCH", { name });
+          resource.reload();
+          props.onChanged?.();
+        }}
+      />
     </div>
   );
 }
@@ -123,6 +109,8 @@ export function MembersSettings(props: SettingsPanelProps) {
   });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
+  const [removing, setRemoving] = useState<Member | null>(null);
+  const [revoking, setRevoking] = useState<Invitation | null>(null);
   const [busy, setBusy] = useState(false);
   const [role, setRole] = useState<Member["role"]>("viewer");
   const [now, setNow] = useState(Date.now);
@@ -215,25 +203,13 @@ export function MembersSettings(props: SettingsPanelProps) {
             >
               Edit
             </Button>
-            <ActionButton
+            <Button
               variant="danger"
               isDisabled={busy}
-              success="Team access removed"
-              confirm={{
-                title: `Remove ${member.name}?`,
-                description:
-                  "This revokes their sessions and personal API keys. Operational history is retained.",
-                actionLabel: "Remove access",
-              }}
-              action={async () => {
-                await write(`${path}/members/${member.id}`, "DELETE", {
-                  expectedVersion: member.version,
-                });
-                changed();
-              }}
+              onPress={() => setRemoving(member)}
             >
               Remove
-            </ActionButton>
+            </Button>
           </>
         )}
       />
@@ -264,25 +240,13 @@ export function MembersSettings(props: SettingsPanelProps) {
                 <RelativeTime value={value} label="Expires" />
               )}
               actions={(invitation) => (
-                <ActionButton
+                <Button
                   variant="danger"
                   isDisabled={busy}
-                  success="Invitation revoked"
-                  confirm={{
-                    title: "Revoke invitation?",
-                    description: `The invitation for ${invitation.email} will no longer work.`,
-                    actionLabel: "Revoke",
-                  }}
-                  action={async () => {
-                    await write(
-                      `${path}/invitations/${invitation.id}`,
-                      "DELETE",
-                    );
-                    changed();
-                  }}
+                  onPress={() => setRevoking(invitation)}
                 >
                   Revoke
-                </ActionButton>
+                </Button>
               )}
             />
             <PageButtons
@@ -295,6 +259,34 @@ export function MembersSettings(props: SettingsPanelProps) {
           </>
         )}
       </FormCard>
+      {removing && (
+        <RemoveMemberDialog
+          isOpen
+          member={{ name: removing.name, email: removing.email }}
+          onOpenChange={(open) => {
+            if (!open) setRemoving(null);
+          }}
+          onRemove={async () => {
+            await write(`${path}/members/${removing.id}`, "DELETE", {
+              expectedVersion: removing.version,
+            });
+            changed();
+          }}
+        />
+      )}
+      {revoking && (
+        <RevokeInvitationDialog
+          isOpen
+          email={revoking.email}
+          onOpenChange={(open) => {
+            if (!open) setRevoking(null);
+          }}
+          onRevoke={async () => {
+            await write(`${path}/invitations/${revoking.id}`, "DELETE");
+            changed();
+          }}
+        />
+      )}
       {editing && (
         <MemberEditDialog
           isOpen

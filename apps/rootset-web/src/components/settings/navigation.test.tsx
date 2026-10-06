@@ -12,10 +12,13 @@ describe("context settings navigation", () => {
   it("matches the account groups and resolves existing bookmarks", () => {
     expect(settingsGroups.account).toEqual([
       { title: "Account", sections: ["profile", "preferences"] },
-      { title: "Security", sections: ["email-password", "2fa", "sessions"] },
+      {
+        title: "Security",
+        sections: ["email-password", "passkeys", "sessions"],
+      },
       { title: "API & MCP", sections: ["api-keys", "mcp"] },
     ]);
-    expect(resolveSettingsSection("security")).toBe("2fa");
+    expect(resolveSettingsSection("security")).toBe("passkeys");
     expect(resolveSettingsSection("keys")).toBe("api-keys");
     expect(resolveSettingsSection("connections")).toBe("api-keys");
     expect(resolveSettingsSection("missing")).toBeNull();

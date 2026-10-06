@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, accountKeyRows, oauthPermissions } from "./adapter";
 import { performAction, read, write } from "../api";
-import { authClient } from "../../../lib/auth-client";
 
 vi.mock("../api", () => ({
   performAction: vi.fn(),
@@ -13,7 +12,6 @@ vi.mock("../api", () => ({
 }));
 vi.mock("../../../lib/auth-client", () => ({
   authClient: {
-    twoFactor: { enable: vi.fn(), disable: vi.fn(), verifyTotp: vi.fn() },
     passkey: {
       addPasskey: vi.fn(),
       deletePasskey: vi.fn(),
@@ -64,47 +62,11 @@ describe("account component bindings", () => {
     await api.delete("/v1/core/settings/api-keys/personal/key");
     expect(write).toHaveBeenLastCalledWith("/me/keys/key", "DELETE");
   });
-  it("keeps authenticator enrollment bound to its approval without returning the approval password", async () => {
-    vi.mocked(performAction).mockResolvedValue({
-      actionId: "bound-action",
-      password: "ephemeral-password",
-    });
-    vi.mocked(authClient.twoFactor.enable).mockResolvedValue({
-      data: {
-        method: "totp",
-        totpURI: "otpauth://totp/Rootset?secret=SECRET",
-        backupCodes: ["hidden-recovery-code"],
-      },
-      error: null,
-    });
-    const result = await api.post("/v1/core/profile/two-factor/setup", {});
-    expect(performAction).toHaveBeenCalledWith(
-      "enableTwoFactor",
-      {},
-      { requirePassword: true },
-    );
-    expect(authClient.twoFactor.enable).toHaveBeenCalledWith({
-      password: "ephemeral-password",
-      fetchOptions: { headers: { "X-Rootset-Action-ID": "bound-action" } },
-    });
-    expect(result).toEqual({
-      totpURI: "otpauth://totp/Rootset?secret=SECRET",
-      actionId: "bound-action",
-      backupCodes: ["hidden-recovery-code"],
-    });
-    expect(result).not.toHaveProperty("password");
-    vi.mocked(authClient.twoFactor.verifyTotp).mockResolvedValue({
-      data: { token: "session", user: {} } as never,
-      error: null,
-    });
-    await api.post("/v1/public/auth/identity/two-factor/verify-totp", {
-      code: "123456",
-      actionId: "bound-action",
-    });
-    expect(authClient.twoFactor.verifyTotp).toHaveBeenCalledWith({
-      code: "123456",
-      fetchOptions: { headers: { "X-Rootset-Action-ID": "bound-action" } },
-    });
+  it("removes authenticator enrollment and code verification bindings", async () => {
+    await expect(
+      api.post("/v1/core/profile/two-factor/setup", {}),
+    ).rejects.toThrow("Unsupported account request");
+    expect(performAction).not.toHaveBeenCalled();
   });
   it("shows inherited personal-key roles and intersects OAuth consent with the live role", () => {
     const personal = [{ id: "key", name: "Script" }];

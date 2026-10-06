@@ -6,7 +6,7 @@ import {
   EmailPasswordSettings,
   SessionSettings,
 } from "./settings-pages";
-import { SecuritySettings } from "./security-settings";
+import { PasskeySettings } from "./passkey-settings";
 import { ApiMcpSettings } from "./api-mcp-settings";
 
 const fixture = vi.hoisted(() => ({ enabled: false, pending: false }));
@@ -92,24 +92,14 @@ describe("Towbar account component parity", () => {
     expect(html).toContain("Cancel email change");
     expect(html).toContain("email changes only after you confirm it.");
   });
-  it.each([false, true])(
-    "keeps two-factor and passkeys together without recovery-code controls (enabled=%s)",
-    (enabled) => {
-      fixture.enabled = enabled;
-      const html = render(SecuritySettings);
-      expect(html).toContain("Authenticator app");
-      expect(html).toContain(enabled ? "MFA enabled" : "Not enabled");
-      expect(html).toContain(enabled ? "Disable MFA" : "Set up authenticator");
-      expect(html).toContain("Add passkey");
-      for (const removed of [
-        "Recovery codes",
-        "recovery codes",
-        "Change password",
-        "Delete account",
-      ])
-        expect(html).not.toContain(removed);
-    },
-  );
+  it("uses the shared passkey page without authenticator enrollment", () => {
+    const html = render(PasskeySettings);
+    expect(html).toContain("Add passkey");
+    expect(html).toContain("No passkeys added");
+    expect(html).not.toContain("Authenticator app");
+    expect(html).not.toContain("Set up authenticator");
+    expect(html).not.toContain("Delete account");
+  });
   it("prevents revoking the current browser session", () => {
     const html = render(SessionSettings);
     expect(html).toContain("This browser");

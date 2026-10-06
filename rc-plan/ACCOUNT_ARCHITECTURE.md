@@ -14,8 +14,7 @@ original claim; changed account details or preferences cannot claim it again.
 
 Password reset uses the shared confirmation form and removes the reset token
 from the browser URL after success. Rootset retains verified-email invitations
-and authenticator challenges; the app binds the shared forms to those protocols.
-It does not substitute Towbar's invitation email-code protocol or passkey policy.
+and binds published shared forms to those protocols. Invitation and account email verification remain required. Sign-in and sensitive-action confirmation use Towbar's passkey workflow.
 
 Membership stores a user and one role: `admin`, `editor` or `viewer`. A present
 membership grants access; removing it removes access. There is no active-member
@@ -43,8 +42,7 @@ Team settings use the shared member table, member-edit dialog and invitation
 table. Member edits can change a name, a role or both, with the membership
 version checked before either write. Last-Admin checks, current Admin authority
 and removal revocation remain server-side. The Admin-only member response
-includes the actual authenticator two-factor flag; the UI does not infer it from
-passkey enrollment.
+includes a passkey-enrollment flag. The shared security column is labelled Passkeys; the existing `twoFactorEnabled` response field means registered passkeys, with no authenticator-code capability.
 
 Members and pending invitations use cursor pagination. The invitation API accepts
 an optional state filter and computes expired state on the server. The UI also
@@ -55,10 +53,13 @@ responses do not disclose invitation links.
 
 ## Authentication
 
-Keep verified email/password sign-in, password reset, passkeys, authenticator
-2FA, recovery codes and session management. Setup/invitation/reset/factor tokens
+Keep verified email/password sign-in, password reset, passkeys, passkey recovery codes and session management. There is no authenticator/TOTP plugin, setup secret, verification endpoint, database table or action type. Setup/invitation/reset/factor tokens
 are bounded, single-use and protected at rest. Rate-limit authentication and
 approval attempts; errors must not reveal unrelated account existence.
+
+Once a user registers a passkey, successful password verification creates a bounded pending sign-in instead of a usable session. The second step requires a cryptographically verified passkey with user verification. Its challenge binds the exact pending sign-in and user. Direct passkey sign-in remains supported. Reauthentication binds the exact existing session, keeps its identifier and updates only its fresh-proof timestamp; password-only reauthentication is refused for an account with passkeys.
+
+The first passkey returns ten random recovery codes once. Only SHA-256 hashes of their normalized 128-bit values are stored in `auth_recovery_codes`. A recovery code completes a pending password sign-in and is consumed atomically with that pending proof, so concurrent attempts cannot both succeed. A recovery-created session has no fresh-proof timestamp: read access remains available, but key issuance, credential changes, passkey management and approval require an actual passkey assertion bound to that session. Adding another passkey preserves codes; replacement invalidates the previous set; removing the last key removes its codes. Password reset preserves passkeys. Access revocation invalidates pending sign-in and bound challenge receipts. Explicit host-authorized operator recovery removes passkeys/codes and revokes sessions and delegated credentials.
 
 Sensitive account changes, credential changes and
 replacement restore require current authentication and explicit approval of the
@@ -90,7 +91,7 @@ does not select databases or tables.
 Consent approves operations. Effective access is the intersection of those
 operations and the person's current role. Demotion, membership removal and
 revocation apply to existing access/refresh tokens and waiting work. The consent
-screen has no database/table chooser.
+screen has no database/table chooser. Approving OAuth/MCP access requires recent authentication; a recovery code cannot grant this proof. The native identity-confirmation dialog completes bound passkey proof and retries the same reviewed request.
 
 ## Preferences and history
 
@@ -124,25 +125,17 @@ contains a previous database or table identifier.
 
 | Group     | Page             | Route                      | Content                                                                                                                |
 | --------- | ---------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Account   | Profile          | `/settings/profile`        | Appearance, linked Gravatar image and Full name with Update                                                            |
+| Account   | Profile          | `/settings/profile`        | Appearance, linked Gravatar image and Your Name with Save                                                              |
 | Account   | Preferences      | `/settings/preferences`    | Towbar Date and time form, supported format selectors, Time zone, preview and Save                                     |
 | Security  | Email & Password | `/settings/email-password` | Current email verification status, confirmed email change with pending/cancel controls, and password confirmation form |
-| Security  | Two-factor Auth  | `/settings/2fa`            | Authenticator status, QR/setup-key enrollment, code confirmation, disabling MFA, and passkey add/rename/remove dialogs |
+| Security  | Passkeys         | `/settings/passkeys`       | Shared PasskeySettings add/rename/remove flows and one-time passkey recovery-code saving/replacement                   |
 | Security  | Sessions         | `/settings/sessions`       | Towbar session table; current browser identified with its Revoke button disabled                                       |
 | API & MCP | API Keys         | `/settings/api-keys`       | Personal keys table and MCP Connections table; creation/expiry and one-time secret modal; role-inherited permissions   |
 | API & MCP | MCP Guide        | `/settings/mcp`            | Towbar client selector, client configuration code blocks, copy controls and OAuth connection instructions              |
 
-Legacy `/settings/security`, `/settings/keys` and `/settings/connections` links
-resolve to Two-factor Auth or API Keys. Recovery-code controls and generated-code
-panels are absent from account settings; authentication recovery primitives remain
-available to the existing server/operator recovery workflow. Sensitive operations
-continue to use Rootset's immutable approval checks. Account form submissions
-express the action intent; the browser checks the matching server ticket before
-approving and completing it. When identity confirmation is required, use Towbar's
-compact "Confirm it’s you" password/authenticator dialog. Restore, delete and
-operator repair actions retain their separate explicit review. Authenticator enable/disable
-passes the password only between the approval dialog and the identity client in
-memory; it is not written to preferences or persisted browser storage.
+Legacy `/settings/security` and `/settings/2fa` links resolve to Passkeys; keys/connections aliases resolve to API Keys. Account pages consume published `ProfileImageSettings`, `ProfileSettings`, `PasswordChangeSettings`, `PasskeySettings`, `SessionsSettings`, and the shared API/MCP patterns. Shared labels, dialogs and fixed copy stay in the library. Recovery-code saving belongs to the passkey ceremony, with no separate recovery-code administration panel.
+
+Sensitive operations continue to use Rootset's immutable approval checks. The browser verifies the matching server ticket before approving and completing it. Identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Restore, delete and operator repair keep their separate explicit review.
 
 The browser-only `/v1/auth/email-change` GET/DELETE endpoint reads or cancels only
 the signed-in user's pending confirmation. Cancellation invalidates its token and

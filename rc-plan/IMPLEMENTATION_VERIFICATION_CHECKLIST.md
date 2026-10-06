@@ -17,7 +17,7 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-03` Setup claims one organisation and the first Admin atomically; SQL rejects a second organisation, including concurrent/direct fixture attempts.
 - [ ] `V1-04` Admin/Editor/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone views installation health and manages people, schema and restores; SMTP/S3 configuration is read only from the deployment environment.
 - [ ] `V1-05` Invitations and member role/removal flows work, protect the last Admin, and have no organisation switcher or removed lifecycle fields.
-- [ ] `V1-06` Password/email verification/reset, passkeys, 2FA, recovery codes, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures.
+- [ ] `V1-06` Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.
 - [ ] `V1-07` Personal keys inherit current role without operation/resource selectors; demotion, member removal, expiry and revocation affect existing and waiting requests and replay.
 - [ ] `V1-08` OAuth PKCE, redirect/state/issuer/audience, code replay, refresh reuse, revocation and operation consent work with a real MCP client; no database/table selections remain.
 

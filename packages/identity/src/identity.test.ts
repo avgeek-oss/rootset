@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createHmac, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { Pool, migrate } from "@rootset/database";
 import {
   AccountActionSchema,
@@ -16,6 +16,7 @@ import {
   type EmailPayload,
 } from "@rootset/email";
 import { createIdentityService, type IdentityService } from "./index";
+import { testAuthenticator } from "./webauthn-test-authenticator";
 import { MetadataPaging } from "../../core/src/paging";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
 
@@ -81,22 +82,6 @@ async function login(
     body: (await response.clone().json()) as Record<string, unknown>,
     cookie: cookies(response),
   };
-}
-function totp(secret: string): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  for (const char of secret.toUpperCase().replace(/=+$/, ""))
-    bits += alphabet.indexOf(char).toString(2).padStart(5, "0");
-  const bytes = Buffer.from(
-    bits.match(/.{8}/g)!.map((value) => parseInt(value, 2)),
-  );
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
-  const hash = createHmac("sha1", bytes).update(counter).digest();
-  const offset = hash[hash.length - 1]! & 15;
-  return ((hash.readUInt32BE(offset) & 0x7fffffff) % 1000000)
-    .toString()
-    .padStart(6, "0");
 }
 
 test(
@@ -1145,62 +1130,51 @@ test(
         },
       );
       await t.test(
-        "AUTH-03 AUTH-04 TOTP confirms enrollment and recovery code races are single-use",
+        "AUTH-03 AUTH-04 verified passkeys gate password sign-in and recovery code races are single-use",
         async () => {
-          const action = AccountActionSchema.parse(
-            await execute("beginAccountAction", actor, {
-              type: "enable_totp",
-              operationId: "enableTwoFactor",
-              input: {},
-              orgId,
-            }),
+          const authenticator = testAuthenticator();
+          const options = await service.auth.handler(
+            request("/passkey/generate-register-options", undefined, cookie),
           );
-          assert.equal(action.state, "pending");
-          assert.equal(action.type, "enable_totp");
-          const enable = await service.auth.handler(
-            request("/two-factor/enable", { password }, cookie),
+          assert.ok(options.ok);
+          const challenge = ((await options.json()) as { challenge: string })
+            .challenge;
+          const registered = await service.auth.handler(
+            request(
+              "/passkey/verify-registration",
+              {
+                name: "Fixture passkey",
+                response: authenticator.registration(challenge, baseURL),
+              },
+              [cookie, cookies(options)].join("; "),
+            ),
           );
-          assert.ok(enable.ok);
-          const data = (await enable.json()) as {
-            totpURI: string;
-            backupCodes: string[];
-          };
-          assert.ok(data.totpURI);
-          assert.ok(data.backupCodes.length);
-          assert.equal(
-            (
-              await owner.query(
-                `SELECT two_factor_enabled FROM rootset_control.users WHERE id=$1`,
-                [actor.userId],
-              )
-            ).rows[0].two_factor_enabled,
-            false,
-          );
-          const code = totp(new URL(data.totpURI).searchParams.get("secret")!);
-          const confirm = await service.auth.handler(
-            request("/two-factor/verify-totp", { code }, cookie),
-          );
-          assert.ok(confirm.ok);
-          const reused = await service.auth.handler(
-            request("/two-factor/verify-totp", { code }, cookie),
-          );
-          assert.equal(reused.ok, false);
+          assert.ok(registered.ok, await registered.clone().text());
+          const data = (await registered.json()) as { recoveryCodes: string[] };
+          assert.equal(data.recoveryCodes.length, 10);
           const factor = (
             await owner.query(
-              `SELECT backup_codes FROM rootset_control.auth_two_factors WHERE user_id=$1`,
+              `SELECT code_hashes FROM rootset_control.auth_recovery_codes WHERE user_id=$1`,
               [actor.userId],
             )
           ).rows[0];
           assert.equal(
-            factor.backup_codes.includes(data.backupCodes[0]),
+            factor.code_hashes.some((hash: string) =>
+              data.recoveryCodes.includes(hash),
+            ),
             false,
           );
-          assert.ok(factor.backup_codes.includes("hmac:"));
+          assert.ok(
+            factor.code_hashes.every((hash: string) =>
+              /^[a-f0-9]{64}$/.test(hash),
+            ),
+          );
           const [a, b] = await Promise.all([
             login(service, email, password),
             login(service, email, password),
           ]);
           assert.equal(a.body.twoFactorRedirect, true);
+          assert.deepEqual(a.body.twoFactorMethods, ["passkey"]);
           assert.equal(b.body.twoFactorRedirect, true);
           assert.equal(
             await service.resolveActor(
@@ -1212,15 +1186,15 @@ test(
           const results = await Promise.all([
             service.auth.handler(
               request(
-                "/two-factor/verify-backup-code",
-                { code: data.backupCodes[0] },
+                "/passkey/verify-recovery-code",
+                { code: data.recoveryCodes[0] },
                 a.cookie,
               ),
             ),
             service.auth.handler(
               request(
-                "/two-factor/verify-backup-code",
-                { code: data.backupCodes[0] },
+                "/passkey/verify-recovery-code",
+                { code: data.recoveryCodes[0] },
                 b.cookie,
               ),
             ),
@@ -1258,10 +1232,10 @@ test(
           assert.equal(
             (
               await owner.query(
-                `SELECT two_factor_enabled FROM rootset_control.users WHERE id=$1`,
+                `SELECT EXISTS(SELECT 1 FROM rootset_control.auth_passkeys WHERE user_id=$1) has_passkey`,
                 [actor.userId],
               )
-            ).rows[0].two_factor_enabled,
+            ).rows[0].has_passkey,
             true,
           );
           await assert.rejects(
@@ -1292,7 +1266,7 @@ test(
           assert.equal(
             (
               await owner.query(
-                `SELECT count(*) FROM rootset_control.auth_two_factors WHERE user_id=$1`,
+                `SELECT count(*) FROM rootset_control.auth_recovery_codes WHERE user_id=$1`,
                 [actor.userId],
               )
             ).rows[0].count,

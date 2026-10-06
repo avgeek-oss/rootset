@@ -16,7 +16,7 @@ const personalAndRead = [
   "profile",
   "preferences",
   "email-password",
-  "2fa",
+  "passkeys",
   "sessions",
   "mcp",
   "api-keys",

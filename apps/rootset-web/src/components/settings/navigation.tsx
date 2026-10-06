@@ -28,7 +28,7 @@ export type SettingsScope = "account" | "team" | "database" | "table";
 export const settingsGroups = {
   account: [
     { title: "Account", sections: ["profile", "preferences"] },
-    { title: "Security", sections: ["email-password", "2fa", "sessions"] },
+    { title: "Security", sections: ["email-password", "passkeys", "sessions"] },
     { title: "API & MCP", sections: ["api-keys", "mcp"] },
   ],
   team: [
@@ -90,7 +90,7 @@ export const settingsIcons = {
   profile: UserAccountIcon,
   preferences: Settings01Icon,
   "email-password": Mail01Icon,
-  "2fa": SecurityCheckIcon,
+  passkeys: SecurityCheckIcon,
   sessions: ComputerIcon,
   "api-keys": Key01Icon,
   mcp: BookOpen01Icon,

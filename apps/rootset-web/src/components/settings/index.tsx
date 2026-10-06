@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Page } from "@avgeek-oss/design-system/layouts/page";
 import { ContentPage } from "@avgeek-oss/design-system";
 import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ import {
   EmailPasswordSettings,
   SessionSettings,
 } from "./account/settings-pages";
-import { SecuritySettings } from "./account/security-settings";
+import { PasskeySettings } from "./account/passkey-settings";
 import { ApiMcpSettings } from "./account/api-mcp-settings";
 import { settingsScope, settingsIcons } from "./navigation";
 
@@ -67,7 +68,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     profile: ProfileSettings,
     preferences: PreferencesSettings,
     "email-password": EmailPasswordSettings,
-    "2fa": SecuritySettings,
+    passkeys: PasskeySettings,
     sessions: SessionSettings,
     mcp: McpGuideSettings,
     database: DatabaseSettings,
@@ -114,7 +115,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
   return (
     <PageSelectionContext.Provider value={setSelection}>
       <RelativeTimeProvider>
-        {commonSettings ? (
+        {commonSettings && activeSection === "passkeys" ? (
+          <Page>
+            <div className="content-grid min-w-0">{content}</div>
+            <AccountActionApproval orgId={props.orgId} />
+          </Page>
+        ) : commonSettings ? (
           <ContentPage
             title={title}
             breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}

@@ -8,7 +8,11 @@ import {
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
-import { twoFactor } from "better-auth/plugins";
+import {
+  passwordSecondFactor,
+  completePasskeySecondFactor,
+} from "./password-second-factor.js";
+import { replaceRecoveryCodes, ensureRecoveryCodes } from "./recovery-codes.js";
 import { passkey } from "@better-auth/passkey";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -110,11 +114,6 @@ const signOutEverywhereInputSchema = z.strictObject({
 const pendingProvision = new AsyncLocalStorage<{
   reason: "bootstrap" | "invitation";
 }>();
-const authRequest = new AsyncLocalStorage<{
-  client?: PoolClient;
-  factorUserId?: string;
-  factorHash?: string;
-}>();
 const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
   const result = schema.safeParse(value);
   if (!result.success)
@@ -200,8 +199,6 @@ const sensitiveOperations = new Set([
   "changeEmail",
   "registerPasskey",
   "removePasskey",
-  "enableTwoFactor",
-  "disableTwoFactor",
   "rotateRecoveryCodes",
   "signOutEverywhere",
   "createPersonalKey",
@@ -219,18 +216,13 @@ const factorRoutes: Record<string, string> = {
   "/passkey/generate-register-options": "registerPasskey",
   "/passkey/verify-registration": "registerPasskey",
   "/passkey/delete-passkey": "removePasskey",
-  "/two-factor/enable": "enableTwoFactor",
-  "/two-factor/disable": "disableTwoFactor",
-  "/two-factor/generate-backup-codes": "rotateRecoveryCodes",
-  "/two-factor/get-totp-uri": "enableTwoFactor",
+  "/passkey/replace-recovery-codes": "rotateRecoveryCodes",
 };
 const actionTypes: Record<string, string> = {
   changePassword: "change_password",
   changeEmail: "change_email",
   registerPasskey: "register_passkey",
   removePasskey: "remove_passkey",
-  enableTwoFactor: "enable_totp",
-  disableTwoFactor: "disable_totp",
   rotateRecoveryCodes: "rotate_recovery_codes",
   signOutEverywhere: "sign_out_everywhere",
   updateMember: "update_member",
@@ -418,11 +410,11 @@ export class IdentityService {
         session: {
           create: {
             before: async (session) => {
-              const result = await config.pool.query(
-                `SELECT email_verified FROM rootset_control.users WHERE id=$1`,
+              const verified = await config.pool.query(
+                `SELECT 1 FROM rootset_control.users WHERE id=$1 AND email_verified`,
                 [session.userId],
               );
-              if (!result.rows[0]?.email_verified)
+              if (!verified.rowCount)
                 throw new APIError("UNAUTHORIZED", {
                   message: "Account is unavailable",
                 });
@@ -437,79 +429,10 @@ export class IdentityService {
             throw new APIError("FORBIDDEN", {
               message: "Use an invitation to create an account",
             });
-          if (
-            ctx.path === "/two-factor/verify-totp" ||
-            ctx.path === "/two-factor/verify-backup-code"
-          ) {
-            if (ctx.body?.trustDevice)
-              throw new APIError("BAD_REQUEST", {
-                message: "Trusted-device bypass is not enabled",
-              });
-            const signedCookie = ctx.context.createAuthCookie("two_factor", {
-              maxAge: 600,
-            });
-            const identifier = await ctx.getSignedCookie(
-              signedCookie.name,
-              ctx.context.secret,
-            );
-            const pending = identifier
-              ? await ctx.context.internalAdapter.findVerificationValue(
-                  identifier,
-                )
-              : null;
-            const session = await this.rawAuth.api.getSession({
-              headers: ctx.headers ?? new Headers(),
-            });
-            const userId = pending?.value ?? session?.user.id;
-            if (userId && ctx.body?.code) {
-              const store = authRequest.getStore();
-              if (!store)
-                throw new APIError("FORBIDDEN", {
-                  message: "Factor verification must use the HTTP proof flow",
-                });
-              const client = await config.pool.connect();
-              store.client = client;
-              await client.query("BEGIN");
-              await client.query(
-                "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
-                [`factor:${userId}`],
-              );
-              const proofHash = this.hashSecret(`${userId}:${ctx.body.code}`);
-              const used = await client.query(
-                `SELECT 1 FROM rootset_control.factor_proofs WHERE user_id=$1 AND proof_hash=$2 AND expires_at>now()`,
-                [userId, proofHash],
-              );
-              if (used.rowCount)
-                throw new APIError("UNAUTHORIZED", {
-                  message: "This proof has already been used",
-                });
-              store.factorUserId = userId;
-              store.factorHash = proofHash;
-              if (ctx.path === "/two-factor/verify-backup-code")
-                ctx.body.code = `hmac:${this.hashSecret(ctx.body.code)}`;
-            }
-          }
         }),
       },
       plugins: [
-        twoFactor({
-          issuer: "Rootset",
-          skipVerificationOnEnable: false,
-          backupCodeOptions: {
-            storeBackupCodes: {
-              encrypt: async (value) =>
-                JSON.stringify(
-                  (JSON.parse(value) as string[]).map((code) =>
-                    code.startsWith("hmac:")
-                      ? code
-                      : `hmac:${this.hashSecret(code)}`,
-                  ),
-                ),
-              decrypt: async (value) => value,
-            },
-          },
-          schema: { twoFactor: { modelName: "authTwoFactors" } },
-        }),
+        passwordSecondFactor(database, config.pool),
         passkey({
           rpID: new URL(config.baseURL).hostname,
           rpName: "Rootset",
@@ -534,20 +457,12 @@ export class IdentityService {
                 throw new APIError("FORBIDDEN", {
                   message: "User verification is required",
                 });
-              const existing = await this.rawAuth.api.getSession({
-                headers: ctx.headers ?? new Headers(),
-              });
-              if (existing) {
-                const credential = await config.pool.query(
-                  `SELECT user_id FROM rootset_control.auth_passkeys WHERE credential_id=$1`,
-                  [clientData.id],
-                );
-                if (credential.rows[0]?.user_id !== existing.user.id)
-                  throw new APIError("FORBIDDEN", {
-                    message:
-                      "Use a passkey belonging to your signed-in account",
-                  });
-              }
+              await completePasskeySecondFactor(
+                ctx,
+                database,
+                config.pool,
+                clientData,
+              );
             },
           },
         }),
@@ -889,7 +804,10 @@ export class IdentityService {
           "The request origin is invalid",
           403,
         );
-      if (["/organisations", "/organisation", "/delete-user"].includes(path))
+      if (
+        path.startsWith("/two-factor/") ||
+        ["/organisations", "/organisation", "/delete-user"].includes(path)
+      )
         notFound();
       if (path.startsWith("/invitations/"))
         return await this.handleInvitation(request, path);
@@ -899,21 +817,27 @@ export class IdentityService {
       if (path === "/email-change/confirm")
         return await this.confirmEmailChange(request);
       const actionId = request.headers.get("x-rootset-action-id");
-      let actionOperation = factorRoutes[path];
-      if (path === "/two-factor/verify-totp" && actionId)
-        actionOperation = "enableTwoFactor";
-      const factorBefore =
-        path === "/two-factor/verify-totp"
-          ? await this.rawAuth.api.getSession({ headers: request.headers })
-          : null;
-      const wasEnabled = factorBefore
-        ? (
-            await this.config.pool.query(
-              `SELECT two_factor_enabled FROM rootset_control.users WHERE id=$1`,
-              [factorBefore.user.id],
-            )
-          ).rows[0]?.two_factor_enabled
-        : true;
+      const actionOperation = factorRoutes[path];
+      if (
+        ["/passkey/verify-registration", "/passkey/update-passkey"].includes(
+          path,
+        )
+      ) {
+        const body = parse(
+          z.strictObject({
+            response: z.record(z.string(), z.unknown()).optional(),
+            id: z.string().optional(),
+            name: z.string().trim().min(1).max(120).optional(),
+            createSession: z.literal(false).optional(),
+          }),
+          await request.clone().json(),
+        );
+        if (path.endsWith("update-passkey") && (!body.id || !body.name))
+          throw new RootsetError(
+            "VALIDATION_FAILED",
+            "Passkey ID and name are required",
+          );
+      }
       if (
         path === "/change-password" ||
         path === "/update-user" ||
@@ -961,34 +885,40 @@ export class IdentityService {
           }
         } else this.requireRecentAuthentication(actor);
       }
-      const store: {
-        client?: PoolClient;
-        factorUserId?: string;
-        factorHash?: string;
-      } = {};
       const passkeySession =
         path === "/passkey/verify-authentication"
           ? await this.rawAuth.api.getSession({ headers: request.headers })
           : null;
       let response: Response;
-      try {
-        response = await authRequest.run(store, () =>
-          this.rawAuth.handler(request),
-        );
-        if (store.client && store.factorUserId && store.factorHash) {
-          if (response.ok)
-            await store.client.query(
-              `INSERT INTO rootset_control.factor_proofs(user_id,proof_hash,expires_at) VALUES($1,$2,now()+interval '2 minutes') ON CONFLICT(user_id,proof_hash) DO UPDATE SET expires_at=EXCLUDED.expires_at`,
-              [store.factorUserId, store.factorHash],
+      if (path === "/passkey/replace-recovery-codes") {
+        const actor = await this.resolveActor(request, "browser");
+        if (!actor?.userId)
+          throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
+        const recoveryCodes = await transaction(
+          this.config.pool,
+          async (client) => {
+            await client.query(
+              `SELECT id FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
+              [actor.userId],
             );
-          await store.client.query("COMMIT");
-        }
-      } finally {
-        if (store.client) {
-          await store.client.query("ROLLBACK");
-          store.client.release();
-        }
-      }
+            if (
+              !(
+                await client.query(
+                  `SELECT id FROM rootset_control.auth_passkeys WHERE user_id=$1 FOR UPDATE`,
+                  [actor.userId],
+                )
+              ).rowCount
+            )
+              throw new RootsetError(
+                "ACCESS_DENIED",
+                "Add a passkey before generating recovery codes",
+                403,
+              );
+            return replaceRecoveryCodes(client, actor.userId!);
+          },
+        );
+        response = Response.json({ recoveryCodes });
+      } else response = await this.rawAuth.handler(request);
       if (response.ok && passkeySession) {
         const payload = (await response.clone().json()) as {
           session: { id: string };
@@ -1027,9 +957,7 @@ export class IdentityService {
         response.ok &&
         actionId &&
         actionOperation &&
-        !path.includes("generate-register") &&
-        !path.includes("get-totp-uri") &&
-        path !== "/two-factor/enable"
+        !path.includes("generate-register")
       ) {
         if (approvalLease)
           await approvalLease.query(
@@ -1039,18 +967,35 @@ export class IdentityService {
       }
       if (
         response.ok &&
-        ([
-          "/two-factor/disable",
-          "/two-factor/generate-backup-codes",
+        [
           "/passkey/verify-registration",
           "/passkey/delete-passkey",
-        ].includes(path) ||
-          (path === "/two-factor/verify-totp" && factorBefore && !wasEnabled))
+          "/passkey/replace-recovery-codes",
+        ].includes(path)
       ) {
         const session = await this.rawAuth.api.getSession({
           headers: request.headers,
         });
         if (session) {
+          if (path === "/passkey/verify-registration") {
+            const recoveryCodes = await ensureRecoveryCodes(
+              this.config.pool,
+              session.user.id,
+            );
+            if (recoveryCodes.length)
+              response = Response.json(
+                {
+                  ...((await response.clone().json()) as object),
+                  recoveryCodes,
+                },
+                { status: response.status, headers: response.headers },
+              );
+          }
+          if (path === "/passkey/delete-passkey")
+            await this.config.pool.query(
+              `DELETE FROM rootset_control.auth_recovery_codes WHERE user_id=$1 AND NOT EXISTS(SELECT 1 FROM rootset_control.auth_passkeys WHERE user_id=$1)`,
+              [session.user.id],
+            );
           await this.revokeAllUserAccess(session.user.id, session.session.id);
           await this.sendEmail({
             template: "factor-changed",
@@ -1402,6 +1347,10 @@ export class IdentityService {
       [userId, exceptSessionId ?? null],
     );
     await client.query(
+      `DELETE FROM rootset_control.auth_verifications WHERE value=$1 OR CASE WHEN identifier LIKE 'rootset-passkey-factor:%' THEN value::jsonb->>'userId'=$1 ELSE false END`,
+      [userId],
+    );
+    await client.query(
       `UPDATE rootset_control.users SET authentication_version=authentication_version+1 WHERE id=$1`,
       [userId],
     );
@@ -1492,7 +1441,7 @@ export class IdentityService {
       parse(
         target === "changePassword"
           ? z.strictObject({
-              currentPassword: z.string().max(1024),
+              currentPassword: z.string().max(1024).optional(),
               newPassword: passwordSchema,
             })
           : target === "changeEmail"
@@ -1946,7 +1895,7 @@ export class IdentityService {
           actor,
           operation,
           input,
-          `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,u.two_factor_enabled "twoFactorEnabled",m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1`,
+          `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,EXISTS(SELECT 1 FROM rootset_control.auth_passkeys p WHERE p.user_id=u.id) "twoFactorEnabled",m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1`,
           [actor.orgId],
         );
       case "updateMember":
@@ -2000,20 +1949,20 @@ export class IdentityService {
         security();
         const factor = (
           await client.query(
-            `SELECT backup_codes FROM rootset_control.auth_two_factors WHERE user_id=$1`,
+            `SELECT cardinality(code_hashes) remaining FROM rootset_control.auth_recovery_codes WHERE user_id=$1`,
             [actor.userId],
           )
         ).rows[0];
         return {
-          twoFactorEnabled: (
-            await client.query(
-              `SELECT two_factor_enabled FROM rootset_control.users WHERE id=$1`,
-              [actor.userId],
-            )
-          ).rows[0].two_factor_enabled,
-          recoveryCodesRemaining: factor
-            ? (JSON.parse(factor.backup_codes) as string[]).length
-            : 0,
+          twoFactorEnabled: Boolean(
+            (
+              await client.query(
+                `SELECT 1 FROM rootset_control.auth_passkeys WHERE user_id=$1 LIMIT 1`,
+                [actor.userId],
+              )
+            ).rowCount,
+          ),
+          recoveryCodesRemaining: factor?.remaining ?? 0,
           passkeys: (
             await client.query(
               `SELECT id,COALESCE(name,'Passkey') name,created_at "createdAt",NULL::timestamptz "lastUsedAt" FROM rootset_control.auth_passkeys WHERE user_id=$1 ORDER BY created_at`,
@@ -2110,14 +2059,12 @@ export class IdentityService {
       }
       case "registerPasskey":
       case "removePasskey":
-      case "enableTwoFactor":
-      case "disableTwoFactor":
       case "rotateRecoveryCodes":
         security();
         return {
           state: "interactive_proof_required",
           operationId: operation,
-          proofUrl: `${this.config.baseURL}/settings/security`,
+          proofUrl: `${this.config.baseURL}/settings/passkeys`,
           actionId: context.actionId ?? null,
         };
       default:
@@ -2545,7 +2492,7 @@ export class IdentityService {
       ? { deleted: true }
       : (
           await client.query(
-            `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,u.two_factor_enabled "twoFactorEnabled",m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.id=$1 AND m.org_id=$2`,
+            `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,EXISTS(SELECT 1 FROM rootset_control.auth_passkeys p WHERE p.user_id=u.id) "twoFactorEnabled",m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.id=$1 AND m.org_id=$2`,
             [target.id, actor.orgId],
           )
         ).rows[0];
@@ -2959,7 +2906,7 @@ export class IdentityService {
     assertAccess(actor, { scope: "account:security", personal: true });
     const data = parse(
       z.strictObject({
-        currentPassword: z.string(),
+        currentPassword: z.string().max(1024).optional(),
         newPassword: passwordSchema,
       }),
       input,
@@ -2967,16 +2914,18 @@ export class IdentityService {
     await this.assertSensitive(actor, "changePassword", input, context, client);
     const account = (
       await client.query(
-        `SELECT id,password FROM rootset_control.auth_accounts WHERE user_id=$1 AND provider_id='credential' FOR UPDATE`,
+        `SELECT id,password,EXISTS(SELECT 1 FROM rootset_control.auth_passkeys WHERE user_id=$1) has_passkey FROM rootset_control.auth_accounts WHERE user_id=$1 AND provider_id='credential' FOR UPDATE`,
         [actor.userId],
       )
     ).rows[0];
     if (
       !account?.password ||
-      !(await verifyPassword({
-        password: data.currentPassword,
-        hash: account.password,
-      }))
+      (!account.has_passkey &&
+        (!data.currentPassword ||
+          !(await verifyPassword({
+            password: data.currentPassword,
+            hash: account.password,
+          }))))
     )
       throw new RootsetError(
         "ACCESS_DENIED",
@@ -3160,12 +3109,12 @@ export class IdentityService {
     if (!actor?.userId)
       throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
     const data = parse(
-      z.strictObject({ password: z.string(), code: z.string().optional() }),
+      z.strictObject({ password: z.string().min(1).max(1024) }),
       await request.json(),
     );
     const account = (
       await this.config.pool.query(
-        `SELECT a.password,u.two_factor_enabled FROM rootset_control.auth_accounts a JOIN rootset_control.users u ON u.id=a.user_id WHERE a.user_id=$1 AND a.provider_id='credential'`,
+        `SELECT a.password,EXISTS(SELECT 1 FROM rootset_control.auth_passkeys p WHERE p.user_id=a.user_id) has_passkey FROM rootset_control.auth_accounts a WHERE a.user_id=$1 AND a.provider_id='credential'`,
         [actor.userId],
       )
     ).rows[0];
@@ -3177,35 +3126,23 @@ export class IdentityService {
       }))
     )
       throw new RootsetError("ACCESS_DENIED", "Authentication failed", 403);
-    if (account.two_factor_enabled) {
-      if (!data.code)
-        throw new RootsetError(
-          "FACTOR_REQUIRED",
-          "Enter your authenticator code",
-          403,
-        );
-      const factorRequest = new Request(
-        `${this.config.baseURL}/v1/auth/two-factor/verify-totp`,
-        {
-          method: "POST",
-          headers: new Headers(request.headers),
-          body: JSON.stringify({ code: data.code }),
-        },
+    if (account.has_passkey)
+      throw new RootsetError(
+        "STEP_UP_REQUIRED",
+        "Verify with a passkey to continue",
+        403,
       );
-      factorRequest.headers.set("content-type", "application/json");
-      const response = await this.handleAuth(factorRequest);
-      if (!response.ok)
-        throw new RootsetError(
-          "ACCESS_DENIED",
-          "Factor verification failed",
-          403,
-        );
-    }
     const authenticatedAt = Date.now();
-    await this.config.pool.query(
-      `UPDATE rootset_control.sessions SET authenticated_at=$2 WHERE id=$1 AND user_id=$3`,
+    const refreshed = await this.config.pool.query(
+      `UPDATE rootset_control.sessions SET authenticated_at=$2 WHERE id=$1 AND user_id=$3 AND expires_at>now() AND NOT EXISTS(SELECT 1 FROM rootset_control.auth_passkeys WHERE user_id=$3) RETURNING id`,
       [actor.id, new Date(authenticatedAt), actor.userId],
     );
+    if (!refreshed.rowCount)
+      throw new RootsetError(
+        "STEP_UP_REQUIRED",
+        "Verify with a passkey to continue",
+        403,
+      );
     return Response.json({ authenticatedAt });
   }
   async recoverUser(
@@ -3228,15 +3165,11 @@ export class IdentityService {
       ).rows[0];
       if (!user) notFound();
       await client.query(
-        `DELETE FROM rootset_control.auth_two_factors WHERE user_id=$1`,
+        `DELETE FROM rootset_control.auth_recovery_codes WHERE user_id=$1`,
         [userId],
       );
       await client.query(
         `DELETE FROM rootset_control.auth_passkeys WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `UPDATE rootset_control.users SET two_factor_enabled=false WHERE id=$1`,
         [userId],
       );
       await this.revokeAllUserAccess(userId, undefined, client);

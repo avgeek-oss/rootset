@@ -76,9 +76,15 @@
     {
       "id": "V1-06",
       "area": "Installation and accounts",
-      "requirement": "Password/email verification/reset, passkeys, 2FA, recovery codes, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures.",
+      "requirement": "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.",
       "status": "pending",
-      "testSources": []
+      "testSources": [
+        {
+          "path": "packages/identity/src/passkey-security.test.ts",
+          "line": 18,
+          "title": "V1-06 AUTH-03 AUTH-04 passkey crypto, password gates, bound fresh proof and one-use recovery"
+        }
+      ]
     },
     {
       "id": "V1-07",
@@ -1122,7 +1128,6 @@
   ],
   "checksWithoutTestPointers": [
     "V1-02",
-    "V1-06",
     "V1-08",
     "V1-09",
     "V1-16",

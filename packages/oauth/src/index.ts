@@ -734,6 +734,17 @@ export class OAuthService {
         "invalid_request",
         "Consent requires a boolean approve decision.",
       );
+    if (
+      body.approve &&
+      (actor.kind !== "session" ||
+        !actor.authenticatedAt ||
+        Date.now() - actor.authenticatedAt > 300000)
+    )
+      throw new OAuthError(
+        "interaction_required",
+        "Authenticate again before approving access.",
+        403,
+      );
     return this.transaction(async (db) => {
       const row = (
         await db.query(

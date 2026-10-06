@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@avgeek-oss/design-system": "1.2.0",
+    "@avgeek-oss/design-system": "1.2.1",
     "@better-auth/passkey": "catalog:",
     "@codemirror/commands": "catalog:",
     "@codemirror/lang-json": "catalog:",
@@ -26,6 +26,7 @@
     "@rootset/contracts": "workspace:*",
     "@rootset/observability": "workspace:*",
     "@rootset/web-client": "workspace:*",
+    "@simplewebauthn/browser": "13.3.0",
     "@tanstack/react-query": "catalog:",
     "better-auth": "catalog:",
     "clsx": "2.1.1",
@@ -33,7 +34,6 @@
     "lucide-react": "catalog:",
     "next": "catalog:",
     "prism-react-renderer": "2.4.1",
-    "qrcode": "1.5.4",
     "react": "catalog:",
     "react-aria-components": "1.21.1",
     "react-dom": "catalog:",
@@ -42,7 +42,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",
-    "@types/qrcode": "1.5.6",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",

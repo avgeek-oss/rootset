@@ -18,7 +18,6 @@ export const users = control.table("users", {
   email: varchar("email", { length: 320 }).notNull(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
-  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -75,16 +74,10 @@ export const authPasskeys = control.table("auth_passkeys", {
   aaguid: text("aaguid"),
   createdAt: createdAt(),
 });
-export const authTwoFactors = control.table("auth_two_factors", {
-  id: id(),
-  userId: varchar("user_id", { length: 26 }).notNull(),
-  secret: text("secret").notNull(),
-  backupCodes: text("backup_codes").notNull(),
-  verified: boolean("verified").notNull().default(false),
-  failedVerificationCount: integer("failed_verification_count")
-    .notNull()
-    .default(0),
-  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+export const authRecoveryCodes = control.table("auth_recovery_codes", {
+  userId: varchar("user_id", { length: 26 }).primaryKey(),
+  codeHashes: text("code_hashes").array().notNull(),
+  createdAt: createdAt(),
 });
 export const identitySchema = {
   users,
@@ -92,5 +85,5 @@ export const identitySchema = {
   authAccounts,
   authVerifications,
   authPasskeys,
-  authTwoFactors,
+  authRecoveryCodes,
 };

@@ -9,15 +9,18 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "catalog:",
+    "@better-auth/passkey": "catalog:",
     "@rootset/access": "workspace:*",
     "@rootset/contracts": "workspace:*",
     "@rootset/database": "workspace:*",
     "@rootset/email": "workspace:*",
     "@rootset/idempotency": "workspace:*",
     "better-auth": "catalog:",
-    "@better-auth/passkey": "catalog:",
-    "@better-auth/drizzle-adapter": "catalog:",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@simplewebauthn/server": "13.3.3"
   }
 }

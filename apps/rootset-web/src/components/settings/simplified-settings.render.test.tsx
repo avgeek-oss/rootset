@@ -25,7 +25,7 @@ describe("simplified account settings", () => {
       createElement(OrganisationSettings, props),
     );
     expect(html).toContain("Team name");
-    expect(html).toContain('maxLength="255"');
+    expect(html).toContain('maxLength="120"');
     expect(html).toMatch(/<label[^>]+for=/);
     expect([...html.matchAll(/<input\b/g)]).toHaveLength(1);
     for (const removed of [

@@ -4,8 +4,8 @@ import { usesAccountConfirmation } from "./approval-policy";
 
 const ticket: AccountActionTicket = {
   id: "requested-action",
-  operationId: "enableTwoFactor",
-  type: "enable_totp",
+  operationId: "registerPasskey",
+  type: "register_passkey",
   expiresAt: "2026-10-05T12:00:00.000Z",
   approvalUrl: "/account-actions/requested-action",
 };

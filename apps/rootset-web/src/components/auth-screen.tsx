@@ -1,20 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  AuthForm,
   AuthPage,
-  AsyncActionButton,
-  IdentityCredentialsForm,
+  SignIn,
+  PasskeyRecoveryVerification,
+  PasskeyVerification,
 } from "@avgeek-oss/design-system";
-import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Login01Icon } from "@hugeicons/core-free-icons";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { verifyPasskeySecondFactor, passkeyError } from "../lib/passkeys";
+import { identityRequest } from "../lib/identity-request";
 import { authClient } from "../lib/auth-client";
 import { authFailure } from "../lib/auth-failure";
-import { AuthFrame, authTextActionClassName } from "./auth-frame";
+import { AuthBrand } from "./auth-frame";
 import {
   InitialTeamSetup,
   ForgotPasswordForm,
@@ -58,8 +57,9 @@ export function AuthScreen({
 
 function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
   const params = useSearchParams();
-  const [factor, setFactor] = useState<"totp" | "recovery" | null>(null);
+  const [factor, setFactor] = useState<"passkey" | "recovery" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [abortable, setAbortable] = useState(false);
   const pending = useRef(false);
   async function authenticate(action: () => Promise<void>) {
     if (pending.current) return;
@@ -72,116 +72,90 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
       setBusy(false);
     }
   }
-  if (factor)
+  const passkeyRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => passkeyRequest.current?.abort(), []);
+  const verify = useCallback(async () => {
+    const controller = new AbortController();
+    passkeyRequest.current?.abort();
+    passkeyRequest.current = controller;
+    setBusy(true);
+    try {
+      await verifyPasskeySecondFactor(controller.signal);
+      if (!controller.signal.aborted) onSignedIn();
+    } catch (error) {
+      if (!controller.signal.aborted) toast.danger(passkeyError(error));
+    } finally {
+      if (passkeyRequest.current === controller) {
+        passkeyRequest.current = null;
+        setBusy(false);
+      }
+    }
+  }, [onSignedIn]);
+  const back = () => {
+    passkeyRequest.current?.abort();
+    setFactor(null);
+    setBusy(false);
+  };
+  if (factor === "recovery")
     return (
-      <AuthFrame
-        title={
-          factor === "totp"
-            ? "Enter your verification code"
-            : "Use a recovery code"
+      <PasskeyRecoveryVerification
+        brand={<AuthBrand />}
+        onSubmit={async ({ code }) => {
+          await identityRequest("/passkey/verify-recovery-code", "POST", {
+            code,
+          });
+          onSignedIn();
+        }}
+        onPasskeyVerification={() => setFactor("passkey")}
+        onBackToSignIn={back}
+      />
+    );
+  if (factor === "passkey")
+    return (
+      <PasskeyVerification
+        brand={<AuthBrand />}
+        isPending={busy}
+        onRetry={() => void verify()}
+        onCancelRequest={
+          abortable
+            ? () => {
+                passkeyRequest.current?.abort();
+                setBusy(false);
+                setAbortable(false);
+              }
+            : undefined
         }
-        description={
-          factor === "totp"
-            ? "Enter the current code from your authenticator app."
-            : "Each recovery code can be used once."
-        }
-      >
-        <AuthForm
-          key={factor}
-          fields={[
-            {
-              name: "code",
-              label: factor === "totp" ? "Verification code" : "Recovery code",
-              required: true,
-              autoComplete: "one-time-code",
-              inputMode: factor === "totp" ? "numeric" : "text",
-              ...(factor === "totp"
-                ? { minLength: 6, maxLength: 6, pattern: "[0-9]{6}" }
-                : {}),
-            },
-          ]}
-          submitLabel="Verify and sign in"
-          busyLabel="Verifying…"
-          onSubmit={async ({ code }) =>
-            authenticate(async () => {
-              authFailure(
-                factor === "totp"
-                  ? await authClient.twoFactor.verifyTotp({
-                      code: code ?? "",
-                      trustDevice: false,
-                    })
-                  : await authClient.twoFactor.verifyBackupCode({
-                      code: code ?? "",
-                      trustDevice: false,
-                    }),
-              );
-              onSignedIn();
-            })
-          }
-        >
-          <Button
-            variant="secondary"
-            isDisabled={busy}
-            onPress={() => setFactor(factor === "totp" ? "recovery" : "totp")}
-          >
-            {factor === "totp"
-              ? "Use a recovery code"
-              : "Use an authenticator code"}
-          </Button>
-        </AuthForm>
-      </AuthFrame>
+        onRecoverySignIn={() => setFactor("recovery")}
+        onBackToSignIn={back}
+      />
     );
   return (
-    <AuthFrame
-      title="Sign in"
-      description="Sign in to your team’s Rootset instance."
-    >
-      <IdentityCredentialsForm
-        identifierLabel="Email"
-        identifierType="email"
-        identifierAutoComplete="email"
-        defaultIdentifier={params.get("email") ?? ""}
-        disabled={busy}
-        submitIcon={<HugeiconsIcon aria-hidden icon={Login01Icon} size={16} />}
-        passwordAction={
-          <Link href="/forgot-password" className={authTextActionClassName}>
-            Forgot password?
-          </Link>
-        }
-        onSubmit={async ({ identifier, password }) =>
-          authenticate(async () => {
-            const result = await authClient.signIn.email({
-              email: identifier,
-              password,
-            });
-            authFailure(result);
-            if (
-              result.data &&
-              "twoFactorRedirect" in result.data &&
-              result.data.twoFactorRedirect
-            )
-              setFactor("totp");
-            else onSignedIn();
-          })
-        }
-      />
-      <AsyncActionButton
-        className="w-full"
-        variant="secondary"
-        isDisabled={busy}
-        pendingLabel="Waiting for your passkey…"
-        onAction={() =>
-          authenticate(async () => {
-            authFailure(await authClient.signIn.passkey());
-            onSignedIn();
-          })
-        }
-      >
-        Sign in with Passkey
-      </AsyncActionButton>
-      <Link className={authTextActionClassName} href="/verification">
-        Need a new verification email?
-      </Link>
-    </AuthFrame>
+    <SignIn
+      brand={<AuthBrand />}
+      defaultEmail={params.get("email") ?? ""}
+      isPending={busy}
+      onForgotPassword={() => window.location.assign("/forgot-password")}
+      onSubmit={async ({ identifier, password }) =>
+        authenticate(async () => {
+          const result = await authClient.signIn.email({
+            email: identifier,
+            password,
+          });
+          authFailure(result);
+          if (
+            result.data &&
+            "twoFactorRedirect" in result.data &&
+            result.data.twoFactorRedirect
+          ) {
+            setFactor("passkey");
+            await verify();
+          } else onSignedIn();
+        })
+      }
+      onPasskeySignIn={() => {
+        setFactor("passkey");
+        void verify();
+      }}
+    />
   );
 }
