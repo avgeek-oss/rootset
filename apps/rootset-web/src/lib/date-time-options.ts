@@ -1,11 +1,17 @@
+import { availableTimeZones } from "@rootset/contracts";
 import {
-  availableTimeZones,
   dateFormatOptions,
   timeFormatOptions,
-} from "@rootset/contracts";
+} from "@avgeek-oss/design-system/utilities/date-time-preferences";
 import type { DateTimePreferenceOptions } from "@avgeek-oss/design-system/patterns/settings/date-time-preference-fields";
-export const dateFormats = dateFormatOptions.map((option) => ({ ...option }));
-export const timeFormats = timeFormatOptions.map((option) => ({ ...option }));
+
+export const dateFormats = dateFormatOptions;
+export const timeFormats = timeFormatOptions;
+
 export function setupPreferenceOptions(): DateTimePreferenceOptions {
-  return { dateFormats, timeFormats, timeZones: availableTimeZones() };
+  return {
+    dateFormats,
+    timeFormats,
+    timeZones: availableTimeZones(),
+  };
 }

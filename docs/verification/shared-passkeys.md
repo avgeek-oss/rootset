@@ -1,7 +1,7 @@
 # Shared account settings and passkeys
 
 Rootset consumes Towbar's account, authentication and team patterns from
-`@avgeek-oss/design-system@1.2.3`. Profile, Preferences, Email & Password,
+`@avgeek-oss/design-system@1.2.4`. Profile, Preferences, Email & Password,
 Passkeys, Sessions, API Keys and MCP Guide use the library's components and
 fixed copy. The secondary sidebar contains only the current settings scope.
 Team details, invitation creation, member editing/removal and invitation
@@ -114,7 +114,9 @@ retries the same reviewed operation.
 ## Date and time preferences
 
 All five date formats and four clock formats use Towbar's identifiers and defaults.
-The UI uses the native shared preference controls. Backend contracts and
+The UI consumes the published React-free `utilities/date-time-preferences` catalog
+and uses the native shared preference controls. A contract test compares the
+library options and defaults against the backend catalog. Backend contracts and
 fresh SQL constraints retain the same catalog, with explicit input/read aliases
 for earlier Rootset values. Output and new storage always use canonical IDs.
 `date-time-preferences.test.ts`, the cell draft suite, the actual PostgreSQL
@@ -131,12 +133,38 @@ Run `pnpm verify` with the identity/storage fixture environment configured, then
 PostgreSQL, local S3-compatible storage and Mailpit. Identity, HTTP/runtime,
 storage and job suites ran without skipped tests.
 
+The published 1.2.4 registry archive matched all 624 installed package files;
+the frozen dependency install and production vulnerability audit passed. The
+final local run passed 198 web, 58 identity, 349 HTTP/runtime, 40 contract and
+three database tests. Storage/API/MCP integration passed 42 tests, and
+job/storage/mail integration passed 37 tests.
+
+The first final-package run retained two authenticated export-download 503
+responses with `CAPACITY_LIMIT`. The unchanged artifact verifier refuses work
+when the temporary filesystem cannot retain the artifact plus its 1 GiB reserve.
+The failing status assertion now includes the response body for diagnosis.
+Focused field-matrix verification passed all 323 tests, then the complete gate
+passed with the same protections, assertions and fixture isolation. Temporary
+capacity at the original failure was not sampled, so the evidence identifies
+the guard that refused the downloads without attributing the space change to a
+particular process.
+
 Rendered QA covered all seven account pages plus team General and Members at
 1280 px and 390 px, in light and dark themes. Checks included isolated account
 navigation, the profile input focus ring, timezone selection, MCP client
 configuration switching, populated API-key metadata, member identity columns
 and opening/cancelling shared passkey, API-key and member dialogs. Wide tables
 scroll within their own container; the page itself remains within the viewport.
+
+Production SPA verification held only the synthetic preview user's PostgreSQL
+row while saving the profile. Navigating to MCP Guide before completion showed
+no late success notification; returning to Profile showed the committed value.
+A database statement timeout retained the mounted draft and re-enabled Save;
+the deliberate retry committed the draft with one success notification. Expiring
+only the fixture's sessions and reloading returned to the native sign-in screen
+without late success feedback. That expiry check used document reload rather
+than claiming an automatic SPA expiry transition. The preview was signed back
+in and its original display name restored.
 
 This evidence covers the account/passkey adoption. It does not sign off the full
 V1 checklist or the five-million-row performance target. Browser/OS enrollment

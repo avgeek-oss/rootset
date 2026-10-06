@@ -794,7 +794,11 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
               const download = await fetch(artifact.downloadUrl, {
                 headers: { Authorization: `Bearer ${restSecret}` },
               });
-              assert.equal(download.status, 200);
+              assert.equal(
+                download.status,
+                200,
+                download.ok ? undefined : await download.text(),
+              );
               const body = await download.text();
               assert.equal(
                 createHash("sha256").update(body).digest("hex"),
