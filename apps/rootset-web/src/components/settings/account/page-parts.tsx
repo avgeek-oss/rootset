@@ -8,25 +8,22 @@ import {
 } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import { Widget } from "../../ui/towbar/design-system/data-display/widget";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Widget } from "@avgeek-oss/design-system/data-display/widget";
 import {
   Field,
   FieldLabel,
   FieldDescription,
-} from "../../ui/towbar/design-system/forms/field";
-import {
-  Input,
-  type InputProps,
-} from "../../ui/towbar/design-system/forms/input";
-import { PasswordInput } from "../../ui/towbar/design-system/forms/password-input";
-import { Textarea } from "../../ui/towbar/design-system/forms/textarea";
-import { Alert } from "../../ui/towbar/design-system/feedback/alert";
-import { Spinner } from "../../ui/towbar/design-system/feedback/spinner";
-import { AlertDialog } from "../../ui/towbar/design-system/overlays/alert-dialog";
-import { toast } from "../../ui/towbar/design-system/overlays/toast";
-import type { HeadingDocumentation } from "../../ui/towbar/design-system/overlays/heading-help";
-import { cn } from "../../ui/towbar/design-system/lib/utils";
+} from "@avgeek-oss/design-system/forms/field";
+import { Input, type InputProps } from "@avgeek-oss/design-system/forms/input";
+import { PasswordInput } from "@avgeek-oss/design-system/forms/password-input";
+import { Textarea } from "@avgeek-oss/design-system/forms/textarea";
+import { Alert } from "@avgeek-oss/design-system/feedback/alert";
+import { Spinner } from "@avgeek-oss/design-system/feedback/spinner";
+import { AlertDialog } from "@avgeek-oss/design-system/overlays/alert-dialog";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import type { HeadingDocumentation } from "@avgeek-oss/design-system/overlays/heading-help";
+import { cn } from "@avgeek-oss/design-system/lib/utils";
 import { refreshApiQueries } from "./adapter";
 export function ActionButton<T>({
   action,
@@ -57,7 +54,7 @@ export function ActionButton<T>({
   preserveLabelWhilePending?: boolean;
   redirectOnSuccess?: (result: T) => string;
   success: string;
-  variant?: "danger" | "primary" | "secondary" | "warning";
+  variant?: "danger" | "primary" | "secondary";
 }) {
   const [busy, setBusy] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -129,13 +126,7 @@ export function ActionButton<T>({
               </Button>
               <Button
                 isDisabled={busy || isDisabled}
-                variant={
-                  variant === "danger"
-                    ? "danger"
-                    : variant === "warning"
-                      ? "warning"
-                      : "primary"
-                }
+                variant={variant === "danger" ? "danger" : "primary"}
                 onPress={() => {
                   setIsConfirming(false);
                   void runAction();

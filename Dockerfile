@@ -6,7 +6,7 @@ WORKDIR /workspace
 ENV CI=true NEXT_TELEMETRY_DISABLED=1 TURBO_TELEMETRY_DISABLED=1
 RUN npm install --global pnpm@11.5.3
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc,required=true pnpm install --frozen-lockfile
 ARG ROOTSET_API_INTERNAL_URL=http://api:4310
 ENV ROOTSET_API_INTERNAL_URL=${ROOTSET_API_INTERNAL_URL}
 RUN pnpm typecheck && pnpm build

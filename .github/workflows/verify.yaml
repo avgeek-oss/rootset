@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}
@@ -78,7 +79,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
-      - name: Install pinned public workspace dependencies
+          registry-url: https://npm.pkg.github.com
+          scope: "@avgeek-oss"
+      - name: Install pinned workspace dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm install --global pnpm@11.5.3
           pnpm install --frozen-lockfile
@@ -114,10 +119,14 @@ jobs:
           sha256sum pnpm-lock.yaml packages/database/migrations/*.sql packages/contracts/generated/* > verification/ci/source-digests.txt
           cp dist/build-manifest.json verification/ci/build-manifest.json
       - name: Build non-root images from a fresh Docker context
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          node .github/scripts/build-registry-config.mjs verification/ci/package-registry.npmrc
+          trap 'rm -f verification/ci/package-registry.npmrc' EXIT
           rootset_revision=$(git rev-parse HEAD)
-          docker build --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target runtime --tag rootset-runtime:ci .
-          docker build --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target web --tag rootset-web:ci .
+          docker build --secret id=npmrc,src=verification/ci/package-registry.npmrc --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target runtime --tag rootset-runtime:ci .
+          docker build --secret id=npmrc,src=verification/ci/package-registry.npmrc --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target web --tag rootset-web:ci .
           docker image inspect rootset-runtime:ci rootset-web:ci --format '{{.Id}} {{.Config.User}}' > verification/ci/images.txt
       - name: Verify actual fresh Compose installation and preserved restart
         run: |

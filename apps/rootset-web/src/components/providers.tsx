@@ -1,5 +1,7 @@
 "use client";
-import { Toast } from "./ui/towbar/design-system/overlays/toast";
+import { Providers as DesignSystemProviders } from "@avgeek-oss/design-system";
+import { NextNavigationProvider } from "@avgeek-oss/design-system/adapters/next";
+import { Toast } from "@avgeek-oss/design-system/overlays/toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 
@@ -20,8 +22,12 @@ export function Providers({ children }: { children: ReactNode }) {
   );
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toast.Provider />
+      <DesignSystemProviders>
+        <NextNavigationProvider>
+          {children}
+          <Toast.Provider placement="bottom" />
+        </NextNavigationProvider>
+      </DesignSystemProviders>
     </QueryClientProvider>
   );
 }

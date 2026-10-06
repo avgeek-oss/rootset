@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { TypographyHeading } from "../ui/towbar/design-system/typography/typography";
-import { TooltipText } from "../ui/towbar/design-system/overlays/tooltip";
+import { TypographyHeading } from "@avgeek-oss/design-system/typography/typography";
+import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   PageSelectionContext,
@@ -18,7 +18,7 @@ import { SecuritySettings } from "./account/security-settings";
 import { ApiMcpSettings } from "./account/api-mcp-settings";
 import { settingsScope, settingsIcons } from "./navigation";
 
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useResource } from "./api";
 import { OrganisationSettings, MembersSettings } from "./accounts";
 import { PreferencesSettings } from "./preferences";

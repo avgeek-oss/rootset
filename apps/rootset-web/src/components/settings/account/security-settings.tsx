@@ -3,9 +3,9 @@ import Image from "next/image";
 import QRCode from "qrcode";
 import { useState } from "react";
 
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import { CodeBlock } from "../../ui/towbar/design-system/typography/code-block";
-import { StatusBadge } from "../../ui/towbar/web-ui/status-badge";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { CodeBlock } from "@avgeek-oss/design-system/typography/code-block";
+import { StatusBadge } from "./account-status";
 import { PasskeySettings } from "./passkey-settings";
 import { FormCard, ActionButton } from "./page-parts";
 import { AuthForm } from "./auth-form";

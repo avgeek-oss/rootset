@@ -1,10 +1,13 @@
 "use client";
 import { useState } from "react";
 
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import { Modal } from "../../ui/towbar/design-system/overlays/modal";
-import { Chip } from "../../ui/towbar/design-system/data-display/chip";
-import { QueryError, QueryLoading } from "../../ui/towbar/web-ui/query-state";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
+import { Chip } from "@avgeek-oss/design-system/data-display/chip";
+import {
+  QueryError,
+  QueryLoading,
+} from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import { FormCard, ActionButton } from "./page-parts";
 import { AuthForm } from "./auth-form";
 import { useAccess } from "./adapter";
@@ -34,7 +37,7 @@ export function PasskeySettings() {
         title="Passkeys"
         headerEnd={
           keys.data && !keys.error ? (
-            <Chip variant={keys.data.passkeys.length ? "success" : "secondary"}>
+            <Chip color={keys.data.passkeys.length ? "success" : "default"}>
               {keys.data.passkeys.length
                 ? `${keys.data.passkeys.length} added`
                 : "None added"}
@@ -49,7 +52,12 @@ export function PasskeySettings() {
             device or in your password manager.
           </p>
           {keys.error ? (
-            <QueryError message={keys.error} />
+            <QueryError
+              message={keys.error}
+              onRetry={() =>
+                window.dispatchEvent(new Event("rootset:account-refresh"))
+              }
+            />
           ) : !keys.data ? (
             <QueryLoading />
           ) : keys.data.passkeys.length ? (

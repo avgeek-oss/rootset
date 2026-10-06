@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useResource } from "./api";
 import { DateLabel, Loading, Record, RecordList, Section, Status } from "./ui";
 

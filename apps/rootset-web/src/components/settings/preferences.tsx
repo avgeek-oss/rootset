@@ -1,20 +1,23 @@
 // Adapted from Towbar's Apache-2.0 DateTimePreferencesSettings, using Rootset's API and grid formatter.
 "use client";
 
-import { FieldDescription } from "../ui/towbar/design-system/forms/field";
+import { FieldDescription } from "@avgeek-oss/design-system/forms/field";
 import { FormCard } from "./account/page-parts";
-import { toast } from "../ui/towbar/design-system/overlays/toast";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Preferences } from "@rootset/contracts";
 import { formatCellValue } from "../cells/drafts";
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useMutation, useResource, write } from "./api";
 import {
   DateTimePreferenceFields,
   type DateTimePreferenceOptions,
 } from "./date-time-preference-fields";
 import type { SettingsPanelProps } from "./types";
-import { QueryError, QueryLoading } from "../ui/towbar/web-ui/query-state";
+import {
+  QueryError,
+  QueryLoading,
+} from "@avgeek-oss/design-system/patterns/feedback/query-state";
 
 const previewInstant = "2026-09-16T14:30:45.000Z";
 const dateFormats: DateTimePreferenceOptions["dateFormats"] = [
@@ -135,6 +138,9 @@ export function PreferencesSettings(props: SettingsPanelProps) {
       {resource.error || optionResource.error ? (
         <QueryError
           message={(resource.error ?? optionResource.error)!.message}
+          onRetry={() =>
+            window.dispatchEvent(new Event("rootset:account-refresh"))
+          }
         />
       ) : !resource.data || !optionResource.data ? (
         <QueryLoading />

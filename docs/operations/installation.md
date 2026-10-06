@@ -1,8 +1,37 @@
 # Installation
 
 Use Node.js 24, pnpm 11.5.3, Docker Compose v2 with `depends_on.required` support
-and PostgreSQL 18. Dependencies are public. Build from the committed lockfile;
+and PostgreSQL 18. Build from the committed lockfile;
 a failed one-shot baseline migration must prevent API/worker startup.
+
+## Package registry
+
+Rootset consumes `@avgeek-oss/design-system@1.1.0` from GitHub Packages through its
+public package exports. Authenticate before installing:
+
+```sh
+npm login --scope=@avgeek-oss --auth-type=legacy --registry=https://npm.pkg.github.com
+```
+
+Use your GitHub username and a personal access token (classic) with
+`read:packages` as the password. GitHub requires registry authentication even
+for public packages. Keep the token in your user npm configuration, outside Git.
+
+Docker builds receive an authenticated npm configuration only as a BuildKit
+secret. Compose uses `$HOME/.npmrc` by default; set `ROOTSET_NPM_CONFIG_FILE` to
+another protected file when needed. A build configuration must contain the
+registry and an authentication token, rather than an unresolved environment
+placeholder. Registry credentials are not build arguments or runtime variables.
+
+For a direct build, pass the same secret:
+
+```sh
+docker build --secret id=npmrc,src="$HOME/.npmrc" --target web --tag rootset-web:local .
+```
+
+GitHub Actions grants `packages: read` and uses its job token for dependency
+installation and the BuildKit secret. Grant Rootset access in the package's
+Manage Actions access settings if the registry rejects that token.
 
 ## Local installation
 

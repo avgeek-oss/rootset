@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useEffect, useRef, useState } from "react";
 import { client } from "@rootset/web-client";
 import type { JsonValue, QueryResult, QuerySpec } from "@rootset/contracts";

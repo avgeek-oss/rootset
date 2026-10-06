@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useMemo, useState } from "react";
 import type { JsonValue } from "@rootset/contracts";
 import styles from "./repair-intent-review.module.css";

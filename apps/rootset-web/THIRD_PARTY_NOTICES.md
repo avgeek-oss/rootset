@@ -39,22 +39,16 @@ files in the generated dependency notices. Inter font software is Copyright
 The production build copies installed dependency licenses and this adaptation
 notice into its notices directory.
 
-## Account settings component reuse
+## Published shared UI
 
-The account pages in `src/components/settings/account/` copy Towbar's
-`account-settings.tsx`, `settings-pages.tsx`, `email-settings.tsx`,
-`security-settings.tsx`, `passkey-settings.tsx`, `api-mcp-settings.tsx`,
-`auth-form.tsx`, `page-selection-title.tsx`, `reauthentication-dialog.tsx`
-and the account form/action components
-from `page-parts.tsx`. The source remains Apache-2.0, Copyright 2026 Avgeek, Inc.
-The copied primitives in `src/components/ui/towbar/` come from Towbar's
-`packages/web-design-system/src` and `packages/towbar-web-ui/src`.
+Rootset imports `@avgeek-oss/design-system@1.1.0` from GitHub Packages through its
+public exports. The shared package supplies primitives, typography, widgets,
+query feedback, theme providers and styles under Apache-2.0, Copyright Avgeek,
+Inc. Its packaged LICENSE and NOTICE remain part of the distribution.
 
-Rootset adapts imports, endpoint/data bindings, event names and product identity.
-It omits SSH/team keys, personal-key permission selectors and recovery-code UI.
-It retains Rootset's bound account approvals, UTC API values and its supported
-date/time formats. Relative-time markup uses Rootset preferences. The MCP guide
-links to Rootset's repository documentation.
+Rootset's account adapters own endpoints, role mappings, UTC/date policy and
+bound authentication approvals. Remaining app-local account workflows are being
+migrated to the shared patterns; copied primitives have been removed.
 
 The OpenAI, Cursor, and Anthropic SVG paths in `src/components/settings/account/mcp-client-logo.tsx` are from [LobeHub Icons](https://github.com/lobehub/lobe-icons). Brand names and logos belong to their respective owners.
 

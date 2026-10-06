@@ -1,15 +1,12 @@
 "use client";
 import { useId, useState, type ReactNode, type FormEvent } from "react";
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import {
-  Field,
-  FieldDescription,
-} from "../../ui/towbar/design-system/forms/field";
-import { Label } from "../../ui/towbar/design-system/forms/label";
-import { Input } from "../../ui/towbar/design-system/forms/input";
-import { PasswordInput } from "../../ui/towbar/design-system/forms/password-input";
-import { Alert } from "../../ui/towbar/design-system/feedback/alert";
-import { toast } from "../../ui/towbar/design-system/overlays/toast";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Field, FieldDescription } from "@avgeek-oss/design-system/forms/field";
+import { Label } from "@avgeek-oss/design-system/forms/label";
+import { Input } from "@avgeek-oss/design-system/forms/input";
+import { PasswordInput } from "@avgeek-oss/design-system/forms/password-input";
+import { Alert } from "@avgeek-oss/design-system/feedback/alert";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 export function AuthForm({
   fields,
   onSubmit,

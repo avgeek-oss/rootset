@@ -7,16 +7,19 @@ import type {
   AccountUser as TowbarUser,
   AccountSession as UserSession,
 } from "./adapter";
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import { Avatar } from "../../ui/towbar/design-system/data-display/avatar";
-import { NewTabIndicator } from "../../ui/towbar/design-system/navigation/new-tab-indicator";
-import { TypographyCode } from "../../ui/towbar/design-system/typography/typography";
-import { QueryError, QueryLoading } from "../../ui/towbar/web-ui/query-state";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { UserAvatar as Avatar } from "@avgeek-oss/design-system/patterns/user-avatar";
+import { InlineExternalLink } from "@avgeek-oss/design-system/navigation/inline-external-link";
+import { TypographyCode } from "@avgeek-oss/design-system/typography/typography";
+import {
+  QueryError,
+  QueryLoading,
+} from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import {
   ResourceTable,
   type ResourceTableColumn,
-} from "../../ui/towbar/web-ui/resource-table";
-import { StatusBadge } from "../../ui/towbar/web-ui/status-badge";
+} from "@avgeek-oss/design-system/patterns/resource-table";
+import { StatusBadge } from "./account-status";
 
 import { ActionButton, FormCard, SimpleForm } from "./page-parts";
 import { useApiQuery } from "./adapter";
@@ -26,7 +29,15 @@ import { RelativeTime } from "./last-synced-time";
 
 export function ProfileSettings() {
   const profile = useApiQuery<{ user: TowbarUser }>("/v1/core/profile");
-  if (profile.error) return <QueryError message={profile.error} />;
+  if (profile.error)
+    return (
+      <QueryError
+        message={profile.error}
+        onRetry={() =>
+          window.dispatchEvent(new Event("rootset:account-refresh"))
+        }
+      />
+    );
   if (!profile.data) return <QueryLoading />;
 
   return (
@@ -40,7 +51,7 @@ export function ProfileSettings() {
                 Click the image to update it on Gravatar.
               </p>
             </div>
-            <a
+            <InlineExternalLink
               aria-label="Edit Gravatar image (opens in a new tab)"
               className="inline-flex w-fit items-center rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
               href="https://gravatar.com/profile/avatars"
@@ -53,8 +64,7 @@ export function ProfileSettings() {
                 name={profile.data.user.name}
                 size="md"
               />
-              <NewTabIndicator />
-            </a>
+            </InlineExternalLink>
           </div>
           <SimpleForm
             fields={[
@@ -138,8 +148,16 @@ export function SessionSettings() {
     currentSessionId: string;
     sessions: UserSession[];
   }>("/v1/core/sessions");
-  if (query.error) return <QueryError message={query.error} />;
-  if (!query.data) return <QueryLoading variant="table" />;
+  if (query.error)
+    return (
+      <QueryError
+        message={query.error}
+        onRetry={() =>
+          window.dispatchEvent(new Event("rootset:account-refresh"))
+        }
+      />
+    );
+  if (!query.data) return <QueryLoading />;
 
   const { currentSessionId } = query.data;
   const sessions = query.data.sessions.filter((session) => !session.revokedAt);

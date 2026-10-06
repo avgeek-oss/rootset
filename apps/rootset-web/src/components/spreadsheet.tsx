@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { NumberField, Label } from "@heroui/react";
 import { Filter, Plus, Columns3, History, Trash2 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";

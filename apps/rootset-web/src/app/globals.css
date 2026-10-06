@@ -1,8 +1,5 @@
 @import "tailwindcss";
-@import "@heroui/styles";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/geist-mono/wght.css";
-@import "../components/ui/design-system.css";
+@import "@avgeek-oss/design-system/styles.css";
 @source "../../../../packages/identity-web-ui/src";
 
 :root {

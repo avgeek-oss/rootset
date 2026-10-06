@@ -2,11 +2,11 @@
 
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { formatDistanceStrict } from "date-fns";
-import { TooltipText } from "../../ui/towbar/design-system/overlays/tooltip";
+import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
 import {
   TableCellDescription,
   tableCellStackClassName,
-} from "../../ui/towbar/web-ui/table-cell-text";
+} from "@avgeek-oss/design-system/data-display/table-cell-text";
 import { displayTimestamp, useApiQuery } from "./adapter";
 import type { Preferences } from "../types";
 

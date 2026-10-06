@@ -1,7 +1,7 @@
 "use client";
 
 import { ProgressBar } from "@heroui/react";
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { browserArtifactDownloadPath } from "@rootset/web-client";
 import { useEffect, useRef, useState } from "react";
 import {

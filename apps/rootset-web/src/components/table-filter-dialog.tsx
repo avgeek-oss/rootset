@@ -10,7 +10,7 @@ import {
   type FilterNode,
   type QueryOperator,
 } from "@rootset/contracts";
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Filter, Plus, Trash2 } from "./ui/icons";
 import {
   buildTableFilter,

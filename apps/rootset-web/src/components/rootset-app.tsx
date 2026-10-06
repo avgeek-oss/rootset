@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Input, Label, TextField } from "@heroui/react";
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Database as DatabaseIcon } from "./ui/icons";
 import { TablesPage } from "./tables-page";
 import {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useQuery } from "@tanstack/react-query";
 import { browserArtifactDownloadPath, client } from "@rootset/web-client";
 import type {

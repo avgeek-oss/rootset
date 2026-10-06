@@ -1,12 +1,12 @@
 "use client";
-import { FieldDescription } from "../../ui/towbar/design-system/forms/field";
+import { FieldDescription } from "@avgeek-oss/design-system/forms/field";
 import { useEffect, useId, useState } from "react";
 
-import { StatusBadge } from "../../ui/towbar/web-ui/status-badge";
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import { Input } from "../../ui/towbar/design-system/forms/input";
-import { Label } from "../../ui/towbar/design-system/forms/label";
-import { Modal } from "../../ui/towbar/design-system/overlays/modal";
+import { StatusBadge } from "./account-status";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Input } from "@avgeek-oss/design-system/forms/input";
+import { Label } from "@avgeek-oss/design-system/forms/label";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
 import { FormCard, SimpleForm, ActionButton } from "./page-parts";
 import { useAccess } from "./adapter";
 import { useApiQuery } from "./adapter";

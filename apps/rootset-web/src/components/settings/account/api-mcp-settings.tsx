@@ -3,7 +3,7 @@
 import {
   TableCellStack,
   TableCellDescription,
-} from "../../ui/towbar/web-ui/table-cell-text";
+} from "@avgeek-oss/design-system/data-display/table-cell-text";
 
 type KeyScope = "personal";
 type KeyAccess = "read" | "edit";
@@ -24,21 +24,21 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { Button, ButtonLink } from "@avgeek-oss/design-system/buttons/button";
+import { Input } from "@avgeek-oss/design-system/forms/input";
+import { Label } from "@avgeek-oss/design-system/forms/label";
+import { Select, ListBox } from "@avgeek-oss/design-system/forms/select";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { CodeBlock } from "@avgeek-oss/design-system/typography/code-block";
 import {
-  Button,
-  ButtonLink,
-} from "../../ui/towbar/design-system/buttons/button";
-import { Input } from "../../ui/towbar/design-system/forms/input";
-import { Label } from "../../ui/towbar/design-system/forms/label";
-import { Select, ListBox } from "../../ui/towbar/design-system/forms/select";
-import { Modal } from "../../ui/towbar/design-system/overlays/modal";
-import { toast } from "../../ui/towbar/design-system/overlays/toast";
-import { CodeBlock } from "../../ui/towbar/design-system/typography/code-block";
-import { QueryError, QueryLoading } from "../../ui/towbar/web-ui/query-state";
+  QueryError,
+  QueryLoading,
+} from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import {
   ResourceTable,
   type ResourceTableColumn,
-} from "../../ui/towbar/web-ui/resource-table";
+} from "@avgeek-oss/design-system/patterns/resource-table";
 import { useApiQuery } from "./adapter";
 import { api } from "./adapter";
 import { ActionButton, FormCard } from "./page-parts";
@@ -290,7 +290,12 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
       <PageSelectionTitle label={sectionLabels[section]} actions={actions} />
       {isKeyPage ? (
         query.error ? (
-          <QueryError message={query.error} />
+          <QueryError
+            message={query.error}
+            onRetry={() =>
+              window.dispatchEvent(new Event("rootset:account-refresh"))
+            }
+          />
         ) : !query.data ? (
           <QueryLoading />
         ) : (
@@ -328,7 +333,12 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
           </>
         )
       ) : guide.error ? (
-        <QueryError message={guide.error} />
+        <QueryError
+          message={guide.error}
+          onRetry={() =>
+            window.dispatchEvent(new Event("rootset:account-refresh"))
+          }
+        />
       ) : !guide.data ? (
         <QueryLoading />
       ) : (

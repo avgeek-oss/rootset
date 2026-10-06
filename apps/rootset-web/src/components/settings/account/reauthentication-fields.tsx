@@ -1,11 +1,11 @@
 "use client";
 import { useId, useRef, useState } from "react";
-import { Button } from "../../ui/towbar/design-system/buttons/button";
-import { Field, FieldError } from "../../ui/towbar/design-system/forms/field";
-import { Input } from "../../ui/towbar/design-system/forms/input";
-import { Label } from "../../ui/towbar/design-system/forms/label";
-import { PasswordInput } from "../../ui/towbar/design-system/forms/password-input";
-import { toast } from "../../ui/towbar/design-system/overlays/toast";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Field, FieldError } from "@avgeek-oss/design-system/forms/field";
+import { Input } from "@avgeek-oss/design-system/forms/input";
+import { Label } from "@avgeek-oss/design-system/forms/label";
+import { PasswordInput } from "@avgeek-oss/design-system/forms/password-input";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 
 export function ReauthenticationFields({
   email,

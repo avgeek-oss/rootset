@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input, Label, TextField } from "@heroui/react";
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import {
   IdentityAuthFrame,
   IdentityCredentialsForm,

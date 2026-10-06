@@ -1,6 +1,6 @@
 # Contributing to Rootset
 
-Use Node.js 24 and pnpm 11.5.3. Install with `pnpm install --frozen-lockfile` and
+Use Node.js 24 and pnpm 11.5.3. Configure [GitHub Packages authentication](docs/operations/installation.md#package-registry), then install with `pnpm install --frozen-lockfile` and
 read the [current V1 scope](rc-plan/README.md) before changing a domain contract.
 
 Keep browser, REST and MCP operations on the same validated domain service.
@@ -12,6 +12,15 @@ Use generated internal IDs for SQL identifiers and bound parameters for values.
 Field definitions have one `name` property: 1–64 ASCII letters or underscores,
 matching `/^[A-Za-z_]+$/`. The UI label and JSON row key are the same name. Renames
 preserve the internal field ID and its history.
+
+## Shared UI
+
+Import the published `@avgeek-oss/design-system` package root or documented public
+subpaths. Import `styles.css` once through Tailwind 4 and keep application source
+scanning enabled. Do not copy shared components or import package `src`/`dist`
+paths. Reusable component extensions belong in the design-system repository.
+Rootset owns data fetching, callbacks, routes, role policy and credential
+ceremonies. Use semantic tokens and native HeroUI sizing/interaction behavior.
 
 ## Checks
 

@@ -15,7 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { Drawer, Dropdown } from "@heroui/react";
-import { Avatar } from "./avatar";
+import { UserAvatar as Avatar } from "@avgeek-oss/design-system/patterns/user-avatar";
 import {
   Logout03Icon,
   Menu01Icon,
@@ -25,8 +25,8 @@ import {
   UserAccountIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button } from "./button";
-import { cn } from "./utils";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { cn } from "@avgeek-oss/design-system/lib/utils";
 
 export type ContentWidth = "small" | "compact" | "relaxed" | "broad" | "full";
 const widths: Record<ContentWidth, string> = {
@@ -240,7 +240,8 @@ export function AppLayout({
             id="table-content"
             className={cn(
               "min-w-0",
-              secondarySidebar && "lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]",
+              secondarySidebar &&
+                "lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]",
             )}
             tabIndex={-1}
           >

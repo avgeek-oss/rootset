@@ -20,8 +20,10 @@ remains false until the current checks have genuine evidence.
 
 ## Install locally
 
-Use Node.js 24, pnpm 11.5.3, Docker and Docker Compose v2. Dependencies are public;
-installation does not require another Avgeek checkout or private registry access.
+Use Node.js 24, pnpm 11.5.3, Docker and Docker Compose v2. The published
+`@avgeek-oss/design-system` package is hosted on GitHub Packages. Authenticate
+with a GitHub token that has `read:packages`; another Avgeek checkout is not needed.
+See [registry and build setup](docs/operations/installation.md#package-registry).
 
 ```sh
 pnpm install --frozen-lockfile

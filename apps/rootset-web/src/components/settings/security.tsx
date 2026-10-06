@@ -4,7 +4,7 @@ import { Modal } from "@heroui/react";
 import { ReauthenticationFields } from "./account/reauthentication-fields";
 import { useAccess } from "./account/adapter";
 import { usesAccountConfirmation } from "./account/approval-policy";
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useEffect, useRef, useState } from "react";
 import { RepairIntentReview } from "../repair-intent-review";
 import {

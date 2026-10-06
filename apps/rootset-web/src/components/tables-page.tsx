@@ -6,7 +6,7 @@ import { Skeleton } from "@heroui/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon, Table01Icon } from "@hugeicons/core-free-icons";
 import type { Table } from "@rootset/contracts";
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { AppShell } from "./ui/shell";
 import { dataHref } from "./settings/navigation";
 

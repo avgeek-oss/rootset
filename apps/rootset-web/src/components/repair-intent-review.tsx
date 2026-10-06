@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "./ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { lazy, Suspense, useId, useState } from "react";
 import type { OperatorRepairIntent } from "@rootset/contracts";
 import styles from "./repair-intent-review.module.css";

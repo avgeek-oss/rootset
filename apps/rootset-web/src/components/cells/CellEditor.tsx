@@ -11,7 +11,7 @@ import {
   TextArea,
   TextField,
 } from "@heroui/react";
-import { Button } from "../ui/button";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import {
   lazy,
   Suspense,
