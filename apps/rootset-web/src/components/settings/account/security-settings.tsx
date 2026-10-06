@@ -2,6 +2,8 @@
 import Image from "next/image";
 import QRCode from "qrcode";
 import { useState } from "react";
+import { RecoveryCodes } from "@avgeek-oss/design-system";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { CodeBlock } from "@avgeek-oss/design-system/typography/code-block";
@@ -17,7 +19,9 @@ export function SecuritySettings() {
     uri: string;
     qr: string;
     actionId: string;
+    backupCodes: string[];
   } | null>(null);
+  const [codes, setCodes] = useState<string[]>([]);
   const [mode, setMode] = useState<"idle" | "disable">("idle");
   const changed = () => {
     window.dispatchEvent(new Event("rootset:identity-changed"));
@@ -92,6 +96,7 @@ export function SecuritySettings() {
                     "/v1/public/auth/identity/two-factor/verify-totp",
                     { ...values, actionId: setup.actionId },
                   );
+                  setCodes(setup.backupCodes);
                   setSetup(null);
                   changed();
                 }}
@@ -140,6 +145,7 @@ export function SecuritySettings() {
                     const result = await api.post<{
                       totpURI: string;
                       actionId: string;
+                      backupCodes: string[];
                     }>("/v1/core/profile/two-factor/setup", {});
                     setSetup({
                       uri: result.totpURI,
@@ -148,6 +154,7 @@ export function SecuritySettings() {
                         margin: 2,
                       }),
                       actionId: result.actionId,
+                      backupCodes: result.backupCodes,
                     });
                   }}
                 >
@@ -159,6 +166,28 @@ export function SecuritySettings() {
         </div>
       </FormCard>
       <PasskeySettings />
+      <Modal.Backdrop
+        isOpen={codes.length > 0}
+        onOpenChange={(open) => {
+          if (!open) setCodes([]);
+        }}
+      >
+        <Modal.Container size="sm">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>Save recovery codes</Modal.Heading>
+              <Modal.CloseTrigger />
+            </Modal.Header>
+            <Modal.Body>
+              <RecoveryCodes
+                codes={codes}
+                filename="rootset-recovery-codes.txt"
+                onContinue={() => setCodes([])}
+              />
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import {
   useId,
+  useRef,
   useMemo,
   useState,
   type FormEvent,
@@ -163,6 +164,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
     (key) => key.tokenType === "mcp-oauth",
   );
   const [creating, setCreating] = useState(false);
+  const [creatingBusy, setCreatingBusy] = useState(false);
   const [revealed, setRevealed] = useState<string | null>(null);
   const [revealOpen, setRevealOpen] = useState(false);
   const [formInstance, setFormInstance] = useState(0);
@@ -344,17 +346,23 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
       ) : (
         <McpSetup url={guide.data.mcpUrl} />
       )}
-      <Modal.Backdrop isOpen={creating} onOpenChange={setCreating}>
+      <Modal.Backdrop
+        isOpen={creating}
+        onOpenChange={(open) => {
+          if (!creatingBusy) setCreating(open);
+        }}
+      >
         <Modal.Container size="sm" scroll="inside">
           <Modal.Dialog>
             <Modal.Header>
               <Modal.Heading>Create API key</Modal.Heading>
-              <Modal.CloseTrigger />
+              <Modal.CloseTrigger isDisabled={creatingBusy} />
             </Modal.Header>
             <Modal.Body>
               <CreateKey
                 key={formInstance}
                 scope={scope}
+                onBusyChange={setCreatingBusy}
                 onCancel={() => setCreating(false)}
                 onCreated={(token) => {
                   setCreating(false);
@@ -367,7 +375,13 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
-      <Modal.Backdrop isOpen={revealOpen} onOpenChange={setRevealOpen}>
+      <Modal.Backdrop
+        isOpen={revealOpen}
+        onOpenChange={(open) => {
+          setRevealOpen(open);
+          if (!open) setRevealed(null);
+        }}
+      >
         <Modal.Container size="md">
           <Modal.Dialog>
             <Modal.Header>
@@ -385,7 +399,14 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
               {revealed ? (
                 <RevealedSecret title="Your new key" code={revealed} />
               ) : null}
-              <Button onPress={() => setRevealOpen(false)}>Done</Button>
+              <Button
+                onPress={() => {
+                  setRevealOpen(false);
+                  setRevealed(null);
+                }}
+              >
+                Done
+              </Button>
             </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>
@@ -398,8 +419,10 @@ function CreateKey({
   scope,
   onCreated,
   onCancel,
+  onBusyChange,
 }: {
   scope: KeyScope;
+  onBusyChange: (busy: boolean) => void;
   onCancel: () => void;
   onCreated: (token: string | null) => void;
 }) {
@@ -418,11 +441,14 @@ function CreateKey({
     [expiry],
   );
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (pending.current) return;
+    pending.current = true;
     const form = new FormData(event.currentTarget);
     setBusy(true);
+    onBusyChange(true);
     try {
       const body = {
         name: String(form.get("name") ?? ""),
@@ -443,7 +469,9 @@ function CreateKey({
         caught instanceof Error ? caught.message : "Could not create key",
       );
     } finally {
+      pending.current = false;
       setBusy(false);
+      onBusyChange(false);
     }
   }
   return (
@@ -456,6 +484,7 @@ function CreateKey({
           id={nameId}
           name="name"
           required
+          disabled={busy}
           maxLength={120}
           placeholder="e.g. Cursor on my Mac"
           variant="secondary"
@@ -596,7 +625,7 @@ function McpSetup({ url }: { url: string }) {
           manually created API keys.
         </p>
         <ButtonLink
-          href="https://github.com/avgeek-inc/rootset/blob/main/rc-plan/API_AND_MCP_ARCHITECTURE.md"
+          href="https://github.com/avgeek-oss/rootset/blob/main/rc-plan/API_AND_MCP_ARCHITECTURE.md"
           variant="secondary"
           className="w-fit"
         >

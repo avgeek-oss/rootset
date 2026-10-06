@@ -1,112 +1,92 @@
 "use client";
-import { Logout01Icon } from "@hugeicons/core-free-icons";
+import { useAccess } from "./adapter";
+import {
+  ProfileSettings as LibraryProfileSettings,
+  SessionsSettings,
+} from "@avgeek-oss/design-system";
 
-import { HugeiconsIcon } from "@hugeicons/react";
+import type { AccountUser, AccountSession } from "./adapter";
 
-import type {
-  AccountUser as TowbarUser,
-  AccountSession as UserSession,
-} from "./adapter";
-import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { UserAvatar as Avatar } from "@avgeek-oss/design-system/patterns/user-avatar";
-import { InlineExternalLink } from "@avgeek-oss/design-system/navigation/inline-external-link";
-import { TypographyCode } from "@avgeek-oss/design-system/typography/typography";
+
 import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
-import {
-  ResourceTable,
-  type ResourceTableColumn,
-} from "@avgeek-oss/design-system/patterns/resource-table";
-import { StatusBadge } from "./account-status";
 
-import { ActionButton, FormCard, SimpleForm } from "./page-parts";
+import { FormCard, SimpleForm } from "./page-parts";
 import { useApiQuery } from "./adapter";
 import { api } from "./adapter";
 import { EmailSettings } from "./email-settings";
 import { RelativeTime } from "./last-synced-time";
 
 export function ProfileSettings() {
-  const profile = useApiQuery<{ user: TowbarUser }>("/v1/core/profile");
+  const profile = useApiQuery<{ user: AccountUser }>("/v1/core/profile");
   if (profile.error)
-    return (
-      <QueryError
-        message={profile.error}
-        onRetry={() =>
-          window.dispatchEvent(new Event("rootset:account-refresh"))
-        }
-      />
-    );
+    return <QueryError message={profile.error} onRetry={profile.refresh} />;
   if (!profile.data) return <QueryLoading />;
 
   return (
     <div className="content-grid min-w-0 lg:grid-cols-2 lg:items-start">
       <FormCard title="Appearance">
-        <div className="grid gap-5">
-          <div className="grid gap-3">
-            <div className="grid gap-0.5">
-              <span className="text-sm font-medium">Gravatar Image</span>
-              <p className="text-sm text-muted">
-                Click the image to update it on Gravatar.
-              </p>
-            </div>
-            <InlineExternalLink
-              aria-label="Edit Gravatar image (opens in a new tab)"
-              className="inline-flex w-fit items-center rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-              href="https://gravatar.com/profile/avatars"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <Avatar
-                aria-hidden="true"
-                email={profile.data.user.email}
-                name={profile.data.user.name}
-                size="md"
-              />
-            </InlineExternalLink>
-          </div>
-          <SimpleForm
-            fields={[
-              {
-                label: "Full name",
-                maxLength: 120,
-                name: "displayName",
-                defaultValue: profile.data.user.name,
-                required: true,
-                variant: "secondary",
-              },
-            ]}
-            onSubmit={async (values) => {
-              await api.patch("/v1/core/profile", values);
-              window.dispatchEvent(new Event("rootset:identity-changed"));
-            }}
-            successMessage="Profile updated"
-            submitLabel="Update"
-          />
+        <div className="grid gap-3">
+          <span className="text-sm font-medium">Gravatar Image</span>
+          <p className="text-sm text-muted">
+            Click the image to update it on Gravatar.
+          </p>
+          <a
+            aria-label="Edit Gravatar image (opens in a new tab)"
+            className="inline-flex w-fit rounded-lg focus-visible:outline-2 focus-visible:outline-focus"
+            href="https://gravatar.com/profile/avatars"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <Avatar
+              aria-hidden="true"
+              email={profile.data.user.email}
+              name={profile.data.user.name}
+              size="md"
+            />
+          </a>
         </div>
       </FormCard>
+      <LibraryProfileSettings
+        key={profile.data.user.name}
+        value={profile.data.user.name}
+        label="Your Name"
+        maxLength={120}
+        onSave={async (displayName) => {
+          await api.patch("/v1/core/profile", { displayName });
+          profile.refresh();
+          window.dispatchEvent(new Event("rootset:identity-changed"));
+        }}
+      />
     </div>
   );
 }
 
 export function EmailPasswordSettings() {
+  const { user } = useAccess();
   return (
     <div className="content-grid min-w-0 lg:grid-cols-2 lg:items-start">
       <EmailSettings />
       <FormCard title="Change password">
         <SimpleForm
           fields={[
-            {
-              autoComplete: "current-password",
-              label: "Current password",
-              maxLength: 1_024,
-              minLength: 15,
-              name: "currentPassword",
-              required: true,
-              type: "password",
-              variant: "secondary",
-            },
+            ...(!user?.twoFactorEnabled
+              ? [
+                  {
+                    autoComplete: "current-password",
+                    label: "Current password",
+                    maxLength: 1_024,
+                    minLength: 15,
+                    name: "currentPassword",
+                    required: true,
+                    type: "password",
+                    variant: "secondary" as const,
+                  },
+                ]
+              : []),
             {
               autoComplete: "new-password",
               description: "Use at least 15 characters.",
@@ -146,112 +126,36 @@ export function EmailPasswordSettings() {
 export function SessionSettings() {
   const query = useApiQuery<{
     currentSessionId: string;
-    sessions: UserSession[];
+    sessions: AccountSession[];
   }>("/v1/core/sessions");
   if (query.error)
-    return (
-      <QueryError
-        message={query.error}
-        onRetry={() =>
-          window.dispatchEvent(new Event("rootset:account-refresh"))
-        }
-      />
-    );
+    return <QueryError message={query.error} onRetry={query.refresh} />;
   if (!query.data) return <QueryLoading />;
 
   const { currentSessionId } = query.data;
-  const sessions = query.data.sessions.filter((session) => !session.revokedAt);
-  const columns: ResourceTableColumn<UserSession>[] = [
-    {
-      key: "session",
-      header: "Session",
-      cell: (session) =>
-        session.id === currentSessionId ? "This browser" : "Browser session",
-      className: "min-w-40",
-    },
-    {
-      key: "sessionId",
-      header: "Session ID",
-      cell: (session) => (
-        <TypographyCode title={session.id}>
-          {session.id.slice(0, 8)}
-        </TypographyCode>
-      ),
-      className: "min-w-36",
-    },
-    {
-      key: "lastActive",
-      header: "Last active",
-      cell: (session) => (
-        <RelativeTime label="Last active" value={session.lastSeenAt} />
-      ),
-      className: "whitespace-nowrap",
-    },
-    {
-      key: "expires",
-      header: "Expires",
-      cell: (session) => (
-        <RelativeTime label="Expires" value={session.expiresAt} />
-      ),
-      className: "whitespace-nowrap",
-    },
-    {
-      key: "status",
-      header: "Status",
-      cell: (session) =>
-        session.id === currentSessionId ? (
-          <StatusBadge status="current" />
-        ) : (
-          <StatusBadge status="active" />
-        ),
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      headerClassName: "text-end",
-      className: "text-end",
-      cell: (session) =>
-        session.id === currentSessionId ? (
-          <Button isDisabled variant="danger">
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={Logout01Icon}
-              className="shrink-0"
-            />
-            Revoke
-          </Button>
-        ) : (
-          <ActionButton
-            action={() => api.delete(`/v1/core/sessions/${session.id}`)}
-            confirm={{
-              actionLabel: "Revoke session",
-              description:
-                "That browser will lose access immediately and must sign in again.",
-              title: "Revoke this session?",
-            }}
-            preserveLabelWhilePending
-            success="Session revoked"
-            variant="danger"
-          >
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={Logout01Icon}
-              className="shrink-0"
-            />
-            Revoke
-          </ActionButton>
-        ),
-    },
-  ];
-
   return (
-    <ResourceTable
-      ariaLabel="Active browser sessions"
-      columns={columns}
-      emptyDescription="Sign in to create a browser session."
-      emptyTitle="No active sessions"
-      getRowKey={(session) => session.id}
-      items={sessions}
+    <SessionsSettings
+      items={query.data.sessions
+        .filter((session) => !session.revokedAt)
+        .map((session) => ({
+          id: session.id,
+          name:
+            session.id === currentSessionId
+              ? "This browser"
+              : "Browser session",
+          lastActive: session.lastSeenAt,
+          expiresAt: session.expiresAt,
+          current: session.id === currentSessionId,
+        }))}
+      formatDate={(value) => (
+        <RelativeTime label="Session date" value={value} />
+      )}
+      onRevoke={async (id) => {
+        if (id === currentSessionId)
+          throw new Error("You cannot revoke your current session here.");
+        await api.delete(`/v1/core/sessions/${id}`);
+        query.refresh();
+      }}
     />
   );
 }

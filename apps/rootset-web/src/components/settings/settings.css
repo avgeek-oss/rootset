@@ -262,10 +262,3 @@
     scroll-behavior: auto;
   }
 }
-
-.rootset-account-settings {
-  max-width: 1280px;
-}
-.rootset-account-settings > .settings-content {
-  display: block;
-}

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { TypographyHeading } from "@avgeek-oss/design-system/typography/typography";
+import { ContentPage } from "@avgeek-oss/design-system";
 import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -88,50 +88,56 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "exports",
   ];
   const databaseSections = ["database", "backups"];
+  const content =
+    context.loading || context.error ? (
+      <Loading {...context} retry={context.reload} />
+    ) : !canOpenSettings(
+        activeSection,
+        props.role ?? context.data?.principal.role,
+      ) ? (
+      <Empty>
+        {activeSection === "imports"
+          ? "Editor or admin access is required to import rows."
+          : "Admin access is required to manage these settings."}
+      </Empty>
+    ) : (
+      <Component
+        key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}
+        {...props}
+        section={activeSection}
+        {...(activeSection === "indexes" ? { indexes: true } : {})}
+      />
+    );
+  const title = selection?.label ?? SECTION_LABELS[activeSection];
   return (
     <PageSelectionContext.Provider value={setSelection}>
       <RelativeTimeProvider>
-        <div
-          className={
-            account
-              ? "rootset-settings rootset-account-settings"
-              : "rootset-settings"
-          }
-        >
-          <header className="settings-header">
-            {account ? (
-              <div className="flex min-w-0 flex-wrap items-center gap-3 pl-1 sm:pl-0">
-                <TypographyHeading
-                  className="flex min-w-0 items-center text-xl font-medium"
-                  elementType="h3"
-                  level={3}
+        {account ? (
+          <ContentPage
+            title={title}
+            breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}
+            actions={selection?.actions}
+            titleContent={
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex shrink-0 [&_svg]:size-6"
                 >
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex shrink-0 [&_svg]:size-6"
-                    >
-                      <HugeiconsIcon icon={settingsIcons[activeSection]} />
-                    </span>
-                    <TooltipText
-                      className="truncate"
-                      tooltip={
-                        selection?.label ?? SECTION_LABELS[activeSection]
-                      }
-                    >
-                      {selection?.label ?? SECTION_LABELS[activeSection]}
-                    </TooltipText>
-                  </span>
-                </TypographyHeading>
-              </div>
-            ) : (
-              <div>
-                <h1>{SECTION_LABELS[activeSection]}</h1>
-              </div>
-            )}
-            {account ? (
-              selection?.actions
-            ) : (
+                  <HugeiconsIcon icon={settingsIcons[activeSection]} />
+                </span>
+                <TooltipText className="truncate" tooltip={title}>
+                  {title}
+                </TooltipText>
+              </span>
+            }
+          >
+            <div className="content-grid min-w-0">{content}</div>
+            <AccountActionApproval orgId={props.orgId} />
+          </ContentPage>
+        ) : (
+          <div className="rootset-settings">
+            <header className="settings-header">
+              <h1>{SECTION_LABELS[activeSection]}</h1>
               <Button
                 variant="ghost"
                 onPress={props.onClose}
@@ -139,31 +145,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
               >
                 Back to data
               </Button>
-            )}
-          </header>
-          <div className="settings-content">
-            {context.loading || context.error ? (
-              <Loading {...context} retry={context.reload} />
-            ) : !canOpenSettings(
-                activeSection,
-                props.role ?? context.data?.principal.role,
-              ) ? (
-              <Empty>
-                {activeSection === "imports"
-                  ? "Editor or admin access is required to import rows."
-                  : "Admin access is required to manage these settings."}
-              </Empty>
-            ) : (
-              <Component
-                key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}
-                {...props}
-                section={activeSection}
-                {...(activeSection === "indexes" ? { indexes: true } : {})}
-              />
-            )}
+            </header>
+            <div className="settings-content">{content}</div>
+            <AccountActionApproval orgId={props.orgId} />
           </div>
-          <AccountActionApproval orgId={props.orgId} />
-        </div>
+        )}
       </RelativeTimeProvider>
     </PageSelectionContext.Provider>
   );

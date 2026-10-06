@@ -135,78 +135,16 @@ h1 {
   min-height: 0;
   overflow: hidden;
 }
-.rootset-application main > div:last-child {
+.rootset-workspace,
+.rootset-workspace > div {
+  height: 100%;
+  min-height: 0;
+}
+.rootset-workspace > div > div:last-child {
   height: 100%;
   min-height: 0;
   overflow: auto;
   background: var(--background);
-}
-.primary-group-heading {
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: space-between;
-  padding-left: 8px;
-}
-.primary-group-heading h2 {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.primary-group-heading .button {
-  background: transparent;
-}
-.secondary-resource-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding-left: 8px;
-}
-.secondary-resource-heading h2 {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 500;
-}
-@media (max-width: 1023px) {
-  .secondary-resource-heading h2 {
-    font-size: 14px;
-    line-height: 20px;
-  }
-}
-.sidebar-create.button {
-  justify-content: start;
-  background: transparent;
-  color: var(--muted);
-  height: 36px;
-  padding: 6px 8px;
-  border-radius: 16px;
-}
-.navbar-breadcrumb {
-  display: flex;
-  gap: 10px;
-  min-width: 0;
-  align-items: center;
-}
-.navbar-breadcrumb span,
-.navbar-breadcrumb a,
-.navbar-breadcrumb strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-.navbar-breadcrumb span,
-.navbar-breadcrumb a {
-  color: var(--muted);
-}
-.navbar-breadcrumb a:hover {
-  color: var(--foreground);
 }
 .icon-button {
   display: inline-flex;
@@ -219,11 +157,6 @@ h1 {
   border: 0;
   border-radius: 8px;
   color: inherit;
-}
-@layer base {
-  :where(button, a, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid var(--focus);
-  }
 }
 @media (pointer: coarse) {
   .icon-button {
@@ -371,6 +304,7 @@ h1 {
   background: var(--rs-canvas);
 }
 .grid-viewport:focus-visible {
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 .grid-canvas {

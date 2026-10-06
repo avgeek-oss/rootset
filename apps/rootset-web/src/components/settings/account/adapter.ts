@@ -235,7 +235,11 @@ async function mutate(
       );
       if (!result.data || !("totpURI" in result.data))
         throw new Error("Authenticator setup did not return a setup key.");
-      return { totpURI: result.data.totpURI, actionId: proof.actionId };
+      return {
+        totpURI: result.data.totpURI,
+        actionId: proof.actionId,
+        backupCodes: result.data.backupCodes,
+      };
     }
     if (path === "/v1/public/auth/identity/two-factor/verify-totp") {
       return check(

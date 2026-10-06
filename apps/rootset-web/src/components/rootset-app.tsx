@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Input, Label, TextField } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Database as DatabaseIcon } from "./ui/icons";
@@ -40,22 +39,25 @@ import {
   dataHref,
   settingsHref,
   settingsScope,
-  scopeTitles,
   PageNavigation,
 } from "./settings/navigation";
 import {
   ApplicationSidebar,
   AppLayout,
-  FooterIdentity,
-  Navbar,
-  ThemeSwitcher,
-  usePersistentAppSidebar,
-} from "./ui/shell";
-import { Dropdown } from "@heroui/react";
-import { Header } from "react-aria-components";
+  AppShell,
+  ApplicationNavbar,
+  SidebarAccountMenu,
+  useTheme,
+} from "@avgeek-oss/design-system";
+import { AppShellBreadcrumb } from "@avgeek-oss/design-system/layouts/app-shell-breadcrumb";
+import { usePersistentAppSidebar } from "@avgeek-oss/design-system/layouts/app-shell";
+import { SecondarySidebarLayout } from "@avgeek-oss/design-system/navigation/secondary-sidebar";
+import { ThemeSwitcher } from "@avgeek-oss/design-system/controls/theme-switcher";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Database01Icon,
+  Logout01Icon,
   Settings01Icon,
   UserAccountIcon,
   UserGroupIcon,
@@ -75,30 +77,15 @@ const defaultPreferences = {
   theme: "system",
 } as const;
 
-function applyTheme(theme: "system" | "light" | "dark") {
-  const resolved =
-    theme === "system"
-      ? matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : theme;
-  document.documentElement.classList.add("no-transitions");
-  document.documentElement.setAttribute("data-theme", resolved);
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() =>
-      document.documentElement.classList.remove("no-transitions"),
-    ),
-  );
-  return resolved;
-}
-
 export function RootsetApp() {
   const path = usePathname();
   const parameters = useSearchParams();
   const router = useRouter();
-  const sidebar = usePersistentAppSidebar();
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const sidebar = usePersistentAppSidebar("rootset:sidebar-open");
+  const { themeMode, isHydrated, setThemeMode } = useTheme();
+  const lastServerTheme = useRef<string | null>(null);
+  const themeSavePending = useRef(false);
+  const [savingTheme, setSavingTheme] = useState(false);
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
   const databaseId = parameters.get("databaseId");
@@ -168,15 +155,43 @@ export function RootsetApp() {
       : null;
 
   useEffect(() => {
-    setResolvedTheme(applyTheme(preferences.theme));
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const listener = () => {
-      if (preferences.theme === "system")
-        setResolvedTheme(applyTheme("system"));
-    };
-    media.addEventListener("change", listener);
-    return () => media.removeEventListener("change", listener);
-  }, [preferences.theme]);
+    const stored = context.data?.preferences?.theme;
+    if (!isHydrated || !stored) return;
+    if (lastServerTheme.current !== stored) {
+      lastServerTheme.current = stored;
+      setThemeMode(stored);
+      return;
+    }
+    if (themeMode === stored || themeSavePending.current) return;
+    themeSavePending.current = true;
+    setSavingTheme(true);
+    void client
+      .request("/me/preferences", {
+        method: "PATCH",
+        body: { theme: themeMode },
+      })
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ["context"] });
+      })
+      .catch((error: unknown) => {
+        setThemeMode(stored);
+        toast.danger(
+          error instanceof Error
+            ? error.message
+            : "Appearance could not be saved.",
+        );
+      })
+      .finally(() => {
+        themeSavePending.current = false;
+        setSavingTheme(false);
+      });
+  }, [
+    context.data?.preferences?.theme,
+    themeMode,
+    isHydrated,
+    setThemeMode,
+    queryClient,
+  ]);
 
   function refresh() {
     void queryClient.invalidateQueries();
@@ -404,272 +419,296 @@ export function RootsetApp() {
       <a href="#table-content" className="skip-link">
         Skip to content
       </a>
-      <AppLayout
-        className="rootset-application"
-        path={`${path}?${parameters.toString()}`}
-        navigate={(href) => {
-          const section = /^\/settings\/([^/?]+)$/.exec(href)?.[1];
-          router.push(
-            section && Object.hasOwn(SECTION_LABELS, section)
-              ? settingsHref(section as SettingsSection, contextIds)
-              : href,
-          );
-        }}
-        sidebarOpen={sidebar.sidebarOpen}
-        onSidebarOpenChange={sidebar.onSidebarOpenChange}
-        navbar={
-          <Navbar
-            sidebarOpen={sidebar.sidebarOpen}
-            onSidebarToggle={() =>
-              sidebar.onSidebarOpenChange(!sidebar.sidebarOpen)
-            }
-            title={
-              settings && !resourceScope ? (
-                scopeTitles[settingsScope(settings)]
-              ) : (
-                <span className="navbar-breadcrumb">
-                  <Link href={dataHref(selectedDatabaseId)}>
-                    {database?.name ?? "Databases"}
-                  </Link>
-                  {(table || (!settings && selectedDatabaseId)) && (
-                    <>
-                      <span aria-hidden="true">/</span>
-                      <strong>{table?.name ?? "Tables"}</strong>
-                    </>
-                  )}
-                </span>
-              )
-            }
-            actions={
-              <ThemeSwitcher
-                size="small"
-                theme={resolvedTheme}
-                onThemeChange={(theme) => {
-                  void client
-                    .request("/me/preferences", {
-                      method: "PATCH",
-                      body: { theme },
-                    })
-                    .then(refresh)
-                    .catch((error: unknown) =>
-                      setMutationError(
-                        error instanceof Error
-                          ? error.message
-                          : "Appearance could not be saved.",
-                      ),
-                    );
-                }}
-              />
-            }
-          />
-        }
-        sidebar={
-          <ApplicationSidebar
-            config={{
-              accessibleLabel: "Primary navigation",
-              homeHref: dataHref(selectedDatabaseId),
-              brand: {
-                title: "Rootset",
-                logo: <span className="rootset-symbol">r</span>,
-              },
-              groups: [
-                {
-                  id: "databases",
-                  header: (
-                    <div className="primary-group-heading">
-                      <h2>Databases</h2>
-                      {canCreateDatabase && (
-                        <Button
-                          isIconOnly
-                          variant="ghost"
-                          aria-label="Create database"
-                          onPress={() => {
-                            setCreate("database");
-                            setMutationError(null);
-                          }}
-                        >
-                          {icon(PlusSignIcon)}
-                        </Button>
-                      )}
-                    </div>
-                  ),
-                  content: databases.isError ? (
-                    <p className="error-message" role="alert">
-                      {databases.error.message}
-                      <Button
-                        variant="ghost"
-                        onPress={() => void databases.refetch()}
-                      >
-                        Retry
-                      </Button>
-                    </p>
-                  ) : undefined,
-                  items: (databases.data ?? []).map((entry) => ({
-                    id: entry.id,
-                    label: entry.name,
-                    href: dataHref(entry.id),
-                    icon: icon(Database01Icon),
-                    active: resourceScope && entry.id === selectedDatabaseId,
-                  })),
-                },
-                {
-                  id: "settings",
-                  label: "Settings",
-                  items: [
-                    {
-                      id: "account",
-                      label: "Account settings",
-                      href: settingsHref("profile", contextIds),
-                      icon: icon(UserAccountIcon),
-                      active:
-                        !!settings && settingsScope(settings) === "account",
-                    },
-                    ...(canManage
-                      ? [
-                          {
-                            id: "team",
-                            label: "Team settings",
-                            href: settingsHref("organisation", contextIds),
-                            icon: icon(UserGroupIcon),
-                            active:
-                              !!settings && settingsScope(settings) === "team",
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-              ],
-              footerContent: (
-                <FooterIdentity
-                  name={profileName}
-                  email={context.data.profile?.email ?? ""}
-                  roleLabel={
-                    context.data.principal.role.charAt(0).toUpperCase() +
-                    context.data.principal.role.slice(1)
-                  }
-                  onLogout={() => {
-                    void authClient.signOut().then(() => {
-                      queryClient.clear();
-                      location.assign("/login");
-                    });
-                  }}
-                >
-                  <Dropdown.Section aria-label="Account">
-                    <Header className="px-2 py-1.5 text-xs font-medium text-muted">
-                      Account
-                    </Header>
-                    <Dropdown.Item id="profile" textValue="Profile">
-                      {icon(UserAccountIcon)}Profile
-                    </Dropdown.Item>
-                    <Dropdown.Item id="preferences" textValue="Preferences">
-                      {icon(Settings01Icon)}Preferences
-                    </Dropdown.Item>
-                    <Dropdown.Item id="2fa" textValue="Account security">
-                      {icon(SecurityCheckIcon)}Account security
-                    </Dropdown.Item>
-                    <Dropdown.Item id="api-keys" textValue="API keys">
-                      {icon(Key01Icon)}API keys
-                    </Dropdown.Item>
-                  </Dropdown.Section>
-                  <Dropdown.Section aria-label="Rootset">
-                    <Header className="px-2 py-1.5 text-xs font-medium text-muted">
-                      Rootset
-                    </Header>
-                    <Dropdown.Item
-                      id="documentation"
-                      textValue="Documentation"
-                      href="https://github.com/avgeek-inc/rootset/tree/main/docs"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {icon(BookOpen01Icon)}Documentation
-                    </Dropdown.Item>
-                  </Dropdown.Section>
-                </FooterIdentity>
-              ),
-            }}
-          />
-        }
-        secondarySidebar={secondary}
+      <AppShell.Root
+        policy={{ kind: "product", themeControl: "header", toasts: false }}
+        contentWidth="broad"
       >
-        {mutationError && !create && (
-          <p className="error-banner" role="alert">
-            {mutationError}
-          </p>
-        )}
-        {settings ? (
-          <SettingsPanel
-            section={settings}
-            orgId={orgId!}
-            role={context.data.principal.role}
-            databaseId={selectedDatabaseId ?? undefined}
-            tableId={selectedTableId ?? undefined}
-            theme={preferences.theme}
-            onClose={backToData}
-            onChanged={refresh}
-          />
-        ) : table && selectedDatabaseId ? (
-          <Spreadsheet
-            key={table.id}
-            orgId={orgId!}
-            databaseId={selectedDatabaseId}
-            table={table}
-            preferences={preferences}
-            canEdit={canEdit}
-            canManage={canManage}
-            onSettings={(section) => openSettings(section as SettingsSection)}
-            onChanged={() =>
-              void queryClient.invalidateQueries({
-                queryKey: ["tables", orgId, selectedDatabaseId],
-              })
+        <AppLayout
+          className="rootset-application"
+          navigate={(href) => router.push(href)}
+          sidebarOpen={sidebar.sidebarOpen}
+          onSidebarOpenChange={sidebar.onSidebarOpenChange}
+          navbar={
+            <ApplicationNavbar
+              config={{
+                brand: {
+                  id: "rootset",
+                  accessibleLabel: "Rootset home",
+                  title: "Rootset",
+                  logo: <span className="rootset-symbol">r</span>,
+                },
+                homeHref: "/",
+              }}
+              hasSidebar
+              sidebarOpen={sidebar.sidebarOpen}
+              onSidebarToggle={() =>
+                sidebar.onSidebarOpenChange(!sidebar.sidebarOpen)
+              }
+              showThemeSwitcher={false}
+              actions={<ThemeSwitcher isDisabled={savingTheme} />}
+            />
+          }
+          sidebar={
+            <ApplicationSidebar
+              config={{
+                accessibleLabel: "Primary navigation",
+                homeHref: "/",
+                brand: {
+                  id: "rootset",
+                  accessibleLabel: "Rootset home",
+                  title: "Rootset",
+                  logo: <span className="rootset-symbol">r</span>,
+                },
+                groups: [
+                  {
+                    id: "databases",
+                    label: "Databases",
+                    items: [
+                      ...(canCreateDatabase
+                        ? [
+                            {
+                              kind: "action" as const,
+                              id: "create-database",
+                              label: "Create database",
+                              icon: PlusSignIcon,
+                              onSelect: () => {
+                                setCreate("database");
+                                setMutationError(null);
+                              },
+                            },
+                          ]
+                        : []),
+                      ...(databases.data ?? []).map((entry) => ({
+                        kind: "link" as const,
+                        id: entry.id,
+                        label: entry.name,
+                        href: dataHref(entry.id),
+                        icon: Database01Icon,
+                        activePath:
+                          resourceScope && entry.id === selectedDatabaseId
+                            ? path
+                            : dataHref(entry.id),
+                      })),
+                    ],
+                  },
+                  {
+                    id: "settings",
+                    label: "Settings",
+                    items: [
+                      {
+                        kind: "link",
+                        id: "account",
+                        label: "Account settings",
+                        href: settingsHref("profile", {}),
+                        icon: UserAccountIcon,
+                        activePath:
+                          settings && settingsScope(settings) === "account"
+                            ? path
+                            : "/settings/profile",
+                      },
+                      ...(canManage
+                        ? [
+                            {
+                              kind: "link" as const,
+                              id: "team",
+                              label: "Team settings",
+                              href: settingsHref("organisation", {}),
+                              icon: UserGroupIcon,
+                              activePath:
+                                settings && settingsScope(settings) === "team"
+                                  ? path
+                                  : "/settings/organisation",
+                            },
+                          ]
+                        : []),
+                    ],
+                  },
+                ],
+                footerContent: (
+                  <SidebarAccountMenu
+                    name={profileName}
+                    email={context.data.profile?.email ?? ""}
+                    teamName={context.data.organisation?.name ?? "Rootset"}
+                    groups={[
+                      {
+                        id: "account",
+                        label: "Account",
+                        items: [
+                          {
+                            id: "profile",
+                            label: "Profile",
+                            icon: icon(UserAccountIcon),
+                          },
+                          {
+                            id: "preferences",
+                            label: "Preferences",
+                            icon: icon(Settings01Icon),
+                          },
+                          {
+                            id: "2fa",
+                            label: "Two-factor Auth",
+                            icon: icon(SecurityCheckIcon),
+                          },
+                          {
+                            id: "api-keys",
+                            label: "API Keys",
+                            icon: icon(Key01Icon),
+                          },
+                        ],
+                      },
+                      {
+                        id: "rootset",
+                        label: "Rootset",
+                        items: [
+                          {
+                            id: "documentation",
+                            label: "Documentation",
+                            icon: icon(BookOpen01Icon),
+                          },
+                        ],
+                      },
+                      {
+                        id: "session",
+                        label: "Session",
+                        items: [
+                          {
+                            id: "logout",
+                            label: "Log out",
+                            icon: icon(Logout01Icon),
+                            destructive: true,
+                          },
+                        ],
+                      },
+                    ]}
+                    onAction={(id) => {
+                      if (id === "logout")
+                        void authClient.signOut().then(() => {
+                          queryClient.clear();
+                          location.assign("/login");
+                        });
+                      else if (id === "documentation")
+                        window.open(
+                          "https://github.com/avgeek-oss/rootset/tree/main/docs",
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      else {
+                        const section = resolveSettingsSection(id);
+                        if (section) openSettings(section);
+                      }
+                    }}
+                  />
+                ),
+              }}
+            />
+          }
+        >
+          <AppShellBreadcrumb
+            items={[
+              { label: "Rootset", href: "/" },
+              ...(settings
+                ? [{ label: SECTION_LABELS[settings] }]
+                : [
+                    {
+                      label: database?.name ?? "Databases",
+                      href: dataHref(selectedDatabaseId),
+                    },
+                    { label: table?.name ?? "Tables" },
+                  ]),
+            ]}
+            title={
+              settings ? SECTION_LABELS[settings] : (table?.name ?? "Tables")
             }
           />
-        ) : selectedDatabaseId && database && !selectedTableId ? (
-          <TablesPage
-            databaseId={selectedDatabaseId}
-            tables={tables.data ?? []}
-            pending={tables.isPending}
-            error={tables.error?.message ?? ""}
-            canCreate={canManage}
-            onCreate={() => {
-              setCreate("table");
-              setMutationError(null);
-            }}
-            onRetry={() => void tables.refetch()}
-          />
-        ) : databases.isPending || (selectedDatabaseId && tables.isPending) ? (
-          <div className="grid-skeleton" role="status">
-            Loading databases and tables…
+          <div id="table-content" tabIndex={-1} className="rootset-workspace">
+            <SecondarySidebarLayout>
+              {secondary}
+              {mutationError && !create && (
+                <p className="error-banner" role="alert">
+                  {mutationError}
+                </p>
+              )}
+              {settings ? (
+                <AppShell.Content variant="broad">
+                  <SettingsPanel
+                    section={settings}
+                    orgId={orgId!}
+                    role={context.data.principal.role}
+                    databaseId={selectedDatabaseId ?? undefined}
+                    tableId={selectedTableId ?? undefined}
+                    theme={preferences.theme}
+                    onClose={backToData}
+                    onChanged={refresh}
+                  />
+                </AppShell.Content>
+              ) : table && selectedDatabaseId ? (
+                <Spreadsheet
+                  key={table.id}
+                  orgId={orgId!}
+                  databaseId={selectedDatabaseId}
+                  table={table}
+                  preferences={preferences}
+                  canEdit={canEdit}
+                  canManage={canManage}
+                  onSettings={(section) =>
+                    openSettings(section as SettingsSection)
+                  }
+                  onChanged={() =>
+                    void queryClient.invalidateQueries({
+                      queryKey: ["tables", orgId, selectedDatabaseId],
+                    })
+                  }
+                />
+              ) : selectedDatabaseId && database && !selectedTableId ? (
+                <TablesPage
+                  databaseId={selectedDatabaseId}
+                  tables={tables.data ?? []}
+                  pending={tables.isPending}
+                  error={tables.error?.message ?? ""}
+                  canCreate={canManage}
+                  onCreate={() => {
+                    setCreate("table");
+                    setMutationError(null);
+                  }}
+                  onRetry={() => void tables.refetch()}
+                />
+              ) : databases.isPending ||
+                (selectedDatabaseId && tables.isPending) ? (
+                <div className="grid-skeleton" role="status">
+                  Loading databases and tables…
+                </div>
+              ) : (
+                <section className="empty-state">
+                  <DatabaseIcon size={32} aria-hidden="true" />
+                  <h1>
+                    {canManage
+                      ? database
+                        ? "Create your first table"
+                        : "Create your first database"
+                      : database
+                        ? "No tables yet"
+                        : "No databases yet"}
+                  </h1>
+                  <p>
+                    {canManage
+                      ? database
+                        ? "Add a structured table, then define its fields."
+                        : "Keep related master data together in one database."
+                      : "An admin can create databases, tables, and fields for this installation."}
+                  </p>
+                  {(database ? canManage : canCreateDatabase) && (
+                    <Button
+                      onPress={() => setCreate(database ? "table" : "database")}
+                    >
+                      {database ? "Create table" : "Create database"}
+                    </Button>
+                  )}
+                </section>
+              )}
+            </SecondarySidebarLayout>
           </div>
-        ) : (
-          <section className="empty-state">
-            <DatabaseIcon size={32} aria-hidden="true" />
-            <h1>
-              {canManage
-                ? database
-                  ? "Create your first table"
-                  : "Create your first database"
-                : database
-                  ? "No tables yet"
-                  : "No databases yet"}
-            </h1>
-            <p>
-              {canManage
-                ? database
-                  ? "Add a structured table, then define its fields."
-                  : "Keep related master data together in one database."
-                : "An admin can create databases, tables, and fields for this installation."}
-            </p>
-            {(database ? canManage : canCreateDatabase) && (
-              <Button
-                onPress={() => setCreate(database ? "table" : "database")}
-              >
-                {database ? "Create table" : "Create database"}
-              </Button>
-            )}
-          </section>
-        )}
-      </AppLayout>
+        </AppLayout>
+      </AppShell.Root>
       {create && (
         <Dialog
           title={`Create ${create}`}

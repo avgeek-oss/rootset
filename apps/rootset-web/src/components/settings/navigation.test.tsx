@@ -1,22 +1,15 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   dataHref,
   settingsGroups,
   settingsHref,
   settingsScope,
-  SettingsNavigation,
-  PageNavigation,
+  settingsNavigationGroups,
 } from "./navigation";
-import {
-  SECTION_LABELS,
-  resolveSettingsSection,
-  type SettingsSection,
-} from "./types";
+import { SECTION_LABELS, resolveSettingsSection } from "./types";
 
 describe("context settings navigation", () => {
-  it("matches Towbar account groups and resolves existing bookmarks", () => {
+  it("matches the account groups and resolves existing bookmarks", () => {
     expect(settingsGroups.account).toEqual([
       { title: "Account", sections: ["profile", "preferences"] },
       { title: "Security", sections: ["email-password", "2fa", "sessions"] },
@@ -27,7 +20,6 @@ describe("context settings navigation", () => {
     expect(resolveSettingsSection("connections")).toBe("api-keys");
     expect(resolveSettingsSection("missing")).toBeNull();
   });
-
   it("gives every section one settings context", () => {
     const sections = Object.values(settingsGroups).flatMap((groups) =>
       groups.flatMap((group) => group.sections),
@@ -35,129 +27,58 @@ describe("context settings navigation", () => {
     expect(new Set(sections).size).toBe(sections.length);
     expect([...sections].sort()).toEqual(Object.keys(SECTION_LABELS).sort());
   });
-
   it.each(["profile", "organisation", "database", "fields"] as const)(
-    "shows just the context containing %s",
+    "isolates the context containing %s",
     (section) => {
-      const html = renderToStaticMarkup(
-        createElement(SettingsNavigation, {
-          section,
-          role: "admin",
-          databaseId: "database-id",
-          tableId: "table-id",
-        }),
-      );
       const scope = settingsScope(section);
-      for (const candidate of Object.keys(
-        SECTION_LABELS,
-      ) as SettingsSection[]) {
-        const href = settingsHref(candidate, {
-          databaseId: "database-id",
-          tableId: "table-id",
-        }).replaceAll("&", "&amp;");
-        if (settingsScope(candidate) === scope)
-          expect(html).toContain(`href="${href}"`);
-        else expect(html).not.toContain(`href="${href}"`);
-      }
-    },
-  );
-
-  it("keeps table exports available to viewers while hiding management and imports", () => {
-    const html = renderToStaticMarkup(
-      createElement(SettingsNavigation, {
-        section: "exports",
-        role: "viewer",
+      const items = settingsNavigationGroups(scope, "admin", {
         databaseId: "db",
         tableId: "table",
-      }),
-    );
-    expect(html).toContain("Export rows");
-    for (const label of [
-      "General",
-      "Fields",
-      "Unique rules",
-      "Search indexes",
-      "Import rows",
-    ])
-      expect(html).not.toContain(`>${label}<`);
+      }).flatMap((group) => group.items);
+      expect(items.map((item) => item.id)).toEqual(
+        settingsGroups[scope].flatMap((group) => group.sections),
+      );
+      if (scope === "account" || scope === "team")
+        for (const item of items) expect(item.href).not.toContain("databaseId");
+    },
+  );
+  it("keeps exports available to viewers while hiding management and imports", () => {
+    expect(
+      settingsNavigationGroups("table", "viewer").flatMap((group) =>
+        group.items.map((item) => item.id),
+      ),
+    ).toEqual(["exports"]);
+    expect(
+      settingsNavigationGroups("table", "editor").flatMap((group) =>
+        group.items.map((item) => item.id),
+      ),
+    ).toEqual(["imports", "exports"]);
+    expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });
-
-  it("includes only the resource identifiers belonging to each settings scope", () => {
+  it("includes only identifiers belonging to the settings scope", () => {
     const context = { databaseId: "db", tableId: "table" };
     expect(settingsHref("profile", context)).toBe("/settings/profile");
+    expect(settingsHref("organisation", context)).toBe(
+      "/settings/organisation",
+    );
     expect(settingsHref("backups", context)).toBe(
       "/settings/backups?databaseId=db",
     );
     expect(settingsHref("fields", context)).toBe(
       "/settings/fields?databaseId=db&tableId=table",
     );
-    expect(settingsHref("organisation", context)).toBe(
-      "/settings/organisation",
-    );
-    expect(settingsHref("profile", {})).toBe("/settings/profile");
     expect(dataHref("db", "table")).toBe("/?databaseId=db&tableId=table");
   });
-
-  it.each(["profile", "preferences", "organisation", "members"] as const)(
-    "isolates the %s sidebar even when an old URL contains database and table context",
-    (section) => {
-      const html = renderToStaticMarkup(
-        createElement(PageNavigation, {
-          section,
-          role: "admin",
-          databaseId: "db",
-          tableId: "table",
-        }),
-      );
-      expect(html).not.toContain("databaseId=");
-      expect(html).not.toContain(">Tables<");
-      expect(html).not.toContain(">Rows<");
-      expect(html).not.toContain(">Backups<");
-      expect(html).not.toContain("secondary-resource-heading");
-    },
-  );
-
-  it("shows database Tables and Settings without embedding individual tables", () => {
-    const html = renderToStaticMarkup(
-      createElement(PageNavigation, {
-        section: null,
-        role: "admin",
-        databaseId: "db",
-        tableId: null,
-      }),
-    );
-    expect(html).toContain('aria-current="page"');
-    expect(html).toContain('href="/?databaseId=db"');
-    for (const label of [
-      "Database",
-      "Tables",
-      "Settings",
-      "General",
-      "Backups",
-    ])
-      expect(html).toContain(`>${label}<`);
-    expect(html).not.toContain("tableId=");
-    expect(html).not.toContain("Create table");
-    expect(html).not.toContain(">Fields<");
+  it("keeps database settings separate from table and account settings", () => {
+    const groups = settingsNavigationGroups("database", "admin", {
+      databaseId: "db",
+      tableId: "table",
+    });
+    expect(groups.map((group) => group.title)).toEqual(["Settings"]);
+    expect(
+      groups.flatMap((group) => group.items.map((item) => item.label)),
+    ).toEqual(["General", "Backups"]);
+    for (const item of groups.flatMap((group) => group.items))
+      expect(item.href).not.toContain("tableId");
   });
-
-  it.each([null, "fields"] as const)(
-    "keeps the table sidebar in its own scope for %s",
-    (section) => {
-      const html = renderToStaticMarkup(
-        createElement(PageNavigation, {
-          section,
-          role: "admin",
-          databaseId: "db",
-          tableId: "table",
-        }),
-      );
-      for (const label of ["Rows", "Fields", "Unique rules", "Search indexes"])
-        expect(html).toContain(`>${label}<`);
-      expect(html).toContain('href="/?databaseId=db&amp;tableId=table"');
-      expect(html).not.toContain(">Backups<");
-      expect(html).not.toContain(">Tables<");
-      expect(html).not.toContain(">Your profile<");
-    },
-  );
 });

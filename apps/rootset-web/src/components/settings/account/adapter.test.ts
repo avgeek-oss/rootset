@@ -64,7 +64,7 @@ describe("account component bindings", () => {
     await api.delete("/v1/core/settings/api-keys/personal/key");
     expect(write).toHaveBeenLastCalledWith("/me/keys/key", "DELETE");
   });
-  it("keeps authenticator enrollment bound to its approval without exposing password or recovery codes", async () => {
+  it("keeps authenticator enrollment bound to its approval without returning the approval password", async () => {
     vi.mocked(performAction).mockResolvedValue({
       actionId: "bound-action",
       password: "ephemeral-password",
@@ -90,7 +90,9 @@ describe("account component bindings", () => {
     expect(result).toEqual({
       totpURI: "otpauth://totp/Rootset?secret=SECRET",
       actionId: "bound-action",
+      backupCodes: ["hidden-recovery-code"],
     });
+    expect(result).not.toHaveProperty("password");
     vi.mocked(authClient.twoFactor.verifyTotp).mockResolvedValue({
       data: { token: "session", user: {} } as never,
       error: null,

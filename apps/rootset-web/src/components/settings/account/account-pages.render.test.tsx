@@ -72,7 +72,8 @@ describe("Towbar account component parity", () => {
     expect(profile).toContain("Appearance");
     expect(profile).toContain("Gravatar Image");
     expect(profile).toContain("Click the image to update it on Gravatar.");
-    expect(profile).toContain("Full name");
+    expect(profile).toContain("Profile details");
+    expect(profile).toContain("Your Name");
     expect(profile).not.toContain("Current email");
     expect(profile).not.toContain("Change password");
     const security = render(EmailPasswordSettings);
@@ -112,7 +113,7 @@ describe("Towbar account component parity", () => {
   it("prevents revoking the current browser session", () => {
     const html = render(SessionSettings);
     expect(html).toContain("This browser");
-    expect(html).toContain("Session ID");
+    expect(html).toContain("current-session");
     expect(html).toMatch(/<button[^>]*disabled[^>]*>.*?Revoke/s);
   });
   it("keeps API keys and OAuth connections in the same page without team keys", () => {

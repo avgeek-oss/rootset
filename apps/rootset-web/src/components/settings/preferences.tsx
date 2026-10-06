@@ -1,31 +1,27 @@
-// Adapted from Towbar's Apache-2.0 DateTimePreferencesSettings, using Rootset's API and grid formatter.
 "use client";
 
-import { FieldDescription } from "@avgeek-oss/design-system/forms/field";
-import { FormCard } from "./account/page-parts";
-import { toast } from "@avgeek-oss/design-system/overlays/toast";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { Preferences } from "@rootset/contracts";
-import { formatCellValue } from "../cells/drafts";
-import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { useMutation, useResource, write } from "./api";
-import {
-  DateTimePreferenceFields,
-  type DateTimePreferenceOptions,
-} from "./date-time-preference-fields";
-import type { SettingsPanelProps } from "./types";
+import { useMemo } from "react";
+import { PreferencesSettings as LibraryPreferencesSettings } from "@avgeek-oss/design-system";
+import type {
+  DateTimePreferenceOptions,
+  DateTimePreferences,
+} from "@avgeek-oss/design-system/patterns/settings/date-time-preference-fields";
 import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
+import { PreferencesSchema, type Preferences } from "@rootset/contracts";
+import { formatCellValue } from "../cells/drafts";
+import { useResource, write } from "./api";
+import type { SettingsPanelProps } from "./types";
 
 const previewInstant = "2026-09-16T14:30:45.000Z";
-const dateFormats: DateTimePreferenceOptions["dateFormats"] = [
+const dateFormats = [
   { id: "YYYY-MM-DD", label: "2026-09-16" },
   { id: "DD/MM/YYYY", label: "16/09/2026" },
   { id: "MM/DD/YYYY", label: "09/16/2026" },
 ];
-const timeFormats: DateTimePreferenceOptions["timeFormats"] = [
+const timeFormats = [
   { id: "24h", label: "14:30" },
   { id: "12h", label: "2:30 PM" },
 ];
@@ -41,155 +37,79 @@ export function PreferencesSettings(props: SettingsPanelProps) {
     "/preferences/options",
     null,
   );
-  const mutation = useMutation(() => {
-    resource.reload();
-    props.onChanged?.();
-  });
-  const [preferences, setPreferences] = useState<Preferences>({
-    timezone: "UTC",
-    locale: "en",
-    dateFormat: "YYYY-MM-DD",
-    timeFormat: "24h",
-    theme: "system",
-  });
-  useEffect(() => {
-    if (resource.data) setPreferences(resource.data);
-  }, [resource.data]);
-  const theme = props.theme;
-  useEffect(() => {
-    if (theme) setPreferences((previous) => ({ ...previous, theme }));
-  }, [resource.data, theme]);
-  const options = useMemo<DateTimePreferenceOptions>(() => {
-    const current = optionResource.data;
-    const timeZones = [
-      ...new Set([
-        "UTC",
-        ...(current?.timezones ?? []),
-        preferences.timezone,
-        "Asia/Kolkata",
-        "Asia/Kathmandu",
-        "Asia/Yangon",
-        "Europe/Kyiv",
-        "America/Nuuk",
-        "Pacific/Kanton",
-      ]),
-    ]
-      .filter((zone) => {
-        try {
-          new Intl.DateTimeFormat("en", { timeZone: zone });
-          return true;
-        } catch {
-          return false;
-        }
-      })
-      .sort((left, right) =>
-        left === "UTC" ? -1 : right === "UTC" ? 1 : left.localeCompare(right),
-      );
-    return {
-      timeZones,
+  const options = useMemo<DateTimePreferenceOptions>(
+    () => ({
+      timeZones: optionResource.data?.timezones ?? [],
       dateFormats: dateFormats.filter((option) =>
-        current?.dateFormats.includes(option.id),
+        optionResource.data?.dateFormats.some((format) => format === option.id),
       ),
       timeFormats: timeFormats.filter((option) =>
-        current?.timeFormats.includes(option.id),
+        optionResource.data?.timeFormats.some((format) => format === option.id),
       ),
-    };
-  }, [optionResource.data, preferences.timezone]);
-  const dirty = Boolean(
-    resource.data &&
-    (preferences.timezone !== resource.data.timezone ||
-      preferences.dateFormat !== resource.data.dateFormat ||
-      preferences.timeFormat !== resource.data.timeFormat),
+    }),
+    [optionResource.data],
   );
-  const preview = formatCellValue(
+  if (resource.error || optionResource.error)
+    return (
+      <QueryError
+        message={(resource.error ?? optionResource.error)!.message}
+        onRetry={() => {
+          resource.reload();
+          optionResource.reload();
+        }}
+      />
+    );
+  if (!resource.data || !optionResource.data) return <QueryLoading />;
+  const preferences = resource.data;
+  return (
+    <div className="content-grid min-w-0 lg:grid-cols-2 lg:items-start">
+      <LibraryPreferencesSettings
+        key={JSON.stringify(preferences)}
+        value={{
+          timeZone: preferences.timezone,
+          dateFormat: preferences.dateFormat,
+          timeFormat: preferences.timeFormat,
+        }}
+        options={options}
+        formatPreview={(value) => (
+          <PreferencePreview value={value} locale={preferences.locale} />
+        )}
+        onSave={async (value) => {
+          const updated = PreferencesSchema.parse({
+            ...preferences,
+            timezone: value.timeZone,
+            dateFormat: value.dateFormat,
+            timeFormat: value.timeFormat,
+          });
+          await write("/me/preferences", "PATCH", {
+            timezone: updated.timezone,
+            dateFormat: updated.dateFormat,
+            timeFormat: updated.timeFormat,
+          });
+          resource.reload();
+          window.dispatchEvent(new Event("rootset:account-refresh"));
+          props.onChanged?.();
+        }}
+      />
+    </div>
+  );
+}
+
+function PreferencePreview({
+  value,
+  locale,
+}: {
+  value: DateTimePreferences;
+  locale: string;
+}) {
+  return formatCellValue(
     { id: "preview", name: "Preview", type: "date-time" },
     previewInstant,
     {
-      timeZone: preferences.timezone,
-      locale: preferences.locale,
-      dateFormat: preferences.dateFormat,
-      timeFormat: preferences.timeFormat,
+      timeZone: value.timeZone,
+      locale,
+      dateFormat: PreferencesSchema.shape.dateFormat.parse(value.dateFormat),
+      timeFormat: PreferencesSchema.shape.timeFormat.parse(value.timeFormat),
     },
-  );
-  const zoneLabel = new Intl.DateTimeFormat(preferences.locale, {
-    timeZone: preferences.timezone,
-    timeZoneName: "short",
-  })
-    .formatToParts(new Date(previewInstant))
-    .find((part) => part.type === "timeZoneName")?.value;
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!dirty || mutation.busy) return;
-    const result = await mutation.run(
-      () =>
-        write("/me/preferences", "PATCH", {
-          timezone: preferences.timezone,
-          dateFormat: preferences.dateFormat,
-          timeFormat: preferences.timeFormat,
-        }),
-      "Preferences updated",
-    );
-    if (result.ok) toast.success("Preferences updated");
-  }
-
-  return (
-    <div className="content-grid min-w-0 lg:grid-cols-2 lg:items-start">
-      {resource.error || optionResource.error ? (
-        <QueryError
-          message={(resource.error ?? optionResource.error)!.message}
-          onRetry={() =>
-            window.dispatchEvent(new Event("rootset:account-refresh"))
-          }
-        />
-      ) : !resource.data || !optionResource.data ? (
-        <QueryLoading />
-      ) : null}
-      {resource.data && optionResource.data && (
-        <FormCard title="Date and time">
-          <form
-            className="grid gap-5"
-            onSubmit={save}
-            aria-busy={mutation.busy}
-          >
-            <DateTimePreferenceFields
-              disabled={mutation.busy}
-              onChange={setPreferences}
-              options={options}
-              preferences={preferences}
-              variant="secondary"
-            />
-            <div className="grid gap-3">
-              <div className="grid content-start gap-0" aria-live="polite">
-                <span className="text-xs text-muted">Preview</span>
-                <span className="text-sm tabular-nums">{preview}</span>
-                <span className="text-xs text-muted">
-                  {preferences.timezone}
-                  {zoneLabel && preferences.timezone !== zoneLabel
-                    ? ` (${zoneLabel})`
-                    : ""}
-                </span>
-              </div>
-              <FieldDescription>
-                Applies to how dates and times are displayed throughout Rootset.
-              </FieldDescription>
-              {mutation.error ? (
-                <p role="alert" className="text-sm text-danger">
-                  {mutation.error.message}
-                </p>
-              ) : null}
-              <Button
-                className="w-fit min-w-24"
-                type="submit"
-                isDisabled={!dirty || mutation.busy}
-                isPending={mutation.busy}
-              >
-                Save
-              </Button>
-            </div>
-          </form>
-        </FormCard>
-      )}
-    </div>
   );
 }

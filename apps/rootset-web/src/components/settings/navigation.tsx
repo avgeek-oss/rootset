@@ -3,6 +3,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Activity01Icon,
+  Database01Icon,
   Download01Icon,
   Key01Icon,
   BookOpen01Icon,
@@ -16,11 +17,11 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import type { Database, Table } from "@rootset/contracts";
+import { useRouter } from "next/navigation";
 import {
-  SecondaryLinks,
-  SecondarySection,
-  SecondarySidebar,
-} from "../ui/shell";
+  SecondaryItems,
+  SecondaryEntityHeader,
+} from "@avgeek-oss/design-system/navigation/secondary-sidebar";
 import { canOpenSettings, SECTION_LABELS, type SettingsSection } from "./types";
 
 export type SettingsScope = "account" | "team" | "database" | "table";
@@ -129,6 +130,30 @@ export function SettingsNavigation({
   );
 }
 
+export function settingsNavigationGroups(
+  scope: SettingsScope,
+  role: string,
+  context: { databaseId?: string | null; tableId?: string | null } = {},
+) {
+  return settingsGroups[scope]
+    .map((group) => ({
+      title: group.title,
+      items: group.sections
+        .filter((item) => canOpenSettings(item, role))
+        .map((item) => ({
+          id: item,
+          label: ["database", "table", "organisation"].includes(item)
+            ? "General"
+            : item === "backups"
+              ? "Backups"
+              : SECTION_LABELS[item],
+          href: settingsHref(item, context),
+          icon: settingsIcons[item],
+        })),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
 function SettingsSections({
   section,
   scope,
@@ -142,40 +167,27 @@ function SettingsSections({
   databaseId?: string | null;
   tableId?: string | null;
 }) {
+  const router = useRouter();
   return (
     <>
-      {settingsGroups[scope].map((group) => {
-        const sections = group.sections.filter((item) =>
-          canOpenSettings(item, role),
-        );
-        return sections.length ? (
-          <SecondarySection key={group.title} title={group.title}>
-            <SecondaryLinks
-              items={sections.map((item) => ({
-                id: item,
-                href: settingsHref(item, { databaseId, tableId }),
-                label:
-                  item === "database" ||
-                  item === "table" ||
-                  item === "organisation"
-                    ? "General"
-                    : item === "backups"
-                      ? "Backups"
-                      : SECTION_LABELS[item],
-                active: section === item,
-                icon: (
-                  <HugeiconsIcon
-                    icon={settingsIcons[item]}
-                    size={16}
-                    aria-hidden="true"
-                    className="size-4 shrink-0"
-                  />
-                ),
-              }))}
-            />
-          </SecondarySection>
-        ) : null;
-      })}
+      {settingsNavigationGroups(scope, role, { databaseId, tableId }).map(
+        (group) => (
+          <SecondaryItems
+            key={group.title}
+            title={group.title}
+            selected={section ?? ""}
+            onSelect={(id) => {
+              const item = group.items.find((candidate) => candidate.id === id);
+              if (item) router.push(item.href);
+            }}
+            items={group.items.map((item) => ({
+              id: item.id,
+              label: item.label,
+              icon: <HugeiconsIcon icon={item.icon} />,
+            }))}
+          />
+        ),
+      )}
     </>
   );
 }
@@ -195,47 +207,43 @@ export function PageNavigation({
   databaseId: string | null;
   tableId: string | null;
 }) {
+  const router = useRouter();
   const scope = section
     ? settingsScope(section)
     : tableId
       ? "table"
       : "database";
   if (scope === "account" || scope === "team")
-    return (
-      <SecondarySidebar title={scopeTitles[scope]} hideTitle items={[]}>
-        <SettingsSections scope={scope} section={section} role={role} />
-      </SecondarySidebar>
-    );
+    return <SettingsSections scope={scope} section={section} role={role} />;
   if (!databaseId) return null;
   const tableScope = scope === "table";
   const title = tableScope
     ? (table?.name ?? "Table")
     : (database?.name ?? "Database");
   return (
-    <SecondarySidebar title={title} hideTitle items={[]}>
-      <div className="secondary-resource-heading">
-        <h2 title={title}>{title}</h2>
-      </div>
-      <SecondarySection title={tableScope ? "Table" : "Database"}>
-        <SecondaryLinks
-          items={[
-            {
-              id: tableScope ? "rows" : "tables",
-              label: tableScope ? "Rows" : "Tables",
-              href: dataHref(databaseId, tableScope ? tableId : null),
-              active: !section,
-              icon: (
-                <HugeiconsIcon
-                  icon={Table01Icon}
-                  size={16}
-                  aria-hidden="true"
-                  className="size-4 shrink-0"
-                />
-              ),
-            },
-          ]}
-        />
-      </SecondarySection>
+    <>
+      <SecondaryEntityHeader
+        title={title}
+        icon={
+          <HugeiconsIcon icon={tableScope ? Table01Icon : Database01Icon} />
+        }
+      >
+        {title}
+      </SecondaryEntityHeader>
+      <SecondaryItems
+        title={tableScope ? "Table" : "Database"}
+        selected={section ? "" : tableScope ? "rows" : "tables"}
+        items={[
+          {
+            id: tableScope ? "rows" : "tables",
+            label: tableScope ? "Rows" : "Tables",
+            icon: <HugeiconsIcon icon={Table01Icon} />,
+          },
+        ]}
+        onSelect={() =>
+          router.push(dataHref(databaseId, tableScope ? tableId : null))
+        }
+      />
       <SettingsSections
         scope={scope}
         section={section}
@@ -243,6 +251,6 @@ export function PageNavigation({
         databaseId={databaseId}
         tableId={tableId}
       />
-    </SecondarySidebar>
+    </>
   );
 }

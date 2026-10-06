@@ -1,22 +1,26 @@
 "use client";
-import { useState } from "react";
 
+import { useState } from "react";
+import { AuthForm } from "@avgeek-oss/design-system";
+import { PasskeysTable } from "@avgeek-oss/design-system/patterns/settings/tables";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Modal } from "@avgeek-oss/design-system/overlays/modal";
-import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import { FormCard, ActionButton } from "./page-parts";
-import { AuthForm } from "./auth-form";
-import { useAccess } from "./adapter";
-import { useApiQuery } from "./adapter";
-import { api } from "./adapter";
-import { useDateDisplay } from "./adapter";
-import { registerPasskey, passkeyError } from "./adapter";
+import {
+  api,
+  useAccess,
+  useApiQuery,
+  useDateDisplay,
+  registerPasskey,
+  passkeyError,
+  refreshApiQueries,
+} from "./adapter";
 
-type Passkey = { id: string; name: string | null; createdAt: string };
+type Passkey = { id: string; name: string; createdAt: string };
 export function PasskeySettings() {
   const displayDate = useDateDisplay();
   const { user } = useAccess();
@@ -25,105 +29,73 @@ export function PasskeySettings() {
   );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Passkey | null>(null);
-  const [instance, setInstance] = useState(0);
+  const [busy, setBusy] = useState(false);
+  function changed() {
+    refreshApiQueries();
+    keys.refresh();
+    window.dispatchEvent(new Event("rootset:identity-changed"));
+  }
   function edit(key: Passkey | null) {
     setEditing(key);
-    setInstance((v) => v + 1);
     setOpen(true);
   }
+  if (keys.error)
+    return <QueryError message={keys.error} onRetry={keys.refresh} />;
+  if (!keys.data) return <QueryLoading />;
   return (
     <>
       <FormCard
         title="Passkeys"
-        headerEnd={
-          keys.data && !keys.error ? (
-            <Chip color={keys.data.passkeys.length ? "success" : "default"}>
-              {keys.data.passkeys.length
-                ? `${keys.data.passkeys.length} added`
-                : "None added"}
-            </Chip>
-          ) : undefined
-        }
+        headerEnd={<Button onPress={() => edit(null)}>Add passkey</Button>}
       >
-        <div className="content-grid">
-          <p className="text-sm text-muted">
-            Verify your sign-in after entering your password with your
-            fingerprint, face, or device PIN. Passkeys can be stored on your
-            device or in your password manager.
-          </p>
-          {keys.error ? (
-            <QueryError
-              message={keys.error}
-              onRetry={() =>
-                window.dispatchEvent(new Event("rootset:account-refresh"))
-              }
-            />
-          ) : !keys.data ? (
-            <QueryLoading />
-          ) : keys.data.passkeys.length ? (
-            <ul className="divide-y divide-separator">
-              {keys.data.passkeys.map((key) => (
-                <li
-                  key={key.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium break-words">
-                      {key.name || "Passkey"}
-                    </p>
-                    <time
-                      className="text-xs text-muted"
-                      dateTime={key.createdAt}
-                    >
-                      Created {displayDate(key.createdAt)}
-                    </time>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onPress={() => edit(key)}>
-                      Rename
-                    </Button>
-                    <ActionButton
-                      variant="danger"
-                      success="Passkey removed"
-                      confirm={{
-                        title: "Remove passkey?",
-                        description: `${key.name || "This passkey"} will no longer be available for two-factor authentication.`,
-                        actionLabel: "Remove",
-                      }}
-                      action={async () => {
-                        await api.post(
-                          "/v1/public/auth/identity/passkey/delete-passkey",
-                          { id: key.id },
-                        );
-                        keys.refresh();
-                      }}
-                    >
-                      Remove
-                    </ActionButton>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <div>
-            <Button onPress={() => edit(null)}>Add passkey</Button>
-          </div>
-        </div>
+        <PasskeysTable
+          items={keys.data.passkeys}
+          formatDate={displayDate}
+          actions={(key) => (
+            <>
+              <Button variant="secondary" onPress={() => edit(key)}>
+                Rename
+              </Button>
+              <ActionButton
+                variant="danger"
+                success="Passkey removed"
+                confirm={{
+                  title: "Remove passkey?",
+                  description: key.name || "Passkey",
+                  actionLabel: "Remove",
+                }}
+                action={async () => {
+                  await api.post(
+                    "/v1/public/auth/identity/passkey/delete-passkey",
+                    { id: key.id },
+                  );
+                  changed();
+                }}
+              >
+                Remove
+              </ActionButton>
+            </>
+          )}
+        />
       </FormCard>
-      <Modal.Backdrop isOpen={open} onOpenChange={setOpen}>
+      <Modal.Backdrop
+        isOpen={open}
+        onOpenChange={(next) => {
+          if (!busy) setOpen(next);
+        }}
+      >
         <Modal.Container size="sm">
           <Modal.Dialog>
             <Modal.Header>
               <Modal.Heading>
                 {editing ? "Rename passkey" : "Add passkey"}
               </Modal.Heading>
-              <Modal.CloseTrigger />
+              <Modal.CloseTrigger isDisabled={busy} />
             </Modal.Header>
             <Modal.Body>
               <AuthForm
-                key={instance}
+                key={editing?.id ?? "add"}
                 variant="secondary"
-                errorPresentation="toast"
                 fields={[
                   {
                     name: "name",
@@ -135,8 +107,11 @@ export function PasskeySettings() {
                   },
                 ]}
                 submitLabel={editing ? "Update" : "Continue"}
-                onCancel={() => setOpen(false)}
+                onCancel={() => {
+                  if (!busy) setOpen(false);
+                }}
                 onSubmit={async (values) => {
+                  setBusy(true);
                   try {
                     if (editing)
                       await api.post(
@@ -147,20 +122,15 @@ export function PasskeySettings() {
                       if (!user) throw new Error("Sign in to add a passkey.");
                       await registerPasskey(values.name ?? "");
                     }
+                    setOpen(false);
+                    changed();
                   } catch (error) {
                     throw new Error(passkeyError(error));
+                  } finally {
+                    setBusy(false);
                   }
-                  setOpen(false);
-                  keys.refresh();
                 }}
-              >
-                {!editing ? (
-                  <p className="text-sm text-muted">
-                    Your browser will ask where to save your passkey and verify
-                    your identity.
-                  </p>
-                ) : null}
-              </AuthForm>
+              />
             </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>
