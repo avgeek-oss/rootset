@@ -792,6 +792,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       }>;
     };
     const tokens = await issueMcpGrant([
+      "profile:manage",
       "rows:read",
       "rows:write",
       "history:read",
@@ -891,6 +892,74 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         unknown
       >;
     };
+    await t.test(
+      "personal notifications agree across browser, REST and issued OAuth MCP; replay leaves later arrivals unread",
+      async () => {
+        const publish = async () => {
+          const id = newId();
+          await db.owner.query(
+            `INSERT INTO rootset_control.notification_events(id,org_id,dedupe_key,type,payload,occurred_at)
+            VALUES($1::varchar,$2,$1::text,'backup.succeeded',$3,now())`,
+            [
+              id,
+              orgId,
+              {
+                title: "Backup verified",
+                message: "Transport verification",
+                databaseId,
+                databaseName: "Airline MDM",
+                backupId: newId(),
+              },
+            ],
+          );
+          await db.owner.query(
+            "INSERT INTO rootset_control.notification_receipts(org_id,user_id,event_id) VALUES($1,$2,$3)",
+            [orgId, provision.userId, id],
+          );
+          return id;
+        };
+        const firstId = await publish();
+        const browserFeed = await call("listNotifications", { limit: 1 });
+        assert.equal(browserFeed.unreadCount, 1);
+        assert.equal(browserFeed.notifications[0].id, firstId);
+        assert.equal(browserFeed.notifications[0].readAt, null);
+        assert.deepEqual(
+          await call("listNotifications", { limit: 1 }, "rest"),
+          browserFeed,
+        );
+        assert.deepEqual(
+          await mcpOperation("listNotifications", { limit: 1 }),
+          browserFeed,
+        );
+        await call("listNotifications", { userId: newId() }, "rest", 422);
+        const key = newId();
+        assert.deepEqual(
+          await call("markAllNotificationsRead", {}, "rest", undefined, key),
+          { ok: true },
+        );
+        const laterId = await publish();
+        await call("markAllNotificationsRead", {}, "rest", undefined, key);
+        const later = await call("listNotifications", { limit: 1 }, "rest");
+        assert.equal(later.unreadCount, 1);
+        assert.equal(later.notifications[0].id, laterId);
+        assert.equal(later.notifications[0].readAt, null);
+        assert.deepEqual(await mcpOperation("markAllNotificationsRead", {}), {
+          ok: true,
+        });
+        const readFeed = await call("listNotifications", { limit: 2 });
+        assert.equal(readFeed.unreadCount, 0);
+        assert.equal(readFeed.notifications.length, 2);
+        assert.ok(
+          readFeed.notifications.every(
+            (item: { readAt: string | null }) => item.readAt !== null,
+          ),
+        );
+        assert.deepEqual(
+          await mcpOperation("listNotifications", { limit: 2 }),
+          readFeed,
+        );
+      },
+    );
     const terminalJob = async (id: string) => {
       let job = await call("getJob", { orgId, id }, "rest");
       for (
@@ -1927,6 +1996,21 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       }),
     );
+    for (const operationId of [
+      "listNotifications",
+      "markAllNotificationsRead",
+    ]) {
+      const operation = getOperation(operationId);
+      await assert.rejects(
+        readOnlyClient.callTool({
+          name: operation.toolName,
+          arguments: operation.idempotencyRequired
+            ? { idempotencyKey: newId() }
+            : {},
+        }),
+        (error) => error instanceof StreamableHTTPError && error.code === 403,
+      );
+    }
     const readMutation = await readOnlyClient.callTool({
       name: "rootset_get_mutation",
       arguments: { orgId, id: updated.mutationId },
