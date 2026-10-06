@@ -1,248 +1,415 @@
 "use client";
 
-import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { useEffect, useState } from "react";
-import { organisationPath, useMutation, useResource, write } from "./api";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Choice,
-  DateLabel,
-  Empty,
-  Feedback,
-  Field,
-  Form,
-  Loading,
-  Record,
-  RecordList,
-  Section,
-  Status,
-  useConfirmation,
-} from "./ui";
-import type {
-  Invitation,
-  Member,
-  Organisation,
-  SettingsPanelProps,
-} from "./types";
+  AuthForm,
+  ChoiceField,
+  MembersTable,
+  MemberEditDialog,
+  InvitationsTable,
+} from "@avgeek-oss/design-system";
+import type { ChoiceOption } from "@avgeek-oss/design-system/patterns/choice-field";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
+import { Widget } from "@avgeek-oss/design-system/data-display/widget";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import {
+  QueryError,
+  QueryLoading,
+} from "@avgeek-oss/design-system/patterns/feedback/query-state";
+import { RootsetClient } from "@rootset/web-client";
+import { MemberSchema, InvitationSchema } from "@rootset/contracts";
+import type { z } from "zod";
+import { organisationPath, useResource, write } from "./api";
+import { ActionButton, FormCard } from "./account/page-parts";
+import { PageSelectionTitle } from "./account/page-selection-title";
+import { RelativeTime } from "./account/last-synced-time";
+import type { Organisation, SettingsPanelProps } from "./types";
+
+const client = new RootsetClient();
+type Member = z.infer<typeof MemberSchema>;
+type Invitation = z.infer<typeof InvitationSchema>;
+type Page<T> = { data: T[]; nextCursor?: string | null; hasMore?: boolean };
+const roles: readonly ChoiceOption<Member["role"]>[] = [
+  {
+    id: "admin",
+    label: "Admin",
+    description: "Manage the installation, data and team.",
+  },
+  {
+    id: "editor",
+    label: "Editor",
+    description: "Read data and create, edit or delete rows.",
+  },
+  { id: "viewer", label: "Viewer", description: "Read and export data." },
+];
 
 export function OrganisationSettings(props: SettingsPanelProps) {
   const path = organisationPath(props.orgId);
   const resource = useResource<Organisation | null>(path, null);
-  const mutation = useMutation(() => {
-    resource.reload();
-    props.onChanged?.();
-  });
-  const [name, setName] = useState("");
-  useEffect(() => {
-    if (resource.data) setName(resource.data.name);
-  }, [resource.data]);
+  if (resource.error)
+    return (
+      <QueryError message={resource.error.message} onRetry={resource.reload} />
+    );
+  if (!resource.data) return <QueryLoading />;
   return (
-    <>
-      <Loading {...resource} retry={resource.reload} />
-      <Feedback {...mutation} />
-      <Section title="Organisation name">
-        <Form
-          busy={mutation.busy}
-          onSubmit={async () => {
-            await mutation.run(
-              () => write(path, "PATCH", { name }),
-              "Organisation name updated.",
-            );
-          }}
-        >
-          <Field
-            label="Name"
-            value={name}
-            onChange={setName}
-            required
-            maxLength={255}
+    <div className="content-grid lg:grid-cols-2 lg:items-start">
+      <Widget>
+        <Widget.Content>
+          <AuthForm
+            key={resource.data.name}
+            variant="secondary"
+            fields={[
+              {
+                name: "name",
+                label: "Team name",
+                required: true,
+                maxLength: 255,
+                defaultValue: resource.data.name,
+              },
+            ]}
+            submitLabel="Update"
+            submitButtonClassName="w-auto"
+            onSubmit={async ({ name }) => {
+              await write(path, "PATCH", { name });
+              toast.success("Team updated");
+              resource.reload();
+              props.onChanged?.();
+            }}
           />
-        </Form>
-      </Section>
-    </>
-  );
-}
-
-function MemberRow({
-  member,
-  busy,
-  save,
-  remove,
-}: {
-  member: Member;
-  busy: boolean;
-  save: (patch: object) => Promise<void>;
-  remove: () => Promise<void>;
-}) {
-  const [role, setRole] = useState(member.role);
-  return (
-    <Record title={member.name ?? member.email} description={member.email}>
-      <Choice
-        disabled={busy}
-        label={`Role for ${member.email}`}
-        value={role}
-        onChange={(next) => setRole(next as Member["role"])}
-        options={[
-          { value: "admin", label: "Admin" },
-          { value: "editor", label: "Editor" },
-          { value: "viewer", label: "Viewer" },
-        ]}
-      />
-      <Button
-        variant="secondary"
-
-        isDisabled={busy}
-        onPress={() => save({ role })}
-      >
-        Save
-      </Button>
-      <Button
-        variant="danger-soft"
-
-        isDisabled={busy}
-        onPress={remove}
-      >
-        Remove
-      </Button>
-    </Record>
+        </Widget.Content>
+      </Widget>
+    </div>
   );
 }
 
 export function MembersSettings(props: SettingsPanelProps) {
   const path = organisationPath(props.orgId);
-  const members = useResource<Member[]>(`${path}/members`, []);
-  const invitations = useResource<Invitation[]>(`${path}/invitations`, []);
-  const mutation = useMutation(() => {
-    members.reload();
-    invitations.reload();
-    props.onChanged?.();
+  const [memberCursors, setMemberCursors] = useState<Array<string | null>>([
+    null,
+  ]);
+  const [inviteCursors, setInviteCursors] = useState<Array<string | null>>([
+    null,
+  ]);
+  const memberCursor = memberCursors.at(-1);
+  const inviteCursor = inviteCursors.at(-1);
+  const members = useQuery({
+    queryKey: ["team-members", props.orgId, memberCursor],
+    queryFn: ({ signal }) =>
+      client.operation<Page<Member>>(
+        "listMembers",
+        {
+          orgId: props.orgId,
+          limit: 25,
+          ...(memberCursor ? { cursor: memberCursor } : {}),
+        },
+        { signal },
+      ),
   });
-  const confirmation = useConfirmation();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("viewer");
-  return (
-    <>
-      <Feedback {...mutation} />
-      <Section
-        title="Invite a person"
-        description="Rootset emails a single-use invitation. The recipient sets up their own credentials. At least one admin must remain in the installation."
+  const invitations = useQuery({
+    queryKey: ["team-invitations", props.orgId, inviteCursor],
+    queryFn: ({ signal }) =>
+      client.operation<Page<Invitation>>(
+        "listInvitations",
+        {
+          orgId: props.orgId,
+          state: "pending",
+          limit: 25,
+          ...(inviteCursor ? { cursor: inviteCursor } : {}),
+        },
+        { signal },
+      ),
+  });
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [editing, setEditing] = useState<Member | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [role, setRole] = useState<Member["role"]>("viewer");
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function refresh() {
+      setNow(Date.now());
+      void invitations.refetch();
+    }
+    const nextExpiry = Math.min(
+      ...(invitations.data?.data ?? [])
+        .map((item) => Date.parse(item.expiresAt))
+        .filter((time) => time > Date.now()),
+    );
+    if (Number.isFinite(nextExpiry))
+      timer = setTimeout(
+        refresh,
+        Math.min(Math.max(1, nextExpiry - Date.now()), 2_147_483_647),
+      );
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [invitations.data, invitations.refetch]);
+  function changed() {
+    setMemberCursors([null]);
+    setInviteCursors([null]);
+    void members.refetch();
+    void invitations.refetch();
+    props.onChanged?.();
+  }
+  const actions = useMemo(
+    () => (
+      <Button
+        isDisabled={busy}
+        onPress={() => {
+          setRole("viewer");
+          setInviteOpen(true);
+        }}
       >
-        <Form
-          busy={mutation.busy}
-          submit="Send invitation"
-          onSubmit={async () => {
-            const result = await mutation.run(
-              () => write(`${path}/invitations`, "POST", { email, role }),
-              "Invitation sent.",
-            );
-            if (result.ok) setEmail("");
-          }}
-        >
-          <Field
-            label="Email address"
-            value={email}
-            onChange={setEmail}
-            type="email"
-            autoComplete="email"
-            required
-          />
-          <Choice
-            label="Role"
-            value={role}
-            onChange={setRole}
-            options={[
-              { value: "admin", label: "Admin" },
-              { value: "editor", label: "Editor" },
-              { value: "viewer", label: "Viewer" },
-            ]}
-          />
-        </Form>
-      </Section>
-      <Section title="Members">
-        <Loading {...members} retry={members.reload} />
-        {!members.loading && !members.error && members.data.length === 0 && (
-          <Empty>No members are visible.</Empty>
-        )}
-        <RecordList>
-          {members.data.map((member) => (
-            <MemberRow
-              key={`${member.id}:${member.role}`}
-              member={member}
-              busy={mutation.busy}
-              save={async (patch) => {
-                await mutation.run(
-                  () =>
-                    write(`${path}/members/${member.id}`, "PATCH", {
-                      ...patch,
-                      expectedVersion: member.version,
-                    }),
-                  "Member updated.",
-                );
-              }}
-              remove={async () => {
-                if (
-                  await confirmation.confirm(
-                    "Remove member?",
-                    `${member.email} will lose access to this organisation. Their API keys and application access stop working immediately.`,
-                    "Remove member",
-                  )
-                )
-                  await mutation.run(
-                    () =>
-                      write(`${path}/members/${member.id}`, "DELETE", {
-                        expectedVersion: member.version,
-                      }),
-                    "Member removed.",
-                  );
-              }}
-            />
-          ))}
-        </RecordList>
-      </Section>
-      <Section title="Invitations">
-        <Loading {...invitations} retry={invitations.reload} />
-        <RecordList>
-          {invitations.data.map((invitation) => (
-            <Record
-              key={invitation.id}
-              title={invitation.email}
-              description={
-                <>
-                  {invitation.role} ·{" "}
-                  <Status
-                    value={invitation.status ?? invitation.state ?? "pending"}
-                  />{" "}
-                  · expires <DateLabel value={invitation.expiresAt} />
-                </>
-              }
+        Create invite
+      </Button>
+    ),
+    [busy],
+  );
+  const items = (members.data?.data ?? []).map((member) => ({
+    ...member,
+    emailVerified: member.verified,
+    accountStatus: {
+      label: member.verified ? "Active" : "Email verification pending",
+      color: member.verified ? ("success" as const) : ("warning" as const),
+    },
+    securityStatus: {
+      label: member.twoFactorEnabled ? "Enabled" : "Not enabled",
+      color: member.twoFactorEnabled
+        ? ("success" as const)
+        : ("danger" as const),
+    },
+  }));
+  if (!members.data)
+    return members.isError ? (
+      <QueryError
+        message={members.error.message}
+        onRetry={() => void members.refetch()}
+      />
+    ) : (
+      <QueryLoading />
+    );
+  return (
+    <div className="content-grid">
+      <PageSelectionTitle label="Members" actions={actions} />
+      {members.isError && (
+        <QueryError
+          message={members.error.message}
+          onRetry={() => void members.refetch()}
+        />
+      )}
+      <MembersTable
+        items={items}
+        roles={roles}
+        actions={(member) => (
+          <>
+            <Button
+              variant="secondary"
+              isDisabled={busy}
+              onPress={() => setEditing(member)}
             >
-              <Button
+              Edit
+            </Button>
+            <ActionButton
+              variant="danger"
+              isDisabled={busy}
+              success="Team access removed"
+              confirm={{
+                title: `Remove ${member.name}?`,
+                description:
+                  "This revokes their sessions and personal API keys. Operational history is retained.",
+                actionLabel: "Remove access",
+              }}
+              action={async () => {
+                await write(`${path}/members/${member.id}`, "DELETE", {
+                  expectedVersion: member.version,
+                });
+                changed();
+              }}
+            >
+              Remove
+            </ActionButton>
+          </>
+        )}
+      />
+      <PageButtons
+        label="Members"
+        cursors={memberCursors}
+        setCursors={setMemberCursors}
+        nextCursor={members.data.nextCursor}
+        disabled={members.isFetching || busy}
+      />
+      <FormCard title="Pending Invitations">
+        {invitations.isError ? (
+          <QueryError
+            message={invitations.error.message}
+            onRetry={() => void invitations.refetch()}
+          />
+        ) : !invitations.data ? (
+          <QueryLoading />
+        ) : (
+          <>
+            <InvitationsTable
+              items={invitations.data.data.filter(
+                (item) =>
+                  item.state === "pending" && Date.parse(item.expiresAt) > now,
+              )}
+              roles={roles}
+              formatDate={(value) => (
+                <RelativeTime value={value} label="Expires" />
+              )}
+              actions={(invitation) => (
+                <ActionButton
+                  variant="danger"
+                  isDisabled={busy}
+                  success="Invitation revoked"
+                  confirm={{
+                    title: "Revoke invitation?",
+                    description: `The invitation for ${invitation.email} will no longer work.`,
+                    actionLabel: "Revoke",
+                  }}
+                  action={async () => {
+                    await write(
+                      `${path}/invitations/${invitation.id}`,
+                      "DELETE",
+                    );
+                    changed();
+                  }}
+                >
+                  Revoke
+                </ActionButton>
+              )}
+            />
+            <PageButtons
+              label="Invitations"
+              cursors={inviteCursors}
+              setCursors={setInviteCursors}
+              nextCursor={invitations.data.nextCursor}
+              disabled={invitations.isFetching || busy}
+            />
+          </>
+        )}
+      </FormCard>
+      {editing && (
+        <MemberEditDialog
+          isOpen
+          member={editing}
+          roles={roles}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          onSave={async (values) => {
+            setBusy(true);
+            try {
+              await write(`${path}/members/${editing.id}`, "PATCH", {
+                ...values,
+                expectedVersion: editing.version,
+              });
+              toast.success("Member updated");
+              changed();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
+      <Modal.Backdrop
+        isOpen={inviteOpen}
+        onOpenChange={(open) => {
+          if (!busy) setInviteOpen(open);
+        }}
+      >
+        <Modal.Container size="sm">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>Create invitation</Modal.Heading>
+              <Modal.CloseTrigger isDisabled={busy} />
+            </Modal.Header>
+            <Modal.Body>
+              <AuthForm
                 variant="secondary"
-                isDisabled={
-                  mutation.busy ||
-                  ["accepted", "cancelled"].includes(
-                    invitation.status ?? invitation.state ?? "",
-                  )
-                }
-                onPress={() =>
-                  mutation
-                    .run(
-                      () =>
-                        write(`${path}/invitations/${invitation.id}`, "DELETE"),
-                      "Invitation cancelled.",
-                    )
-                    .then(() => undefined)
-                }
+                fields={[
+                  {
+                    name: "email",
+                    label: "Email",
+                    type: "email",
+                    required: true,
+                    maxLength: 320,
+                    autoComplete: "off",
+                  },
+                ]}
+                submitLabel="Create invitation"
+                busyLabel="Creating invitation…"
+                onSubmit={async ({ email }) => {
+                  setBusy(true);
+                  try {
+                    await write(`${path}/invitations`, "POST", { email, role });
+                    toast.success("Invitation created");
+                    setInviteOpen(false);
+                    changed();
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
               >
-                Cancel invitation
-              </Button>
-            </Record>
-          ))}
-        </RecordList>
-        {!invitations.loading &&
-          !invitations.error &&
-          invitations.data.length === 0 && <Empty>No invitations.</Empty>}
-      </Section>
-      {confirmation.dialog}
-    </>
+                <ChoiceField
+                  label="Role"
+                  value={role}
+                  onChange={setRole}
+                  options={roles}
+                  isRequired
+                  isDisabled={busy}
+                />
+              </AuthForm>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </div>
+  );
+}
+
+function PageButtons({
+  label,
+  cursors,
+  setCursors,
+  nextCursor,
+  disabled,
+}: {
+  label: string;
+  cursors: Array<string | null>;
+  setCursors: (cursors: Array<string | null>) => void;
+  nextCursor?: string | null;
+  disabled: boolean;
+}) {
+  if (cursors.length === 1 && !nextCursor) return null;
+  return (
+    <nav
+      aria-label={`${label} pages`}
+      className="flex items-center justify-end gap-3"
+    >
+      <span className="text-sm text-muted">Page {cursors.length}</span>
+      <Button
+        variant="secondary"
+        isDisabled={disabled || cursors.length === 1}
+        onPress={() => setCursors(cursors.slice(0, -1))}
+      >
+        Previous
+      </Button>
+      <Button
+        variant="secondary"
+        isDisabled={disabled || !nextCursor}
+        onPress={() => {
+          if (nextCursor) setCursors([...cursors, nextCursor]);
+        }}
+      >
+        Next
+      </Button>
+    </nav>
   );
 }

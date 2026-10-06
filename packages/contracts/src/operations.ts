@@ -434,12 +434,13 @@ operation(
   z.strictObject({
     ...org,
     id: IdSchema,
+    name: names.name.optional(),
     role: RoleSchema.optional(),
     expectedVersion: VersionSchema,
     ...approval,
   }),
   MemberSchema,
-  "Change a member role while preserving at least one admin.",
+  "Update a member name or role while preserving at least one admin.",
   { minimumRole: "admin", stepUp: "conditional" },
 );
 operation(
@@ -464,7 +465,11 @@ operation(
   "GET",
   `${O}/invitations`,
   ["members:manage"],
-  z.strictObject({ ...org, ...paging }),
+  z.strictObject({
+    ...org,
+    ...paging,
+    state: InvitationSchema.shape.state.optional(),
+  }),
   list(InvitationSchema),
   "List redacted organisation invitations.",
   { minimumRole: "admin" },

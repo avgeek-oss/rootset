@@ -358,6 +358,7 @@ export type listMembersOutput = {
     role: "admin" | "editor" | "viewer";
     version: string;
     verified: boolean;
+    twoFactorEnabled: boolean;
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;
@@ -365,6 +366,7 @@ export type listMembersOutput = {
 export type updateMemberInput = {
   orgId: string;
   id: string;
+  name?: string;
   role?: "admin" | "editor" | "viewer";
   expectedVersion: string;
   approvalId?: string;
@@ -378,6 +380,7 @@ export type updateMemberOutput = {
   role: "admin" | "editor" | "viewer";
   version: string;
   verified: boolean;
+  twoFactorEnabled: boolean;
 };
 export type removeMemberInput = {
   orgId: string;
@@ -390,6 +393,7 @@ export type listInvitationsInput = {
   orgId: string;
   limit?: number;
   cursor?: string | null;
+  state?: "pending" | "accepted" | "cancelled" | "expired";
 };
 export type listInvitationsOutput = {
   data: {

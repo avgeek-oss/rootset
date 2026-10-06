@@ -22,6 +22,7 @@ import {
 } from "@rootset/access";
 import {
   IdSchema,
+  InvitationSchema,
   KeyCreatedSchema,
   PreferencesSchema,
   RootsetError,
@@ -1928,7 +1929,7 @@ export class IdentityService {
           actor,
           operation,
           input,
-          `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1`,
+          `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,u.two_factor_enabled "twoFactorEnabled",m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1`,
           [actor.orgId],
         );
       case "updateMember":
@@ -1941,8 +1942,13 @@ export class IdentityService {
           actor,
           operation,
           input,
-          `SELECT id,org_id "orgId",email,role,CASE WHEN state='pending' AND expires_at<now() THEN 'expired' ELSE state END state,expires_at "expiresAt",created_at "createdAt" FROM rootset_control.invitations WHERE org_id=$1`,
-          [actor.orgId],
+          `SELECT id,org_id "orgId",email,role,CASE WHEN state='pending' AND expires_at<=now() THEN 'expired' ELSE state END state,expires_at "expiresAt",created_at "createdAt" FROM rootset_control.invitations WHERE org_id=$1 AND ($2::text IS NULL OR CASE WHEN state='pending' AND expires_at<=now() THEN 'expired' ELSE state END=$2)`,
+          [
+            actor.orgId,
+            input.state === undefined
+              ? null
+              : parse(InvitationSchema.shape.state, input.state),
+          ],
         );
       case "inviteMember":
         return this.inviteMember(client, actor, input);
@@ -2447,6 +2453,7 @@ export class IdentityService {
         id: IdSchema,
         orgId: IdSchema.optional(),
         role: z.enum(["admin", "editor", "viewer"]).optional(),
+        name: nameSchema.optional(),
         expectedVersion: z.string().regex(/^[1-9][0-9]*$/),
       }),
       input,
@@ -2502,21 +2509,26 @@ export class IdentityService {
         [target.id, actor.orgId],
       );
     } else {
-      if (!update.role)
+      if (!update.role && !update.name)
         throw new RootsetError(
           "VALIDATION_FAILED",
-          "A member role is required",
+          "A member name or role is required",
         );
       await client.query(
-        `UPDATE rootset_control.memberships SET role=$3,version=version+1,updated_at=now() WHERE id=$1 AND org_id=$2`,
-        [target.id, actor.orgId, update.role],
+        `UPDATE rootset_control.memberships SET role=COALESCE($3,role),version=version+1,updated_at=now() WHERE id=$1 AND org_id=$2`,
+        [target.id, actor.orgId, update.role ?? null],
       );
+      if (update.name)
+        await client.query(
+          `UPDATE rootset_control.users SET name=$2,updated_at=now() WHERE id=$1`,
+          [target.user_id, update.name],
+        );
     }
     return removing
       ? { deleted: true }
       : (
           await client.query(
-            `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.id=$1 AND m.org_id=$2`,
+            `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,u.two_factor_enabled "twoFactorEnabled",m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.id=$1 AND m.org_id=$2`,
             [target.id, actor.orgId],
           )
         ).rows[0];

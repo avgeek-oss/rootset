@@ -199,8 +199,8 @@ export const FIELD_TYPES: TableField["type"][] = [
   "json",
 ];
 export const SECTION_LABELS: Record<SettingsSection, string> = {
-  organisation: "Organisation",
-  members: "People",
+  organisation: "General",
+  members: "Members",
   "api-keys": "API Keys",
   profile: "Profile",
   preferences: "Preferences",

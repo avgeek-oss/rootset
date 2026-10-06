@@ -2880,7 +2880,8 @@
                     "type": "string",
                     "pattern": "^[1-9][0-9]{0,18}$"
                   },
-                  "verified": { "type": "boolean" }
+                  "verified": { "type": "boolean" },
+                  "twoFactorEnabled": { "type": "boolean" }
                 },
                 "required": [
                   "id",
@@ -2890,7 +2891,8 @@
                   "email",
                   "role",
                   "version",
-                  "verified"
+                  "verified",
+                  "twoFactorEnabled"
                 ],
                 "additionalProperties": false
               }
@@ -2989,7 +2991,7 @@
   {
     "name": "rootset_update_member",
     "title": "updateMember",
-    "description": "Change a member role while preserving at least one admin.",
+    "description": "Update a member name or role while preserving at least one admin.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -2999,6 +3001,7 @@
           "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
         },
         "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 255 },
         "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
         "expectedVersion": {
           "type": "string",
@@ -3045,7 +3048,8 @@
             },
             "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
             "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
-            "verified": { "type": "boolean" }
+            "verified": { "type": "boolean" },
+            "twoFactorEnabled": { "type": "boolean" }
           },
           "required": [
             "id",
@@ -3055,7 +3059,8 @@
             "email",
             "role",
             "version",
-            "verified"
+            "verified",
+            "twoFactorEnabled"
           ],
           "additionalProperties": false
         },
@@ -3300,6 +3305,10 @@
             { "type": "string", "maxLength": 131200 },
             { "type": "null" }
           ]
+        },
+        "state": {
+          "type": "string",
+          "enum": ["pending", "accepted", "cancelled", "expired"]
         }
       },
       "required": ["orgId"],

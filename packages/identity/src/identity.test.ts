@@ -775,6 +775,126 @@ test(
         },
       );
       await t.test(
+        "Shared team data preserves member authority, version checks and pending invitation pagination",
+        async () => {
+          const page = (await execute("listMembers", actor, { orgId })) as {
+            data: Array<{
+              id: string;
+              userId: string;
+              version: string;
+              name: string;
+              role: string;
+              twoFactorEnabled: boolean;
+            }>;
+          };
+          const member = page.data.find(
+            (item) => item.userId === viewerUserId,
+          )!;
+          const admin = page.data.find((item) => item.userId === actor.userId)!;
+          assert.equal(member.twoFactorEnabled, false);
+          const updated = (await execute("updateMember", actor, {
+            orgId,
+            id: member.id,
+            expectedVersion: member.version,
+            name: "Updated Viewer",
+          })) as {
+            name: string;
+            role: string;
+            version: string;
+            twoFactorEnabled: boolean;
+          };
+          assert.equal(updated.name, "Updated Viewer");
+          assert.equal(updated.role, "viewer");
+          assert.equal(updated.version, String(BigInt(member.version) + 1n));
+          assert.equal(updated.twoFactorEnabled, false);
+          await assert.rejects(() =>
+            execute("updateMember", actor, {
+              orgId,
+              id: member.id,
+              expectedVersion: member.version,
+              name: "Stale name",
+              role: "editor",
+            }),
+          );
+          await assert.rejects(() =>
+            execute("updateMember", viewerActor, {
+              orgId,
+              id: member.id,
+              expectedVersion: updated.version,
+              name: "Unauthorised name",
+            }),
+          );
+          await assert.rejects(() =>
+            execute("updateMember", actor, {
+              orgId,
+              id: admin.id,
+              expectedVersion: admin.version,
+              name: "Rejected name",
+              role: "viewer",
+            }),
+          );
+          assert.equal(
+            ProfileSchema.parse(await execute("getProfile", viewerActor, {}))
+              .name,
+            "Updated Viewer",
+          );
+          assert.equal(
+            ProfileSchema.parse(await execute("getProfile", actor, {})).name,
+            admin.name,
+          );
+          const expired = (await execute("inviteMember", actor, {
+            orgId,
+            email: "expired-team@example.test",
+            role: "viewer",
+          })) as { id: string };
+          await owner.query(
+            `UPDATE rootset_control.invitations SET expires_at=now()-interval '1 second' WHERE id=$1`,
+            [expired.id],
+          );
+          await execute("inviteMember", actor, {
+            orgId,
+            email: "pending-team@example.test",
+            role: "editor",
+          });
+          const pending = (await execute("listInvitations", actor, {
+            orgId,
+            state: "pending",
+            limit: 1,
+          })) as {
+            data: Array<{ id: string; state: string }>;
+            nextCursor: string;
+          };
+          assert.equal(pending.data.length, 1);
+          assert.equal(pending.data[0]!.state, "pending");
+          assert.ok(pending.nextCursor);
+          const next = (await execute("listInvitations", actor, {
+            orgId,
+            state: "pending",
+            limit: 1,
+            cursor: pending.nextCursor,
+          })) as { data: Array<{ id: string; state: string }> };
+          assert.equal(next.data.length, 1);
+          assert.notEqual(next.data[0]!.id, pending.data[0]!.id);
+          await assert.rejects(() =>
+            execute("listInvitations", actor, {
+              orgId,
+              state: "expired",
+              limit: 1,
+              cursor: pending.nextCursor,
+            }),
+          );
+          const expiredPage = (await execute("listInvitations", actor, {
+            orgId,
+            state: "expired",
+          })) as { data: Array<{ id: string; state: string }> };
+          assert.ok(
+            expiredPage.data.some(
+              (item) => item.id === expired.id && item.state === "expired",
+            ),
+          );
+        },
+      );
+      await t.test(
         "ACC-08 verified email change handles uniqueness, one-use tokens, and session revocation",
         async () => {
           const name = "N".repeat(255);

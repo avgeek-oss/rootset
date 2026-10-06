@@ -39,6 +39,20 @@ without administration. Role changes and removals must take effect on browser,
 REST, MCP, job admission/publication and replay. Installation management does not
 require another role or binding flag.
 
+Team settings use the shared member table, member-edit dialog and invitation
+table. Member edits can change a name, a role or both, with the membership
+version checked before either write. Last-Admin checks, current Admin authority
+and removal revocation remain server-side. The Admin-only member response
+includes the actual authenticator two-factor flag; the UI does not infer it from
+passkey enrollment.
+
+Members and pending invitations use cursor pagination. The invitation API accepts
+an optional state filter and computes expired state on the server. The UI also
+refreshes at the next expiry and on focus, so an expired invitation cannot stay
+actionable merely because the page remains open. Invitations retain Rootset's
+email-proof protocol: tokens are hashed and delivery payloads encrypted, and list
+responses do not disclose invitation links.
+
 ## Authentication
 
 Keep verified email/password sign-in, password reset, passkeys, authenticator

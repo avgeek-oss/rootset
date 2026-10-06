@@ -33,7 +33,7 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["api-keys", "mcp"] },
   ],
   team: [
-    { title: "Team", sections: ["organisation", "members"] },
+    { title: "Account", sections: ["organisation", "members"] },
     { title: "Installation", sections: ["operator"] },
   ],
   database: [{ title: "Settings", sections: ["database", "backups"] }],

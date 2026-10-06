@@ -39,7 +39,9 @@ export type { SettingsPanelProps, SettingsSection } from "./types";
 
 export function SettingsPanel(props: SettingsPanelProps) {
   const activeSection = props.section;
-  const account = settingsScope(activeSection) === "account";
+  const commonSettings = ["account", "team"].includes(
+    settingsScope(activeSection),
+  );
   const [selection, setSelection] = useState<PageSelection | null>(null);
   const queryClient = useQueryClient();
   useEffect(() => {
@@ -112,7 +114,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   return (
     <PageSelectionContext.Provider value={setSelection}>
       <RelativeTimeProvider>
-        {account ? (
+        {commonSettings ? (
           <ContentPage
             title={title}
             breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}

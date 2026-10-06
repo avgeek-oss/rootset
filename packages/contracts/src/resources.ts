@@ -100,6 +100,7 @@ export const MemberSchema = z.strictObject({
   role: RoleSchema,
   version: VersionSchema,
   verified: z.boolean(),
+  twoFactorEnabled: z.boolean(),
 });
 export const InvitationSchema = z.strictObject({
   id: IdSchema,

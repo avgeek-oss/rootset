@@ -2787,7 +2787,7 @@
       "patch": {
         "operationId": "updateMember",
         "tags": ["accounts"],
-        "summary": "Change a member role while preserving at least one admin.",
+        "summary": "Update a member name or role while preserving at least one admin.",
         "parameters": [
           {
             "name": "orgId",
@@ -2825,6 +2825,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
                   "role": {
                     "type": "string",
                     "enum": ["admin", "editor", "viewer"]
@@ -3214,6 +3219,15 @@
                   ]
                 }
               }
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "accepted", "cancelled", "expired"]
             }
           }
         ],
@@ -19977,7 +19991,8 @@
                   "type": "string",
                   "pattern": "^[1-9][0-9]{0,18}$"
                 },
-                "verified": { "type": "boolean" }
+                "verified": { "type": "boolean" },
+                "twoFactorEnabled": { "type": "boolean" }
               },
               "required": [
                 "id",
@@ -19987,7 +20002,8 @@
                 "email",
                 "role",
                 "version",
-                "verified"
+                "verified",
+                "twoFactorEnabled"
               ],
               "additionalProperties": false
             }
@@ -20009,6 +20025,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
           "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
           "expectedVersion": {
             "type": "string",
@@ -20045,7 +20062,8 @@
           },
           "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
           "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
-          "verified": { "type": "boolean" }
+          "verified": { "type": "boolean" },
+          "twoFactorEnabled": { "type": "boolean" }
         },
         "required": [
           "id",
@@ -20055,7 +20073,8 @@
           "email",
           "role",
           "version",
-          "verified"
+          "verified",
+          "twoFactorEnabled"
         ],
         "additionalProperties": false
       },
@@ -20107,6 +20126,10 @@
               { "type": "string", "maxLength": 131200 },
               { "type": "null" }
             ]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "accepted", "cancelled", "expired"]
           }
         },
         "required": ["orgId"],
