@@ -14,6 +14,11 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { z } from "zod";
 import {
+  listNotifications,
+  markAllNotificationsRead,
+} from "./notifications.js";
+export { publishNotification } from "./notifications.js";
+import {
   ALL_SCOPES,
   assertAccess,
   roleAllows,
@@ -1681,6 +1686,18 @@ export class IdentityService {
       case "getProfile":
         personal();
         return this.getProfile(client, actor.userId!);
+      case "listNotifications":
+        personal();
+        return listNotifications(
+          client,
+          actor,
+          input,
+          this.config.keyHashSecret,
+        );
+      case "markAllNotificationsRead":
+        personal();
+        parse(z.strictObject({}), input);
+        return markAllNotificationsRead(client, actor);
       case "updateProfile": {
         personal();
         const update = parse(z.strictObject({ name: nameSchema }), input);

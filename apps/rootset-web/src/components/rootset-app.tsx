@@ -35,6 +35,7 @@ import {
   repairReviewError,
 } from "./repair-review-status";
 import { AuthScreen } from "./auth-screen";
+import { NotificationCenter } from "./notification-center";
 import { authClient } from "../lib/auth-client";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { Spreadsheet } from "./spreadsheet";
@@ -451,7 +452,14 @@ export function RootsetApp() {
                 sidebar.onSidebarOpenChange(!sidebar.sidebarOpen)
               }
               showThemeSwitcher={false}
-              actions={<ThemeSwitcher isDisabled={savingTheme} />}
+              actions={
+                <>
+                  <NotificationCenter
+                    key={`${context.data.organisation?.id}:${context.data.principal.id}`}
+                  />
+                  <ThemeSwitcher isDisabled={savingTheme} />
+                </>
+              }
             />
           }
           sidebar={

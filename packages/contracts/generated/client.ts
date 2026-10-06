@@ -78,6 +78,27 @@ export type getProfileOutput = {
   createdAt: string;
   updatedAt: string;
 };
+export type listNotificationsInput = { limit?: number; cursor?: string | null };
+export type listNotificationsOutput = {
+  notifications: {
+    id: string;
+    type: "backup.succeeded" | "backup.failed" | "backup.cancelled";
+    occurredAt: string;
+    createdAt: string;
+    payload: {
+      title: string;
+      message: string;
+      databaseId: string;
+      databaseName: string;
+      backupId: string;
+    };
+    readAt: string | null;
+  }[];
+  unreadCount: number;
+  nextCursor: string | null;
+};
+export type markAllNotificationsReadInput = Record<string, never>;
+export type markAllNotificationsReadOutput = { ok: true };
 export type updateProfileInput = { name: string };
 export type updateProfileOutput = {
   id: string;
@@ -4326,6 +4347,16 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
+  listNotifications: {
+    path: "/v1/me/notifications",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  markAllNotificationsRead: {
+    path: "/v1/me/notifications/read-all",
+    method: "POST",
+    idempotencyRequired: true,
+  },
   updateProfile: {
     path: "/v1/me/profile",
     method: "PATCH",
@@ -4835,6 +4866,26 @@ export class RootsetClient {
     options?: CallOptions,
   ): Promise<getProfileOutput> {
     return this.call("getProfile", input, options) as Promise<getProfileOutput>;
+  }
+  listNotifications(
+    input: listNotificationsInput,
+    options?: CallOptions,
+  ): Promise<listNotificationsOutput> {
+    return this.call(
+      "listNotifications",
+      input,
+      options,
+    ) as Promise<listNotificationsOutput>;
+  }
+  markAllNotificationsRead(
+    input: markAllNotificationsReadInput,
+    options?: CallOptions,
+  ): Promise<markAllNotificationsReadOutput> {
+    return this.call(
+      "markAllNotificationsRead",
+      input,
+      options,
+    ) as Promise<markAllNotificationsReadOutput>;
   }
   updateProfile(
     input: updateProfileInput,

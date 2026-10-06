@@ -12,6 +12,7 @@ import { type PoolClient, type Queryable } from "@rootset/database";
 
 export const identityMutationSet: ReadonlySet<string> = new Set([
   "updateProfile",
+  "markAllNotificationsRead",
   "updatePreferences",
   "updateViewPreferences",
   "revokeSession",

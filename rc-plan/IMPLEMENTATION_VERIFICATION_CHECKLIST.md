@@ -51,7 +51,7 @@ recovery, installed browser or full-scale result.
 
 ## Browser and performance
 
-- [ ] `V1-31` Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states.
+- [ ] `V1-31` Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states. The shared notification menu covers empty/loading/failure states, bounded complete pagination, explicit mark-all, per-user isolation and durable read-state recovery.
 - [ ] `V1-32` Keyboard, touch, screen-reader and zoom behavior work on the actual grid; no removed account/resource-selection, installation tuning/provider configuration or standalone Background Jobs controls remain.
 - [ ] `V1-33` Record genuine five-million-row and 200-field near-limit fixtures, counts/checksums, at least ten million history events and the approved resource/network profile.
 - [ ] `V1-34` Warm/cold indexed queries, normal/byte-capped REST pages, unindexed scans and deep navigation meet the targets below with plans, percentiles and errors.

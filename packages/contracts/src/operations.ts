@@ -39,6 +39,7 @@ import {
   KeyCreatedSchema,
   KeyMetadataSchema,
   MemberSchema,
+  NotificationPageSchema,
   OrganisationSchema,
   OperatorRepairReasonSchema,
   OperatorRepairUpdateSchema,
@@ -246,6 +247,31 @@ operation(
   ProfileSchema,
   "Read your profile.",
   { personal: true },
+);
+operation(
+  "listNotifications",
+  "list_notifications",
+  "GET",
+  "/v1/me/notifications",
+  ["profile:manage"],
+  z.strictObject({
+    limit: z.number().int().min(1).max(100).optional(),
+    cursor: z.string().max(2048).nullable().optional(),
+  }),
+  NotificationPageSchema,
+  "List your unread notifications and receipts read within the last 24 hours, with complete bounded pagination.",
+  { personal: true },
+);
+operation(
+  "markAllNotificationsRead",
+  "mark_all_notifications_read",
+  "POST",
+  "/v1/me/notifications/read-all",
+  ["profile:manage"],
+  empty,
+  z.strictObject({ ok: z.literal(true) }),
+  "Mark your existing notifications as read in one database snapshot. Later arrivals remain unread and existing read timestamps do not change.",
+  { personal: true, idempotent: true, successStatus: 200 },
 );
 operation(
   "updateProfile",

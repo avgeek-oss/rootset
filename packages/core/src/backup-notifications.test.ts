@@ -116,6 +116,17 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
         deliveryId = events[0]!.deliveryId!;
         assert.equal(events[0]!.state, "pending");
         assert.equal(events[1]!.deliveryId, deliveryId);
+        const feed = (
+          await db.owner.query(
+            "SELECT e.id,e.type,e.payload,r.user_id,r.read_at FROM rootset_control.notification_events e JOIN rootset_control.notification_receipts r ON r.event_id=e.id AND r.org_id=e.org_id WHERE e.dedupe_key=$1",
+            [`backup:${succeeded.backupId}:succeeded`],
+          )
+        ).rows;
+        assert.equal(feed.length, 1);
+        assert.equal(feed[0].user_id, requesterId);
+        assert.equal(feed[0].read_at, null);
+        assert.equal(feed[0].type, "backup.succeeded");
+        assert.equal(feed[0].payload.backupId, succeeded.backupId);
         const rows = (
           await db.owner.query(
             "SELECT to_address,template,payload_encrypted,state,provider_id FROM rootset_control.email_outbox WHERE dedupe_key=$1",
@@ -352,6 +363,14 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
           )
         ).rows[0].count;
         assert.equal(count, 3);
+        assert.equal(
+          (
+            await db.owner.query(
+              "SELECT count(*)::integer count FROM rootset_control.notification_events",
+            )
+          ).rows[0].count,
+          3,
+        );
       },
     );
   } finally {

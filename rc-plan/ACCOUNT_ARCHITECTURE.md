@@ -148,3 +148,37 @@ The browser-only `/v1/auth/email-change` GET/DELETE endpoint reads or cancels on
 the signed-in user's pending confirmation. Cancellation invalidates its token and
 expires unsent outbox work. Cross-origin mutations and bearer-key requests are
 rejected. These controls reuse the existing email-change table and add no schema.
+
+## Incoming notifications
+
+The shared NotificationMenu in the application header displays durable events for
+the signed-in user. Opening the menu refreshes it without acknowledging events.
+“Mark all as read” is the explicit acknowledgement action, shared across devices.
+The feed contains all unread events regardless of age and read receipts whose
+first read time is within the preceding 24 hours. Aging out changes presentation
+only: events, delivery records and receipts remain stored.
+
+V1 publishes manual backup completion, failure and cancellation to the verified
+requester. The event and recipient receipt are committed with the existing
+encrypted email outbox entry, using the backup ID and terminal state as their
+deduplication key. SMTP retry does not duplicate the incoming event or reset its
+read time. The feed is independent of whether the email has been delivered.
+
+Notification events carry the organisation, stable event ID, type, occurred time,
+created time and a bounded domain payload. Receipts are keyed by organisation,
+user and event. The identity runtime alone can insert them; native ownership and
+row-level security protect both tables. Live membership and verification checks
+apply to listing and marking, including personal keys and consented OAuth.
+Removing membership retains historical receipts while denying further access.
+
+The badge reports the complete unread count, independent of the current page.
+Pages are bounded to 50 by the UI and at most 100 by the API. Signed cursors bind
+the actor, credential, organisation, membership revision and page size, and retain
+PostgreSQL timestamp microseconds. Previous/Next reaches all eligible events
+without mounting an unbounded list. Failed reads retain committed rows and show
+Retry; failed acknowledgement uses one danger toast and preserves read state.
+
+Mark-all updates only unread receipts in its database statement snapshot. Later
+arrivals remain unread. Existing first-read timestamps are immutable, including
+a repeated request with a new idempotency key. Replaying the same key returns the
+original result without acknowledging events that arrived after that request.

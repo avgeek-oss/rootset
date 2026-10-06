@@ -87,3 +87,22 @@ through REST, MCP and the rendered browser, including denial, revocation,
 concurrency, cancellation, idempotency and typed errors. Record real OAuth-client
 compatibility and artifact transfer behavior. Source schemas alone are not runtime
 proof.
+
+## Personal notification feed
+
+`GET /v1/me/notifications` (`rootset_list_notifications`) takes only optional
+`limit` (1–100, default 50) and a signed cursor. It returns `notifications`, the
+full `unreadCount` and nullable `nextCursor`. Each event contains ID, type,
+occurred/created timestamps, domain payload and nullable first `readAt`.
+
+`POST /v1/me/notifications/read-all` (`rootset_mark_all_notifications_read`)
+takes an empty body and requires an idempotency key. It returns `{ ok: true }`
+after marking existing receipts in one statement snapshot. Neither operation
+accepts a user or organisation identifier. Both require a personal identity and
+`profile:manage`, use live membership authorization, and share the generated
+OpenAPI 3.1, internal browser operations and MCP contracts. OAuth tokens must
+have consent for that personal scope; API keys inherit their user's current role.
+
+Unread records are never limited by age. Read records remain visible for 24 hours
+from the first acknowledgement; historical storage is retained. Opening or
+following an event does not change read state.

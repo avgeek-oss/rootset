@@ -2,6 +2,7 @@ import { IdSchema, RootsetError } from "@rootset/contracts";
 import { withOrg, type Pool } from "@rootset/database";
 import { type EmailOutbox } from "@rootset/email";
 import { type JobsConfig } from "@rootset/jobs";
+import { publishNotification } from "@rootset/identity";
 
 type NotificationState = "pending" | "sent" | "failed";
 type BackupNotify = (
@@ -54,8 +55,9 @@ export function createBackupNotifications(
           database_name: string;
           organisation_name: string;
           actor: { kind?: string; userId?: string };
+          occurred_at: Date;
         }>(
-          `SELECT b.state,b.verified_at,d.name database_name,o.name organisation_name,j.actor
+          `SELECT b.state,b.verified_at,COALESCE(b.verified_at,j.completed_at,b.created_at) occurred_at,d.name database_name,o.name organisation_name,j.actor
          FROM rootset_control.backups b JOIN rootset_control.jobs j ON j.id=b.job_id AND j.org_id=b.org_id
          JOIN rootset_control.databases d ON d.id=b.database_id AND d.org_id=b.org_id
          JOIN rootset_control.organisations o ON o.id=b.org_id AND o.singleton
@@ -106,12 +108,41 @@ export function createBackupNotifications(
           [orgId, requester.success ? requester.data : null],
         )
       ).rows[0];
-      if (!recipient)
+      if (!recipient || !requester.success)
         throw new RootsetError(
           "BACKUP_NOTIFICATION_RECIPIENT_UNAVAILABLE",
           "No verified backup requester can receive this notification",
           503,
         );
+      await publishNotification(client, {
+        orgId,
+        userId: requester.data,
+        dedupeKey,
+        type:
+          backup.state === "succeeded"
+            ? "backup.succeeded"
+            : backup.state === "cancelled"
+              ? "backup.cancelled"
+              : "backup.failed",
+        occurredAt: backup.occurred_at.toISOString(),
+        payload: {
+          title:
+            backup.state === "succeeded"
+              ? "Backup verified"
+              : backup.state === "cancelled"
+                ? "Backup cancelled"
+                : "Backup failed",
+          message:
+            backup.state === "succeeded"
+              ? "Your database backup completed and was verified."
+              : backup.state === "cancelled"
+                ? "Your database backup was cancelled."
+                : "Your database backup could not be completed.",
+          databaseId,
+          databaseName: backup.database_name,
+          backupId,
+        },
+      });
       const details = [
         `Database: ${backup.database_name}`,
         `Database ID: ${databaseId}`,

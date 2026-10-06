@@ -17,7 +17,6 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import type { Database, Table } from "@rootset/contracts";
-import { useRouter } from "next/navigation";
 import {
   SecondaryItems,
   SecondaryEntityHeader,
@@ -167,7 +166,6 @@ function SettingsSections({
   databaseId?: string | null;
   tableId?: string | null;
 }) {
-  const router = useRouter();
   return (
     <>
       {settingsNavigationGroups(scope, role, { databaseId, tableId }).map(
@@ -176,12 +174,9 @@ function SettingsSections({
             key={group.title}
             title={group.title}
             selected={section ?? ""}
-            onSelect={(id) => {
-              const item = group.items.find((candidate) => candidate.id === id);
-              if (item) router.push(item.href);
-            }}
             items={group.items.map((item) => ({
               id: item.id,
+              href: item.href,
               label: item.label,
               icon: <HugeiconsIcon icon={item.icon} />,
             }))}
@@ -207,7 +202,6 @@ export function PageNavigation({
   databaseId: string | null;
   tableId: string | null;
 }) {
-  const router = useRouter();
   const scope = section
     ? settingsScope(section)
     : tableId
@@ -237,12 +231,10 @@ export function PageNavigation({
           {
             id: tableScope ? "rows" : "tables",
             label: tableScope ? "Rows" : "Tables",
+            href: dataHref(databaseId, tableScope ? tableId : null),
             icon: <HugeiconsIcon icon={Table01Icon} />,
           },
         ]}
-        onSelect={() =>
-          router.push(dataHref(databaseId, tableScope ? tableId : null))
-        }
       />
       <SettingsSections
         scope={scope}

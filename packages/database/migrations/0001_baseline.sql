@@ -2503,3 +2503,53 @@ GRANT SELECT(heartbeat_at) ON TABLE rootset_control.worker_heartbeats TO rootset
 GRANT SELECT(state) ON TABLE rootset_control.worker_heartbeats TO rootset_metrics_definer;
 
 INSERT INTO rootset_control.bootstrap(singleton) VALUES(true);
+
+CREATE TABLE rootset_control.notification_events (
+    id character varying(26) PRIMARY KEY,
+    org_id character varying(26) NOT NULL REFERENCES rootset_control.organisations(id),
+    dedupe_key text NOT NULL,
+    type text NOT NULL CHECK (type IN ('backup.succeeded','backup.failed','backup.cancelled')),
+    payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object'),
+    occurred_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    UNIQUE (org_id,id),
+    UNIQUE (org_id,dedupe_key)
+);
+ALTER TABLE rootset_control.notification_events OWNER TO rootset_owner;
+ALTER TABLE rootset_control.notification_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rootset_control.notification_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY identity_org_isolation ON rootset_control.notification_events TO rootset_identity
+    USING (org_id=current_setting('rootset.org_id',true))
+    WITH CHECK (org_id=current_setting('rootset.org_id',true));
+CREATE INDEX notification_events_page ON rootset_control.notification_events(org_id,occurred_at DESC,id DESC);
+
+CREATE TABLE rootset_control.notification_receipts (
+    org_id character varying(26) NOT NULL,
+    user_id text NOT NULL REFERENCES rootset_control.users(id),
+    event_id character varying(26) NOT NULL,
+    read_at timestamp with time zone,
+    PRIMARY KEY (org_id,user_id,event_id),
+    FOREIGN KEY (org_id,event_id) REFERENCES rootset_control.notification_events(org_id,id)
+);
+ALTER TABLE rootset_control.notification_receipts OWNER TO rootset_owner;
+ALTER TABLE rootset_control.notification_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rootset_control.notification_receipts FORCE ROW LEVEL SECURITY;
+CREATE POLICY identity_org_isolation ON rootset_control.notification_receipts TO rootset_identity
+    USING (org_id=current_setting('rootset.org_id',true))
+    WITH CHECK (org_id=current_setting('rootset.org_id',true));
+CREATE INDEX notification_receipts_unread ON rootset_control.notification_receipts(org_id,user_id,event_id) WHERE read_at IS NULL;
+CREATE FUNCTION rootset_control.preserve_notification_read_time() RETURNS trigger LANGUAGE plpgsql
+    SET search_path TO pg_catalog,pg_temp
+    AS $$ BEGIN
+      IF OLD.read_at IS NOT NULL AND NEW.read_at IS DISTINCT FROM OLD.read_at THEN
+        RAISE EXCEPTION 'Notification read time is immutable' USING ERRCODE='23514';
+      END IF;
+      RETURN NEW;
+    END $$;
+ALTER FUNCTION rootset_control.preserve_notification_read_time() OWNER TO rootset_owner;
+REVOKE ALL ON FUNCTION rootset_control.preserve_notification_read_time() FROM PUBLIC;
+CREATE TRIGGER notification_read_time BEFORE UPDATE ON rootset_control.notification_receipts
+    FOR EACH ROW EXECUTE FUNCTION rootset_control.preserve_notification_read_time();
+GRANT SELECT,INSERT ON rootset_control.notification_events TO rootset_identity;
+GRANT SELECT,INSERT ON rootset_control.notification_receipts TO rootset_identity;
+GRANT UPDATE(read_at) ON rootset_control.notification_receipts TO rootset_identity;

@@ -96,7 +96,7 @@ test("unsupported organisation, resource grant, account deletion and team-key op
     assert.throws(() => getRuntimeOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 88);
+  assert.equal(operations.length, 90);
   assert.equal(tools.length, operations.length);
   for (const operation of operations)
     assert.equal(getRuntimeOperation(operation.id), operation);
@@ -1174,7 +1174,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 88);
+  assert.equal(operations.length, 90);
   const api = generateOpenApi() as {
     paths: Record<
       string,
@@ -1594,4 +1594,31 @@ test("personal key metadata excludes selected authority and all actors use suppo
       )
     )
       assert.equal(operation.minimumRole, "admin", operation.id);
+});
+
+test("notification operations derive ownership from the caller and expose bounded personal contracts", () => {
+  const list = operationMap.listNotifications!,
+    mark = operationMap.markAllNotificationsRead!;
+  for (const operation of [list, mark]) {
+    assert.equal(operation.personal, true);
+    assert.equal(operation.minimumRole, "viewer");
+    assert.deepEqual(operation.scopes, ["profile:manage"]);
+    assert.equal(operation.stepUp, "never");
+    assert.equal(
+      operation.inputSchema.safeParse({ userId: id }).success,
+      false,
+    );
+    assert.equal(operation.inputSchema.safeParse({ orgId: id }).success, false);
+  }
+  assert.equal(list.readOnly, true);
+  assert.equal(list.inputSchema.safeParse({ limit: 101 }).success, false);
+  assert.equal(list.inputSchema.safeParse({ limit: 100 }).success, true);
+  assert.equal(mark.readOnly, false);
+  assert.equal(mark.idempotent, true);
+  assert.equal(mark.idempotencyRequired, true);
+  assert.equal(mark.outputSchema.safeParse({ ok: true }).success, true);
+  assert.equal(
+    mark.outputSchema.safeParse({ ok: true, secret: "forbidden" }).success,
+    false,
+  );
 });

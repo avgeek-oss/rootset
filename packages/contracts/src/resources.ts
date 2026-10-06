@@ -38,6 +38,27 @@ export const DatabaseSchema = z.strictObject({
   ...timestamps,
 });
 export type Database = z.infer<typeof DatabaseSchema>;
+export const NotificationSchema = z.strictObject({
+  id: IdSchema,
+  type: z.enum(["backup.succeeded", "backup.failed", "backup.cancelled"]),
+  occurredAt: DateTimeSchema,
+  createdAt: DateTimeSchema,
+  payload: z.strictObject({
+    title: z.string().min(1).max(255),
+    message: z.string().max(1024),
+    databaseId: IdSchema,
+    databaseName: z.string().min(1).max(255),
+    backupId: IdSchema,
+  }),
+  readAt: DateTimeSchema.nullable(),
+});
+export type Notification = z.infer<typeof NotificationSchema>;
+export const NotificationPageSchema = z.strictObject({
+  notifications: z.array(NotificationSchema).max(100),
+  unreadCount: z.number().int().nonnegative(),
+  nextCursor: z.string().max(2048).nullable(),
+});
+export type NotificationPage = z.infer<typeof NotificationPageSchema>;
 export const TableSchema = z.strictObject({
   id: IdSchema,
   databaseId: IdSchema,
