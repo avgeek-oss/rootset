@@ -1506,12 +1506,13 @@ CREATE TABLE rootset_control.user_preferences (
     user_id character varying(26) NOT NULL,
     timezone text DEFAULT 'UTC'::text NOT NULL,
     locale text DEFAULT 'en'::text NOT NULL,
-    date_format text DEFAULT 'YYYY-MM-DD'::text NOT NULL,
-    time_format text DEFAULT '24h'::text NOT NULL,
+    date_format text DEFAULT 'day-short-month-year'::text NOT NULL,
+    time_format text DEFAULT '24-hour'::text NOT NULL,
     theme text DEFAULT 'system'::text NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_preferences_date_format_check CHECK ((date_format = ANY (ARRAY['day-short-month-year'::text, 'short-month-day-year'::text, 'year-month-day'::text, 'day-month-year'::text, 'month-day-year'::text]))),
     CONSTRAINT user_preferences_theme_check CHECK ((theme = ANY (ARRAY['system'::text, 'light'::text, 'dark'::text]))),
-    CONSTRAINT user_preferences_time_format_check CHECK ((time_format = ANY (ARRAY['12h'::text, '24h'::text])))
+    CONSTRAINT user_preferences_time_format_check CHECK ((time_format = ANY (ARRAY['24-hour'::text, '12-hour'::text, '24-hour-seconds'::text, '12-hour-seconds'::text])))
 );
 
 ALTER TABLE rootset_control.user_preferences OWNER TO rootset_owner;

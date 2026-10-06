@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type FieldDefinition, type JsonValue } from "@rootset/contracts";
+import {
+  dateFormatOptions,
+  timeFormatOptions,
+  type FieldDefinition,
+  type JsonValue,
+} from "@rootset/contracts";
 import {
   createCellDraft,
   formatCellValue,
@@ -200,8 +205,8 @@ describe("draft initialisation and bounded display", () => {
 
   it("applies date and clock presentation without shifting date/time-only values", () => {
     const preferences = {
-      dateFormat: "DD/MM/YYYY",
-      timeFormat: "12h",
+      dateFormat: "day-month-year",
+      timeFormat: "12-hour-seconds",
     } as const;
     expect(
       formatCellValue(
@@ -220,7 +225,7 @@ describe("draft initialisation and bounded display", () => {
         "en-US",
         preferences,
       ),
-    ).toBe("06:30:01.250 PM UTC");
+    ).toBe("6:30:01 PM UTC");
     expect(
       formatCellValue(
         field("date-time"),
@@ -229,22 +234,66 @@ describe("draft initialisation and bounded display", () => {
         "en-US",
         preferences,
       ),
-    ).toBe("02/10/2026 06:30:01.250 PM");
+    ).toBe("6:30:01 PM, 02/10/2026");
     expect(
       formatCellValue(field("date-time"), "0001-01-01T00:00:00.000Z", {
         timeZone: "America/New_York",
         locale: "en-US",
-        dateFormat: "YYYY-MM-DD",
-        timeFormat: "24h",
+        dateFormat: "year-month-day",
+        timeFormat: "24-hour-seconds",
       }),
-    ).toBe("0001-12-31 BCE 19:03:58.000");
+    ).toBe("19:03:58, 0001-12-31 BCE");
     expect(
       formatCellValue(field("date-time"), "2026-10-02T13:00:01.250Z", {
         timeZone: "Asia/Kolkata",
         locale: "en-US",
         ...preferences,
       }),
-    ).toBe("02/10/2026 06:30:01.250 PM");
+    ).toBe("6:30:01 PM, 02/10/2026");
+  });
+
+  it("renders every display format while editors preserve UTC values and fractions", () => {
+    const instant = "2026-09-16T14:30:45.123Z";
+    const timeValue = "14:30:45.123Z";
+    for (const date of dateFormatOptions)
+      for (const time of timeFormatOptions) {
+        const options = {
+          timeZone: "UTC",
+          dateFormat: date.id,
+          timeFormat: time.id,
+        };
+        expect(formatCellValue(field("date-time"), instant, options)).toBe(
+          `${time.label}, ${date.label}`,
+        );
+        expect(
+          formatCellValue(field("date"), "2026-09-16", {
+            ...options,
+            timeZone: "Pacific/Apia",
+          }),
+        ).toBe(date.label);
+        expect(
+          formatCellValue(field("time"), timeValue, {
+            ...options,
+            timeZone: "Asia/Kolkata",
+          }),
+        ).toBe(`${time.label} UTC`);
+        const editor = createCellDraft(
+          field("date-time"),
+          instant,
+          "Asia/Kolkata",
+        );
+        expect(editor.text).toBe("2026-09-16T20:00:45.123");
+        expect(parseCellDraft(field("date-time"), editor, "Asia/Kolkata")).toBe(
+          instant,
+        );
+        expect(
+          parseCellDraft(
+            field("time"),
+            createCellDraft(field("time"), timeValue),
+            "Asia/Kolkata",
+          ),
+        ).toBe(timeValue);
+      }
   });
 
   it("bounds large JSON previews and does not traverse hidden branches", () => {

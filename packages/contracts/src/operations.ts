@@ -8,6 +8,7 @@ import {
   JobSchema,
   JsonValueSchema,
   PreferencesSchema,
+  PreferencesInputSchema,
   QueryResultSchema,
   RoleSchema,
   RowSchema,
@@ -293,7 +294,7 @@ operation(
   ["profile:manage"],
   empty,
   PreferencesSchema,
-  "Read viewing preferences.",
+  "Read display preferences.",
   { personal: true },
 );
 operation(
@@ -302,7 +303,7 @@ operation(
   "PATCH",
   "/v1/me/preferences",
   ["profile:manage"],
-  PreferencesSchema.partial(),
+  PreferencesInputSchema.partial(),
   PreferencesSchema,
   "Update timezone, locale, format or theme preferences.",
   { personal: true },
@@ -317,8 +318,8 @@ operation(
   z.strictObject({
     timezones: z.array(z.string()),
     locales: z.array(z.string()),
-    dateFormats: z.array(z.string()),
-    timeFormats: z.array(z.string()),
+    dateFormats: z.array(PreferencesSchema.shape.dateFormat),
+    timeFormats: z.array(PreferencesSchema.shape.timeFormat),
     themes: z.array(z.string()),
   }),
   "List supported preference values.",
@@ -329,13 +330,16 @@ operation(
   "POST",
   "/v1/me/preferences/preview",
   [],
-  z.strictObject({ preferences: PreferencesSchema, value: DateTimeSchema }),
+  z.strictObject({
+    preferences: PreferencesInputSchema,
+    value: DateTimeSchema,
+  }),
   z.strictObject({
     utc: DateTimeSchema,
     displayed: z.string(),
     timezone: z.string(),
   }),
-  "Preview a UTC instant with proposed viewing preferences.",
+  "Preview a UTC instant with proposed display preferences.",
   { readOnly: true, idempotencyRequired: false },
 );
 operation(

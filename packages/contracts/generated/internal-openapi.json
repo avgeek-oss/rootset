@@ -768,7 +768,7 @@
       "get": {
         "operationId": "getPreferences",
         "tags": ["accounts"],
-        "summary": "Read viewing preferences.",
+        "summary": "Read display preferences.",
         "parameters": [],
         "security": [{ "browserSession": [] }],
         "responses": {
@@ -929,7 +929,7 @@
                   "timezone": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 128
+                    "maxLength": 100
                   },
                   "locale": {
                     "type": "string",
@@ -938,9 +938,30 @@
                   },
                   "dateFormat": {
                     "type": "string",
-                    "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+                    "enum": [
+                      "day-short-month-year",
+                      "short-month-day-year",
+                      "year-month-day",
+                      "day-month-year",
+                      "month-day-year",
+                      "YYYY-MM-DD",
+                      "DD/MM/YYYY",
+                      "MM/DD/YYYY"
+                    ],
+                    "description": "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs."
                   },
-                  "timeFormat": { "type": "string", "enum": ["12h", "24h"] },
+                  "timeFormat": {
+                    "type": "string",
+                    "enum": [
+                      "24-hour",
+                      "12-hour",
+                      "24-hour-seconds",
+                      "12-hour-seconds",
+                      "24h",
+                      "12h"
+                    ],
+                    "description": "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs."
+                  },
                   "theme": {
                     "type": "string",
                     "enum": ["system", "light", "dark"]
@@ -1234,7 +1255,7 @@
       "post": {
         "operationId": "previewPreferences",
         "tags": ["accounts"],
-        "summary": "Preview a UTC instant with proposed viewing preferences.",
+        "summary": "Preview a UTC instant with proposed display preferences.",
         "parameters": [],
         "security": [{ "browserSession": [] }],
         "requestBody": {
@@ -1250,7 +1271,7 @@
                       "timezone": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 128
+                        "maxLength": 100
                       },
                       "locale": {
                         "type": "string",
@@ -1259,11 +1280,29 @@
                       },
                       "dateFormat": {
                         "type": "string",
-                        "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+                        "enum": [
+                          "day-short-month-year",
+                          "short-month-day-year",
+                          "year-month-day",
+                          "day-month-year",
+                          "month-day-year",
+                          "YYYY-MM-DD",
+                          "DD/MM/YYYY",
+                          "MM/DD/YYYY"
+                        ],
+                        "description": "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs."
                       },
                       "timeFormat": {
                         "type": "string",
-                        "enum": ["12h", "24h"]
+                        "enum": [
+                          "24-hour",
+                          "12-hour",
+                          "24-hour-seconds",
+                          "12-hour-seconds",
+                          "24h",
+                          "12h"
+                        ],
+                        "description": "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs."
                       },
                       "theme": {
                         "type": "string",
@@ -1294,8 +1333,8 @@
                 "preferences": {
                   "timezone": "UTC",
                   "locale": "en-GB",
-                  "dateFormat": "YYYY-MM-DD",
-                  "timeFormat": "12h",
+                  "dateFormat": "day-short-month-year",
+                  "timeFormat": "24-hour",
                   "theme": "system"
                 },
                 "value": "2024-01-01T12:30:00.000Z"
@@ -1438,8 +1477,8 @@
           "preferences": {
             "timezone": "UTC",
             "locale": "en-GB",
-            "dateFormat": "YYYY-MM-DD",
-            "timeFormat": "12h",
+            "dateFormat": "day-short-month-year",
+            "timeFormat": "24-hour",
             "theme": "system"
           },
           "value": "2024-01-01T12:30:00.000Z"
@@ -15283,7 +15322,7 @@
                   "timezone": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 128
+                    "maxLength": 100
                   },
                   "maxRuntimeSeconds": {
                     "type": "integer",
@@ -19132,7 +19171,7 @@
                   "timezone": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 128
+                    "maxLength": 100
                   },
                   "locale": {
                     "type": "string",
@@ -19141,9 +19180,23 @@
                   },
                   "dateFormat": {
                     "type": "string",
-                    "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+                    "enum": [
+                      "day-short-month-year",
+                      "short-month-day-year",
+                      "year-month-day",
+                      "day-month-year",
+                      "month-day-year"
+                    ]
                   },
-                  "timeFormat": { "type": "string", "enum": ["12h", "24h"] },
+                  "timeFormat": {
+                    "type": "string",
+                    "enum": [
+                      "24-hour",
+                      "12-hour",
+                      "24-hour-seconds",
+                      "12-hour-seconds"
+                    ]
+                  },
                   "theme": {
                     "type": "string",
                     "enum": ["system", "light", "dark"]
@@ -19410,13 +19463,22 @@
       "getPreferencesOutput": {
         "type": "object",
         "properties": {
-          "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
           "locale": { "type": "string", "minLength": 2, "maxLength": 64 },
           "dateFormat": {
             "type": "string",
-            "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+            "enum": [
+              "day-short-month-year",
+              "short-month-day-year",
+              "year-month-day",
+              "day-month-year",
+              "month-day-year"
+            ]
           },
-          "timeFormat": { "type": "string", "enum": ["12h", "24h"] },
+          "timeFormat": {
+            "type": "string",
+            "enum": ["24-hour", "12-hour", "24-hour-seconds", "12-hour-seconds"]
+          },
           "theme": { "type": "string", "enum": ["system", "light", "dark"] }
         },
         "required": ["timezone", "locale", "dateFormat", "timeFormat", "theme"],
@@ -19425,13 +19487,34 @@
       "updatePreferencesInput": {
         "type": "object",
         "properties": {
-          "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
           "locale": { "type": "string", "minLength": 2, "maxLength": 64 },
           "dateFormat": {
             "type": "string",
-            "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+            "enum": [
+              "day-short-month-year",
+              "short-month-day-year",
+              "year-month-day",
+              "day-month-year",
+              "month-day-year",
+              "YYYY-MM-DD",
+              "DD/MM/YYYY",
+              "MM/DD/YYYY"
+            ],
+            "description": "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs."
           },
-          "timeFormat": { "type": "string", "enum": ["12h", "24h"] },
+          "timeFormat": {
+            "type": "string",
+            "enum": [
+              "24-hour",
+              "12-hour",
+              "24-hour-seconds",
+              "12-hour-seconds",
+              "24h",
+              "12h"
+            ],
+            "description": "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs."
+          },
           "theme": { "type": "string", "enum": ["system", "light", "dark"] }
         },
         "additionalProperties": false
@@ -19439,13 +19522,22 @@
       "updatePreferencesOutput": {
         "type": "object",
         "properties": {
-          "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
           "locale": { "type": "string", "minLength": 2, "maxLength": 64 },
           "dateFormat": {
             "type": "string",
-            "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+            "enum": [
+              "day-short-month-year",
+              "short-month-day-year",
+              "year-month-day",
+              "day-month-year",
+              "month-day-year"
+            ]
           },
-          "timeFormat": { "type": "string", "enum": ["12h", "24h"] },
+          "timeFormat": {
+            "type": "string",
+            "enum": ["24-hour", "12-hour", "24-hour-seconds", "12-hour-seconds"]
+          },
           "theme": { "type": "string", "enum": ["system", "light", "dark"] }
         },
         "required": ["timezone", "locale", "dateFormat", "timeFormat", "theme"],
@@ -19461,8 +19553,31 @@
         "properties": {
           "timezones": { "type": "array", "items": { "type": "string" } },
           "locales": { "type": "array", "items": { "type": "string" } },
-          "dateFormats": { "type": "array", "items": { "type": "string" } },
-          "timeFormats": { "type": "array", "items": { "type": "string" } },
+          "dateFormats": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "day-short-month-year",
+                "short-month-day-year",
+                "year-month-day",
+                "day-month-year",
+                "month-day-year"
+              ]
+            }
+          },
+          "timeFormats": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "24-hour",
+                "12-hour",
+                "24-hour-seconds",
+                "12-hour-seconds"
+              ]
+            }
+          },
           "themes": { "type": "array", "items": { "type": "string" } }
         },
         "required": [
@@ -19483,14 +19598,35 @@
               "timezone": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 128
+                "maxLength": 100
               },
               "locale": { "type": "string", "minLength": 2, "maxLength": 64 },
               "dateFormat": {
                 "type": "string",
-                "enum": ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]
+                "enum": [
+                  "day-short-month-year",
+                  "short-month-day-year",
+                  "year-month-day",
+                  "day-month-year",
+                  "month-day-year",
+                  "YYYY-MM-DD",
+                  "DD/MM/YYYY",
+                  "MM/DD/YYYY"
+                ],
+                "description": "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs."
               },
-              "timeFormat": { "type": "string", "enum": ["12h", "24h"] },
+              "timeFormat": {
+                "type": "string",
+                "enum": [
+                  "24-hour",
+                  "12-hour",
+                  "24-hour-seconds",
+                  "12-hour-seconds",
+                  "24h",
+                  "12h"
+                ],
+                "description": "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs."
+              },
               "theme": { "type": "string", "enum": ["system", "light", "dark"] }
             },
             "required": [
@@ -31869,7 +32005,7 @@
             "maximum": 36500
           },
           "cron": { "type": "string", "minLength": 9, "maxLength": 128 },
-          "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
           "maxRuntimeSeconds": {
             "type": "integer",
             "minimum": 60,
@@ -31922,7 +32058,7 @@
             "maximum": 36500
           },
           "cron": { "type": "string", "minLength": 9, "maxLength": 128 },
-          "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
           "maxRuntimeSeconds": {
             "type": "integer",
             "minimum": 60,
@@ -31955,7 +32091,7 @@
             "maximum": 36500
           },
           "cron": { "type": "string", "minLength": 9, "maxLength": 128 },
-          "timezone": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
           "maxRuntimeSeconds": {
             "type": "integer",
             "minimum": 60,

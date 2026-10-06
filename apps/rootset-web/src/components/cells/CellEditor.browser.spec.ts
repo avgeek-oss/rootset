@@ -366,8 +366,8 @@ test.beforeEach(async ({ page }) => {
   await setPreferences(page, {
     timezone: "UTC",
     locale: "en-GB",
-    dateFormat: "YYYY-MM-DD",
-    timeFormat: "24h",
+    dateFormat: "year-month-day",
+    timeFormat: "24-hour",
   });
   await client.operation("updateViewPreferences", {
     tableId: schema.table.id,
@@ -679,8 +679,8 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   await setPreferences(page, {
     timezone: "Asia/Kolkata",
     locale: "en-GB",
-    dateFormat: "DD/MM/YYYY",
-    timeFormat: "12h",
+    dateFormat: "day-month-year",
+    timeFormat: "12-hour",
   });
   await showTable(page);
   const dialog = await openEditor(page, "DATETIME");
@@ -697,7 +697,7 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   await expect(await cell(page, "TIME")).toContainText("UTC");
   await setPreferences(page, {
     timezone: "America/New_York",
-    timeFormat: "24h",
+    timeFormat: "24-hour",
   });
   await showTable(page);
   const dstDialog = await openEditor(page, "DATETIME");

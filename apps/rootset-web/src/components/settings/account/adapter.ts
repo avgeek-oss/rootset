@@ -13,7 +13,7 @@ import type {
   Session,
   Preferences,
 } from "../types";
-import { formatCellValue } from "../../cells/drafts";
+import { createDateTimeFormatter } from "@rootset/contracts";
 
 export type AccountUser = Profile & {
   name: string;
@@ -293,32 +293,15 @@ export function useDateDisplay() {
   return (value?: string) => {
     if (!value) return "—";
     if (!preferences) return "—";
-    const parts = new Intl.DateTimeFormat("en", {
+    return createDateTimeFormatter({
+      ...preferences,
       timeZone: preferences.timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date(value));
-    const part = (type: string) =>
-      parts.find((entry) => entry.type === type)!.value;
-    const date = `${part("year")}-${part("month")}-${part("day")}`;
-    return formatCellValue({ id: "date", name: "date", type: "date" }, date, {
-      timeZone: preferences.timezone,
-      locale: preferences.locale,
-      dateFormat: preferences.dateFormat,
-      timeFormat: preferences.timeFormat,
-    });
+    })(value).date;
   };
 }
 export function displayTimestamp(value: string, preferences: Preferences) {
-  return formatCellValue(
-    { id: "time", name: "time", type: "date-time" },
-    value,
-    {
-      timeZone: preferences.timezone,
-      locale: preferences.locale,
-      dateFormat: preferences.dateFormat,
-      timeFormat: preferences.timeFormat,
-    },
-  );
+  return createDateTimeFormatter({
+    ...preferences,
+    timeZone: preferences.timezone,
+  })(value).dateTime!;
 }

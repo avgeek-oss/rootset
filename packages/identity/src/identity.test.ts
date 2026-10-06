@@ -8,6 +8,10 @@ import {
   KeyCreatedSchema,
   OrganisationSchema,
   ProfileSchema,
+  dateFormatOptions,
+  timeFormatOptions,
+  PreferencesSchema,
+  createDateTimeFormatter,
   newId,
   type Actor,
 } from "@rootset/contracts";
@@ -349,6 +353,14 @@ test(
                 ),
             ),
           );
+          await service.claimSetup({
+            ...input,
+            preferences: {
+              ...input.preferences,
+              dateFormat: "day-month-year",
+              timeFormat: "12-hour",
+            },
+          });
           const claimed = (
             await owner.query(
               `SELECT org_id,user_id,claim_digest FROM rootset_control.bootstrap`,
@@ -364,8 +376,8 @@ test(
             ).rows[0],
             {
               timezone: "Asia/Kolkata",
-              date_format: "DD/MM/YYYY",
-              time_format: "12h",
+              date_format: "day-month-year",
+              time_format: "12-hour",
               locale: "en",
               theme: "system",
             },
@@ -438,6 +450,156 @@ test(
               preferences: { ...input.preferences, timeFormat: "24h" },
             }),
           );
+        },
+      );
+      await t.test(
+        "ACC preferences persist canonical formats, accept legacy aliases and reject invalid UTC previews",
+        async () => {
+          const original = PreferencesSchema.parse(
+            await execute("getPreferences", actor, {}),
+          );
+          const options = (await execute(
+            "getPreferenceOptions",
+            actor,
+            {},
+          )) as {
+            dateFormats: string[];
+            timeFormats: string[];
+            timezones: string[];
+          };
+          assert.deepEqual(
+            options.dateFormats,
+            dateFormatOptions.map((option) => option.id),
+          );
+          assert.deepEqual(
+            options.timeFormats,
+            timeFormatOptions.map((option) => option.id),
+          );
+          assert.equal(options.timezones[0], "UTC");
+          for (const date of dateFormatOptions)
+            for (const time of timeFormatOptions) {
+              const expected = {
+                ...original,
+                dateFormat: date.id,
+                timeFormat: time.id,
+                timezone: "UTC",
+              };
+              assert.deepEqual(
+                await execute("updatePreferences", actor, expected),
+                expected,
+              );
+              assert.deepEqual(
+                await execute("getPreferences", actor, {}),
+                expected,
+              );
+              const persisted = (
+                await owner.query(
+                  `SELECT date_format,time_format FROM rootset_control.user_preferences WHERE user_id=$1`,
+                  [actor.userId],
+                )
+              ).rows[0];
+              assert.deepEqual(persisted, {
+                date_format: date.id,
+                time_format: time.id,
+              });
+              assert.deepEqual(
+                await execute("previewPreferences", actor, {
+                  preferences: expected,
+                  value: "2026-09-16T14:30:45.123Z",
+                }),
+                {
+                  utc: "2026-09-16T14:30:45.123Z",
+                  displayed: `${time.label}, ${date.label}`,
+                  timezone: "UTC",
+                },
+              );
+            }
+          const aliased = PreferencesSchema.parse(
+            await execute("updatePreferences", actor, {
+              dateFormat: "YYYY-MM-DD",
+              timeFormat: "24h",
+              timezone: "Asia/Kolkata",
+            }),
+          );
+          assert.equal(aliased.dateFormat, "year-month-day");
+          assert.equal(aliased.timeFormat, "24-hour");
+          assert.equal(aliased.locale, original.locale);
+          assert.equal(aliased.theme, original.theme);
+          await owner.query(
+            `ALTER TABLE rootset_control.user_preferences DROP CONSTRAINT user_preferences_date_format_check, DROP CONSTRAINT user_preferences_time_format_check`,
+          );
+          try {
+            await owner.query(
+              `UPDATE rootset_control.user_preferences SET date_format='YYYY-MM-DD',time_format='24h' WHERE user_id=$1`,
+              [actor.userId],
+            );
+            assert.deepEqual(
+              await execute("getPreferences", actor, {}),
+              aliased,
+            );
+            assert.deepEqual(
+              ContextSchema.parse(await execute("getContext", actor, {}))
+                .preferences,
+              aliased,
+            );
+            assert.deepEqual(
+              (
+                await owner.query(
+                  `SELECT date_format,time_format FROM rootset_control.user_preferences WHERE user_id=$1`,
+                  [actor.userId],
+                )
+              ).rows[0],
+              { date_format: "YYYY-MM-DD", time_format: "24h" },
+            );
+            assert.deepEqual(
+              await execute("updatePreferences", actor, {
+                theme: original.theme,
+              }),
+              aliased,
+            );
+          } finally {
+            await owner.query(
+              `UPDATE rootset_control.user_preferences SET date_format=$2,time_format=$3 WHERE user_id=$1`,
+              [actor.userId, aliased.dateFormat, aliased.timeFormat],
+            );
+            await owner.query(
+              `ALTER TABLE rootset_control.user_preferences ADD CONSTRAINT user_preferences_date_format_check CHECK (date_format IN ('day-short-month-year','short-month-day-year','year-month-day','day-month-year','month-day-year')), ADD CONSTRAINT user_preferences_time_format_check CHECK (time_format IN ('24-hour','12-hour','24-hour-seconds','12-hour-seconds'))`,
+            );
+          }
+          assert.deepEqual(
+            await execute("previewPreferences", actor, {
+              preferences: aliased,
+              value: "2026-09-16T23:30:45.123Z",
+            }),
+            {
+              utc: "2026-09-16T23:30:45.123Z",
+              displayed: createDateTimeFormatter({
+                ...aliased,
+                timeZone: aliased.timezone,
+              })("2026-09-16T23:30:45.123Z").dateTime,
+              timezone: "Asia/Kolkata",
+            },
+          );
+          for (const invalid of [
+            { dateFormat: "constructor" },
+            { timeFormat: "invalid" },
+            { timezone: "+05:30" },
+            { timezone: "invalid/zone" },
+          ])
+            await assert.rejects(
+              () => execute("updatePreferences", actor, invalid),
+              { code: "VALIDATION_FAILED" },
+            );
+          await assert.rejects(
+            () =>
+              execute("previewPreferences", actor, {
+                preferences: aliased,
+                value: "2026-09-16T14:30:45.123+05:30",
+              }),
+            { code: "VALIDATION_FAILED" },
+          );
+          assert.deepEqual(await execute("getPreferences", actor, {}), aliased);
+          await execute("updatePreferences", actor, original);
         },
       );
       await t.test(

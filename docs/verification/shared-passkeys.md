@@ -111,6 +111,18 @@ submit a late assertion, and cancellation ends before the server proof is
 submitted. Identity confirmation uses the shared dialog, and a successful proof
 retries the same reviewed operation.
 
+## Date and time preferences
+
+All five date formats and four clock formats use Towbar's identifiers and defaults.
+The UI uses the native shared preference controls. Backend contracts and
+fresh SQL constraints retain the same catalog, with explicit input/read aliases
+for earlier Rootset values. Output and new storage always use canonical IDs.
+`date-time-preferences.test.ts`, the cell draft suite, the actual PostgreSQL
+identity suite and baseline tests cover all twenty combinations, alias conversion,
+setup retry equivalence, invalid formats/timezones, DST transitions, UTC-only
+preview inputs, and unchanged cell editing precision. Existing local databases
+remain preserved; a changed prelaunch baseline requires a fresh installation.
+
 ## Verification scope
 
 Run `pnpm verify` with the identity/storage fixture environment configured, then

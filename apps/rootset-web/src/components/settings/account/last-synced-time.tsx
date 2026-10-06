@@ -8,6 +8,7 @@ import {
   tableCellStackClassName,
 } from "@avgeek-oss/design-system/data-display/table-cell-text";
 import { displayTimestamp, useApiQuery } from "./adapter";
+import { defaultDateTimePreferences } from "@rootset/contracts";
 import type { Preferences } from "../types";
 
 const listeners = new Set<() => void>();
@@ -15,8 +16,8 @@ let currentTime = Date.now();
 const defaults: Preferences = {
   timezone: "UTC",
   locale: "en",
-  dateFormat: "YYYY-MM-DD",
-  timeFormat: "24h",
+  dateFormat: defaultDateTimePreferences.dateFormat,
+  timeFormat: defaultDateTimePreferences.timeFormat,
   theme: "system",
 };
 export function RelativeTimeProvider({ children }: { children: ReactNode }) {

@@ -1,5 +1,8 @@
 import {
   canonicalJson,
+  formatDisplayDate,
+  formatDisplayTime,
+  defaultDateTimePreferences,
   limits,
   parseStrictJson,
   validateCell,
@@ -22,7 +25,6 @@ export interface CellDraft {
 }
 
 const numberFormatters = new Map<string, Intl.NumberFormat>();
-const clockFormatters = new Map<string, Intl.DateTimeFormat>();
 
 export type DisplayPreferences = Pick<Preferences, "dateFormat" | "timeFormat">;
 export interface CellDisplayOptions {
@@ -44,46 +46,6 @@ function numberFormatter(locale: string, integer: boolean): Intl.NumberFormat {
     numberFormatters.delete(numberFormatters.keys().next().value!);
   numberFormatters.set(key, formatter);
   return formatter;
-}
-
-function displayDate(value: string, format: Preferences["dateFormat"]): string {
-  const [rawYear, month, day] = value.split("-");
-  const year = rawYear === "0000" ? "0001" : rawYear;
-  const result =
-    format === "DD/MM/YYYY"
-      ? `${day}/${month}/${year}`
-      : format === "MM/DD/YYYY"
-        ? `${month}/${day}/${year}`
-        : `${year}-${month}-${day}`;
-  return rawYear === "0000" ? `${result} BCE` : result;
-}
-
-function displayClock(
-  value: string,
-  locale: string,
-  format: Preferences["timeFormat"],
-): string {
-  const key = `${locale}\0${format}`;
-  let formatter = clockFormatters.get(key);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, {
-      timeZone: "UTC",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      fractionalSecondDigits: 3,
-      hourCycle: format === "12h" ? "h12" : "h23",
-    });
-    if (clockFormatters.size >= 16)
-      clockFormatters.delete(clockFormatters.keys().next().value!);
-    clockFormatters.set(key, formatter);
-  }
-  const [clock, fraction = "000"] = value.split(".");
-  const [hour, minute, second] = clock!.split(":").map(Number);
-  // This fixed UTC anchor is only for locale formatting, never for timezone conversion.
-  return formatter.format(
-    Date.UTC(2000, 0, 1, hour, minute, second, Number(fraction)),
-  );
 }
 
 export function createCellDraft(
@@ -252,8 +214,10 @@ export function formatCellValue(
     preferenceArgument ??
     (options.dateFormat || options.timeFormat
       ? {
-          dateFormat: options.dateFormat ?? "YYYY-MM-DD",
-          timeFormat: options.timeFormat ?? "24h",
+          dateFormat:
+            options.dateFormat ?? defaultDateTimePreferences.dateFormat,
+          timeFormat:
+            options.timeFormat ?? defaultDateTimePreferences.timeFormat,
         }
       : undefined);
   if (value === null) return "—";
@@ -264,13 +228,13 @@ export function formatCellValue(
       const [date, clock] = utcDateTimeToLocal(String(value), timeZone).split(
         "T",
       );
-      return `${displayDate(date!, preferences.dateFormat)} ${displayClock(clock!, locale, preferences.timeFormat)}`;
+      return `${formatDisplayTime(clock!, preferences.timeFormat)}, ${formatDisplayDate(date!, preferences.dateFormat)}`;
     }
     case "time":
-      return `${preferences ? displayClock(utcTimeToInput(String(value)), locale, preferences.timeFormat) : utcTimeToInput(String(value))} UTC`;
+      return `${preferences ? formatDisplayTime(utcTimeToInput(String(value)), preferences.timeFormat) : utcTimeToInput(String(value))} UTC`;
     case "date":
       return preferences
-        ? displayDate(String(value), preferences.dateFormat)
+        ? formatDisplayDate(String(value), preferences.dateFormat)
         : String(value);
     case "integer":
       return numberFormatter(locale, true).format(Number(value));

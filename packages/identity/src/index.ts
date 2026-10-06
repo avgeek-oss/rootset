@@ -43,6 +43,14 @@ import {
   InvitationSchema,
   KeyCreatedSchema,
   PreferencesSchema,
+  PreferencesInputSchema,
+  DateTimeSchema,
+  defaultDateTimePreferences,
+  dateFormatOptions,
+  timeFormatOptions,
+  availableTimeZones,
+  normalizePreferenceAliases,
+  createDateTimeFormatter,
   RootsetError,
   ViewPreferencesSchema,
   OperatorRepairIntentSchema,
@@ -181,8 +189,8 @@ const normaliseOperation = (operation: string) =>
 const defaultPreferences: Preferences = {
   timezone: "UTC",
   locale: "en",
-  dateFormat: "YYYY-MM-DD",
-  timeFormat: "24h",
+  dateFormat: defaultDateTimePreferences.dateFormat,
+  timeFormat: defaultDateTimePreferences.timeFormat,
   theme: "system",
 };
 const redact = (value: unknown): unknown =>
@@ -560,14 +568,14 @@ export class IdentityService {
     };
   }
   async claimSetup(value: unknown): Promise<unknown> {
-    const input = parse(
+    const parsed = parse(
       z.strictObject({
         bootstrapSecret: z.string(),
         name: nameSchema,
         email: emailSchema,
         password: passwordSchema,
         organisationName: nameSchema,
-        preferences: PreferencesSchema.pick({
+        preferences: PreferencesInputSchema.pick({
           timezone: true,
           dateFormat: true,
           timeFormat: true,
@@ -575,6 +583,21 @@ export class IdentityService {
       }),
       value,
     );
+    const input = {
+      ...parsed,
+      ...(parsed.preferences
+        ? {
+            preferences: parse(
+              PreferencesSchema.pick({
+                timezone: true,
+                dateFormat: true,
+                timeFormat: true,
+              }),
+              normalizePreferenceAliases(parsed.preferences),
+            ),
+          }
+        : {}),
+    };
     if (
       !safeEqual(
         this.hashSecret(input.bootstrapSecret),
@@ -616,7 +639,10 @@ export class IdentityService {
         `INSERT INTO rootset_control.users(id,name,email) VALUES($1,$2,$3)`,
         [userId, input.name, input.email],
       );
-      const preferences = { ...defaultPreferences, ...input.preferences };
+      const preferences = parse(PreferencesSchema, {
+        ...defaultPreferences,
+        ...input.preferences,
+      });
       await client.query(
         `INSERT INTO rootset_control.user_preferences(user_id,timezone,locale,date_format,time_format,theme) VALUES($1,$2,$3,$4,$5,$6)`,
         [
@@ -1812,7 +1838,12 @@ export class IdentityService {
         personal();
         const preferences = parse(PreferencesSchema, {
           ...(await this.readPreferences(client, actor.userId!)),
-          ...parse(PreferencesSchema.partial(), input),
+          ...parse(
+            PreferencesSchema.partial(),
+            normalizePreferenceAliases(
+              parse(PreferencesInputSchema.partial(), input),
+            ),
+          ),
         });
         await client.query(
           `INSERT INTO rootset_control.user_preferences(user_id,timezone,locale,date_format,time_format,theme) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id) DO UPDATE SET timezone=$2,locale=$3,date_format=$4,time_format=$5,theme=$6,updated_at=now()`,
@@ -1835,34 +1866,33 @@ export class IdentityService {
         return {
           timezones: [
             ...new Set([
-              "UTC",
-              ...Intl.supportedValuesOf("timeZone"),
+              ...availableTimeZones(),
               ...(selected ? [selected] : []),
             ]),
           ],
           locales: ["en", "en-GB", "en-IN"],
-          dateFormats: ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"],
-          timeFormats: ["12h", "24h"],
+          dateFormats: dateFormatOptions.map((option) => option.id),
+          timeFormats: timeFormatOptions.map((option) => option.id),
           themes: ["system", "light", "dark"],
         };
       }
       case "previewPreferences": {
         const data = parse(
             z.strictObject({
-              preferences: PreferencesSchema,
-              value: z.string().datetime(),
+              preferences: PreferencesInputSchema,
+              value: DateTimeSchema,
             }),
             input,
           ),
-          p = data.preferences;
+          p = parse(
+            PreferencesSchema,
+            normalizePreferenceAliases(data.preferences),
+          );
         return {
           utc: new Date(data.value).toISOString(),
-          displayed: new Intl.DateTimeFormat(p.locale, {
-            timeZone: p.timezone,
-            dateStyle: "medium",
-            timeStyle: "medium",
-            hour12: p.timeFormat === "12h",
-          }).format(new Date(data.value)),
+          displayed: createDateTimeFormatter({ ...p, timeZone: p.timezone })(
+            data.value,
+          ).dateTime!,
           timezone: p.timezone,
         };
       }
@@ -2243,7 +2273,10 @@ export class IdentityService {
       `SELECT timezone,locale,date_format "dateFormat",time_format "timeFormat",theme FROM rootset_control.user_preferences WHERE user_id=$1`,
       [userId],
     );
-    return r.rows[0] ?? defaultPreferences;
+    return parse(
+      PreferencesSchema,
+      normalizePreferenceAliases(r.rows[0] ?? defaultPreferences),
+    );
   }
   private checkActionAuthority(
     actor: Actor,

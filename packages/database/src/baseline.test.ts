@@ -4,6 +4,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import {
+  dateFormatOptions,
+  timeFormatOptions,
+} from "../../contracts/src/date-time-preferences";
 import { createPool, migrate, migrationStatus } from "./index.js";
 
 const source = process.env.ROOTSET_TEST_DATABASE_URL;
@@ -54,6 +58,51 @@ test(
     );
     await pool.query(
       "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES('00000000000000000000000003','Admin','admin@example.test',true)",
+    );
+    await pool.query(
+      "INSERT INTO rootset_control.user_preferences(user_id) VALUES('00000000000000000000000003')",
+    );
+    assert.deepEqual(
+      (
+        await pool.query(
+          "SELECT date_format,time_format,timezone FROM rootset_control.user_preferences",
+        )
+      ).rows[0],
+      {
+        date_format: "day-short-month-year",
+        time_format: "24-hour",
+        timezone: "UTC",
+      },
+    );
+    for (const date of dateFormatOptions)
+      for (const time of timeFormatOptions)
+        await pool.query(
+          "UPDATE rootset_control.user_preferences SET date_format=$1,time_format=$2",
+          [date.id, time.id],
+        );
+    const previousPreferences = (
+      await pool.query("SELECT * FROM rootset_control.user_preferences")
+    ).rows[0];
+    for (const value of ["YYYY-MM-DD", "constructor", "unknown"])
+      await assert.rejects(
+        pool.query(
+          "UPDATE rootset_control.user_preferences SET date_format=$1",
+          [value],
+        ),
+        { code: "23514" },
+      );
+    for (const value of ["24h", "12h", "unknown"])
+      await assert.rejects(
+        pool.query(
+          "UPDATE rootset_control.user_preferences SET time_format=$1",
+          [value],
+        ),
+        { code: "23514" },
+      );
+    assert.deepEqual(
+      (await pool.query("SELECT * FROM rootset_control.user_preferences"))
+        .rows[0],
+      previousPreferences,
     );
     for (const table of ["users", "organisations"] as const) {
       const previous = (

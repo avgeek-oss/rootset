@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { ulid } from "ulid";
+import {
+  dateFormatOptions,
+  timeFormatOptions,
+  isTimeZone,
+  legacyDateFormatAliases,
+  legacyTimeFormatAliases,
+} from "./date-time-preferences";
 
 export const AccountNameSchema = z.string().trim().min(1).max(120);
 
@@ -441,15 +448,8 @@ export const PreferencesSchema = z.strictObject({
   timezone: z
     .string()
     .min(1)
-    .max(128)
-    .refine((value) => {
-      try {
-        new Intl.DateTimeFormat("en", { timeZone: value });
-        return true;
-      } catch {
-        return false;
-      }
-    }, "Expected an IANA timezone"),
+    .max(100)
+    .refine(isTimeZone, "Expected an IANA timezone"),
   locale: z
     .string()
     .min(2)
@@ -461,11 +461,33 @@ export const PreferencesSchema = z.strictObject({
         return false;
       }
     }, "Expected a BCP 47 locale"),
-  dateFormat: z.enum(["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]),
-  timeFormat: z.enum(["12h", "24h"]),
+  dateFormat: z.enum(dateFormatOptions.map((option) => option.id)),
+  timeFormat: z.enum(timeFormatOptions.map((option) => option.id)),
   theme: z.enum(["system", "light", "dark"]),
 });
 export type Preferences = z.infer<typeof PreferencesSchema>;
+export const PreferencesInputSchema = PreferencesSchema.extend({
+  dateFormat: z
+    .enum([
+      ...dateFormatOptions.map((option) => option.id),
+      ...(Object.keys(
+        legacyDateFormatAliases,
+      ) as (keyof typeof legacyDateFormatAliases)[]),
+    ])
+    .describe(
+      "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs.",
+    ),
+  timeFormat: z
+    .enum([
+      ...timeFormatOptions.map((option) => option.id),
+      ...(Object.keys(
+        legacyTimeFormatAliases,
+      ) as (keyof typeof legacyTimeFormatAliases)[]),
+    ])
+    .describe(
+      "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs.",
+    ),
+});
 export const ViewPreferencesSchema = z.strictObject({
   columnOrder: z.array(IdSchema).max(limits.maxFields),
   columnWidths: z.record(z.string(), z.number().min(40).max(2000)),

@@ -76,8 +76,8 @@ const publicClient = new RootsetClient({ baseUrl: "/v1" });
 const defaultPreferences = {
   timezone: "UTC",
   locale: "en",
-  dateFormat: "YYYY-MM-DD",
-  timeFormat: "24h",
+  dateFormat: "day-short-month-year",
+  timeFormat: "24-hour",
   theme: "system",
 } as const;
 

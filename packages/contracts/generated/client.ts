@@ -63,8 +63,13 @@ export type getContextOutput = {
   preferences: {
     timezone: string;
     locale: string;
-    dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
-    timeFormat: "12h" | "24h";
+    dateFormat:
+      | "day-short-month-year"
+      | "short-month-day-year"
+      | "year-month-day"
+      | "day-month-year"
+      | "month-day-year";
+    timeFormat: "24-hour" | "12-hour" | "24-hour-seconds" | "12-hour-seconds";
     theme: "system" | "light" | "dark";
   } | null;
   onboarding: { needsEmailVerification: boolean; setupComplete: boolean };
@@ -112,38 +117,84 @@ export type getPreferencesInput = Record<string, never>;
 export type getPreferencesOutput = {
   timezone: string;
   locale: string;
-  dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
-  timeFormat: "12h" | "24h";
+  dateFormat:
+    | "day-short-month-year"
+    | "short-month-day-year"
+    | "year-month-day"
+    | "day-month-year"
+    | "month-day-year";
+  timeFormat: "24-hour" | "12-hour" | "24-hour-seconds" | "12-hour-seconds";
   theme: "system" | "light" | "dark";
 };
 export type updatePreferencesInput = {
   timezone?: string;
   locale?: string;
-  dateFormat?: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
-  timeFormat?: "12h" | "24h";
+  dateFormat?:
+    | "day-short-month-year"
+    | "short-month-day-year"
+    | "year-month-day"
+    | "day-month-year"
+    | "month-day-year"
+    | "YYYY-MM-DD"
+    | "DD/MM/YYYY"
+    | "MM/DD/YYYY";
+  timeFormat?:
+    | "24-hour"
+    | "12-hour"
+    | "24-hour-seconds"
+    | "12-hour-seconds"
+    | "24h"
+    | "12h";
   theme?: "system" | "light" | "dark";
 };
 export type updatePreferencesOutput = {
   timezone: string;
   locale: string;
-  dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
-  timeFormat: "12h" | "24h";
+  dateFormat:
+    | "day-short-month-year"
+    | "short-month-day-year"
+    | "year-month-day"
+    | "day-month-year"
+    | "month-day-year";
+  timeFormat: "24-hour" | "12-hour" | "24-hour-seconds" | "12-hour-seconds";
   theme: "system" | "light" | "dark";
 };
 export type getPreferenceOptionsInput = Record<string, never>;
 export type getPreferenceOptionsOutput = {
   timezones: string[];
   locales: string[];
-  dateFormats: string[];
-  timeFormats: string[];
+  dateFormats: (
+    | "day-short-month-year"
+    | "short-month-day-year"
+    | "year-month-day"
+    | "day-month-year"
+    | "month-day-year"
+  )[];
+  timeFormats: (
+    "24-hour" | "12-hour" | "24-hour-seconds" | "12-hour-seconds"
+  )[];
   themes: string[];
 };
 export type previewPreferencesInput = {
   preferences: {
     timezone: string;
     locale: string;
-    dateFormat: "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY";
-    timeFormat: "12h" | "24h";
+    dateFormat:
+      | "day-short-month-year"
+      | "short-month-day-year"
+      | "year-month-day"
+      | "day-month-year"
+      | "month-day-year"
+      | "YYYY-MM-DD"
+      | "DD/MM/YYYY"
+      | "MM/DD/YYYY";
+    timeFormat:
+      | "24-hour"
+      | "12-hour"
+      | "24-hour-seconds"
+      | "12-hour-seconds"
+      | "24h"
+      | "12h";
     theme: "system" | "light" | "dark";
   };
   value: string;

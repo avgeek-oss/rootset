@@ -214,7 +214,7 @@
     {
       "id": "V1-11",
       "area": "Contracts and storage",
-      "requirement": "Field definitions have only one `name`; 1–64 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced.",
+      "requirement": "Field definitions have only one `name`; 1\u201364 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced.",
       "status": "pending",
       "testSources": [
         {

@@ -133,6 +133,16 @@ screen has no database/table chooser. Approving OAuth/MCP access requires recent
 
 ## Preferences and history
 
+Display formats use the same identifiers and defaults as Towbar: `day-short-month-year`,
+`short-month-day-year`, `year-month-day`, `day-month-year`, `month-day-year`;
+and `24-hour`, `12-hour`, `24-hour-seconds`, `12-hour-seconds`. New accounts default
+to `day-short-month-year`, `24-hour`, and `UTC`. The public and internal preference
+operations accept the earlier `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `24h` and
+`12h` aliases and return/store their canonical equivalents. Reading earlier values
+also normalizes them without modifying the database on a read. Fresh SQL storage
+accepts only canonical identifiers. Preference aliases do not alter domain DATE,
+UTC TIME or UTC DATETIME values, editor precision, or API wire representations.
+
 People can set an IANA timezone, locale, date/time format and theme. UTC is the
 fallback. Date-time displays and edits use the selected timezone; resolve DST
 ambiguities explicitly. Date-only values remain calendar dates and time-only
