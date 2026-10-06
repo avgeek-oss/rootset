@@ -240,7 +240,8 @@ export function AppLayout({
             id="table-content"
             className={cn(
               "min-w-0",
-              secondarySidebar && "lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]",
+              secondarySidebar &&
+                "lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]",
             )}
             tabIndex={-1}
           >
