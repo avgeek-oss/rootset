@@ -857,123 +857,132 @@ test(
           );
         },
       );
-      await t.test(
-        "last-key removal waits for recovery replacement and removes the replacement codes",
-        async () => {
-          await ok(await call("/reauthenticate", { password }, sessionCookie));
-          const key = testAuthenticator();
-          const challenge = await options(
-            "/generate-register-options",
-            sessionCookie,
-          );
-          const registered = await ok(
-            await call(
-              "/passkey/verify-registration",
-              {
-                name: "Concurrent recovery key",
-                response: key.registration(challenge.data.challenge, origin),
-              },
-              challenge.cookie,
-            ),
-          );
-          const { id } = (await registered.json()) as { id: string };
-          const lockId = randomBytes(4).readInt32BE();
-          const barrier = await fixture.owner.connect();
-          let replacement: Promise<Response> | undefined;
-          let removal: Promise<Response> | undefined;
-          try {
-            await barrier.query(
-              `CREATE FUNCTION rootset_control.pause_recovery_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(${lockId}); RETURN NEW; END $$`,
+      for (const issuance of ["replacement", "registration"] as const)
+        await t.test(
+          `last-key removal waits for ${issuance} recovery issuance and removes the codes`,
+          async () => {
+            await ok(
+              await call("/reauthenticate", { password }, sessionCookie),
             );
-            await barrier.query(
-              `CREATE TRIGGER pause_recovery_insert BEFORE INSERT ON rootset_control.auth_recovery_codes FOR EACH ROW EXECUTE FUNCTION rootset_control.pause_recovery_insert()`,
-            );
-            await barrier.query("SELECT pg_advisory_lock($1::bigint)", [
-              lockId,
-            ]);
-            const waitFor = async (ready: () => Promise<boolean>) => {
-              const deadline = Date.now() + 5000;
-              while (!(await ready())) {
-                assert.ok(
-                  Date.now() < deadline,
-                  "Concurrent request did not reach its database barrier",
-                );
-                await new Promise((resolve) => setTimeout(resolve, 10));
-              }
-            };
-            replacement = call(
-              "/passkey/replace-recovery-codes",
-              {},
+            const key = testAuthenticator();
+            const challenge = await options(
+              "/generate-register-options",
               sessionCookie,
             );
-            await waitFor(async () =>
-              Boolean(
-                (
-                  await fixture.owner.query(
-                    `SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query LIKE 'INSERT INTO rootset_control.auth_recovery_codes%'`,
-                  )
-                ).rowCount,
-              ),
-            );
-            let removed = false;
-            removal = call(
-              "/passkey/delete-passkey",
-              { id },
-              sessionCookie,
-            ).then((response) => {
-              removed = true;
-              return response;
-            });
-            await waitFor(
-              async () =>
-                removed ||
+            const register = () =>
+              call(
+                "/passkey/verify-registration",
+                {
+                  name: "Concurrent recovery key",
+                  response: key.registration(challenge.data.challenge, origin),
+                },
+                challenge.cookie,
+              );
+            if (issuance === "replacement") await ok(await register());
+            const lockId = randomBytes(4).readInt32BE();
+            const barrier = await fixture.owner.connect();
+            let pendingIssuance: Promise<Response> | undefined;
+            let removal: Promise<Response> | undefined;
+            try {
+              await barrier.query(
+                `CREATE FUNCTION rootset_control.pause_recovery_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(${lockId}); RETURN NEW; END $$`,
+              );
+              await barrier.query(
+                `CREATE TRIGGER pause_recovery_insert BEFORE INSERT ON rootset_control.auth_recovery_codes FOR EACH ROW EXECUTE FUNCTION rootset_control.pause_recovery_insert()`,
+              );
+              await barrier.query("SELECT pg_advisory_lock($1::bigint)", [
+                lockId,
+              ]);
+              const waitFor = async (ready: () => Promise<boolean>) => {
+                const deadline = Date.now() + 5000;
+                while (!(await ready())) {
+                  assert.ok(
+                    Date.now() < deadline,
+                    "Concurrent request did not reach its database barrier",
+                  );
+                  await new Promise((resolve) => setTimeout(resolve, 10));
+                }
+              };
+              pendingIssuance =
+                issuance === "registration"
+                  ? register()
+                  : call("/passkey/replace-recovery-codes", {}, sessionCookie);
+              await waitFor(async () =>
                 Boolean(
                   (
                     await fixture.owner.query(
-                      `SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND wait_event<>'advisory'`,
+                      `SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query LIKE 'INSERT INTO rootset_control.auth_recovery_codes%'`,
                     )
                   ).rowCount,
                 ),
-            );
-            assert.equal(
-              (
+              );
+              const { id } = (
                 await fixture.owner.query(
-                  "SELECT count(*) FROM rootset_control.auth_passkeys WHERE id=$1",
-                  [id],
-                )
-              ).rows[0].count,
-              "1",
-              "The last key must remain until the replacement commits",
-            );
-            await barrier.query("SELECT pg_advisory_unlock($1::bigint)", [
-              lockId,
-            ]);
-            await ok(await replacement);
-            await ok(await removal);
-            assert.equal(
-              (
-                await fixture.owner.query(
-                  "SELECT count(*) FROM rootset_control.auth_recovery_codes WHERE user_id=$1",
+                  "SELECT id FROM rootset_control.auth_passkeys WHERE user_id=$1",
                   [actor.userId],
                 )
-              ).rows[0].count,
-              "0",
-            );
-          } finally {
-            await barrier.query("SELECT pg_advisory_unlock($1::bigint)", [
-              lockId,
-            ]);
-            await Promise.allSettled([replacement, removal].filter(Boolean));
-            await barrier.query(
-              "DROP TRIGGER IF EXISTS pause_recovery_insert ON rootset_control.auth_recovery_codes",
-            );
-            await barrier.query(
-              "DROP FUNCTION IF EXISTS rootset_control.pause_recovery_insert()",
-            );
-            barrier.release();
-          }
-        },
-      );
+              ).rows[0] as { id: string };
+              let removed = false;
+              removal = call(
+                "/passkey/delete-passkey",
+                { id },
+                sessionCookie,
+              ).then((response) => {
+                removed = true;
+                return response;
+              });
+              await waitFor(
+                async () =>
+                  removed ||
+                  Boolean(
+                    (
+                      await fixture.owner.query(
+                        `SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND wait_event<>'advisory'`,
+                      )
+                    ).rowCount,
+                  ),
+              );
+              assert.equal(
+                (
+                  await fixture.owner.query(
+                    "SELECT count(*) FROM rootset_control.auth_passkeys WHERE id=$1",
+                    [id],
+                  )
+                ).rows[0].count,
+                "1",
+                "The last key must remain until the replacement commits",
+              );
+              await barrier.query("SELECT pg_advisory_unlock($1::bigint)", [
+                lockId,
+              ]);
+              await ok(await pendingIssuance);
+              await ok(await removal);
+              assert.equal(
+                (
+                  await fixture.owner.query(
+                    "SELECT count(*) FROM rootset_control.auth_recovery_codes WHERE user_id=$1",
+                    [actor.userId],
+                  )
+                ).rows[0].count,
+                "0",
+              );
+            } finally {
+              await barrier.query("SELECT pg_advisory_unlock($1::bigint)", [
+                lockId,
+              ]);
+              await Promise.allSettled(
+                [pendingIssuance, removal].filter(Boolean),
+              );
+              await barrier.query(
+                "DROP TRIGGER IF EXISTS pause_recovery_insert ON rootset_control.auth_recovery_codes",
+              );
+              await barrier.query(
+                "DROP FUNCTION IF EXISTS rootset_control.pause_recovery_insert()",
+              );
+              barrier.release();
+            }
+          },
+        );
     } finally {
       await fixture.close();
     }

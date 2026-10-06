@@ -978,9 +978,21 @@ export class IdentityService {
         });
         if (session) {
           if (path === "/passkey/verify-registration") {
-            const recoveryCodes = await ensureRecoveryCodes(
+            const recoveryCodes = await transaction(
               this.config.pool,
-              session.user.id,
+              async (client) => {
+                await client.query(
+                  `SELECT id FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
+                  [session.user.id],
+                );
+                const keys = await client.query(
+                  `SELECT id FROM rootset_control.auth_passkeys WHERE user_id=$1 FOR UPDATE`,
+                  [session.user.id],
+                );
+                return keys.rowCount
+                  ? ensureRecoveryCodes(client, session.user.id)
+                  : [];
+              },
             );
             if (recoveryCodes.length)
               response = Response.json(

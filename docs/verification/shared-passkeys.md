@@ -40,12 +40,13 @@ last-Admin protection, sensitive-action expiry/replay and operator recovery.
 Password reset preserves passkeys; explicit operator recovery removes passkeys
 and their recovery codes and revokes delegated access.
 
-The concurrent last-key test pauses the real recovery-code insert with a
-PostgreSQL barrier and issues the removal request while replacement is pending.
-It failed before the fix because the last key disappeared before replacement
-committed. Replacement now locks the enrolled keys until commit; removal then
-finishes and deletes the replacement codes. The same regression passes with
-both requests using the actual identity handler.
+The concurrent last-key tests pause the real recovery-code insert with a
+PostgreSQL barrier and issue removal while automatic registration issuance or
+replacement is pending. The replacement regression failed before the fix
+because the last key disappeared before replacement committed. Both issuance
+paths now lock the user and enrolled keys until commit; automatic issuance is
+skipped if no key remains after locking. Removal then finishes and deletes the
+codes. Both regressions pass with requests using the actual identity handler.
 
 `apps/rootset-web/src/lib/passkeys.test.ts` separately checks the browser adapter:
 cancelled option fetches cannot start a ceremony, cancelled ceremonies cannot
