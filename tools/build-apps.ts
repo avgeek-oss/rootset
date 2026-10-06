@@ -137,10 +137,6 @@ for (const [name, path] of [
   ["Rootset-LICENSE", "LICENSE"],
   ["Towbar-LICENSE", "packages/email/LICENSE-Towbar"],
   ["email-reference-notices.md", "packages/email/THIRD_PARTY_NOTICES.md"],
-  [
-    "identity-ui-reference-notices.md",
-    "packages/identity-web-ui/THIRD_PARTY_NOTICES.md",
-  ],
   ["web-ui-reference-notices.md", "apps/rootset-web/THIRD_PARTY_NOTICES.md"],
 ]) {
   await writeFile(

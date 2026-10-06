@@ -12,19 +12,11 @@ import {
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import { PreferencesSchema, type Preferences } from "@rootset/contracts";
 import { formatCellValue } from "../cells/drafts";
+import { dateFormats, timeFormats } from "../../lib/date-time-options";
 import { useResource, write } from "./api";
 import type { SettingsPanelProps } from "./types";
 
 const previewInstant = "2026-09-16T14:30:45.000Z";
-const dateFormats = [
-  { id: "YYYY-MM-DD", label: "2026-09-16" },
-  { id: "DD/MM/YYYY", label: "16/09/2026" },
-  { id: "MM/DD/YYYY", label: "09/16/2026" },
-];
-const timeFormats = [
-  { id: "24h", label: "14:30" },
-  { id: "12h", label: "2:30 PM" },
-];
 type PreferenceOptions = {
   timezones: string[];
   dateFormats: Preferences["dateFormat"][];

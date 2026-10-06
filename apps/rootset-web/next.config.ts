@@ -9,7 +9,6 @@ const config: NextConfig = {
   transpilePackages: [
     "@rootset/contracts",
     "@rootset/web-client",
-    "@rootset/identity-web-ui",
     "@rootset/observability",
   ],
   async rewrites() {

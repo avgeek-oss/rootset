@@ -603,6 +603,11 @@ export class IdentityService {
         email: emailSchema,
         password: passwordSchema,
         organisationName: nameSchema,
+        preferences: PreferencesSchema.pick({
+          timezone: true,
+          dateFormat: true,
+          timeFormat: true,
+        }).optional(),
       }),
       value,
     );
@@ -646,6 +651,18 @@ export class IdentityService {
       await client.query(
         `INSERT INTO rootset_control.users(id,name,email) VALUES($1,$2,$3)`,
         [userId, input.name, input.email],
+      );
+      const preferences = { ...defaultPreferences, ...input.preferences };
+      await client.query(
+        `INSERT INTO rootset_control.user_preferences(user_id,timezone,locale,date_format,time_format,theme) VALUES($1,$2,$3,$4,$5,$6)`,
+        [
+          userId,
+          preferences.timezone,
+          preferences.locale,
+          preferences.dateFormat,
+          preferences.timeFormat,
+          preferences.theme,
+        ],
       );
       await client.query(
         `INSERT INTO rootset_control.auth_accounts(id,user_id,account_id,provider_id,password) VALUES($1,$2,$4,'credential',$3)`,

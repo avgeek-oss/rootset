@@ -47,8 +47,9 @@ query feedback, theme providers and styles under Apache-2.0, Copyright Avgeek,
 Inc. Its packaged LICENSE and NOTICE remain part of the distribution.
 
 Rootset's account adapters own endpoints, role mappings, UTC/date policy and
-bound authentication approvals. Remaining app-local account workflows are being
-migrated to the shared patterns; copied primitives have been removed.
+bound authentication approvals. Public authentication and account settings use
+the shared patterns. The former copied `identity-web-ui` package and copied
+primitives have been removed.
 
 The OpenAI, Cursor, and Anthropic SVG paths in `src/components/settings/account/mcp-client-logo.tsx` are from [LobeHub Icons](https://github.com/lobehub/lobe-icons). Brand names and logos belong to their respective owners.
 

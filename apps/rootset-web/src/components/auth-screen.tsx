@@ -1,18 +1,27 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Input, Label, TextField } from "@heroui/react";
-import { Button } from "@avgeek-oss/design-system/buttons/button";
+import Link from "next/link";
+import { useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
-  IdentityAuthFrame,
+  AuthForm,
+  AuthPage,
+  AsyncActionButton,
   IdentityCredentialsForm,
-} from "@rootset/identity-web-ui";
+} from "@avgeek-oss/design-system";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Login01Icon } from "@hugeicons/core-free-icons";
 import { authClient } from "../lib/auth-client";
 import { authFailure } from "../lib/auth-failure";
-import { RootsetClient } from "@rootset/web-client";
-
-const publicApi = new RootsetClient({ baseUrl: "/v1" });
+import { AuthFrame, authTextActionClassName } from "./auth-frame";
+import {
+  InitialTeamSetup,
+  ForgotPasswordForm,
+  ResetPasswordForm,
+  VerificationForm,
+  InvitationScreen,
+} from "./public-auth-flows";
 
 export function AuthScreen({
   path,
@@ -23,420 +32,156 @@ export function AuthScreen({
   claimed: boolean;
   onSignedIn: () => void;
 }) {
-  const [phase, setPhase] = useState<"credentials" | "totp" | "recovery">(
-    "credentials",
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const isSetup = !claimed;
-  const isReset = path === "/reset-password";
-  const isForgot = path === "/forgot-password";
-  const isVerification = path === "/verification" || path === "/verify-email";
   const invitation = path.startsWith("/invite/")
     ? path.slice(8)
     : path.startsWith("/invitations/")
       ? path.slice(13)
       : null;
+  return (
+    <AuthPage>
+      {!claimed ? (
+        <InitialTeamSetup />
+      ) : path === "/forgot-password" ? (
+        <ForgotPasswordForm />
+      ) : path === "/reset-password" ? (
+        <ResetPasswordForm />
+      ) : path === "/verification" || path === "/verify-email" ? (
+        <VerificationForm />
+      ) : invitation ? (
+        <InvitationScreen token={invitation} />
+      ) : (
+        <LoginForm onSignedIn={onSignedIn} />
+      )}
+    </AuthPage>
+  );
+}
 
-  async function perform(operation: () => Promise<void>) {
-    setPending(true);
-    setError(null);
+function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
+  const params = useSearchParams();
+  const [factor, setFactor] = useState<"totp" | "recovery" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  async function authenticate(action: () => Promise<void>) {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
     try {
-      await operation();
-    } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "The request could not be completed",
-      );
+      await action();
     } finally {
-      setPending(false);
+      pending.current = false;
+      setBusy(false);
     }
   }
-
-  async function setup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await perform(async () => {
-      await publicApi.request("/setup", {
-        method: "POST",
-        body: {
-          bootstrapSecret: form.get("bootstrapSecret"),
-          name: form.get("name"),
-          email: form.get("email"),
-          password: form.get("password"),
-          organisationName: form.get("organisationName"),
-        },
-      });
-      setNotice(
-        "Check your email to verify the admin account, then sign in. You will enter your organisation after signing in.",
-      );
-    });
-  }
-
-  if (isSetup)
+  if (factor)
     return (
-      <IdentityAuthFrame
-        title="Set up Rootset"
-        description="Create the first admin account and organisation for this installation."
-      >
-        {notice ? (
-          <>
-            <p className="notice" role="status">
-              {notice}
-            </p>
-            <a href="/login">Continue to sign in</a>
-          </>
-        ) : (
-          <form className="identity-form" onSubmit={setup}>
-            <TextField name="organisationName" isRequired>
-              <Label>Organisation name</Label>
-              <Input autoComplete="organization" />
-            </TextField>
-            <TextField name="name" isRequired>
-              <Label>Your name</Label>
-              <Input autoComplete="name" />
-            </TextField>
-            <TextField name="email" type="email" isRequired>
-              <Label>Email address</Label>
-              <Input autoComplete="email" />
-            </TextField>
-            <TextField name="password" type="password" isRequired>
-              <Label>Password</Label>
-              <Input minLength={15} autoComplete="new-password" />
-            </TextField>
-            <TextField name="bootstrapSecret" type="password" isRequired>
-              <Label>Installation setup secret</Label>
-              <Input autoComplete="off" />
-            </TextField>
-            {error && (
-              <p className="error-message" role="alert">
-                {error}
-              </p>
-            )}
-            <Button type="submit" isDisabled={pending}>
-              {pending ? "Creating account…" : "Create admin account"}
-            </Button>
-          </form>
-        )}
-      </IdentityAuthFrame>
-    );
-
-  if (isForgot || isVerification)
-    return (
-      <IdentityAuthFrame
-        title={isForgot ? "Reset your password" : "Verify your email"}
-        description={
-          isForgot
-            ? "We’ll send a reset link if your account is eligible."
-            : "Request a fresh verification link for your Rootset account."
-        }
-      >
-        <form
-          className="identity-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const email = String(
-              new FormData(event.currentTarget).get("email") ?? "",
-            );
-            void perform(async () => {
-              const result = isForgot
-                ? await authClient.requestPasswordReset({
-                    email,
-                    redirectTo: `${location.origin}/reset-password`,
-                  })
-                : await authClient.sendVerificationEmail({
-                    email,
-                    callbackURL: `${location.origin}/`,
-                  });
-              authFailure(result);
-              setNotice(
-                "Check your email. If your account is eligible, the link will arrive shortly.",
-              );
-            });
-          }}
-        >
-          <TextField name="email" type="email" isRequired>
-            <Label>Email address</Label>
-            <Input autoComplete="email" />
-          </TextField>
-          {notice && (
-            <p className="notice" role="status">
-              {notice}
-            </p>
-          )}
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-          <Button type="submit" isDisabled={pending}>
-            {pending ? "Sending…" : "Send link"}
-          </Button>
-          <a href="/login">Back to sign in</a>
-        </form>
-      </IdentityAuthFrame>
-    );
-
-  if (isReset)
-    return (
-      <IdentityAuthFrame
-        title="Choose a new password"
-        description="Your second factor stays enabled after a password reset."
-      >
-        <form
-          className="identity-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const newPassword = String(
-              new FormData(event.currentTarget).get("password") ?? "",
-            );
-            void perform(async () => {
-              const token =
-                new URLSearchParams(location.search).get("token") ?? "";
-              authFailure(
-                await authClient.resetPassword({ newPassword, token }),
-              );
-              setNotice(
-                "Your password was changed. Sign in with your password and any required second factor.",
-              );
-            });
-          }}
-        >
-          <TextField name="password" type="password" isRequired>
-            <Label>New password</Label>
-            <Input minLength={15} autoComplete="new-password" />
-          </TextField>
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-          {notice ? (
-            <>
-              <p className="notice" role="status">
-                {notice}
-              </p>
-              <a href="/login">Sign in</a>
-            </>
-          ) : (
-            <Button type="submit" isDisabled={pending}>
-              Change password
-            </Button>
-          )}
-        </form>
-      </IdentityAuthFrame>
-    );
-
-  if (invitation) return <InvitationScreen token={invitation} />;
-
-  if (phase !== "credentials")
-    return (
-      <IdentityAuthFrame
+      <AuthFrame
         title={
-          phase === "totp"
+          factor === "totp"
             ? "Enter your verification code"
             : "Use a recovery code"
         }
         description={
-          phase === "totp"
+          factor === "totp"
             ? "Enter the current code from your authenticator app."
             : "Each recovery code can be used once."
         }
       >
-        <form
-          className="identity-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const code = String(
-              new FormData(event.currentTarget).get("code") ?? "",
-            );
-            void perform(async () => {
+        <AuthForm
+          key={factor}
+          fields={[
+            {
+              name: "code",
+              label: factor === "totp" ? "Verification code" : "Recovery code",
+              required: true,
+              autoComplete: "one-time-code",
+              inputMode: factor === "totp" ? "numeric" : "text",
+              ...(factor === "totp"
+                ? { minLength: 6, maxLength: 6, pattern: "[0-9]{6}" }
+                : {}),
+            },
+          ]}
+          submitLabel="Verify and sign in"
+          busyLabel="Verifying…"
+          onSubmit={async ({ code }) =>
+            authenticate(async () => {
               authFailure(
-                phase === "totp"
+                factor === "totp"
                   ? await authClient.twoFactor.verifyTotp({
-                      code,
+                      code: code ?? "",
                       trustDevice: false,
                     })
                   : await authClient.twoFactor.verifyBackupCode({
-                      code,
+                      code: code ?? "",
                       trustDevice: false,
                     }),
               );
               onSignedIn();
-            });
-          }}
+            })
+          }
         >
-          <TextField name="code" isRequired>
-            <Label>
-              {phase === "totp" ? "Verification code" : "Recovery code"}
-            </Label>
-            <Input
-              autoComplete="one-time-code"
-              inputMode={phase === "totp" ? "numeric" : "text"}
-            />
-          </TextField>
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-          <Button type="submit" isDisabled={pending}>
-            {pending ? "Verifying…" : "Verify and sign in"}
-          </Button>
           <Button
             variant="secondary"
-            onPress={() => setPhase(phase === "totp" ? "recovery" : "totp")}
+            isDisabled={busy}
+            onPress={() => setFactor(factor === "totp" ? "recovery" : "totp")}
           >
-            {phase === "totp"
+            {factor === "totp"
               ? "Use a recovery code"
               : "Use an authenticator code"}
           </Button>
-        </form>
-      </IdentityAuthFrame>
+        </AuthForm>
+      </AuthFrame>
     );
-
   return (
-    <IdentityAuthFrame
-      title="Sign in to Rootset"
-      description="Continue to your organisation’s structured data."
+    <AuthFrame
+      title="Sign in"
+      description="Sign in to your team’s Rootset instance."
     >
       <IdentityCredentialsForm
-        error={error}
-        passwordAction={<a href="/forgot-password">Forgot password?</a>}
-        onSubmit={async ({ email, password }) => {
-          setError(null);
-          const result = await authClient.signIn.email({ email, password });
-          authFailure(result);
-          if (
-            result.data &&
-            "twoFactorRedirect" in result.data &&
-            result.data.twoFactorRedirect
-          )
-            setPhase("totp");
-          else onSignedIn();
-        }}
+        identifierLabel="Email"
+        identifierType="email"
+        identifierAutoComplete="email"
+        defaultIdentifier={params.get("email") ?? ""}
+        disabled={busy}
+        submitIcon={<HugeiconsIcon aria-hidden icon={Login01Icon} size={16} />}
+        passwordAction={
+          <Link href="/forgot-password" className={authTextActionClassName}>
+            Forgot password?
+          </Link>
+        }
+        onSubmit={async ({ identifier, password }) =>
+          authenticate(async () => {
+            const result = await authClient.signIn.email({
+              email: identifier,
+              password,
+            });
+            authFailure(result);
+            if (
+              result.data &&
+              "twoFactorRedirect" in result.data &&
+              result.data.twoFactorRedirect
+            )
+              setFactor("totp");
+            else onSignedIn();
+          })
+        }
       />
-      <Button
+      <AsyncActionButton
+        className="w-full"
         variant="secondary"
-        isDisabled={pending}
-        onPress={() =>
-          void perform(async () => {
+        isDisabled={busy}
+        pendingLabel="Waiting for your passkey…"
+        onAction={() =>
+          authenticate(async () => {
             authFailure(await authClient.signIn.passkey());
             onSignedIn();
           })
         }
       >
-        Sign in with a passkey
-      </Button>
-      <a href="/verification">Need a new verification email?</a>
-    </IdentityAuthFrame>
-  );
-}
-
-function InvitationScreen({ token }: { token: string }) {
-  const invitation = useQuery({
-    queryKey: ["invitation", token],
-    queryFn: ({ signal }) =>
-      publicApi.request<{
-        email: string;
-        role: string;
-        organisationName: string;
-        expiresAt: string;
-      }>(`/auth/invitations/${encodeURIComponent(token)}`, { signal }),
-  });
-  const session = authClient.useSession();
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  return (
-    <IdentityAuthFrame
-      title="Join an organisation"
-      description={
-        invitation.data
-          ? `You’re invited to ${invitation.data.organisationName} as ${invitation.data.role}.`
-          : "Loading invitation details…"
-      }
-    >
-      {invitation.isError ? (
-        <p role="alert" className="error-message">
-          {invitation.error.message}
-        </p>
-      ) : (
-        invitation.data && (
-          <>
-            <p>
-              Invitation for <strong>{invitation.data.email}</strong>. Expires{" "}
-              {new Date(invitation.data.expiresAt).toLocaleString()}.
-            </p>
-            {notice ? (
-              <>
-                <p role="status" className="notice">
-                  {notice}
-                </p>
-                <a href="/login">Continue to sign in</a>
-              </>
-            ) : session.data ? (
-              <>
-                <p>Signed in as {session.data.user.email}.</p>
-                <Button
-                  isDisabled={pending}
-                  onPress={async () => {
-                    setPending(true);
-                    setError(null);
-                    try {
-                      await publicApi.request("/auth/invitations/accept", {
-                        method: "POST",
-                        body: { token },
-                      });
-                      location.assign("/");
-                    } catch (failure) {
-                      setError(
-                        failure instanceof Error
-                          ? failure.message
-                          : "Invitation acceptance failed",
-                      );
-                    } finally {
-                      setPending(false);
-                    }
-                  }}
-                >
-                  Accept invitation
-                </Button>
-              </>
-            ) : (
-              <>
-                <IdentityCredentialsForm
-                  nameRequired
-                  emailReadOnly
-                  defaultEmail={invitation.data.email}
-                  submitLabel="Create account and accept"
-                  onSubmit={async ({ password, name }) => {
-                    await publicApi.request("/auth/invitations/accept", {
-                      method: "POST",
-                      body: { token, password, name },
-                    });
-                    setNotice(
-                      "Verify your email, then sign in and reopen this invitation to complete membership acceptance.",
-                    );
-                  }}
-                />
-                <a
-                  href={`/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`}
-                >
-                  Already have an account? Sign in
-                </a>
-              </>
-            )}
-            {error && (
-              <p role="alert" className="error-message">
-                {error}
-              </p>
-            )}
-          </>
-        )
-      )}
-    </IdentityAuthFrame>
+        Sign in with Passkey
+      </AsyncActionButton>
+      <Link className={authTextActionClassName} href="/verification">
+        Need a new verification email?
+      </Link>
+    </AuthFrame>
   );
 }

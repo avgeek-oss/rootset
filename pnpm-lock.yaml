@@ -301,9 +301,6 @@ importers:
       '@rootset/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@rootset/identity-web-ui':
-        specifier: workspace:*
-        version: link:../../packages/identity-web-ui
       '@rootset/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -556,22 +553,6 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.5
-
-  packages/identity-web-ui:
-    dependencies:
-      '@heroui/react':
-        specifier: 'catalog:'
-        version: 3.2.6(@internationalized/date@3.12.4)(@react-aria/ssr@3.10.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(@react-aria/utils@3.34.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(@react-spectrum/provider@3.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-aria-components@1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-aria@3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwind-merge@3.7.0)(tailwindcss@4.3.3)
-      react:
-        specifier: 'catalog:'
-        version: 19.3.0
-    devDependencies:
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.3.0
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
 
   packages/jobs:
     dependencies:

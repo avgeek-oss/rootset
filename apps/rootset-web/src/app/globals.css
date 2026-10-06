@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "@avgeek-oss/design-system/styles.css";
-@source "../../../../packages/identity-web-ui/src";
 
 :root {
   color-scheme: light;
@@ -113,13 +112,6 @@ h1 {
   font:
     700 28px/1 Georgia,
     serif;
-}
-.identity-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--foreground);
-  text-decoration: none;
 }
 .rootset-application {
   height: 100dvh;
@@ -510,51 +502,6 @@ h1 {
   padding: 10px 0;
   color: var(--rs-muted);
 }
-.identity-shell {
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 55px 24px 25px;
-  gap: 50px;
-  background: var(--rs-subtle);
-}
-.identity-brand {
-  font-size: 24px;
-  font-weight: 650;
-}
-.identity-panel {
-  width: 100%;
-  max-width: 410px;
-  display: grid;
-  gap: 22px;
-}
-.identity-heading {
-  display: grid;
-  gap: 10px;
-}
-.identity-heading p {
-  color: var(--rs-muted);
-}
-.identity-form {
-  display: grid;
-  gap: 20px;
-}
-.identity-footer {
-  margin-top: auto;
-  padding-top: 30px;
-  color: var(--rs-muted);
-  font-size: 12px;
-}
-.label-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.label-actions a {
-  font-size: 12px;
-}
 .rootset-dialog {
   width: min(440px, calc(100vw - 32px));
   max-height: calc(100dvh - 40px);
@@ -732,10 +679,6 @@ h1 {
   }
   .navbar-breadcrumb span:first-child {
     max-width: 130px;
-  }
-  .identity-shell {
-    padding-top: 30px;
-    gap: 32px;
   }
   input,
   select,

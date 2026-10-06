@@ -5,6 +5,18 @@ SQL singleton constraint, and setup claims the first Admin and organisation
 atomically. Invitations add people to that organisation; there is no selector
 or organisation creation/deletion workflow after setup.
 
+Public authentication uses the published shared auth layouts and forms. Setup
+first collects Rootset's installation secret, then uses `TeamSetup` for the team,
+admin account and date/time preferences. The server validates the secret and
+preferences before claiming setup, and saves the initial preferences in the same
+transaction as the account and organisation. An identical retry reconciles the
+original claim; changed account details or preferences cannot claim it again.
+
+Password reset uses the shared confirmation form and removes the reset token
+from the browser URL after success. Rootset retains verified-email invitations
+and authenticator challenges; the app binds the shared forms to those protocols.
+It does not substitute Towbar's invitation email-code protocol or passkey policy.
+
 Membership stores a user and one role: `admin`, `editor` or `viewer`. A present
 membership grants access; removing it removes access. There is no active-member
 flag or deleted-account lifecycle. Preserve actor references needed to interpret

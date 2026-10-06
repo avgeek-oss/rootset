@@ -51,10 +51,10 @@ uploads, retries and cleanup; expose partial outcomes and terminal failures.
 
 ## Spreadsheet
 
-Use Rootset's local adaptations of the Apache-2.0 Towbar/Mill shell, button and
-avatar components, Inter typography and HeroUI control/menu/modal composition.
-Share their semantic surfaces, rounded navigation items, compact buttons and
-widget cards. Keep Rootset's green accent. The primary sidebar contains databases,
+Use the public exports of `@avgeek-oss/design-system@1.1.0` for the application
+shell, navigation, account settings, authentication, buttons, avatars, typography
+and HeroUI controls. Rootset owns API adapters, permissions, UTC/date policy and
+branding. Keep Rootset's green accent. The primary sidebar contains databases,
 Account settings and Admin-only Team settings. It does not show the organisation
 name. The bottom-left identity opens the account/product/sign-out menu. A top bar
 provides the navigation toggle, current context and appearance control.
@@ -86,7 +86,8 @@ Load complete row windows and render every visible field, including columns
 outside the horizontal viewport. Horizontal scrolling must not fetch column
 projections or replace cell values with loading placeholders. The row index and
 configured frozen columns use native CSS sticky positioning. Keep the grid inside
-a bounded viewport with only Filter and Export actions aligned to the right.
+a bounded viewport with Filter immediately before Add row in the page header.
+Export and table settings are available in the table's secondary sidebar.
 Filter opens a HeroUI modal using Towbar Analytics' condition-row layout, with
 typed values, all/any matching, removable conditions and Clear/Cancel/Apply
 actions. The UI displays every field and has no sort, column-visibility, help or

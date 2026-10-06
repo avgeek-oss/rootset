@@ -14,7 +14,13 @@ import {
   resourcePath,
   unwrapData,
 } from "@rootset/web-client";
-import { IdentityCredentialsForm } from "@rootset/identity-web-ui";
+import {
+  AuthForm,
+  AuthPage,
+  AsyncActionButton,
+  IdentityCredentialsForm,
+} from "@avgeek-oss/design-system";
+import { AuthFrame } from "./auth-frame";
 import {
   ContextSchema,
   IdSchema,
@@ -823,9 +829,11 @@ function ConsentScreen() {
     }
   }
   return (
-    <main className="identity-shell">
-      <section className="identity-panel">
-        <h1>Connect to Rootset</h1>
+    <AuthPage>
+      <AuthFrame
+        title="Connect to Rootset"
+        description="Review the application and requested access before connecting."
+      >
         {request.isPending ? (
           <p role="status">Loading application request…</p>
         ) : request.isError ? (
@@ -886,7 +894,7 @@ function ConsentScreen() {
                 </p>
               )}
               {needsProof && (
-                <div className="identity-form">
+                <div className="content-grid">
                   <TextField
                     value={proofPassword}
                     onChange={setProofPassword}
@@ -942,8 +950,8 @@ function ConsentScreen() {
             </>
           )
         )}
-      </section>
-    </main>
+      </AuthFrame>
+    </AuthPage>
   );
 }
 
@@ -971,7 +979,6 @@ function AccountActionApproval({ id }: { id: string }) {
         };
       }>(`/me/actions/${encodeURIComponent(id)}`, { signal }),
   });
-  const [error, setError] = useState<string | null>(null);
   const [approved, setApproved] = useState(false);
   const [verified, setVerified] = useState(false);
   const [factor, setFactor] = useState<"totp" | "recovery" | null>(null);
@@ -991,31 +998,29 @@ function AccountActionApproval({ id }: { id: string }) {
       request.isError ||
       request.data.state !== "pending"
     ) {
-      setError(
+      throw new Error(
         repairUnavailable
           ? repairReviewError
           : "This request is not available for approval.",
       );
-      return;
     }
     setPending(true);
-    setError(null);
     try {
       await client.request(
         `/account-actions/${encodeURIComponent(id)}/approve`,
         { method: "POST", body: {} },
       );
       setApproved(true);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Approval failed");
     } finally {
       setPending(false);
     }
   }
   return (
-    <main className="identity-shell">
-      <section className="identity-panel">
-        <h1>Approve account action</h1>
+    <AuthPage>
+      <AuthFrame
+        title="Approve account action"
+        description="Review the request and confirm your identity."
+      >
         {request.data && (
           <>
             <p>
@@ -1087,7 +1092,8 @@ function AccountActionApproval({ id }: { id: string }) {
               Your identity is verified. Approve the action described above to
               let the requesting application complete it.
             </p>
-            <Button
+            <AsyncActionButton
+              pendingLabel="Approving…"
               isDisabled={
                 pending ||
                 request.isPending ||
@@ -1095,120 +1101,113 @@ function AccountActionApproval({ id }: { id: string }) {
                 repairUnavailable ||
                 request.data?.state !== "pending"
               }
-              onPress={() => void approve()}
+              onAction={approve}
             >
-              {pending ? "Approving…" : "Approve this action"}
-            </Button>
+              Approve this action
+            </AsyncActionButton>
           </>
         ) : factor ? (
-          <form
-            className="identity-form"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const code = String(
-                new FormData(event.currentTarget).get("code") ?? "",
-              );
+          <AuthForm
+            key={factor}
+            fields={[
+              {
+                name: "code",
+                label:
+                  factor === "totp" ? "Authenticator code" : "Recovery code",
+                required: true,
+                autoComplete: "one-time-code",
+                inputMode: factor === "totp" ? "numeric" : "text",
+                ...(factor === "totp"
+                  ? { minLength: 6, maxLength: 6, pattern: "[0-9]{6}" }
+                  : {}),
+              },
+            ]}
+            submitLabel="Verify identity"
+            busyLabel="Verifying…"
+            onSubmit={async ({ code }) => {
               setPending(true);
-              setError(null);
               try {
                 const result =
                   factor === "totp"
                     ? await authClient.twoFactor.verifyTotp({
-                        code,
+                        code: code ?? "",
                         trustDevice: false,
                       })
                     : await authClient.twoFactor.verifyBackupCode({
-                        code,
+                        code: code ?? "",
                         trustDevice: false,
                       });
                 if (result.error) throw new Error(result.error.message);
                 await finishReauthentication();
-              } catch (failure) {
-                setError(
-                  failure instanceof Error
-                    ? failure.message
-                    : "Factor verification failed",
-                );
               } finally {
                 setPending(false);
               }
             }}
           >
-            <TextField name="code" isRequired>
-              <Label>
-                {factor === "totp" ? "Authenticator code" : "Recovery code"}
-              </Label>
-              <Input
-                autoComplete="one-time-code"
-                inputMode={factor === "totp" ? "numeric" : "text"}
-                autoFocus
-              />
-            </TextField>
-            <Button type="submit" isDisabled={pending}>
-              Verify identity
-            </Button>
             <Button
               variant="secondary"
+              isDisabled={pending}
               onPress={() => setFactor(factor === "totp" ? "recovery" : "totp")}
             >
               {factor === "totp"
                 ? "Use a recovery code"
                 : "Use an authenticator code"}
             </Button>
-          </form>
+          </AuthForm>
         ) : (
           <>
             <p>Confirm your identity to approve only this bound request.</p>
             <IdentityCredentialsForm
-              onSubmit={async ({ email, password }) => {
-                const result = await authClient.signIn.email({
-                  email,
-                  password,
-                });
-                if (result.error) throw new Error(result.error.message);
-                if (
-                  result.data &&
-                  "twoFactorRedirect" in result.data &&
-                  result.data.twoFactorRedirect
-                ) {
-                  setFactor("totp");
-                  return;
+              identifierLabel="Email"
+              identifierType="email"
+              identifierAutoComplete="email"
+              disabled={pending}
+              onSubmit={async ({ identifier, password }) => {
+                setPending(true);
+                try {
+                  const result = await authClient.signIn.email({
+                    email: identifier,
+                    password,
+                  });
+                  if (result.error) throw new Error(result.error.message);
+                  if (
+                    result.data &&
+                    "twoFactorRedirect" in result.data &&
+                    result.data.twoFactorRedirect
+                  ) {
+                    setFactor("totp");
+                    return;
+                  }
+                  await finishReauthentication();
+                } finally {
+                  setPending(false);
                 }
-                await finishReauthentication();
               }}
               submitLabel="Verify identity"
             />
-            <Button
+            <AsyncActionButton
               variant="secondary"
-              onPress={async () => {
-                const result = await authClient.signIn.passkey();
-                if (result.error) {
-                  setError(
-                    result.error.message ?? "Passkey verification failed",
-                  );
-                  return;
-                }
+              isDisabled={pending}
+              pendingLabel="Waiting for your passkey…"
+              onAction={async () => {
+                setPending(true);
                 try {
+                  const result = await authClient.signIn.passkey();
+                  if (result.error)
+                    throw new Error(
+                      result.error.message ?? "Passkey verification failed",
+                    );
                   await finishReauthentication();
-                } catch (failure) {
-                  setError(
-                    failure instanceof Error
-                      ? failure.message
-                      : "Approval failed",
-                  );
+                } finally {
+                  setPending(false);
                 }
               }}
             >
               Verify with passkey
-            </Button>
+            </AsyncActionButton>
           </>
         )}
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-      </section>
-    </main>
+      </AuthFrame>
+    </AuthPage>
   );
 }

@@ -310,7 +310,31 @@ test(
             email,
             password,
             organisationName: "Identity verification",
+            preferences: {
+              timezone: "Asia/Kolkata",
+              dateFormat: "DD/MM/YYYY",
+              timeFormat: "12h",
+            },
           };
+          await assert.rejects(() =>
+            service.claimSetup({ ...input, bootstrapSecret: "wrong-secret" }),
+          );
+          await assert.rejects(() =>
+            service.claimSetup({
+              ...input,
+              preferences: { ...input.preferences, timezone: "invalid/zone" },
+            }),
+          );
+          await assert.rejects(() =>
+            service.claimSetup({
+              ...input,
+              preferences: { ...input.preferences, theme: "dark" },
+            }),
+          );
+          assert.deepEqual(await service.setupStatus(), {
+            claimed: false,
+            verified: false,
+          });
           const attempts = await Promise.allSettled([
             service.claimSetup(input),
             service.claimSetup(input),
@@ -337,6 +361,21 @@ test(
             )
           ).rows[0];
           orgId = claimed.org_id;
+          assert.deepEqual(
+            (
+              await owner.query(
+                `SELECT timezone,date_format,time_format,locale,theme FROM rootset_control.user_preferences WHERE user_id=$1`,
+                [claimed.user_id],
+              )
+            ).rows[0],
+            {
+              timezone: "Asia/Kolkata",
+              date_format: "DD/MM/YYYY",
+              time_format: "12h",
+              locale: "en",
+              theme: "system",
+            },
+          );
           assert.equal(
             (
               await owner.query(
@@ -368,6 +407,12 @@ test(
           ProfileSchema.parse(await execute("getProfile", actor, {}));
           await assert.rejects(() =>
             service.claimSetup({ ...input, email: "new@example.test" }),
+          );
+          await assert.rejects(() =>
+            service.claimSetup({
+              ...input,
+              preferences: { ...input.preferences, timeFormat: "24h" },
+            }),
           );
         },
       );
