@@ -12,10 +12,10 @@ import {
   type PoolClient,
 } from "@rootset/database";
 import { OperationalObserver } from "../../packages/observability/src/index.js";
-import { ownedPostgres } from "./owned-postgres.js";
+import { isolatedDatabase } from "./isolated-database.js";
 import { verificationCase } from "./evidence.js";
 
-let cluster: Awaited<ReturnType<typeof ownedPostgres>>;
+let cluster: Awaited<ReturnType<typeof isolatedDatabase>>;
 let storage: TableStorage;
 let managedDatabaseId: string;
 let managedTableId: string;
@@ -26,13 +26,11 @@ const actor: Actor = {
   id: newId(),
   userId: newId(),
   orgId,
-  role: "owner",
-  scopes: ["*"],
-  targets: [],
-  unrestricted: true,
+  role: "admin",
+  scopes: [],
 };
 before(async () => {
-  cluster = await ownedPostgres();
+  cluster = await isolatedDatabase();
 });
 after(async () => {
   await cluster?.close();
@@ -59,108 +57,16 @@ async function denied(pool: Pool, sql: string, setup?: string) {
 verificationCase(
   {
     id: "OWNERSHIP-01",
-    gates: ["DEV-05", "DB-05"],
+    gates: ["V1-01", "V1-38"],
     scope:
-      "Separate real PostgreSQL cluster reproduces original DDL SET ROLE superuser path, applies forward ownership migrations concurrently in two databases, then rejects deployment/definer/system role escalation and protected-function/table alterations",
+      "Fresh baseline on an isolated PostgreSQL database rejects deployment/definer/system role escalation and protected function/table alterations",
   },
   async () => {
-    const legacyOrg = newId(),
-      droppedDatabase = newId(),
-      retainedDatabase = newId(),
-      retainedTable = newId(),
-      droppedTable = newId();
-    const droppedSchema = `rsd_${droppedDatabase.toLowerCase()}`;
-    const retainedSchema = `rsd_${retainedDatabase.toLowerCase()}`;
-    const retainedPhysical = `rst_${retainedTable.toLowerCase()}`;
-    const droppedPhysical = `rst_${droppedTable.toLowerCase()}`;
-    await cluster.owner.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Retained upgrade fixture')",
-      [legacyOrg],
-    );
-    await cluster.owner.query(
-      "INSERT INTO rootset_control.databases(id,org_id,name,schema_name,state) VALUES($1,$2,'Physically deleted',$3,'deleted'),($4,$2,'Retained physical data',$5,'deleted')",
-      [
-        droppedDatabase,
-        legacyOrg,
-        droppedSchema,
-        retainedDatabase,
-        retainedSchema,
-      ],
-    );
-    await cluster.owner.query(
-      `CREATE SCHEMA "${droppedSchema}"; DROP SCHEMA "${droppedSchema}"; CREATE SCHEMA "${retainedSchema}"; CREATE TABLE "${retainedSchema}"."${retainedPhysical}"(row_id varchar(26),org_id varchar(26),value text); CREATE TABLE "${retainedSchema}"."${droppedPhysical}"(row_id varchar(26)); DROP TABLE "${retainedSchema}"."${droppedPhysical}"`,
-    );
-    await cluster.owner.query(
-      `INSERT INTO "${retainedSchema}"."${retainedPhysical}" VALUES($1,$2,'preserved-upgrade-row')`,
-      [newId(), legacyOrg],
-    );
-    await cluster.owner.query(
-      "INSERT INTO rootset_control.tables(id,database_id,org_id,name,physical_name,state,row_count) VALUES($1,$2,$3,'Retained physical table',$4,'deleted',1),($5,$2,$3,'Dropped physical table',$6,'deleted',0)",
-      [
-        retainedTable,
-        retainedDatabase,
-        legacyOrg,
-        retainedPhysical,
-        droppedTable,
-        droppedPhysical,
-      ],
-    );
-    await cluster.owner.query(
-      "CREATE TABLE rootset_control.cell_changes_upgrade_fixture PARTITION OF rootset_control.cell_changes FOR VALUES FROM ('2020-01-01') TO ('2020-02-01'); CREATE TABLE rootset_control.cell_changes_dropped_fixture PARTITION OF rootset_control.cell_changes FOR VALUES FROM ('2021-01-01') TO ('2021-02-01'); DROP TABLE rootset_control.cell_changes_dropped_fixture",
-    );
-    await withOrg(cluster.owner, legacyOrg, (connection) =>
-      connection.query(
-        "INSERT INTO rootset_control.cell_changes(org_id,database_id,table_id,row_id,field_id,mutation_id,old_value,new_value,field_definition,new_version,operation,actor,context,changed_at) VALUES($1,$2,$3,$4,$5,$6,NULL,'\"retained-cell\"'::jsonb,'{}',1,'create','{}','{}','2020-01-02T00:00:00Z')",
-        [legacyOrg, retainedDatabase, retainedTable, newId(), newId(), newId()],
-      ),
-    );
-    const prior = await cluster.ddl.connect();
-    try {
-      await prior.query("SET ROLE rootset_owner");
-      assert.equal(
-        (
-          await prior.query(
-            "SELECT rolsuper FROM pg_roles WHERE rolname=current_user",
-          )
-        ).rows[0]!.rolsuper,
-        true,
-      );
-      await prior.query("RESET ROLE");
-    } finally {
-      prior.release();
-    }
-    const applied = await cluster.finalise();
-    assert.ok(applied.includes("027_runtime_ownership.sql"));
-    assert.ok(applied.includes("028_operator_metrics.sql"));
-    assert.deepEqual(
-      (
-        await cluster.owner.query(
-          `SELECT value FROM "${retainedSchema}"."${retainedPhysical}"`,
-        )
-      ).rows,
-      [{ value: "preserved-upgrade-row" }],
-    );
-    assert.equal(
-      (
-        await cluster.owner.query(
-          "SELECT count(*)::integer AS count FROM rootset_control.cell_changes_upgrade_fixture",
-        )
-      ).rows[0]!.count,
-      1,
-    );
-    assert.equal(
-      (
-        await cluster.owner.query(
-          "SELECT relforcerowsecurity FROM pg_class WHERE oid='rootset_control.cell_changes_upgrade_fixture'::regclass",
-        )
-      ).rows[0]!.relforcerowsecurity,
-      true,
-    );
+    assert.deepEqual(cluster.appliedMigrations, ["0001_baseline.sql"]);
     for (const role of [
       "rootset_owner",
       "rootset_identity_definer",
       "rootset_worker_definer",
-      "rootset_capacity_definer",
       "rootset_metrics_definer",
       "pg_read_server_files",
       "pg_write_server_files",
@@ -170,14 +76,12 @@ verificationCase(
     for (const role of [
       "rootset_managed_owner",
       "rootset_identity_definer",
-      "rootset_capacity_definer",
       "rootset_metrics_definer",
     ])
       await denied(cluster.app, `SET ROLE ${role}`);
     for (const role of [
       "rootset_managed_owner",
       "rootset_identity_definer",
-      "rootset_capacity_definer",
       "rootset_metrics_definer",
     ])
       await denied(cluster.identity, `SET ROLE ${role}`);
@@ -189,10 +93,6 @@ verificationCase(
     );
     await denied(
       cluster.ddl,
-      "ALTER FUNCTION rootset_control.configure_capacity(jsonb) SET search_path=public",
-    );
-    await denied(
-      cluster.ddl,
       "ALTER FUNCTION rootset_control.operator_metrics() SET search_path=public",
     );
     await denied(
@@ -201,17 +101,13 @@ verificationCase(
     );
     await denied(
       cluster.ddl,
-      "ALTER TABLE rootset_control.capacity_settings ADD COLUMN forbidden boolean",
-    );
-    await denied(
-      cluster.ddl,
       "CREATE FUNCTION rootset_control.forbidden() RETURNS text LANGUAGE sql AS 'SELECT current_user::text'",
     );
     await denied(cluster.app, "SELECT rootset_control.operator_metrics()");
     await denied(cluster.ddl, "SELECT rootset_control.operator_metrics()");
     await cluster.owner.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2),($3,$4)",
-      [orgId, "Ownership fixture", peerOrgId, "Peer ownership fixture"],
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+      [orgId, "Ownership fixture"],
     );
     storage = new TableStorage({
       pool: cluster.app,
@@ -224,9 +120,9 @@ verificationCase(
 verificationCase(
   {
     id: "OWNERSHIP-02",
-    gates: ["DB-02", "DB-05", "AUD-04"],
+    gates: ["V1-10", "V1-20", "V1-38"],
     scope:
-      "Managed non-bypass native ownership preserves actual row/history writes and peer RLS; DDL cannot attach an escalating trigger to privileged identity/capacity write targets or read credential columns through a native view",
+      "Managed non-bypass native ownership preserves actual row/history writes and RLS outside the sole organisation; DDL cannot attach an escalating trigger to privileged identity write targets or read credential columns through a native view",
   },
   async () => {
     const database = await storage.createDatabase(actor, {
@@ -235,7 +131,7 @@ verificationCase(
     });
     const table = await storage.createTable(actor, database.id, {
       name: "Native table",
-      fields: [{ apiKey: "CODE", label: "Code", type: "text", charLimit: 64 }],
+      fields: [{ name: "CODE", type: "text", charLimit: 64 }],
       idempotencyKey: newId(),
     });
     managedDatabaseId = database.id;
@@ -267,18 +163,19 @@ verificationCase(
       relrowsecurity: true,
       relforcerowsecurity: true,
     });
-    const peer = { ...actor, orgId: peerOrgId };
-    const peerDatabase = await storage.createDatabase(peer, {
+    const peerDatabase = await storage.createDatabase(actor, {
       name: "Peer",
       idempotencyKey: newId(),
     });
-    const peerTable = await storage.createTable(peer, peerDatabase.id, {
+    const peerTable = await storage.createTable(actor, peerDatabase.id, {
       name: "Peer native",
-      fields: [{ apiKey: "CODE", label: "Code", type: "text" }],
+      fields: [{ name: "CODE", type: "text" }],
       idempotencyKey: newId(),
     });
-    await storage.createRow(peer, peerTable.id, { CODE: "peer-private-value" });
-    await withOrg(cluster.ddl, orgId, async (connection) => {
+    await storage.createRow(actor, peerTable.id, {
+      CODE: "peer-private-value",
+    });
+    await withOrg(cluster.ddl, peerOrgId, async (connection) => {
       await connection.query("SET LOCAL ROLE rootset_managed_owner");
       const peerRows = await connection.query(
         `SELECT row_id FROM "${peerTable.schemaName}"."${peerTable.physicalName}"`,
@@ -302,10 +199,6 @@ verificationCase(
     );
     await denied(
       cluster.ddl,
-      `CREATE TRIGGER forbidden_capacity_trigger AFTER UPDATE ON rootset_control.capacity_settings FOR EACH ROW EXECUTE FUNCTION rootset_control.enforce_row()`,
-    );
-    await denied(
-      cluster.ddl,
       `CREATE TRIGGER forbidden_identity_trigger AFTER UPDATE ON rootset_control.users FOR EACH ROW EXECUTE FUNCTION rootset_control.enforce_row()`,
     );
   },
@@ -313,49 +206,10 @@ verificationCase(
 
 verificationCase(
   {
-    id: "OWNERSHIP-03",
-    gates: ["DEV-05", "DB-05", "OPS-03", "OPS-06"],
-    scope:
-      "Fresh concurrent upgrades create the previously absent reporter role; a separate populated-prefix upgrade strips unsafe existing reporter super/bypass/membership/credential grants while preserving only the actual fixed report functions",
-  },
-  async () => {
-    const result = await cluster.reporterUpgrade();
-    assert.ok(result.paths.includes("data") && result.paths.includes("wal"));
-    assert.equal(result.checkpoint, true);
-    const role = (
-      await cluster.owner.query(
-        "SELECT rolcanlogin,rolsuper,rolbypassrls,rolcreatedb,rolcreaterole,rolreplication,rolinherit FROM pg_roles WHERE rolname='rootset_capacity_reporter'",
-      )
-    ).rows[0];
-    assert.deepEqual(role, {
-      rolcanlogin: false,
-      rolsuper: false,
-      rolbypassrls: false,
-      rolcreatedb: false,
-      rolcreaterole: false,
-      rolreplication: false,
-      rolinherit: false,
-    });
-    assert.equal(
-      (
-        await cluster.owner.query(
-          "SELECT count(*)::integer AS count FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member WHERE r.rolname='rootset_capacity_reporter'",
-        )
-      ).rows[0]!.count,
-      0,
-    );
-    await denied(cluster.ddl, "SET ROLE rootset_capacity_reporter");
-    await denied(cluster.app, "SET ROLE rootset_capacity_reporter");
-    await denied(cluster.identity, "SET ROLE rootset_capacity_reporter");
-  },
-);
-
-verificationCase(
-  {
     id: "OBSERVABILITY-01",
-    gates: ["OPS-05", "OPS-06", "API-10"],
+    gates: ["V1-30"],
     scope:
-      "Actual identity-role operator function aggregates two organisations despite forced RLS; normal API/DDL roles cannot invoke it, and structured request metrics/logs redact extra input while reporting timeout/admission failures",
+      "Actual identity-role operator function aggregates the single organisation despite forced RLS; normal API/DDL roles cannot invoke it, and structured request metrics/logs redact extra input while reporting timeout/admission failures",
   },
   async () => {
     const logs: string[] = [];
@@ -381,7 +235,7 @@ verificationCase(
       operationId: "createRow",
       status: 503,
       durationMs: 12,
-      errorCode: "STORAGE_DISK_PRESSURE",
+      errorCode: "DEPENDENCY_UNAVAILABLE",
     });
     observer.record({
       requestId: newId(),
@@ -395,13 +249,12 @@ verificationCase(
     assert.equal(result.database!.storage.activeDatabases, 2);
     assert.equal(result.database!.storage.activeTables, 2);
     assert.equal(result.database!.storage.liveRows, "2");
-    assert.equal(result.database!.storage.historyEvents, "3");
+    assert.equal(result.database!.storage.historyEvents, "2");
     assert.ok(BigInt(result.database!.storage.historyBytes) > 0n);
     assert.ok(BigInt(result.database!.walDirectoryBytes) > 0n);
     assert.equal(result.requests.total, 3);
     assert.equal(result.requests.timeouts, 1);
     assert.equal(result.requests.rowLimitRejections, 1);
-    assert.equal(result.requests.storageAdmissionRejections, 1);
     assert.equal(
       logs.some((log) => log.includes("do-not-log")),
       false,
@@ -422,9 +275,9 @@ verificationCase(
 verificationCase(
   {
     id: "OBSERVABILITY-02",
-    gates: ["OPS-06", "JOB-05"],
+    gates: ["V1-26", "V1-30"],
     scope:
-      "Actual application and bounded two-connection admission pool saturation and SMTP connection failure plus persisted expired job lease, old queue, degraded worker and failed schema states produce operator signals while another application read remains usable",
+      "Actual application and bounded two-connection admission pool saturation and SMTP connection failure plus persisted expired job lease, old queue, degraded worker and failed schema states produce installation signals while another application read remains usable",
   },
   async () => {
     const pool = cluster.app;
@@ -498,13 +351,14 @@ verificationCase(
         from: "rootset@example.test",
       },
     });
-    const emailId = await outbox.enqueue(cluster.identity, {
-      to: "fixture@example.test",
-      template: "installation-test",
-      payload: { details: "Operational fixture delivery" },
-      dedupeKey: newId(),
-    });
+    let emailId: string | undefined;
     try {
+      emailId = await outbox.enqueue(cluster.identity, {
+        to: "fixture@example.test",
+        template: "account-verification",
+        payload: { url: "http://127.0.0.1:4300/fixture-verification" },
+        dedupeKey: newId(),
+      });
       assert.equal(await outbox.deliverNext(), true);
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -564,7 +418,7 @@ verificationCase(
     assert.equal(signal.database!.jobs.expiredLeases, 1);
     assert.equal(signal.database!.schema.failed, 1);
     const databases = await storage.listDatabases(actor);
-    assert.equal(databases.length, 1);
+    assert.equal(databases.length, 2);
     const unavailable = new OperationalObserver({
       operatorPool: cluster.app,
       pools: { api: cluster.app },
@@ -585,17 +439,13 @@ verificationCase(
 verificationCase(
   {
     id: "OWNERSHIP-04",
-    gates: ["DB-02", "DB-05", "MCP-11", "JOB-01"],
+    gates: ["V1-10", "V1-24", "V1-38"],
     scope:
-      "Actual restricted identity login can insert/read/update approved job-control records only in its current organisation; peer reads and updates return no rows, peer inserts and organisation reassignment fail RLS, and DELETE remains denied on all four control tables",
+      "Actual restricted identity login can insert/read/update approved job-control records only in its current organisation; reads and updates outside the sole organisation return no rows, mismatched-context inserts and organisation reassignment fail RLS, and DELETE remains denied on all three control tables",
   },
   async () => {
-    const peer = { ...actor, orgId: peerOrgId };
-    const peerDatabase = (await storage.listDatabases(peer))[0]!;
-    const peerTable = (await storage.listTables(peer, peerDatabase.id))[0]!;
     const fixtures = [
       { org: orgId, database: managedDatabaseId, table: managedTableId },
-      { org: peerOrgId, database: peerDatabase.id, table: peerTable.id },
     ];
     const records: Record<string, string[]> = {};
     const insert = async (
@@ -619,11 +469,6 @@ verificationCase(
               "INSERT INTO rootset_control.backups(id,org_id,database_id,job_id,state) VALUES($1,$2,$3,$4,'queued')",
               [...args, jobId],
             );
-          case "backup_policies":
-            return connection.query(
-              "INSERT INTO rootset_control.backup_policies(id,org_id,database_id,actor,cron) VALUES($1,$2,$3,'{}','0 0 * * *')",
-              args,
-            );
           case "history_retention_policies":
             return connection.query(
               "INSERT INTO rootset_control.history_retention_policies(id,org_id,database_id,table_id,actor,retention_days,cron) VALUES($1,$2,$3,$4,'{}',365,'0 0 * * *')",
@@ -635,12 +480,7 @@ verificationCase(
       });
     for (const [index, target] of fixtures.entries()) {
       const jobId = newId();
-      for (const table of [
-        "jobs",
-        "backups",
-        "backup_policies",
-        "history_retention_policies",
-      ]) {
+      for (const table of ["jobs", "backups", "history_retention_policies"]) {
         const id = table === "jobs" ? jobId : newId();
         (records[table] ??= [])[index] = id;
         await insert(cluster.identity, target.org, target, table, id, jobId);
@@ -667,13 +507,13 @@ verificationCase(
       }
     }
     for (const table of Object.keys(records)) {
-      const peerId = records[table]![1]!;
-      await withOrg(cluster.identity, orgId, async (connection) => {
+      const id = records[table]![0]!;
+      await withOrg(cluster.identity, peerOrgId, async (connection) => {
         assert.equal(
           (
             await connection.query(
               `SELECT id FROM rootset_control.${table} WHERE id=$1`,
-              [peerId],
+              [id],
             )
           ).rowCount,
           0,
@@ -682,7 +522,7 @@ verificationCase(
           (
             await connection.query(
               `UPDATE rootset_control.${table} SET updated_at=now() WHERE id=$1 RETURNING id`,
-              [peerId],
+              [id],
             )
           ).rowCount,
           0,
@@ -691,11 +531,11 @@ verificationCase(
       await assert.rejects(
         insert(
           cluster.identity,
-          orgId,
-          fixtures[1]!,
+          peerOrgId,
+          fixtures[0]!,
           table,
           newId(),
-          records.jobs![1]!,
+          records.jobs![0]!,
         ),
         (error: unknown) =>
           !!error &&
@@ -705,7 +545,7 @@ verificationCase(
       );
       await denied(
         cluster.identity,
-        `UPDATE rootset_control.${table} SET org_id='${peerOrgId}' WHERE id='${records[table]![0]}'`,
+        `UPDATE rootset_control.${table} SET org_id='${peerOrgId}' WHERE id='${id}'`,
         `SET LOCAL rootset.org_id='${orgId}'`,
       );
       await denied(
@@ -717,7 +557,7 @@ verificationCase(
         (
           await cluster.owner.query(
             `SELECT id FROM rootset_control.${table} WHERE id=$1 AND org_id=$2`,
-            [peerId, peerOrgId],
+            [id, orgId],
           )
         ).rowCount,
         1,

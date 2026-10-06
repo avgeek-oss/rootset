@@ -20,9 +20,8 @@ test("Queued admission HMAC preserves exact business/proof and principal binding
     credentialId: newId(),
     clientId: "reviewed-client",
     orgId: newId(),
-    role: "owner",
+    role: "admin",
     scopes: [],
-    targets: [],
   };
   const proof = newId(),
     key = newId(),
@@ -151,18 +150,17 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
     id: newId(),
     userId: newId(),
     orgId,
-    role: "owner",
+    role: "admin",
     scopes: ["members:manage"],
-    targets: [],
-    unrestricted: true,
   };
   try {
-    assert.ok(
-      fixture.appliedMigrations.includes("033_control_mutation_replays.sql"),
+    assert.ok(fixture.appliedMigrations.length > 0);
+    await fixture.owner.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Replay fixture')",
+      [orgId],
     );
     await fixture.owner.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Replay fixture'),($2,'Foreign replay fixture')",
-      [orgId, foreignOrgId],
+      "CREATE SCHEMA replay_test; CREATE TABLE replay_test.effects(id varchar(26) PRIMARY KEY,operation text NOT NULL); GRANT USAGE ON SCHEMA replay_test TO rootset_identity; GRANT INSERT ON replay_test.effects TO rootset_identity",
     );
     const input = {
       email: "invited@example.test",
@@ -176,8 +174,8 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
         runMutation(c, actor, "inviteMember", input, key, secret, async () => {
           effects++;
           await c.query(
-            "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,outcome) VALUES($1,$2,'session',$3,$4,'inviteMember','{}')",
-            [newId(), orgId, actor.id, actor.userId],
+            "INSERT INTO replay_test.effects(id,operation) VALUES($1,'inviteMember')",
+            [newId()],
           );
           await new Promise((resolve) => setTimeout(resolve, 30));
           return {
@@ -252,7 +250,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
         assert.equal(
           (
             await fixture.owner.query(
-              "SELECT count(*)::int AS count FROM rootset_control.account_audit",
+              "SELECT count(*)::int AS count FROM replay_test.effects",
             )
           ).rows[0].count,
           1,
@@ -260,7 +258,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
       },
     );
     await t.test(
-      "Cross-organisation and changed principal/credential/client/operation bindings never replay another authority",
+      "Forged context and changed principal/credential/client/operation bindings never replay another authority",
       async () => {
         for (const changed of [
           { ...actor, id: newId() },
@@ -291,7 +289,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
       },
     );
     await t.test(
-      "An effect failure rolls back its receipt and audit together; a retry can safely complete",
+      "An effect failure rolls back its receipt and effect together; a retry can safely complete",
       async () => {
         const unbound = await fixture.identity.connect();
         try {
@@ -324,8 +322,8 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
                 secret,
                 async () => {
                   await c.query(
-                    "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,outcome) VALUES($1,$2,'session',$3,$4,'updateProfile','{}')",
-                    [newId(), orgId, actor.id, actor.userId],
+                    "INSERT INTO replay_test.effects(id,operation) VALUES($1,'updateProfile')",
+                    [newId()],
                   );
                   throw new Error("rollback fixture");
                 },
@@ -342,7 +340,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
         assert.equal(
           (
             await fixture.owner.query(
-              "SELECT count(*)::int AS count FROM rootset_control.account_audit WHERE operation='updateProfile'",
+              "SELECT count(*)::int AS count FROM replay_test.effects WHERE operation='updateProfile'",
             )
           ).rows[0].count,
           0,
@@ -510,7 +508,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
           { found: true, result: expected },
         );
         const invalidKey = newId();
-        const auditId = newId();
+        const effectId = newId();
         await assert.rejects(
           withOrg(fixture.identity, orgId, (client) =>
             runMutation(
@@ -522,8 +520,8 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
               secret,
               async () => {
                 await client.query(
-                  "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,outcome) VALUES($1,$2,'session',$3,$4,'updateViewPreferences','{}')",
-                  [auditId, orgId, actor.id, actor.userId],
+                  "INSERT INTO replay_test.effects(id,operation) VALUES($1,'updateViewPreferences')",
+                  [effectId],
                 );
                 return { ...expected, accessToken: "must not be persisted" };
               },
@@ -534,8 +532,8 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
         assert.equal(
           (
             await fixture.owner.query(
-              "SELECT id FROM rootset_control.account_audit WHERE id=$1",
-              [auditId],
+              "SELECT id FROM replay_test.effects WHERE id=$1",
+              [effectId],
             )
           ).rowCount,
           0,

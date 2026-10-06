@@ -12,6 +12,7 @@
     "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
+    "@rootset/access": "workspace:*",
     "@rootset/contracts": "workspace:*",
     "@rootset/database": "workspace:*",
     "@rootset/core": "workspace:*",

@@ -14,8 +14,7 @@ describe("Settings transport contract", () => {
         orgId: memberId,
         expectedSchemaVersion: 1,
         field: {
-          apiKey: "AIRLINE_ID",
-          label: "Airline ID",
+          name: "AIRLINE_ID",
           type: "text",
           charLimit: 8,
         },
@@ -28,8 +27,7 @@ describe("Settings transport contract", () => {
         tableId,
         expectedSchemaVersion: 1,
         field: {
-          apiKey: "AIRLINE_ID",
-          label: "Airline ID",
+          name: "AIRLINE_ID",
           type: "text",
           charLimit: 8,
         },
@@ -53,13 +51,13 @@ describe("Settings transport contract", () => {
     expect(() =>
       resolveSettingsOperation(`${table}/fields`, "POST", {
         expectedSchemaVersion: 1,
-        field: { apiKey: "ACTIVE", label: "Active", type: "boolean", min: 0 },
+        field: { name: "ACTIVE", type: "boolean", min: 0 },
       }),
     ).toThrow();
     expect(() =>
       resolveSettingsOperation(`${table}/fields`, "POST", {
         expectedSchemaVersion: 1,
-        field: { apiKey: "CODE", label: "Code", type: "text", charLimit: "12" },
+        field: { name: "CODE", type: "text", charLimit: "12" },
       }),
     ).toThrow();
     expect(() =>
@@ -69,7 +67,7 @@ describe("Settings transport contract", () => {
       }),
     ).toThrow();
   });
-  it("validates key targets and preserves explicit null expiry", () => {
+  it("rejects removed key controls and preserves explicit null expiry", () => {
     expect(() =>
       resolveSettingsOperation("/me/keys", "POST", {
         orgId,
@@ -82,8 +80,6 @@ describe("Settings transport contract", () => {
       resolveSettingsOperation("/me/keys", "POST", {
         orgId,
         name: "Integration",
-        scopes: ["rows:read"],
-        targets: [{ databaseId, level: "read" }],
         expiresAt: null,
       })?.input.expiresAt,
     ).toBeNull();

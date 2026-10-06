@@ -33,9 +33,6 @@ try {
       await client.query(
         "UPDATE rootset_control.jobs SET state='cancelled',lease_token=NULL,lease_until=NULL WHERE state IN ('queued','running')",
       );
-      await client.query(
-        "UPDATE rootset_control.backup_policies SET enabled=false,next_occurrence=NULL",
-      );
       return (
         await client.query<{ id: string; object_key: string }>(
           "SELECT id,object_key FROM rootset_control.artifacts",
@@ -64,10 +61,6 @@ try {
     }
     await withOrg(worker, org.id, (client) =>
       client.query("UPDATE rootset_control.backups SET state='deleted'"),
-    );
-    await owner.query(
-      "UPDATE rootset_control.organisations SET state='suspended' WHERE id=$1",
-      [org.id],
     );
   }
   console.log(

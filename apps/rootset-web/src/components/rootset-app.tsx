@@ -2,18 +2,12 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePathname } from "next/navigation";
-import { Button, Input, Label, TextField } from "@heroui/react";
-import {
-  Database as DatabaseIcon,
-  Table2,
-  Plus,
-  Settings,
-  LogOut,
-  PanelLeft,
-  ChevronDown,
-  CircleHelp,
-} from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Input, Label, TextField } from "@heroui/react";
+import { Button } from "./ui/button";
+import { Database as DatabaseIcon } from "./ui/icons";
+import { TablesPage } from "./tables-page";
 import {
   client,
   ApiError,
@@ -41,7 +35,35 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { Spreadsheet } from "./spreadsheet";
 import { Dialog } from "./dialog";
 import { SettingsPanel, type SettingsSection } from "./settings";
-import { SECTION_LABELS } from "./settings/types";
+import { resolveSettingsSection, SECTION_LABELS } from "./settings/types";
+import {
+  dataHref,
+  settingsHref,
+  settingsScope,
+  scopeTitles,
+  PageNavigation,
+} from "./settings/navigation";
+import {
+  ApplicationSidebar,
+  AppLayout,
+  FooterIdentity,
+  Navbar,
+  ThemeSwitcher,
+  usePersistentAppSidebar,
+} from "./ui/shell";
+import { Dropdown } from "@heroui/react";
+import { Header } from "react-aria-components";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Database01Icon,
+  Settings01Icon,
+  UserAccountIcon,
+  UserGroupIcon,
+  PlusSignIcon,
+  BookOpen01Icon,
+  Key01Icon,
+  SecurityCheckIcon,
+} from "@hugeicons/core-free-icons";
 
 type Context = z.infer<typeof ContextSchema>;
 const publicClient = new RootsetClient({ baseUrl: "/v1" });
@@ -68,23 +90,24 @@ function applyTheme(theme: "system" | "light" | "dark") {
       document.documentElement.classList.remove("no-transitions"),
     ),
   );
+  return resolved;
 }
 
 export function RootsetApp() {
   const path = usePathname();
+  const parameters = useSearchParams();
+  const router = useRouter();
+  const sidebar = usePersistentAppSidebar();
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
-  const [databaseId, setDatabaseId] = useState<string | null>(null);
-  const [tableId, setTableId] = useState<string | null>(null);
-  const [settings, setSettings] = useState<SettingsSection | null>(null);
+  const databaseId = parameters.get("databaseId");
+  const tableId = parameters.get("tableId");
+  const section = path.startsWith("/settings/") ? path.split("/")[2] : null;
+  const settings = resolveSettingsSection(section ?? null);
   const [create, setCreate] = useState<"database" | "table" | null>(null);
-  const [mobileNav, setMobileNav] = useState(false);
-  const [orgSwitcher, setOrgSwitcher] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [navigationPending, setNavigationPending] = useState(false);
-  const [navigationError, setNavigationError] = useState<string | null>(null);
-  const navigated = useRef("");
   const createAttempt = useRef(new MutationAttempt());
   const setup = useQuery({
     queryKey: ["setup"],
@@ -124,96 +147,32 @@ export function RootsetApp() {
       ),
     enabled: !!orgId && !!selectedDatabaseId,
   });
-  const selectedTableId = tableId ?? tables.data?.[0]?.id ?? null;
+  const selectedTableId = tableId;
   const database = databases.data?.find(
     (entry) => entry.id === selectedDatabaseId,
   );
   const table = tables.data?.find((entry) => entry.id === selectedTableId);
   const preferences = context.data?.preferences ?? defaultPreferences;
-  const canManage =
-    context.data?.principal.role === "owner" ||
-    context.data?.principal.role === "admin";
-  const canCreateDatabase =
-    canManage ||
-    (context.data?.principal.role === "editor" &&
-      context.data.scopes.includes("databases:manage") &&
-      context.data.targets.some(
-        (target) =>
-          target.level === "manage" && !target.databaseId && !target.tableId,
-      ));
+  const canManage = context.data?.principal.role === "admin";
+  const canCreateDatabase = canManage;
   const canEdit = canManage || context.data?.principal.role === "editor";
 
-  useEffect(() => {
-    const sessionWithoutOrganisation =
-      browserSession.data &&
-      context.error instanceof ApiError &&
-      context.error.status === 401;
-    if (
-      (!context.data && !sessionWithoutOrganisation) ||
-      !path.startsWith("/settings/")
-    )
-      return;
-    const section = path.split("/")[2];
-    if (!section || !Object.hasOwn(SECTION_LABELS, section)) return;
-    const destination = `${path}${location.search}`;
-    if (navigated.current === destination) return;
-    navigated.current = destination;
-    const parameters = new URLSearchParams(location.search);
-    const requestedOrganisation =
-      parameters.get("organisationId") ?? parameters.get("orgId");
-    const requestedDatabase = parameters.get("databaseId");
-    const requestedTable = parameters.get("tableId");
-    if (
-      [requestedOrganisation, requestedDatabase, requestedTable].some(
-        (value) => value && !IdSchema.safeParse(value).success,
-      )
-    ) {
-      setNavigationError(
-        "This settings link contains an invalid resource identifier.",
-      );
-      return;
-    }
-    setNavigationPending(true);
-    setNavigationError(null);
-    void (async () => {
-      if (requestedOrganisation && requestedOrganisation !== orgId) {
-        await publicClient.request("/auth/organisation", {
-          method: "POST",
-          body: { orgId: requestedOrganisation },
-        });
-        queryClient.clear();
-        const refreshed = await context.refetch();
-        if (refreshed.error) throw refreshed.error;
-        if (refreshed.data?.organisation?.id !== requestedOrganisation)
-          throw new Error("The requested organisation could not be selected.");
-      }
-      setDatabaseId(requestedDatabase);
-      setTableId(requestedTable);
-      setSettings(section as SettingsSection);
-      setMobileNav(false);
-    })()
-      .catch((failure) =>
-        setNavigationError(
-          failure instanceof Error
-            ? failure.message
-            : "The linked settings could not be opened.",
-        ),
-      )
-      .finally(() => setNavigationPending(false));
-  }, [
-    path,
-    orgId,
-    context.data,
-    context.error,
-    browserSession.data,
-    queryClient,
-  ]);
+  const requestedOrganisation =
+    parameters.get("organisationId") ?? parameters.get("orgId");
+  const navigationError = [requestedOrganisation, databaseId, tableId].some(
+    (value) => value && !IdSchema.safeParse(value).success,
+  )
+    ? "This settings link contains an invalid resource identifier."
+    : requestedOrganisation && orgId && requestedOrganisation !== orgId
+      ? "This settings link belongs to a different installation organisation."
+      : null;
 
   useEffect(() => {
-    applyTheme(preferences.theme);
+    setResolvedTheme(applyTheme(preferences.theme));
     const media = matchMedia("(prefers-color-scheme: dark)");
     const listener = () => {
-      if (preferences.theme === "system") applyTheme("system");
+      if (preferences.theme === "system")
+        setResolvedTheme(applyTheme("system"));
     };
     media.addEventListener("change", listener);
     return () => media.removeEventListener("change", listener);
@@ -244,8 +203,7 @@ export function RootsetApp() {
             }),
           },
         );
-        setDatabaseId(item.id);
-        setTableId(null);
+        router.push(dataHref(item.id));
       } else {
         const item = await client.operation<{ table: Table }>(
           "createTable",
@@ -264,7 +222,7 @@ export function RootsetApp() {
             }),
           },
         );
-        setTableId(item.table.id);
+        router.push(dataHref(selectedDatabaseId, item.table.id));
       }
       setCreate(null);
       createAttempt.current.clear();
@@ -278,11 +236,7 @@ export function RootsetApp() {
     }
   }
 
-  if (
-    setup.isPending ||
-    navigationPending ||
-    (setup.data?.claimed && context.isPending)
-  )
+  if (setup.isPending || (setup.data?.claimed && context.isPending))
     return (
       <main className="startup-state" role="status">
         <span className="rootset-symbol" aria-hidden="true">
@@ -320,14 +274,17 @@ export function RootsetApp() {
     !path.startsWith("/invitations/")
   )
     return (
-      <OrganisationChooser
-        onSelected={() => {
-          setDatabaseId(null);
-          setTableId(null);
-          queryClient.removeQueries({ queryKey: ["context"] });
-          void context.refetch();
-        }}
-      />
+      <main className="startup-state">
+        <h1>No access to Rootset</h1>
+        <p>Ask an administrator to invite you to this installation.</p>
+        <Button
+          onPress={() =>
+            void authClient.signOut().then(() => location.assign("/login"))
+          }
+        >
+          Sign out
+        </Button>
+      </main>
     );
   if (
     !setup.data?.claimed ||
@@ -393,8 +350,8 @@ export function RootsetApp() {
       <main className="startup-state">
         <h1>No organisation access</h1>
         <p>
-          Your account does not have an active organisation membership. Contact
-          an administrator or accept an invitation.
+          Your account does not have an organisation membership. Contact an
+          administrator or accept an invitation.
         </p>
         <Button
           onPress={() =>
@@ -406,186 +363,249 @@ export function RootsetApp() {
       </main>
     );
 
+  const contextIds = {
+    databaseId: selectedDatabaseId,
+    tableId: selectedTableId,
+  };
+  const openSettings = (section: SettingsSection) =>
+    router.push(settingsHref(section, contextIds));
+  const backToData = () =>
+    router.push(
+      dataHref(
+        selectedDatabaseId,
+        settings && settingsScope(settings) === "database"
+          ? null
+          : selectedTableId,
+      ),
+    );
+  const icon = (value: typeof Database01Icon) => (
+    <HugeiconsIcon
+      aria-hidden="true"
+      icon={value}
+      size={16}
+      className="size-4 shrink-0"
+    />
+  );
+  const profileName = context.data.profile?.name ?? "Account";
+  const secondary = (
+    <PageNavigation
+      section={settings}
+      role={context.data.principal.role}
+      database={database}
+      table={table}
+      databaseId={selectedDatabaseId}
+      tableId={selectedTableId}
+    />
+  );
+  const resourceScope =
+    !settings || ["database", "table"].includes(settingsScope(settings));
   return (
-    <div className="rootset-shell">
+    <>
       <a href="#table-content" className="skip-link">
-        Skip to table
+        Skip to content
       </a>
-      <aside
-        className={`main-sidebar ${mobileNav ? "mobile-open" : ""}`}
-        aria-label="Databases"
-      >
-        <a className="brand" href="/" aria-label="Rootset home">
-          <span className="rootset-symbol" aria-hidden="true">
-            r
-          </span>
-          <strong>Rootset</strong>
-        </a>
-        <button
-          className="org-switch"
-          onClick={() => setOrgSwitcher(true)}
-          aria-label={`Switch organisation from ${context.data.organisation.name}`}
-        >
-          <span>{context.data.organisation.name}</span>
-          <ChevronDown size={15} />
-        </button>
-        <div className="sidebar-heading">
-          <span>Databases</span>
-          {canCreateDatabase && (
-            <button
-              className="icon-button"
-              onClick={() => {
-                setCreate("database");
-                setMutationError(null);
-              }}
-              aria-label="Create database"
-            >
-              <Plus size={17} />
-            </button>
-          )}
-        </div>
-        <nav className="database-list" aria-label="Database navigation">
-          {databases.data?.map((entry) => (
-            <button
-              key={entry.id}
-              className={`nav-item ${entry.id === selectedDatabaseId ? "selected" : ""}`}
-              onClick={() => {
-                setDatabaseId(entry.id);
-                setTableId(null);
-                setMobileNav(false);
-              }}
-              aria-current={
-                entry.id === selectedDatabaseId ? "page" : undefined
-              }
-            >
-              <DatabaseIcon size={17} />
-              <span>{entry.name}</span>
-            </button>
-          ))}
-          {databases.isError && (
-            <p className="error-message" role="alert">
-              {databases.error.message}
-              <button onClick={() => void databases.refetch()}>Retry</button>
-            </p>
-          )}
-        </nav>
-        <div className="sidebar-bottom">
-          <button className="nav-item" onClick={() => setSettings("profile")}>
-            <Settings size={17} />
-            <span>Settings</span>
-          </button>
-          <a
-            className="nav-item"
-            href="https://github.com/avgeek-inc/rootset"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <CircleHelp size={17} />
-            <span>Documentation</span>
-          </a>
-          <button
-            className="profile-button"
-            onClick={() => setSettings("profile")}
-          >
-            <span className="avatar" aria-hidden="true">
-              {context.data.profile?.name.slice(0, 1).toUpperCase() ?? "R"}
-            </span>
-            <span>
-              <strong>{context.data.profile?.name ?? "Account"}</strong>
-              <small>{context.data.principal.role}</small>
-            </span>
-          </button>
-          <button
-            className="nav-item"
-            onClick={() =>
-              void authClient.signOut().then(() => {
-                queryClient.clear();
-                location.assign("/login");
-              })
+      <AppLayout
+        className="rootset-application"
+        path={`${path}?${parameters.toString()}`}
+        navigate={(href) => {
+          const section = /^\/settings\/([^/?]+)$/.exec(href)?.[1];
+          router.push(
+            section && Object.hasOwn(SECTION_LABELS, section)
+              ? settingsHref(section as SettingsSection, contextIds)
+              : href,
+          );
+        }}
+        sidebarOpen={sidebar.sidebarOpen}
+        onSidebarOpenChange={sidebar.onSidebarOpenChange}
+        navbar={
+          <Navbar
+            sidebarOpen={sidebar.sidebarOpen}
+            onSidebarToggle={() =>
+              sidebar.onSidebarOpenChange(!sidebar.sidebarOpen)
             }
-          >
-            <LogOut size={16} />
-            <span>Sign out</span>
-          </button>
-        </div>
-      </aside>
-      <aside className="table-sidebar" aria-label="Tables">
-        <header>
-          <button
-            className="icon-button mobile-toggle"
-            aria-label="Open databases"
-            onClick={() => setMobileNav(!mobileNav)}
-          >
-            <PanelLeft size={18} />
-          </button>
-          <h2>{database?.name ?? "Tables"}</h2>
-          {canManage && selectedDatabaseId && (
-            <button
-              className="icon-button"
-              aria-label="Database settings"
-              onClick={() => setSettings("database")}
-            >
-              <Settings size={16} />
-            </button>
-          )}
-        </header>
-        <div className="sidebar-heading">
-          <span>Tables</span>
-          {canEdit && selectedDatabaseId && (
-            <button
-              className="icon-button"
-              aria-label="Create table"
-              onClick={() => {
-                setCreate("table");
-                setMutationError(null);
-              }}
-            >
-              <Plus size={17} />
-            </button>
-          )}
-        </div>
-        <nav aria-label="Table navigation">
-          {tables.data?.map((entry) => (
-            <button
-              key={entry.id}
-              className={`nav-item ${entry.id === selectedTableId ? "selected" : ""}`}
-              onClick={() => {
-                setTableId(entry.id);
-                setSettings(null);
-              }}
-              aria-current={entry.id === selectedTableId ? "page" : undefined}
-            >
-              <Table2 size={17} />
-              <span>{entry.name}</span>
-              {entry.state !== "active" && <small>{entry.state}</small>}
-            </button>
-          ))}
-          {tables.isError && (
-            <p className="error-message" role="alert">
-              {tables.error.message}
-            </p>
-          )}
-        </nav>
-        <div className="sidebar-bottom">
-          {selectedDatabaseId && (
-            <button className="nav-item" onClick={() => setSettings("backups")}>
-              <DatabaseIcon size={16} />
-              <span>Backups</span>
-            </button>
-          )}
-          <button className="nav-item" onClick={() => setSettings("jobs")}>
-            <span>Background jobs</span>
-          </button>
-        </div>
-      </aside>
-      <main id="table-content" className="content-pane" tabIndex={-1}>
+            title={
+              settings && !resourceScope ? (
+                scopeTitles[settingsScope(settings)]
+              ) : (
+                <span className="navbar-breadcrumb">
+                  <Link href={dataHref(selectedDatabaseId)}>
+                    {database?.name ?? "Databases"}
+                  </Link>
+                  {(table || (!settings && selectedDatabaseId)) && (
+                    <>
+                      <span aria-hidden="true">/</span>
+                      <strong>{table?.name ?? "Tables"}</strong>
+                    </>
+                  )}
+                </span>
+              )
+            }
+            actions={
+              <ThemeSwitcher
+                size="small"
+                theme={resolvedTheme}
+                onThemeChange={(theme) => {
+                  void client
+                    .request("/me/preferences", {
+                      method: "PATCH",
+                      body: { theme },
+                    })
+                    .then(refresh)
+                    .catch((error: unknown) =>
+                      setMutationError(
+                        error instanceof Error
+                          ? error.message
+                          : "Appearance could not be saved.",
+                      ),
+                    );
+                }}
+              />
+            }
+          />
+        }
+        sidebar={
+          <ApplicationSidebar
+            config={{
+              accessibleLabel: "Primary navigation",
+              homeHref: dataHref(selectedDatabaseId),
+              brand: {
+                title: "Rootset",
+                logo: <span className="rootset-symbol">r</span>,
+              },
+              groups: [
+                {
+                  id: "databases",
+                  header: (
+                    <div className="primary-group-heading">
+                      <h2>Databases</h2>
+                      {canCreateDatabase && (
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          aria-label="Create database"
+                          onPress={() => {
+                            setCreate("database");
+                            setMutationError(null);
+                          }}
+                        >
+                          {icon(PlusSignIcon)}
+                        </Button>
+                      )}
+                    </div>
+                  ),
+                  content: databases.isError ? (
+                    <p className="error-message" role="alert">
+                      {databases.error.message}
+                      <Button
+                        variant="ghost"
+                        onPress={() => void databases.refetch()}
+                      >
+                        Retry
+                      </Button>
+                    </p>
+                  ) : undefined,
+                  items: (databases.data ?? []).map((entry) => ({
+                    id: entry.id,
+                    label: entry.name,
+                    href: dataHref(entry.id),
+                    icon: icon(Database01Icon),
+                    active: resourceScope && entry.id === selectedDatabaseId,
+                  })),
+                },
+                {
+                  id: "settings",
+                  label: "Settings",
+                  items: [
+                    {
+                      id: "account",
+                      label: "Account settings",
+                      href: settingsHref("profile", contextIds),
+                      icon: icon(UserAccountIcon),
+                      active:
+                        !!settings && settingsScope(settings) === "account",
+                    },
+                    ...(canManage
+                      ? [
+                          {
+                            id: "team",
+                            label: "Team settings",
+                            href: settingsHref("organisation", contextIds),
+                            icon: icon(UserGroupIcon),
+                            active:
+                              !!settings && settingsScope(settings) === "team",
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              ],
+              footerContent: (
+                <FooterIdentity
+                  name={profileName}
+                  email={context.data.profile?.email ?? ""}
+                  roleLabel={
+                    context.data.principal.role.charAt(0).toUpperCase() +
+                    context.data.principal.role.slice(1)
+                  }
+                  onLogout={() => {
+                    void authClient.signOut().then(() => {
+                      queryClient.clear();
+                      location.assign("/login");
+                    });
+                  }}
+                >
+                  <Dropdown.Section aria-label="Account">
+                    <Header className="px-2 py-1.5 text-xs font-medium text-muted">
+                      Account
+                    </Header>
+                    <Dropdown.Item id="profile" textValue="Profile">
+                      {icon(UserAccountIcon)}Profile
+                    </Dropdown.Item>
+                    <Dropdown.Item id="preferences" textValue="Preferences">
+                      {icon(Settings01Icon)}Preferences
+                    </Dropdown.Item>
+                    <Dropdown.Item id="2fa" textValue="Account security">
+                      {icon(SecurityCheckIcon)}Account security
+                    </Dropdown.Item>
+                    <Dropdown.Item id="api-keys" textValue="API keys">
+                      {icon(Key01Icon)}API keys
+                    </Dropdown.Item>
+                  </Dropdown.Section>
+                  <Dropdown.Section aria-label="Rootset">
+                    <Header className="px-2 py-1.5 text-xs font-medium text-muted">
+                      Rootset
+                    </Header>
+                    <Dropdown.Item
+                      id="documentation"
+                      textValue="Documentation"
+                      href="https://github.com/avgeek-inc/rootset/tree/main/docs"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {icon(BookOpen01Icon)}Documentation
+                    </Dropdown.Item>
+                  </Dropdown.Section>
+                </FooterIdentity>
+              ),
+            }}
+          />
+        }
+        secondarySidebar={secondary}
+      >
+        {mutationError && !create && (
+          <p className="error-banner" role="alert">
+            {mutationError}
+          </p>
+        )}
         {settings ? (
           <SettingsPanel
             section={settings}
             orgId={orgId!}
+            role={context.data.principal.role}
             databaseId={selectedDatabaseId ?? undefined}
             tableId={selectedTableId ?? undefined}
-            onClose={() => setSettings(null)}
+            theme={preferences.theme}
+            onClose={backToData}
             onChanged={refresh}
           />
         ) : table && selectedDatabaseId ? (
@@ -596,27 +616,51 @@ export function RootsetApp() {
             table={table}
             preferences={preferences}
             canEdit={canEdit}
-            onSettings={(section) => setSettings(section as SettingsSection)}
+            canManage={canManage}
+            onSettings={(section) => openSettings(section as SettingsSection)}
             onChanged={() =>
               void queryClient.invalidateQueries({
                 queryKey: ["tables", orgId, selectedDatabaseId],
               })
             }
           />
+        ) : selectedDatabaseId && database && !selectedTableId ? (
+          <TablesPage
+            databaseId={selectedDatabaseId}
+            tables={tables.data ?? []}
+            pending={tables.isPending}
+            error={tables.error?.message ?? ""}
+            canCreate={canManage}
+            onCreate={() => {
+              setCreate("table");
+              setMutationError(null);
+            }}
+            onRetry={() => void tables.refetch()}
+          />
+        ) : databases.isPending || (selectedDatabaseId && tables.isPending) ? (
+          <div className="grid-skeleton" role="status">
+            Loading databases and tables…
+          </div>
         ) : (
           <section className="empty-state">
             <DatabaseIcon size={32} aria-hidden="true" />
             <h1>
-              {database
-                ? "Create your first table"
-                : "Create your first database"}
+              {canManage
+                ? database
+                  ? "Create your first table"
+                  : "Create your first database"
+                : database
+                  ? "No tables yet"
+                  : "No databases yet"}
             </h1>
             <p>
-              {database
-                ? "Add a structured table, then define its fields."
-                : "Keep related master data together in one database."}
+              {canManage
+                ? database
+                  ? "Add a structured table, then define its fields."
+                  : "Keep related master data together in one database."
+                : "An admin can create databases, tables, and fields for this installation."}
             </p>
-            {(database ? canEdit : canCreateDatabase) && (
+            {(database ? canManage : canCreateDatabase) && (
               <Button
                 onPress={() => setCreate(database ? "table" : "database")}
               >
@@ -625,7 +669,7 @@ export function RootsetApp() {
             )}
           </section>
         )}
-      </main>
+      </AppLayout>
       {create && (
         <Dialog
           title={`Create ${create}`}
@@ -638,7 +682,13 @@ export function RootsetApp() {
               <Label>
                 {create === "database" ? "Database name" : "Table name"}
               </Label>
-              <Input autoFocus maxLength={255} />
+              <Input
+                autoFocus={
+                  typeof window !== "undefined" &&
+                  !matchMedia("(pointer: coarse)").matches
+                }
+                maxLength={255}
+              />
             </TextField>
             {mutationError && (
               <p className="error-message" role="alert">
@@ -660,128 +710,7 @@ export function RootsetApp() {
           </form>
         </Dialog>
       )}
-      {orgSwitcher && (
-        <Dialog
-          title="Switch organisation"
-          onClose={() => setOrgSwitcher(false)}
-        >
-          <OrganisationChooser
-            embedded
-            onSelected={() => {
-              setOrgSwitcher(false);
-              setDatabaseId(null);
-              setTableId(null);
-              setSettings(null);
-              queryClient.clear();
-              void context.refetch();
-            }}
-          />
-          <Button
-            variant="secondary"
-            onPress={() => {
-              setOrgSwitcher(false);
-              setSettings("organisation");
-            }}
-          >
-            Organisation settings
-          </Button>
-        </Dialog>
-      )}
-    </div>
-  );
-}
-
-function OrganisationChooser({
-  onSelected,
-  embedded = false,
-}: {
-  onSelected: () => void;
-  embedded?: boolean;
-}) {
-  const organisations = useQuery({
-    queryKey: ["session-organisations"],
-    queryFn: ({ signal }) =>
-      publicClient.request<{
-        data: { id: string; name: string; role: string }[];
-      }>("/auth/organisations", { signal }),
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const content = (
-    <>
-      <h1>{embedded ? "Your organisations" : "Choose an organisation"}</h1>
-      <p>
-        Continue with an active membership. Resource permissions apply within
-        the selected organisation.
-      </p>
-      {organisations.isPending ? (
-        <p role="status">Loading memberships…</p>
-      ) : organisations.isError ? (
-        <p role="alert" className="error-message">
-          {organisations.error.message}
-        </p>
-      ) : organisations.data.data.length ? (
-        <ul className="organisation-choices">
-          {organisations.data.data.map((organisation) => (
-            <li key={organisation.id}>
-              <Button
-                variant="secondary"
-                isDisabled={pending}
-                onPress={async () => {
-                  setPending(true);
-                  setError(null);
-                  try {
-                    await publicClient.request("/auth/organisation", {
-                      method: "POST",
-                      body: { orgId: organisation.id },
-                    });
-                    onSelected();
-                  } catch (failure) {
-                    setError(
-                      failure instanceof Error
-                        ? failure.message
-                        : "Organisation selection failed",
-                    );
-                  } finally {
-                    setPending(false);
-                  }
-                }}
-              >
-                {organisation.name}
-                <small>{organisation.role}</small>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>
-          No active membership is available. Accept an invitation or contact an
-          administrator.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="error-message">
-          {error}
-        </p>
-      )}
-      {!embedded && (
-        <Button
-          variant="secondary"
-          onPress={() =>
-            void authClient.signOut().then(() => location.assign("/login"))
-          }
-        >
-          Sign out
-        </Button>
-      )}
     </>
-  );
-  return embedded ? (
-    <section className="organisation-selector">{content}</section>
-  ) : (
-    <main className="identity-shell">
-      <section className="identity-panel">{content}</section>
-    </main>
   );
 }
 
@@ -798,8 +727,6 @@ function ConsentScreen() {
         scopes: string[];
         organizationId: string;
         resource: string;
-        targets: { databaseId?: string; tableId?: string; level: string }[];
-        unrestricted: boolean;
         expiresAt: string;
       }>(`/oauth/requests/${encodeURIComponent(requestId)}`, { signal }),
     enabled: !!requestId,
@@ -892,7 +819,7 @@ function ConsentScreen() {
                 <dt>Client verification</dt>
                 <dd>
                   {request.data.client.trust === "operator_registered"
-                    ? "Registered by this installation’s operator"
+                    ? "Registered by an installation administrator"
                     : "Unverified client. Check this application’s identity before approving."}
                 </dd>
                 <dt>Client identifier</dt>
@@ -906,30 +833,6 @@ function ConsentScreen() {
                   </ul>
                 </dd>
               </dl>
-              <p>
-                {request.data.unrestricted
-                  ? "Access covers resources your current account can use within the requested permissions."
-                  : `Access is restricted to ${request.data.targets.length} selected database/table targets.`}
-              </p>
-              {!request.data.unrestricted && (
-                <ul className="consent-targets">
-                  {request.data.targets.map((target, index) => (
-                    <li key={index}>
-                      {target.databaseId && (
-                        <>
-                          Database: <code>{target.databaseId}</code>.{" "}
-                        </>
-                      )}
-                      {target.tableId && (
-                        <>
-                          Table: <code>{target.tableId}</code>.{" "}
-                        </>
-                      )}
-                      Access: {target.level}.
-                    </li>
-                  ))}
-                </ul>
-              )}
               <p>
                 Request expires{" "}
                 {new Date(request.data.expiresAt).toLocaleString()}.

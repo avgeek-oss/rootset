@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@rootset/contracts": "workspace:*",
-    "pg": "catalog:"
+    "pg": "catalog:",
+    "@rootset/access": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "catalog:"

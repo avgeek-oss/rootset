@@ -20,27 +20,19 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "updateOrganisation",
   "updateMember",
   "removeMember",
-  "transferOwnership",
   "inviteMember",
   "cancelInvitation",
-  "updateGrants",
   "revokePersonalKey",
-  "revokeTeamKey",
   "changePassword",
   "changeEmail",
   "signOutEverywhere",
-  "deleteAccount",
-  "deleteOrganisation",
 ]);
 export const jobsMutationSet: ReadonlySet<string> = new Set([
-  "setBackupPolicy",
   "setHistoryRetentionPolicy",
   "cancelJob",
   "retryJob",
 ]);
 export const queuedMutationSet: ReadonlySet<string> = new Set([
-  "deleteAccount",
-  "deleteOrganisation",
   "deleteBackup",
   "deleteDatabase",
   "deleteTable",
@@ -50,7 +42,6 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "updateField",
   "deleteField",
   "countRows",
-  "testEmail",
   "validateImport",
   "importRows",
   "exportRows",
@@ -62,7 +53,6 @@ export const mutationSet: ReadonlySet<string> = new Set([
   ...identityMutationSet,
   ...jobsMutationSet,
   ...queuedMutationSet,
-  "updateInstallationConfiguration",
 ]);
 export const recordedOps = mutationSet;
 

@@ -51,14 +51,13 @@ const storage = new TableStorage({
   cursorSecret: randomBytes(32).toString("hex"),
 });
 const actor: Actor = {
-  kind: "operator",
+  kind: "session",
   id: newId(),
+  userId: newId(),
   orgId: newId(),
-  role: "owner",
-  scopes: ["*"],
-  targets: [],
-  unrestricted: true,
-  operator: true,
+  role: "admin",
+  scopes: [],
+  membershipVersion: 1,
 };
 let currentAccess = true;
 let failPoint: string | null = null;
@@ -269,16 +268,15 @@ before(async () => {
     name: "Airline codes",
     fields: [
       {
-        apiKey: "code",
-        label: "Code",
+        name: "code",
         type: "text",
         charLimit: 32,
         required: true,
       },
-      { apiKey: "name", label: "Name", type: "text", charLimit: 256 },
-      { apiKey: "active", label: "Active", type: "boolean" },
-      { apiKey: "instant", label: "Instant", type: "date-time" },
-      { apiKey: "payload", label: "Payload", type: "json" },
+      { name: "name", type: "text", charLimit: 256 },
+      { name: "active", type: "boolean" },
+      { name: "instant", type: "date-time" },
+      { name: "payload", type: "json" },
     ],
     idempotencyKey: newId(),
   });
@@ -309,21 +307,14 @@ after(async () => {
         "UPDATE rootset_control.jobs SET state='cancelled',lease_token=NULL,lease_until=NULL WHERE state IN ('queued','running')",
       );
       await client.query("UPDATE rootset_control.backups SET state='deleted'");
-      await client.query(
-        "UPDATE rootset_control.backup_policies SET enabled=false,next_occurrence=NULL",
-      );
     });
     await jobs.runOnce(actor.orgId);
-    await owner.query(
-      "UPDATE rootset_control.organisations SET state='suspended' WHERE id=$1",
-      [actor.orgId],
-    );
   } finally {
     await fixture.close();
   }
 });
 
-test("IO-01/02/04 JOB-02/03: import commit interruption resumes exact rows/history with leading zeros", async () => {
+test("V1-24 V1-25: import commit interruption resumes exact rows/history with leading zeros", async () => {
   const id = await upload(
     'code,name,active,instant,payload\n00001,"Name, one",true,2026-10-02T01:00:00Z,"{""id"":""literal"",""nested"":null}"\n00002,Two,false,2026-10-02T02:00:00.123Z,{}\n00003,Three,true,2026-10-02T03:00:00Z,[]\n',
   );
@@ -360,7 +351,7 @@ test("IO-01/02/04 JOB-02/03: import commit interruption resumes exact rows/histo
   );
 });
 
-test("IO-02/05: partial large import reports exact rejected record while atomic import rolls back", async () => {
+test("V1-24 V1-25: partial large import reports exact rejected record while atomic import rolls back", async () => {
   const id = await upload(
     "code,name,active,instant,payload\n00004,Four,true,2026-10-02T04:00:00Z,{}\n00001,Duplicate,true,2026-10-02T05:00:00Z,{}\n00005,Five,invalid,2026-10-02T06:00:00Z,{}\n",
   );
@@ -402,7 +393,7 @@ test("IO-02/05: partial large import reports exact rejected record while atomic 
   );
 });
 
-test("IO-03: exact unique-rule upsert updates existing rows and rejects absent explicit row IDs", async () => {
+test("V1-18 V1-25: exact unique-rule upsert updates existing rows and rejects absent explicit row IDs", async () => {
   const rule = (await storage.listUniqueRules(actor, table.id))[0]!;
   const id = await upload(
     "code,name,active,instant,payload\n00002,Updated,false,2026-10-02T02:00:00.123Z,{}\n",
@@ -431,7 +422,7 @@ test("IO-03: exact unique-rule upsert updates existing rows and rejects absent e
   assert.equal(result.result?.committed, 0);
 });
 
-test("IO-06/07/08: filtered snapshot export has canonical quoted content and encrypted storage", async () => {
+test("V1-25: filtered snapshot export has canonical quoted content and encrypted storage", async () => {
   const started = (await jobs.execute(
     "exportRows",
     actor,
@@ -467,7 +458,7 @@ test("IO-06/07/08: filtered snapshot export has canonical quoted content and enc
   );
 });
 
-test("JOB-01/04: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint", async () => {
+test("V1-07 V1-24: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint", async () => {
   const key = newId();
   const input = { tableId: table.id, format: "jsonl" };
   const first = (await jobs.execute("exportRows", actor, input, {
@@ -515,7 +506,7 @@ test("JOB-01/04: duplicate admission is idempotent, only one lease claims, old l
   currentAccess = true;
 });
 
-test("BKP-03/04/05/08/10: backup upload interruption resumes isolated restore verification and new restore preserves rows/history", async () => {
+test("V1-26 V1-27 V1-28: backup upload interruption resumes isolated restore verification and new restore preserves rows/history", async () => {
   const started = (await jobs.execute(
     "createBackup",
     actor,
@@ -566,7 +557,7 @@ test("BKP-03/04/05/08/10: backup upload interruption resumes isolated restore ve
   assert.equal(Number(retained), Number(originalCount));
 });
 
-test("IO-01/02: dry run validates upload duplicates without committing rows", async () => {
+test("V1-25: dry run validates upload duplicates without committing rows", async () => {
   const before = (await storage.getTable(actor, table.id)).rowCount;
   const id = await upload(
     "code,name,active,instant,payload\nDRY001,Valid,true,2026-10-02T00:00:00Z,{}\nDRY001,Duplicate,true,2026-10-02T00:00:00Z,{}\n00001,Existing,true,2026-10-02T00:00:00Z,{}\n",
@@ -580,7 +571,7 @@ test("IO-01/02: dry run validates upload duplicates without committing rows", as
   assert.equal((await storage.getTable(actor, table.id)).rowCount, before);
 });
 
-test("IO-04/05 JOB-03: cancel after committed batch exposes partial progress and retry resumes without duplication", async () => {
+test("V1-24 V1-25: cancel after committed batch exposes partial progress and retry resumes without duplication", async () => {
   const id = await upload(
     "code,name,active,instant,payload\nCAN001,One,true,2026-10-02T00:00:00Z,{}\nCAN002,Two,true,2026-10-02T00:00:00Z,{}\nCAN003,Three,true,2026-10-02T00:00:00Z,{}\n",
   );
@@ -606,11 +597,11 @@ test("IO-04/05 JOB-03: cancel after committed batch exposes partial progress and
   assert.ok(rows.data.every((row) => row.version === "1"));
 });
 
-test("BKP-03: concurrent row writes continue while schema DDL waits through extraction", async () => {
+test("V1-26: concurrent row writes continue while schema DDL waits through extraction", async () => {
   const oldBackup = backupId;
   const companion = await storage.createTable(actor, databaseId, {
     name: "Companion snapshot",
-    fields: [{ apiKey: "name", label: "Name", type: "text", charLimit: 128 }],
+    fields: [{ name: "name", type: "text", charLimit: 128 }],
     idempotencyKey: newId(),
   });
   const companionRow = await storage.createRow(
@@ -668,8 +659,7 @@ test("BKP-03: concurrent row writes continue while schema DDL waits through extr
   let schemaDone = false;
   const ddl = storage
     .createField(actor, table.id, {
-      apiKey: "extra",
-      label: "Extra",
+      name: "extra",
       type: "text",
       expectedSchemaVersion: table.schemaVersion,
       idempotencyKey: newId(),
@@ -698,7 +688,7 @@ test("BKP-03: concurrent row writes continue while schema DDL waits through extr
   );
   assert.equal(
     loaded.manifest.metadata.tables[0]!.fields.some(
-      (field) => field.apiKey === "extra",
+      (field) => field.name === "extra",
     ),
     false,
   );
@@ -715,7 +705,7 @@ test("BKP-03: concurrent row writes continue while schema DDL waits through extr
   await deleteBackup(databaseId, oldBackup);
 });
 
-test("JOB-02/03 IO-04: SIGKILL after a committed import batch recovers under a new worker lease", async () => {
+test("V1-24 V1-25: SIGKILL after a committed import batch recovers under a new worker lease", async () => {
   const artifact = await upload(
     "code,name,active,instant,payload\nKILL001,One,true,2026-10-02T00:00:00Z,{}\nKILL002,Two,true,2026-10-02T00:00:00Z,{}\nKILL003,Three,true,2026-10-02T00:00:00Z,{}\n",
   );
@@ -824,78 +814,13 @@ test("JOB-02/03 IO-04: SIGKILL after a committed import batch recovers under a n
   }
 });
 
-test("BKP-01/02 JOB-05: duplicate scheduler admission persists one UTC occurrence and records overlap", async () => {
-  await jobs.execute("setBackupPolicy", actor, {
-    databaseId,
-    enabled: true,
-    cron: "* * * * *",
-    timezone: "UTC",
-    destination: "installation",
-    retentionDays: 30,
-    retentionCount: 10,
-    encryption: true,
-    maxRuntimeSeconds: 3600,
-    notifications: false,
-  });
-  const due = new Date("2026-10-02T00:00:00Z");
-  await withOrg(ddlPool, actor.orgId, (client) =>
-    client.query(
-      "UPDATE rootset_control.backup_policies SET next_occurrence=$2 WHERE database_id=$1",
-      [databaseId, due],
-    ),
-  );
-  await Promise.all([
-    jobs.scheduleDue(actor.orgId, due),
-    jobs.scheduleDue(actor.orgId, due),
-  ]);
-  const occurrence = await withOrg(
-    ddlPool,
-    actor.orgId,
-    async (client) =>
-      (
-        await client.query<{ job_id: string }>(
-          "SELECT o.job_id FROM rootset_control.backup_occurrences o JOIN rootset_control.backup_policies p ON p.id=o.policy_id WHERE p.database_id=$1 AND o.scheduled_at=$2",
-          [databaseId, due],
-        )
-      ).rows,
-  );
-  assert.equal(occurrence.length, 1);
-  assert.ok(occurrence[0]?.job_id);
-  await jobs.scheduleDue(actor.orgId, new Date(due.getTime() + 60_000));
-  const missed = await withOrg(
-    ddlPool,
-    actor.orgId,
-    async (client) =>
-      (
-        await client.query<{ state: string }>(
-          "SELECT o.state FROM rootset_control.backup_occurrences o JOIN rootset_control.backup_policies p ON p.id=o.policy_id WHERE p.database_id=$1 AND o.scheduled_at=$2",
-          [databaseId, new Date(due.getTime() + 60_000)],
-        )
-      ).rows[0],
-  );
-  assert.equal(missed?.state, "skipped_overlap");
-  await jobs.execute("cancelJob", actor, { id: occurrence[0]!.job_id });
-  await jobs.execute("setBackupPolicy", actor, {
-    databaseId,
-    enabled: false,
-    cron: "* * * * *",
-    timezone: "UTC",
-    destination: "installation",
-    retentionDays: 30,
-    retentionCount: 10,
-    encryption: true,
-    maxRuntimeSeconds: 3600,
-    notifications: false,
-  });
-});
-
-test("BKP-08/09 JOB-02: replacement requires approval and resumes after durable cutover with target identity intact", async () => {
+test("V1-24 V1-28: replacement requires approval and resumes after durable cutover with target identity intact", async () => {
   const target = await storage.createDatabase(actor, {
     name: `Replacement ${newId()}`,
   });
   const targetTable = await storage.createTable(actor, target.id, {
     name: "Prior generation",
-    fields: [{ apiKey: "name", label: "Name", type: "text", charLimit: 128 }],
+    fields: [{ name: "name", type: "text", charLimit: 128 }],
     idempotencyKey: newId(),
   });
   const targetRow = await storage.createRow(
@@ -955,8 +880,7 @@ test("BKP-08/09 JOB-02: replacement requires approval and resumes after durable 
       );
       await assert.rejects(
         storage.createField(actor, targetTable.id, {
-          apiKey: "late",
-          label: "Late",
+          name: "late",
           type: "boolean",
           expectedSchemaVersion: targetTable.schemaVersion,
           idempotencyKey: newId(),
@@ -1026,13 +950,13 @@ test("BKP-08/09 JOB-02: replacement requires approval and resumes after durable 
   );
 });
 
-test("BKP-09 JOB-03: cancelled replacement releases the owning barrier and retry takes a fresh recovery snapshot", async () => {
+test("V1-24 V1-28: cancelled replacement releases the owning barrier and retry takes a fresh recovery snapshot", async () => {
   const target = await storage.createDatabase(actor, {
     name: `Cancel restore ${newId()}`,
   });
   const targetTable = await storage.createTable(actor, target.id, {
     name: "Before replacement",
-    fields: [{ apiKey: "name", label: "Name", type: "text", charLimit: 128 }],
+    fields: [{ name: "name", type: "text", charLimit: 128 }],
     idempotencyKey: newId(),
   });
   const row = await storage.createRow(
@@ -1108,7 +1032,7 @@ test("BKP-09 JOB-03: cancelled replacement releases the owning barrier and retry
   assert.equal(completed.result?.databaseId, target.id);
 });
 
-test("IO-02: strict numeric lexemes preserve finite floats and reject rounded fractional integers or unsafe JSON numbers", async () => {
+test("V1-25: strict numeric lexemes preserve finite floats and reject rounded fractional integers or unsafe JSON numbers", async () => {
   const original = table;
   const isolated = await storage.createDatabase(actor, {
     name: `Lexemes ${newId()}`,
@@ -1116,10 +1040,10 @@ test("IO-02: strict numeric lexemes preserve finite floats and reject rounded fr
   table = await storage.createTable(actor, isolated.id, {
     name: "Numbers",
     fields: [
-      { apiKey: "code", label: "Code", type: "text", charLimit: 32 },
-      { apiKey: "value", label: "Value", type: "integer" },
-      { apiKey: "ratio", label: "Ratio", type: "float" },
-      { apiKey: "payload", label: "Payload", type: "json" },
+      { name: "code", type: "text", charLimit: 32 },
+      { name: "value", type: "integer" },
+      { name: "ratio", type: "float" },
+      { name: "payload", type: "json" },
     ],
     idempotencyKey: newId(),
   });
@@ -1170,7 +1094,7 @@ test("IO-02: strict numeric lexemes preserve finite floats and reject rounded fr
   }
 });
 
-test("IO-01/02: rejected dry-run records do not reserve tuples in another unique rule", async () => {
+test("V1-25: rejected dry-run records do not reserve tuples in another unique rule", async () => {
   const original = table;
   const isolated = await storage.createDatabase(actor, {
     name: `Dry rules ${newId()}`,
@@ -1178,15 +1102,15 @@ test("IO-01/02: rejected dry-run records do not reserve tuples in another unique
   table = await storage.createTable(actor, isolated.id, {
     name: "Rules",
     fields: [
-      { apiKey: "code", label: "Code", type: "text", charLimit: 32 },
-      { apiKey: "name", label: "Name", type: "text", charLimit: 32 },
+      { name: "code", type: "text", charLimit: 32 },
+      { name: "name", type: "text", charLimit: 32 },
     ],
     idempotencyKey: newId(),
   });
   try {
     for (const field of table.fields) {
       await storage.createUniqueRule(actor, table.id, {
-        name: field.apiKey,
+        name: field.name,
         fieldIds: [field.id],
         expectedSchemaVersion: table.schemaVersion,
         idempotencyKey: newId(),
@@ -1216,7 +1140,7 @@ test("IO-01/02: rejected dry-run records do not reserve tuples in another unique
   }
 });
 
-test("IO-02/05: invalid JSONL lines are reported at their exact line and later valid records remain importable", async () => {
+test("V1-24 V1-25: invalid JSONL lines are reported at their exact line and later valid records remain importable", async () => {
   const content =
     '{ "code":"LINE001", "name":"First", "active":true, "instant":"2026-10-02T00:00:00Z", "payload":{} }\n{"code":"duplicate","code":"ambiguous"}\n{ "code":"LINE003", "name":"Third", "active":false, "instant":"2026-10-02T00:00:00Z", "payload":{} }\n';
   const artifact = await upload(content, "jsonl");
@@ -1248,7 +1172,7 @@ test("IO-02/05: invalid JSONL lines are reported at their exact line and later v
   );
 });
 
-test("JOB-04: metadata cursors bind request limits, filters and current grants", async () => {
+test("V1-07 V1-24: metadata cursors bind request limits, filters and current membership", async () => {
   const first = (await jobs.execute("listJobs", actor, { limit: 1 })) as {
     data: { id: string }[];
     nextCursor: string;
@@ -1273,177 +1197,14 @@ test("JOB-04: metadata cursors bind request limits, filters and current grants",
   await assert.rejects(
     jobs.execute(
       "listJobs",
-      { ...actor, grantVersion: 2 },
+      { ...actor, membershipVersion: 2 },
       { limit: 1, cursor: first.nextCursor },
     ),
     (error) => error instanceof RootsetError && error.code === "CURSOR_INVALID",
   );
 });
 
-test("BKP-01 JOB-05: authority revocation suspends only its policy and saving an authorized policy clears suspension", async () => {
-  const policy = {
-    databaseId,
-    enabled: true,
-    cron: "* * * * *",
-    timezone: "UTC",
-    destination: "installation",
-    retentionDays: 30,
-    retentionCount: 10,
-    encryption: true,
-    maxRuntimeSeconds: 3600,
-    notifications: false,
-  };
-  await jobs.execute("setBackupPolicy", actor, policy);
-  await withOrg(ddlPool, actor.orgId, (client) =>
-    client.query(
-      "UPDATE rootset_control.backup_policies SET next_occurrence=now()-interval '1 minute' WHERE database_id=$1",
-      [databaseId],
-    ),
-  );
-  currentAccess = false;
-  try {
-    assert.equal(await jobs.scheduleDue(actor.orgId), 0);
-  } finally {
-    currentAccess = true;
-  }
-  const suspended = (await jobs.execute("getBackupPolicy", actor, {
-    databaseId,
-  })) as {
-    policy: { enabled: boolean; suspension: { code: string; at: string } };
-  };
-  assert.equal(suspended.policy.enabled, false);
-  assert.equal(suspended.policy.suspension.code, "ACCESS_DENIED");
-  assert.ok(suspended.policy.suspension.at.endsWith("Z"));
-  await jobs.execute("setBackupPolicy", actor, { ...policy, enabled: false });
-  const cleared = (await jobs.execute("getBackupPolicy", actor, {
-    databaseId,
-  })) as { policy: { suspension?: unknown } };
-  assert.equal(cleared.policy.suspension, undefined);
-});
-
-test("BKP-01 JOB-04: scheduled policy authority is separate from a live manual credential and cannot be spoofed", async () => {
-  let liveSession = true;
-  let membership = true;
-  const service = new JobsService({
-    pool,
-    ddlPool,
-    storage,
-    config: {
-      ...config,
-      authorisePolicy: async (a) => {
-        if (!membership)
-          throw new RootsetError(
-            "ACCESS_DENIED",
-            "Policy membership was revoked",
-            403,
-          );
-        return a;
-      },
-    },
-    authorise: async (a) => {
-      if (!liveSession)
-        throw new RootsetError(
-          "UNAUTHENTICATED",
-          "Manual browser session expired",
-          401,
-        );
-      return a;
-    },
-  });
-  const policy = {
-    databaseId,
-    enabled: true,
-    cron: "* * * * *",
-    timezone: "UTC",
-    destination: "installation",
-    retentionDays: 30,
-    retentionCount: 10,
-    encryption: true,
-    maxRuntimeSeconds: 3600,
-    notifications: false,
-  };
-  await service.execute("setBackupPolicy", actor, policy);
-  const manualDatabase = await storage.createDatabase(actor, {
-    name: `Manual authority ${newId()}`,
-  });
-  const manual = (await service.execute(
-    "createBackup",
-    actor,
-    { databaseId: manualDatabase.id },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  const due = new Date("2026-10-03T00:00:00Z");
-  await withOrg(ddlPool, actor.orgId, (client) =>
-    client.query(
-      "UPDATE rootset_control.backup_policies SET next_occurrence=$2 WHERE database_id=$1",
-      [databaseId, due],
-    ),
-  );
-  liveSession = false;
-  assert.equal(await service.scheduleDue(actor.orgId, due), 1);
-  const scheduled = await withOrg(
-    ddlPool,
-    actor.orgId,
-    async (client) =>
-      (
-        await client.query<{ job_id: string }>(
-          "SELECT o.job_id FROM rootset_control.backup_occurrences o JOIN rootset_control.backup_policies p ON p.id=o.policy_id WHERE p.database_id=$1 AND o.scheduled_at=$2",
-          [databaseId, due],
-        )
-      ).rows[0]!.job_id,
-  );
-  await service.runOnce(actor.orgId);
-  assert.equal(
-    (
-      (await jobs.execute("getJob", actor, { id: manual.jobId })) as {
-        state: string;
-        error: { code: string };
-      }
-    ).error.code,
-    "UNAUTHENTICATED",
-  );
-  await service.runOnce(actor.orgId);
-  const completed = (await jobs.execute("getJob", actor, {
-    id: scheduled,
-  })) as { state: string; result: { backupId: string } };
-  assert.equal(completed.state, "succeeded");
-  await deleteBackup(databaseId, completed.result.backupId);
-  const forged = await service.queue.enqueue(
-    actor,
-    "createBackup",
-    "backup",
-    { type: "database", id: databaseId },
-    { policyId: newId(), scheduledAt: due.toISOString() },
-    newId(),
-  );
-  await service.runOnce(actor.orgId);
-  assert.equal(
-    (
-      (await jobs.execute("getJob", actor, { id: forged.id })) as {
-        error: { code: string };
-      }
-    ).error.code,
-    "ACCESS_DENIED",
-  );
-  membership = false;
-  await withOrg(ddlPool, actor.orgId, (client) =>
-    client.query(
-      "UPDATE rootset_control.backup_policies SET next_occurrence=$2 WHERE database_id=$1",
-      [databaseId, new Date(due.getTime() + 60000)],
-    ),
-  );
-  assert.equal(
-    await service.scheduleDue(actor.orgId, new Date(due.getTime() + 60000)),
-    0,
-  );
-  const revoked = (await jobs.execute("getBackupPolicy", actor, {
-    databaseId,
-  })) as { policy: { suspension: { code: string } } };
-  assert.equal(revoked.policy.suspension.code, "ACCESS_DENIED");
-  await jobs.execute("setBackupPolicy", actor, { ...policy, enabled: false });
-});
-
-test("JOB-02/04 IO-09: an expired uploader cannot overwrite the artifact produced by its replacement lease", async () => {
+test("V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease", async () => {
   const enqueued = await jobs.queue.enqueue(
     actor,
     "exportRows",
@@ -1530,14 +1291,12 @@ test("JOB-02/04 IO-09: an expired uploader cannot overwrite the artifact produce
   }
 });
 
-test("IO-06/08: CSV roundtrip distinguishes null, empty text, literal null markers and backslashes", async () => {
+test("V1-25: CSV roundtrip distinguishes null, empty text, literal null markers and backslashes", async () => {
   const original = table;
   const isolated = await storage.createDatabase(actor, {
     name: `CSV literals ${newId()}`,
   });
-  const fields = [
-    { apiKey: "name", label: "Name", type: "text" as const, charLimit: 128 },
-  ];
+  const fields = [{ name: "name", type: "text" as const, charLimit: 128 }];
   const source = await storage.createTable(actor, isolated.id, {
     name: "Source",
     fields,
@@ -1589,7 +1348,7 @@ test("IO-06/08: CSV roundtrip distinguishes null, empty text, literal null marke
   }
 });
 
-test("IO-01/09 JOB-04: upload admission and artifact retrieval enforce declared bytes, checksum, expiry and current access", async () => {
+test("V1-07 V1-24 V1-25 V1-30: upload admission and artifact retrieval enforce declared bytes, checksum, expiry and current access", async () => {
   const content =
     "code,name,active,instant,payload\nBOUND001,Bounded,true,2026-10-02T00:00:00Z,{}\n";
   const input = {
@@ -1717,7 +1476,7 @@ test("IO-01/09 JOB-04: upload admission and artifact retrieval enforce declared 
   );
 });
 
-test("BKP-10/13: isolated verification cleanup failure is observable and retry removes the namespace before success", async () => {
+test("V1-27 V1-30: isolated verification cleanup failure is observable and retry removes the namespace before success", async () => {
   const started = (await jobs.execute(
     "createBackup",
     actor,
@@ -1757,7 +1516,7 @@ test("BKP-10/13: isolated verification cleanup failure is observable and retry r
     id: records.id,
   })) as { cleanupError?: unknown; notificationState: string };
   assert.equal(cleaned.cleanupError, undefined);
-  assert.equal(cleaned.notificationState, "disabled");
+  assert.equal(cleaned.notificationState, "failed");
   const staged = await withOrg(
     ddlPool,
     actor.orgId,
@@ -1773,7 +1532,7 @@ test("BKP-10/13: isolated verification cleanup failure is observable and retry r
   await deleteBackup(databaseId, records.id);
 });
 
-test("BKP-06/07/12 IO-09: last verified recovery point is protected, corrupted artifact and missing recovery key cannot restore", async () => {
+test("V1-25 V1-27 V1-30: last verified recovery point is protected, corrupted artifact and missing recovery key cannot restore", async () => {
   const protectedDeletion = (await jobs.execute("deleteBackup", actor, {
     databaseId,
     id: backupId,
@@ -1822,15 +1581,15 @@ test("BKP-06/07/12 IO-09: last verified recovery point is protected, corrupted a
   );
 });
 
-test("AUD-09 BKP-05/12 JOB-03: verified archive survives interrupted purge and database backup embeds complete cold history", async () => {
+test("V1-21 V1-24 V1-27 V1-30: verified archive survives interrupted purge and database backup embeds complete cold history", async () => {
   const database = await storage.createDatabase(actor, {
     name: `History archive ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "History rows",
     fields: [
-      { apiKey: "code", label: "Code", type: "text", charLimit: 32 },
-      { apiKey: "payload", label: "Payload", type: "json" },
+      { name: "code", type: "text", charLimit: 32 },
+      { name: "payload", type: "json" },
     ],
     idempotencyKey: newId(),
   });
@@ -1997,7 +1756,7 @@ test("AUD-09 BKP-05/12 JOB-03: verified archive survives interrupted purge and d
   assert.equal(retained.state, "ready");
 });
 
-test("JOB-03 BKP-10: cancelling a queued committed backup returns its durable success", async () => {
+test("V1-24 V1-27: cancelling a queued committed backup returns its durable success", async () => {
   const run = (await jobs.execute(
     "createBackup",
     actor,
@@ -2016,13 +1775,13 @@ test("JOB-03 BKP-10: cancelling a queued committed backup returns its durable su
   assert.ok(cancelled.result.backupId);
 });
 
-test("AUD-09 BKP-12: corrupt history archive is refused before gap publication or any hot deletion", async () => {
+test("V1-21 V1-27 V1-30: corrupt history archive is refused before gap publication or any hot deletion", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Corrupt history ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Protected events",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
+    fields: [{ name: "value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
   const protectedRow = await storage.createRow(
@@ -2131,325 +1890,7 @@ test("AUD-09 BKP-12: corrupt history archive is refused before gap publication o
   assert.equal(afterState.gaps, "0");
 });
 
-test("ACC-11 BKP-06/13 JOB-03: configured deleted-organisation retention resumes owned cleanup and preserves unrelated objects and tombstones", async () => {
-  const retired = { ...actor, orgId: newId() };
-  await owner.query(
-    "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-    [retired.orgId, "Deleted retention fixture"],
-  );
-  const database = await storage.createDatabase(retired, {
-    name: "Retired data",
-  });
-  const target = await storage.createTable(retired, database.id, {
-    name: "Retired rows",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
-    idempotencyKey: newId(),
-  });
-  await storage.createRow(
-    retired,
-    target.id,
-    { value: "expired payload" },
-    { idempotencyKey: newId() },
-  );
-  let policy = {
-    organisationDays: null as number | null,
-    accountAuditDays: null as number | null,
-  };
-  const maintenance = new JobsService({
-    pool,
-    ddlPool,
-    storage,
-    config: {
-      ...config,
-      deletionRetention: async () => policy,
-      deletionMetadata: (orgId) =>
-        withOrg(
-          ddlPool,
-          orgId,
-          async (client) =>
-            (
-              await client.query<{
-                metadata: { organisationDeletedAt: string | null };
-              }>("SELECT rootset_control.deletion_metadata($1) AS metadata", [
-                orgId,
-              ])
-            ).rows[0]!.metadata,
-        ),
-      purgeAccountAudit: (orgId, before, client) =>
-        client
-          ? client
-              .query<{ removed: number }>(
-                "SELECT rootset_control.purge_retained_account_audit($1,$2) AS removed",
-                [orgId, before],
-              )
-              .then((result) => result.rows[0]!.removed)
-          : withOrg(
-              ddlPool,
-              orgId,
-              async (c) =>
-                (
-                  await c.query<{ removed: number }>(
-                    "SELECT rootset_control.purge_retained_account_audit($1,$2) AS removed",
-                    [orgId, before],
-                  )
-                ).rows[0]!.removed,
-            ),
-    },
-  });
-  const exported = (await maintenance.execute(
-    "exportRows",
-    retired,
-    { tableId: target.id, format: "jsonl" },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  await maintenance.runOnce(retired.orgId);
-  const exportState = await withOrg(
-    ddlPool,
-    retired.orgId,
-    async (client) =>
-      (
-        await client.query<{ state: string }>(
-          "SELECT state FROM rootset_control.jobs WHERE id=$1",
-          [exported.jobId],
-        )
-      ).rows[0]!.state,
-  );
-  assert.equal(exportState, "succeeded");
-  const unrelated = (await jobs.execute(
-    "exportRows",
-    actor,
-    { tableId: table.id, format: "jsonl" },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  const unrelatedJob = await terminal(unrelated.jobId);
-  assert.equal(unrelatedJob.state, "succeeded");
-  const unrelatedId = String(unrelatedJob.result?.artifactId);
-  await owner.query(
-    "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,operation,target_id,outcome,created_at) VALUES($1,$2::varchar(26),'operator',$3,'deleteOrganisation',$2::varchar(26),'{\"state\":\"deleted\"}',now()-interval '3 days')",
-    [newId(), retired.orgId, actor.id],
-  );
-  await owner.query(
-    "UPDATE rootset_control.organisations SET state='deleted' WHERE id=$1",
-    [retired.orgId],
-  );
-  assert.equal(await maintenance.scheduleMaintenance(retired.orgId), 0);
-  const untouched = await withOrg(
-    ddlPool,
-    retired.orgId,
-    async (client) =>
-      (
-        await client.query<{ count: string }>(
-          "SELECT count(*) FROM rootset_control.artifacts WHERE state='ready'",
-        )
-      ).rows[0]!.count,
-  );
-  assert.equal(untouched, "1");
-  assert.ok(
-    (
-      await ddlPool.query<{ id: string }>(
-        "SELECT id FROM rootset_control.maintenance_org_directory()",
-      )
-    ).rows.some((row) => row.id === retired.orgId),
-  );
-  await assert.rejects(
-    pool.query("SELECT rootset_control.deletion_metadata($1)", [retired.orgId]),
-    (error) => (error as { code: string }).code === "42501",
-  );
-  await assert.rejects(
-    withOrg(ddlPool, actor.orgId, (client) =>
-      client.query("SELECT rootset_control.deletion_metadata($1)", [
-        retired.orgId,
-      ]),
-    ),
-    (error) => (error as { code: string }).code === "42501",
-  );
-  policy = { organisationDays: 1, accountAuditDays: null };
-  assert.equal(await maintenance.scheduleMaintenance(retired.orgId), 1);
-  failPoint = "retention.afterArtifactDelete";
-  await maintenance.runOnce(retired.orgId);
-  const run = await withOrg(
-    ddlPool,
-    retired.orgId,
-    async (client) =>
-      (
-        await client.query<{
-          id: string;
-          state: string;
-          checkpoint: { deletedArtifacts: number };
-        }>(
-          "SELECT * FROM rootset_control.jobs WHERE kind='organisation_retention'",
-        )
-      ).rows[0]!,
-  );
-  assert.equal(run.state, "queued");
-  assert.equal(run.checkpoint.deletedArtifacts, 1);
-  await withOrg(ddlPool, retired.orgId, (client) =>
-    client.query(
-      "UPDATE rootset_control.jobs SET next_attempt_at=now() WHERE id=$1",
-      [run.id],
-    ),
-  );
-  await maintenance.runOnce(retired.orgId);
-  const outcome = await withOrg(
-    ddlPool,
-    retired.orgId,
-    async (client) =>
-      (
-        await client.query<{
-          state: string;
-          result: { deletedArtifacts: number; retainedTombstones: boolean };
-        }>("SELECT state,result FROM rootset_control.jobs WHERE id=$1", [
-          run.id,
-        ])
-      ).rows[0]!,
-  );
-  assert.equal(outcome.state, "succeeded");
-  assert.equal(outcome.result.deletedArtifacts, 1);
-  assert.equal(outcome.result.retainedTombstones, true);
-  const remaining = await withOrg(
-    ddlPool,
-    retired.orgId,
-    async (client) =>
-      (
-        await client.query<{ artifacts: string; cells: string; rows: string }>(
-          "SELECT (SELECT count(*) FROM rootset_control.artifacts WHERE state<>'deleted')::text AS artifacts,(SELECT count(*) FROM rootset_control.cell_changes)::text AS cells,(SELECT count(*) FROM rootset_control.row_events)::text AS rows",
-        )
-      ).rows[0]!,
-  );
-  assert.deepEqual(remaining, { artifacts: "0", cells: "0", rows: "0" });
-  assert.equal(
-    (
-      await owner.query<{ state: string }>(
-        "SELECT state FROM rootset_control.organisations WHERE id=$1",
-        [retired.orgId],
-      )
-    ).rows[0]!.state,
-    "deleted",
-  );
-  assert.equal(
-    (
-      await owner.query<{ count: string }>(
-        "SELECT count(*) FROM rootset_control.account_audit WHERE org_id=$1 AND operation='deleteOrganisation'",
-        [retired.orgId],
-      )
-    ).rows[0]!.count,
-    "1",
-  );
-  const download = await jobs.downloadArtifact(actor, unrelatedId);
-  let downloaded = 0;
-  for await (const chunk of download.stream)
-    downloaded += Buffer.byteLength(chunk);
-  assert.ok(downloaded > 0);
-  assert.ok(
-    !(
-      await ddlPool.query<{ id: string }>(
-        "SELECT id FROM rootset_control.maintenance_org_directory()",
-      )
-    ).rows.some((row) => row.id === retired.orgId),
-  );
-});
-
-test("ACC-10 AUD-09 JOB-03: audit expiry requires a permanent deletion marker and commits its checkpoint with the bounded purge", async () => {
-  const deletedUser = newId(),
-    disabledOnly = newId(),
-    activeUser = newId();
-  for (const userId of [deletedUser, disabledOnly, activeUser])
-    await owner.query(
-      "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,outcome,created_at) VALUES($1,$2,'operator',$3,$4,'updateProfile','{}',now()-interval '4 days')",
-      [newId(), actor.orgId, actor.id, userId],
-    );
-  await owner.query(
-    "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,target_id,outcome,created_at) VALUES($1,$2,'operator',$3,$4::varchar(26),'deleteAccount',$4::varchar(26),'{\"state\":\"deleted\",\"retainedActorIdentity\":true}',now()-interval '3 days')",
-    [newId(), actor.orgId, actor.id, deletedUser],
-  );
-  const maintenance = new JobsService({
-    pool,
-    ddlPool,
-    storage,
-    config: {
-      ...config,
-      deletionRetention: async () => ({
-        organisationDays: null,
-        accountAuditDays: 1,
-      }),
-      purgeAccountAudit: async (orgId, before, client) => {
-        assert.ok(client);
-        return (
-          await client.query<{ removed: number }>(
-            "SELECT rootset_control.purge_retained_account_audit($1,$2) AS removed",
-            [orgId, before],
-          )
-        ).rows[0]!.removed;
-      },
-    },
-  });
-  assert.equal(await maintenance.scheduleMaintenance(actor.orgId), 1);
-  failPoint = "retention.afterAuditBatch";
-  await maintenance.runOnce(actor.orgId);
-  const run = await withOrg(
-    ddlPool,
-    actor.orgId,
-    async (client) =>
-      (
-        await client.query<{
-          id: string;
-          state: string;
-          checkpoint: { deletedAuditRecords: number };
-        }>(
-          "SELECT * FROM rootset_control.jobs WHERE kind='account_audit_retention'",
-        )
-      ).rows[0]!,
-  );
-  assert.equal(run.state, "queued");
-  assert.equal(run.checkpoint.deletedAuditRecords, 1);
-  await withOrg(ddlPool, actor.orgId, (client) =>
-    client.query(
-      "UPDATE rootset_control.jobs SET next_attempt_at=now() WHERE id=$1",
-      [run.id],
-    ),
-  );
-  await maintenance.runOnce(actor.orgId);
-  const result = await withOrg(
-    ddlPool,
-    actor.orgId,
-    async (client) =>
-      (
-        await client.query<{
-          state: string;
-          result: { deletedAuditRecords: number };
-        }>("SELECT state,result FROM rootset_control.jobs WHERE id=$1", [
-          run.id,
-        ])
-      ).rows[0]!,
-  );
-  assert.equal(result.state, "succeeded");
-  assert.equal(result.result.deletedAuditRecords, 1);
-  const retained = (
-    await owner.query<{ user_id: string; operation: string }>(
-      "SELECT user_id,operation FROM rootset_control.account_audit WHERE user_id=ANY($1::text[])",
-      [[deletedUser, disabledOnly, activeUser]],
-    )
-  ).rows;
-  assert.equal(retained.length, 3);
-  assert.ok(
-    retained.some(
-      (row) => row.user_id === deletedUser && row.operation === "deleteAccount",
-    ),
-  );
-  assert.ok(
-    retained.some(
-      (row) =>
-        row.user_id === disabledOnly && row.operation === "updateProfile",
-    ),
-  );
-  assert.ok(
-    retained.some(
-      (row) => row.user_id === activeUser && row.operation === "updateProfile",
-    ),
-  );
-});
-
-test("IO-01/09 JOB-04: same-origin streaming upload preserves exact replay, bounded source checks and current authority", async () => {
+test("V1-07 V1-24 V1-25 V1-30: same-origin streaming upload preserves exact replay, bounded source checks and current authority", async () => {
   let denyEncryptionFor: string | undefined;
   const transfer = new JobsService({
     pool,
@@ -2667,7 +2108,7 @@ test("IO-01/09 JOB-04: same-origin streaming upload preserves exact replay, boun
   assert.ok(encrypted.metadata.finalizedArtifactId);
 });
 
-test("JOB-04 IO-04: authority loss between committed import batches stops further mutations with an exact partial outcome", async () => {
+test("V1-07 V1-24 V1-25: authority loss between committed import batches stops further mutations with an exact partial outcome", async () => {
   const artifact = await upload(
     "code,name,active,instant,payload\nREVOKE01,First,true,2026-10-02T00:00:00Z,{}\nREVOKE02,Second,true,2026-10-02T00:00:00Z,{}\nREVOKE03,Forbidden,true,2026-10-02T00:00:00Z,{}\n",
   );
@@ -2700,7 +2141,7 @@ test("JOB-04 IO-04: authority loss between committed import batches stops furthe
   assert.equal(completed.result?.committed, 3);
 });
 
-test("JOB-02/04 BKP-10: committed verified backup reconciles after a completion crash without reusing revoked authority", async () => {
+test("V1-07 V1-24 V1-27: committed verified backup reconciles after a completion crash without reusing revoked authority", async () => {
   const run = (await jobs.execute(
     "createBackup",
     actor,
@@ -2741,13 +2182,13 @@ test("JOB-02/04 BKP-10: committed verified backup reconciles after a completion 
   assert.equal(reconciled.result.verifiedAt, journal.verified_at.toISOString());
 });
 
-test("BKP-09/12 JOB-03: terminal recovery-backup failure aborts replacement and releases its target write barrier", async () => {
+test("V1-24 V1-27 V1-28 V1-30: terminal recovery-backup failure aborts replacement and releases its target write barrier", async () => {
   const source = await storage.createDatabase(actor, {
     name: `Recovery source ${newId()}`,
   });
   const sourceTable = await storage.createTable(actor, source.id, {
     name: "Source",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
+    fields: [{ name: "value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
   await storage.createRow(
@@ -2769,7 +2210,7 @@ test("BKP-09/12 JOB-03: terminal recovery-backup failure aborts replacement and 
   });
   const targetTable = await storage.createTable(actor, target.id, {
     name: "Target",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
+    fields: [{ name: "value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
   const existing = await storage.createRow(
@@ -2831,142 +2272,13 @@ test("BKP-09/12 JOB-03: terminal recovery-backup failure aborts replacement and 
   );
 });
 
-test("API-09 JOB-03: policy, cancellation and retry replay commit with their supplied transaction", async () => {
-  const database = await storage.createDatabase(actor, {
-    name: `Replay policy ${newId()}`,
-  });
-  const policy = {
-    databaseId: database.id,
-    enabled: false,
-    cron: "0 0 * * *",
-    timezone: "UTC",
-    destination: "installation",
-    retentionDays: 30,
-    retentionCount: 10,
-    encryption: true,
-    maxRuntimeSeconds: 3600,
-    notifications: false,
-  };
-  const key = "K".repeat(255);
-  const replies = await Promise.all(
-    Array.from({ length: 3 }, () =>
-      jobs.execute("setBackupPolicy", actor, policy, { idempotencyKey: key }),
-    ),
-  );
-  assert.deepEqual(replies[0], replies[1]);
-  assert.deepEqual(replies[0], replies[2]);
-  await assert.rejects(
-    jobs.execute(
-      "setBackupPolicy",
-      actor,
-      { ...policy, retentionCount: 11 },
-      { idempotencyKey: key },
-    ),
-    (error) =>
-      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-  );
-  const rolledBackKey = newId();
-  await assert.rejects(
-    withOrg(pool, actor.orgId, async (client) => {
-      await jobs.execute(
-        "setBackupPolicy",
-        actor,
-        { ...policy, retentionCount: 12 },
-        { idempotencyKey: rolledBackKey, client },
-      );
-      throw new Error("Rollback policy receipt and effects");
-    }),
-  );
-  const afterRollback = (await jobs.execute("getBackupPolicy", actor, {
-    databaseId: database.id,
-  })) as { policy: { retentionCount: number } };
-  assert.equal(afterRollback.policy.retentionCount, 10);
-  await jobs.execute(
-    "setBackupPolicy",
-    actor,
-    { ...policy, retentionCount: 13 },
-    { idempotencyKey: rolledBackKey },
-  );
-  currentAccess = false;
-  try {
-    await assert.rejects(
-      jobs.execute("setBackupPolicy", actor, policy, { idempotencyKey: key }),
-      (error) =>
-        error instanceof RootsetError && error.code === "ACCESS_DENIED",
-    );
-  } finally {
-    currentAccess = true;
-  }
-  const queued = (await jobs.execute(
-    "createBackup",
-    actor,
-    { databaseId: database.id },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  const cancellationKey = newId();
-  const cancelled = await jobs.execute(
-    "cancelJob",
-    actor,
-    { id: queued.jobId },
-    { idempotencyKey: cancellationKey },
-  );
-  assert.deepEqual(
-    await jobs.execute(
-      "cancelJob",
-      actor,
-      { id: queued.jobId },
-      { idempotencyKey: cancellationKey },
-    ),
-    cancelled,
-  );
-  const differentTarget = (await jobs.execute(
-    "createBackup",
-    actor,
-    { databaseId: database.id },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  await assert.rejects(
-    jobs.execute(
-      "cancelJob",
-      actor,
-      { id: differentTarget.jobId },
-      { idempotencyKey: cancellationKey },
-    ),
-    (error) =>
-      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-  );
-  await jobs.execute(
-    "cancelJob",
-    actor,
-    { id: differentTarget.jobId },
-    { idempotencyKey: newId() },
-  );
-  const retryKey = newId();
-  const retried = (await jobs.execute(
-    "retryJob",
-    actor,
-    { id: queued.jobId },
-    { idempotencyKey: retryKey },
-  )) as { jobId: string };
-  assert.deepEqual(
-    await jobs.execute(
-      "retryJob",
-      actor,
-      { id: queued.jobId },
-      { idempotencyKey: retryKey },
-    ),
-    retried,
-  );
-  assert.equal((await terminal(retried.jobId)).state, "succeeded");
-});
-
-test("BKP-06/13 JOB-02/03 API-09: queued backup deletion defers effects until commit, resumes object checkpoints and reconciles a real SIGKILL after final publication", async () => {
+test("V1-17 V1-24 V1-30: queued backup deletion defers effects until commit, resumes object checkpoints and reconciles a real SIGKILL after final publication", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Deletion fence ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Values",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
+    fields: [{ name: "value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
   await storage.createRow(
@@ -3205,15 +2517,13 @@ test("BKP-06/13 JOB-02/03 API-09: queued backup deletion defers effects until co
   }
 });
 
-test("AUD-09 BKP-01 JOB-04: history policy, archive detail, schedule preview and backup lists obey strict contracts and current target grants", async () => {
+test("V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Handler lifecycle ${newId()}`,
-    description: "Verified metadata",
   });
   const target = await storage.createTable(actor, database.id, {
     name: "History",
-    description: "Retained definitions",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 64 }],
+    fields: [{ name: "value", type: "text", charLimit: 64 }],
     idempotencyKey: newId(),
   });
   await storage.createRow(
@@ -3285,20 +2595,6 @@ test("AUD-09 BKP-01 JOB-04: history policy, archive detail, schedule preview and
   assert.equal(detail.state, "succeeded");
   assert.equal(detail.cellEvents, 1);
   assert.equal(detail.rowEvents, 1);
-  const previewInput = {
-    databaseId: database.id,
-    cron: "0 4 * * *",
-    timezone: "America/New_York",
-    from: "2026-11-01T00:00:00Z",
-    count: 3,
-  };
-  const preview = (await jobs.execute(
-    "previewBackupSchedule",
-    actor,
-    previewInput,
-  )) as { occurrences: string[] };
-  getOperation("previewBackupSchedule").outputSchema.parse(preview);
-  assert.equal(preview.occurrences.length, 3);
   const backup = (await jobs.execute(
     "createBackup",
     actor,
@@ -3318,24 +2614,22 @@ test("AUD-09 BKP-01 JOB-04: history policy, archive detail, schedule preview and
   const operations = [
     { id: "setHistoryRetentionPolicy", input: historyPolicy, key: policyKey },
     { id: "getHistoryArchive", input: archiveInput },
-    { id: "previewBackupSchedule", input: previewInput },
     { id: "listBackups", input: listInput },
   ];
-  const restricted: Actor = {
-    ...actor,
-    operator: false,
-    unrestricted: false,
-    targets: [{ databaseId, level: "manage" }],
-  };
+  const viewer: Actor = { ...actor, role: "viewer" };
   const scoped = new JobsService({ pool, ddlPool, storage, config });
   for (const operation of operations) {
-    await assert.rejects(
-      scoped.execute(operation.id, restricted, operation.input, {
-        idempotencyKey: operation.key ?? newId(),
-      }),
-      (error) =>
-        error instanceof RootsetError && error.code === "ACCESS_DENIED",
-    );
+    if (operation.id === "setHistoryRetentionPolicy")
+      await assert.rejects(
+        scoped.execute(operation.id, viewer, operation.input, {
+          idempotencyKey: operation.key ?? newId(),
+        }),
+        (error) => error instanceof RootsetError && error.code === "FORBIDDEN",
+      );
+    else
+      getOperation(operation.id).outputSchema.parse(
+        await scoped.execute(operation.id, viewer, operation.input),
+      );
     currentAccess = false;
     try {
       await assert.rejects(
@@ -3351,144 +2645,13 @@ test("AUD-09 BKP-01 JOB-04: history policy, archive detail, schedule preview and
   }
 });
 
-test("ACC-10 AUD-09 JOB-03: suspended-organisation audit retention discovers only permanent account deletions and preserves unrelated audit", async () => {
-  const suspended = newId(),
-    disabledOnlyOrg = newId(),
-    deletedUser = newId(),
-    otherUser = newId();
-  for (const orgId of [suspended, disabledOnlyOrg])
-    await owner.query(
-      "INSERT INTO rootset_control.organisations(id,name,state) VALUES($1,$2,'suspended')",
-      [orgId, `Suspended ${orgId}`],
-    );
-  for (const orgId of [suspended, disabledOnlyOrg])
-    for (const userId of [deletedUser, otherUser])
-      await owner.query(
-        "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,outcome,created_at) VALUES($1,$2,'operator',$3,$4,'updateProfile','{}',now()-interval '4 days')",
-        [newId(), orgId, actor.id, userId],
-      );
-  await owner.query(
-    "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,target_id,outcome,created_at) VALUES($1,$2,'operator',$3,$4::varchar(26),'deleteAccount',$4::varchar(26),'{\"state\":\"deleted\",\"retainedActorIdentity\":true}',now()-interval '3 days')",
-    [newId(), suspended, actor.id, deletedUser],
-  );
-  await owner.query(
-    "INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,operation,target_id,outcome,created_at) VALUES($1,$2,'operator',$3,$4::varchar(26),'deleteAccount',$4::varchar(26),'{\"state\":\"disabled\",\"retainedActorIdentity\":true}',now()-interval '3 days')",
-    [newId(), disabledOnlyOrg, actor.id, deletedUser],
-  );
-  const directory = async () =>
-    (
-      await ddlPool.query<{ id: string }>(
-        "SELECT * FROM rootset_control.maintenance_org_directory()",
-      )
-    ).rows;
-  const discovered = await directory();
-  assert.ok(discovered.some((row) => row.id === suspended));
-  assert.equal(
-    discovered.some((row) => row.id === disabledOnlyOrg),
-    false,
-  );
-  for (const row of discovered) assert.deepEqual(Object.keys(row), ["id"]);
-  await assert.rejects(
-    pool.query("SELECT * FROM rootset_control.maintenance_org_directory()"),
-    (error) => (error as { code: string }).code === "42501",
-  );
-  await assert.rejects(
-    withOrg(ddlPool, suspended, (c) =>
-      c.query("SELECT rootset_control.purge_retained_account_audit($1,now())", [
-        disabledOnlyOrg,
-      ]),
-    ),
-    (error) => (error as { code: string }).code === "42501",
-  );
-  let auditDays: number | null = null;
-  const maintenance = new JobsService({
-    pool,
-    ddlPool,
-    storage,
-    config: {
-      ...config,
-      deletionRetention: async () => ({
-        organisationDays: null,
-        accountAuditDays: auditDays,
-      }),
-      purgeAccountAudit: async (org, before, client) => {
-        assert.ok(client);
-        return (
-          await client.query<{ removed: number }>(
-            "SELECT rootset_control.purge_retained_account_audit($1,$2) AS removed",
-            [org, before],
-          )
-        ).rows[0]!.removed;
-      },
-    },
-  });
-  assert.equal(await maintenance.scheduleMaintenance(suspended), 0);
-  auditDays = 1;
-  assert.equal(await maintenance.scheduleMaintenance(suspended), 1);
-  await maintenance.runOnce(suspended);
-  const result = await withOrg(
-    ddlPool,
-    suspended,
-    async (c) =>
-      (
-        await c.query<{
-          state: string;
-          result: { deletedAuditRecords: number };
-        }>(
-          "SELECT state,result FROM rootset_control.jobs WHERE kind='account_audit_retention'",
-        )
-      ).rows[0]!,
-  );
-  assert.equal(result.state, "succeeded");
-  assert.equal(result.result.deletedAuditRecords, 1);
-  const kept = (
-    await owner.query<{ org_id: string; user_id: string; operation: string }>(
-      "SELECT org_id,user_id,operation FROM rootset_control.account_audit WHERE org_id=ANY($1::text[])",
-      [[suspended, disabledOnlyOrg]],
-    )
-  ).rows;
-  assert.equal(kept.length, 5);
-  assert.equal(
-    kept.filter(
-      (row) =>
-        row.org_id === suspended &&
-        row.user_id === deletedUser &&
-        row.operation === "updateProfile",
-    ).length,
-    0,
-  );
-  assert.ok(
-    kept.some(
-      (row) => row.org_id === suspended && row.operation === "deleteAccount",
-    ),
-  );
-  assert.ok(
-    kept.some(
-      (row) =>
-        row.org_id === suspended &&
-        row.user_id === otherUser &&
-        row.operation === "updateProfile",
-    ),
-  );
-  assert.equal(kept.filter((row) => row.org_id === disabledOnlyOrg).length, 3);
-  const after = await directory();
-  assert.equal(
-    after.some((row) => row.id === suspended),
-    false,
-  );
-  assert.equal(
-    after.some((row) => row.id === disabledOnlyOrg),
-    false,
-  );
-});
-
-test("OC-03 API-09 JOB-04: Viewer-owned export cancellation and retry execute under original scopes and deny foreign requesters or lost current authority", async () => {
+test("V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Viewer export ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Values",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
+    fields: [{ name: "value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
   await storage.createRow(
@@ -3504,24 +2667,25 @@ test("OC-03 API-09 JOB-04: Viewer-owned export cancellation and retry execute un
     userId: newId(),
     orgId: actor.orgId,
     role: "viewer",
-    scopes: [
-      "exports:read",
-      "rows:read",
-      "jobs:read",
-      "jobs:cancel",
-      "jobs:retry",
-    ],
-    targets: [{ databaseId: database.id, tableId: target.id, level: "read" }],
+    scopes: [],
+    membershipVersion: 1,
   };
-  let liveViewer = viewer;
+  let liveViewer: Actor | undefined = viewer;
   const fallback = new JobsService({ pool, ddlPool, storage, config });
   const service = new JobsService({
     pool,
     ddlPool,
     storage,
     config,
-    authorise: async (a, op, t) =>
-      fallback.authorise(a.id === viewer.id ? liveViewer : a, op, t),
+    authorise: async (a, op, t) => {
+      if (a.id === viewer.id && !liveViewer)
+        throw new RootsetError(
+          "ACCESS_DENIED",
+          "Current membership was removed",
+          403,
+        );
+      return fallback.authorise(a.id === viewer.id ? liveViewer! : a, op, t);
+    },
   });
   const queued = (await service.execute(
     "exportRows",
@@ -3564,22 +2728,7 @@ test("OC-03 API-09 JOB-04: Viewer-owned export cancellation and retry execute un
       (error) =>
         error instanceof RootsetError && error.code === "RESOURCE_NOT_FOUND",
     );
-  liveViewer = { ...viewer, targets: [] };
-  for (const operation of ["cancelJob", "retryJob"])
-    await assert.rejects(
-      service.execute(
-        operation,
-        viewer,
-        { id: queued.jobId },
-        { idempotencyKey: operation === "cancelJob" ? cancelKey : newId() },
-      ),
-      (error) =>
-        error instanceof RootsetError && error.code === "ACCESS_DENIED",
-    );
-  liveViewer = {
-    ...viewer,
-    scopes: viewer.scopes.filter((scope) => scope !== "exports:read"),
-  };
+  liveViewer = undefined;
   for (const operation of ["cancelJob", "retryJob"])
     await assert.rejects(
       service.execute(
@@ -3625,10 +2774,7 @@ test("OC-03 API-09 JOB-04: Viewer-owned export cancellation and retry execute un
   assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString()), {
     value: "Viewer row",
   });
-  liveViewer = {
-    ...viewer,
-    scopes: viewer.scopes.filter((scope) => scope !== "rows:read"),
-  };
+  liveViewer = undefined;
   await assert.rejects(
     service.execute(
       "retryJob",
@@ -3645,7 +2791,7 @@ test("OC-03 API-09 JOB-04: Viewer-owned export cancellation and retry execute un
     { tableId: target.id, format: "jsonl" },
     { idempotencyKey: newId() },
   )) as { jobId: string };
-  liveViewer = { ...viewer, targets: [] };
+  liveViewer = undefined;
   await service.runOnce(viewer.orgId);
   liveViewer = viewer;
   const refused = (await service.execute("getJob", viewer, {
@@ -3656,13 +2802,13 @@ test("OC-03 API-09 JOB-04: Viewer-owned export cancellation and retry execute un
   assert.equal(refused.error.code, "ACCESS_DENIED");
 });
 
-test("JOB-03/04 IO-09: running exports recheck cancellation and current authority before publishing their artifact", async () => {
+test("V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Export publication ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Values",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 32 }],
+    fields: [{ name: "value", type: "text", charLimit: 32 }],
     idempotencyKey: newId(),
   });
   await storage.createRow(
@@ -3725,13 +2871,13 @@ test("JOB-03/04 IO-09: running exports recheck cancellation and current authorit
   }
 });
 
-test("IO-01/02 JOB-04/06: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect", async () => {
+test("V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Validation transaction recovery ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Rejected records",
-    fields: [{ apiKey: "flag", label: "Flag", type: "boolean" }],
+    fields: [{ name: "flag", type: "boolean" }],
     idempotencyKey: newId(),
   });
   const prepare = async (records: number) => {
@@ -3843,13 +2989,13 @@ test("IO-01/02 JOB-04/06: slow all-rejected validation keeps its transaction liv
   assert.equal(recovered.result?.rejected, 2);
 });
 
-test("BKP-05 JOB-06: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover", async () => {
+test("V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Verification snapshot liveness ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Canonical history",
-    fields: [{ apiKey: "payload", label: "Payload", type: "json" }],
+    fields: [{ name: "payload", type: "json" }],
     idempotencyKey: newId(),
   });
   const row = await storage.createRow(actor, target.id, {
@@ -3972,13 +3118,13 @@ test("BKP-05 JOB-06: slow immutable history read precedes the native verificatio
   });
 });
 
-test("AUD-03/05/08 BKP-05/09 JOB-04: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history", async () => {
+test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Audit restore ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Original attributed history",
-    fields: [{ apiKey: "value", label: "Value", type: "text", charLimit: 128 }],
+    fields: [{ name: "value", type: "text", charLimit: 128 }],
     idempotencyKey: newId(),
   });
   const originalContext = {
@@ -4438,13 +3584,13 @@ test("AUD-03/05/08 BKP-05/09 JOB-04: durable restore lifecycle audits preserve a
   }
 });
 
-test("JOB-04 AUD-05: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings", async () => {
+test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Generic replay ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Count receipt",
-    fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+    fields: [{ name: "value", type: "integer" }],
     idempotencyKey: newId(),
   });
   await storage.createRow(
@@ -4671,238 +3817,13 @@ test("JOB-04 AUD-05: generic exact-count replay after control expiry preserves f
   assert.equal(await storage.exactCount(actor, target.id), 2);
 });
 
-test("BKP-01 JOB-04 AUD-05: marked manual backup policy defaults preserve lifetime replay and captured runtime while legacy/explicit/scheduled/recovery inputs remain bound", async () => {
-  const database = await storage.createDatabase(actor, {
-    name: `Policy lifetime ${newId()}`,
-  });
-  const target = await storage.createTable(actor, database.id, {
-    name: "Captured budget",
-    fields: [{ apiKey: "value", label: "Value", type: "integer" }],
-    idempotencyKey: newId(),
-  });
-  await storage.createRow(
-    actor,
-    target.id,
-    { value: 1 },
-    { idempotencyKey: newId() },
-  );
-  const input = { orgId: actor.orgId, databaseId: database.id },
-    key = newId(),
-    requestId = newId();
-  getOperation("createBackup").inputSchema.parse(input);
-  const accepted = (await jobs.execute("createBackup", actor, input, {
-    idempotencyKey: key,
-    requestId,
-  })) as { jobId: string };
-  const completed = await terminal(accepted.jobId);
-  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
-  const read = async () =>
-    (
-      await owner.query("SELECT * FROM rootset_control.jobs WHERE id=$1", [
-        accepted.jobId,
-      ])
-    ).rows[0]!;
-  const original = await read();
-  assert.equal(original.input.maxRuntimeSeconds, 3600);
-  assert.equal(original.input.backupRuntimeSource, "policy");
-  const setRuntime = async (maxRuntimeSeconds: number) => {
-    const policy = await jobs.execute("setBackupPolicy", actor, {
-      databaseId: database.id,
-      enabled: false,
-      cron: "0 4 * * *",
-      timezone: "UTC",
-      destination: "installation",
-      retentionDays: 30,
-      retentionCount: 10,
-      encryption: true,
-      maxRuntimeSeconds,
-      notifications: false,
-    });
-    getOperation("setBackupPolicy").outputSchema.parse(policy);
-  };
-  const expire = async () => {
-    const expired = await owner.query(
-      "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id='createBackup' AND outcome->>'jobId'=$2 RETURNING operation_id",
-      [actor.orgId, accepted.jobId],
-    );
-    assert.equal(expired.rowCount, 1);
-  };
-  await setRuntime(7200);
-  await expire();
-  const replay = (await jobs.execute("createBackup", actor, input, {
-    idempotencyKey: key,
-    requestId: newId(),
-  })) as { jobId: string };
-  assert.equal(replay.jobId, accepted.jobId);
-  const retained = await read();
-  assert.deepEqual(retained.input, original.input);
-  assert.equal(retained.input_digest, original.input_digest);
-  assert.equal(retained.state, original.state);
-  assert.deepEqual(retained.result, original.result);
-  await expire();
-  const otherDatabase = await storage.createDatabase(actor, {
-    name: `Different policy target ${newId()}`,
-  });
-  await assert.rejects(
-    () =>
-      jobs.execute(
-        "createBackup",
-        actor,
-        { ...input, databaseId: otherDatabase.id },
-        { idempotencyKey: key, requestId: newId() },
-      ),
-    (error: unknown) =>
-      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-  );
-  currentAccess = false;
-  try {
-    await assert.rejects(
-      () =>
-        jobs.execute("createBackup", actor, input, {
-          idempotencyKey: key,
-          requestId: newId(),
-        }),
-      (error: unknown) =>
-        error instanceof RootsetError && error.code === "ACCESS_DENIED",
-    );
-  } finally {
-    currentAccess = true;
-  }
-
-  const unmarked = { ...original.input };
-  delete unmarked.backupRuntimeSource;
-  const legacyDigest = createHash("sha256")
-    .update(
-      stableStringify({
-        actor: original.requester_id,
-        orgId: original.org_id,
-        operationId: original.operation_id,
-        target: { type: original.target_type, id: original.target_id },
-        input: unmarked,
-      }),
-    )
-    .digest("hex");
-  await owner.query(
-    "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
-    [accepted.jobId, unmarked, legacyDigest],
-  );
-  await assert.rejects(
-    () =>
-      jobs.execute("createBackup", actor, input, {
-        idempotencyKey: key,
-        requestId: newId(),
-      }),
-    (error: unknown) =>
-      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-  );
-  await setRuntime(3600);
-  const legacy = (await jobs.execute("createBackup", actor, input, {
-    idempotencyKey: key,
-    requestId: newId(),
-  })) as { jobId: string };
-  assert.equal(legacy.jobId, accepted.jobId);
-  const legacyRetained = await read();
-  assert.deepEqual(legacyRetained.input, unmarked);
-  assert.equal(legacyRetained.input_digest, legacyDigest);
-  assert.deepEqual(legacyRetained.result, original.result);
-  await expire();
-  await owner.query(
-    "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
-    [accepted.jobId, "0".repeat(64)],
-  );
-  try {
-    await assert.rejects(
-      () =>
-        jobs.execute("createBackup", actor, input, {
-          idempotencyKey: key,
-          requestId: newId(),
-        }),
-      (error: unknown) =>
-        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-    );
-  } finally {
-    await owner.query(
-      "UPDATE rootset_control.jobs SET input=$2,input_digest=$3 WHERE id=$1",
-      [accepted.jobId, original.input, original.input_digest],
-    );
-  }
-
-  const nativeTarget = { type: "database" as const, id: database.id };
-  for (const binding of [
-    {},
-    { policyId: newId(), scheduledAt: new Date().toISOString() },
-    { recoveryFor: database.id },
-  ]) {
-    const explicit = { ...input, ...binding, maxRuntimeSeconds: 3600 };
-    const explicitKey = newId();
-    const first = await jobs.queue.enqueue(
-      actor,
-      "createBackup",
-      "backup",
-      nativeTarget,
-      explicit,
-      explicitKey,
-    );
-    assert.equal(first.input.backupRuntimeSource, undefined);
-    await assert.rejects(
-      () =>
-        jobs.queue.enqueue(
-          actor,
-          "createBackup",
-          "backup",
-          nativeTarget,
-          { ...explicit, maxRuntimeSeconds: 3601 },
-          explicitKey,
-        ),
-      (error: unknown) =>
-        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-    );
-  }
-  await assert.rejects(
-    () =>
-      jobs.queue.enqueue(
-        actor,
-        "createBackup",
-        "backup",
-        nativeTarget,
-        { ...input, maxRuntimeSeconds: 3600, backupRuntimeSource: "policy" },
-        newId(),
-      ),
-    (error: unknown) =>
-      error instanceof RootsetError && error.code === "CONFIGURATION_INVALID",
-  );
-  await assert.rejects(
-    () =>
-      jobs.queue.enqueue(
-        actor,
-        "exportRows",
-        "export",
-        nativeTarget,
-        { ...input, maxRuntimeSeconds: 3600 },
-        newId(),
-        undefined,
-        { manualBackupPolicyRuntime: true },
-      ),
-    (error: unknown) =>
-      error instanceof RootsetError && error.code === "CONFIGURATION_INVALID",
-  );
-  const counts = (
-    await owner.query(
-      "SELECT (SELECT count(*)::text FROM rootset_control.jobs WHERE operation_id='createBackup' AND idempotency_key=$1) AS jobs,(SELECT count(*)::text FROM rootset_control.backups WHERE job_id=$2) AS backups",
-      [key, accepted.jobId],
-    )
-  ).rows[0]!;
-  assert.deepEqual(counts, { jobs: "1", backups: "1" });
-  assert.equal(await storage.exactCount(actor, target.id), 1);
-});
-
-test("JOB-01/04 API-09 AUD-05: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata", async () => {
+test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Signed admission ${newId()}`,
   });
   const target = await storage.createTable(actor, database.id, {
     name: "Admission count data",
-    fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+    fields: [{ name: "value", type: "integer" }],
     idempotencyKey: newId(),
   });
   for (const value of [1, 2])

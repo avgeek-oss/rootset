@@ -53,10 +53,8 @@ const owner: Actor = {
   clientId: "fixture-client",
   userId: newId(),
   orgId: newId(),
-  role: "owner",
+  role: "admin",
   scopes: ["rows:read", "rows:write"],
-  targets: [],
-  unrestricted: true,
 };
 const ids = { orgId: owner.orgId, databaseId: newId(), tableId: newId() };
 const readOutput = {
@@ -580,8 +578,6 @@ test(
         ...owner,
         role: "viewer",
         scopes: [],
-        targets: [],
-        unrestricted: false,
       },
       7,
     );

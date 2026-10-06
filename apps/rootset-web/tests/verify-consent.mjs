@@ -56,7 +56,6 @@ function authorization(state) {
     scope: "rows:read tables:read",
     state,
     organization_id: fixture.orgId,
-    table_ids: fixture.tableId,
   }).toString();
   return { url, verifier };
 }
@@ -69,10 +68,10 @@ async function review(request) {
     page.getByRole("button", { name: "Allow access", exact: true }),
   ).toBeEnabled();
   await expect(page.locator(".identity-panel")).toContainText(clientId);
-  await expect(page.locator(".identity-panel")).toContainText(fixture.tableId);
+  await expect(page.locator(".identity-panel")).toContainText(resource);
   await expect(page.locator(".identity-panel")).toContainText("rows:read");
   await expect(page.locator(".identity-panel")).toContainText(
-    "Registered by this installation",
+    "Registered by an installation administrator",
   );
 }
 async function rpc(accessToken, method, params) {
@@ -106,12 +105,9 @@ try {
   });
   if (!signed.ok())
     throw new Error(`Verified browser sign-in HTTP ${signed.status()}`);
-  const selected = await context.request.post("/v1/auth/organisation", {
-    headers: { Origin: new URL(baseURL).origin },
-    data: { orgId: fixture.orgId },
-  });
+  const selected = await context.request.get("/api/internal/v1/context");
   if (!selected.ok())
-    throw new Error(`Organisation selection HTTP ${selected.status()}`);
+    throw new Error(`Automatic organisation context HTTP ${selected.status()}`);
   const denied = authorization("rendered-denial-proof");
   await review(denied);
   await page.screenshot({
@@ -153,7 +149,7 @@ try {
   const tokens = await exchanged.json();
   expect(typeof tokens.access_token).toBe("string");
   report.checks.push({
-    name: "Explicit consent grants exact target and PKCE exchange succeeds at actual OAuth server",
+    name: "Explicit consent grants requested operations and audience and PKCE exchange succeeds at actual OAuth server",
     status: "passed",
   });
   const tools = [];

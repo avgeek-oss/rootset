@@ -1,7 +1,6 @@
 import { createPool, withOrg } from "@rootset/database";
-import { scopeNames, newId, JsonValueSchema } from "@rootset/contracts";
+import { scopeNames, JsonValueSchema } from "@rootset/contracts";
 import { assertAccess } from "@rootset/access";
-import { CapacityService } from "@rootset/capacity";
 import { OperationalObserver } from "@rootset/observability";
 import { IdentityService } from "@rootset/identity";
 import { TableStorage } from "@rootset/table-storage";
@@ -11,10 +10,7 @@ import { RootsetCore } from "./index.js";
 import { loadConfig, type Config } from "./config.js";
 import { MetadataPaging } from "./paging.js";
 import { createBackupNotifications } from "./backup-notifications.js";
-import {
-  InstallationService,
-  resolveInstallationConfig,
-} from "./installation.js";
+import { InstallationService } from "./installation.js";
 
 export async function createRuntime(
   baseline: Config = loadConfig(),
@@ -25,8 +21,7 @@ export async function createRuntime(
     ddlPool = createPool(baseline.ddlDatabaseURL, 5, "ddl"),
     identityPool = createPool(baseline.identityDatabaseURL, 10, "identity");
   try {
-    const resolved = await resolveInstallationConfig(identityPool, baseline),
-      config = resolved.config;
+    const config = baseline;
     const paging = new MetadataPaging(config.cursorSecret);
     const identity: IdentityService = new IdentityService({
       ...config,
@@ -43,27 +38,7 @@ export async function createRuntime(
         oauth.resolveActor(request, audience === "mcp" ? "mcp" : "api"),
       authoriseRepair: (actor, input) =>
         core.authorise(actor, "mutateRows", input),
-      enqueueDeletion: (actor, kind, input, context) =>
-        jobs.enqueueOperation(
-          actor,
-          kind === "account" ? "deleteAccount" : "deleteOrganisation",
-          input,
-          {
-            idempotencyKey:
-              context.idempotencyKey ??
-              (typeof input.approvalId === "string"
-                ? `delete:${input.approvalId}`
-                : `delete:${newId()}`),
-            requestId: context.requestId,
-            source:
-              context.surface === "api" ? "rest" : (context.surface ?? "rest"),
-            approvalId: context.actionId,
-            stepUpApproved: true,
-            client: context.approvalClient,
-          },
-        ),
     });
-    const capacity = new CapacityService(identityPool);
     const observer = new OperationalObserver({
       operatorPool: identityPool,
       pools: {
@@ -77,14 +52,11 @@ export async function createRuntime(
       pool,
       ddlPool,
       cursorSecret: config.cursorSecret,
-      capacity,
     });
     const installation = new InstallationService(
       identityPool,
       config,
-      resolved.revision,
       identity.emailOutbox,
-      capacity,
       observer,
     );
     const jobs: JobsService = new JobsService({
@@ -101,18 +73,6 @@ export async function createRuntime(
         idempotencySecret: config.keyHashSecret,
         recordRepairIntent: (client, actor, intent) =>
           identity.recordRepairIntent(client, actor, intent),
-        authorisePolicy: async (actor, target) => {
-          const current = await identity.refreshPolicyActor(actor);
-          await storage.getDatabase(current, target.databaseId);
-          assertAccess(current, {
-            scope: "backups:manage",
-            orgId: current.orgId,
-            databaseId: target.databaseId,
-            level: "manage",
-            roles: ["owner", "admin"],
-          });
-          return current;
-        },
         authoriseHistoryPolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
           const table = await storage.getTable(current, target.tableId);
@@ -123,7 +83,7 @@ export async function createRuntime(
               ...target,
               databaseId: table.databaseId,
               level: scope === "schema:manage" ? "manage" : "read",
-              roles: ["owner", "admin"],
+              roles: ["admin"],
             });
           return current;
         },
@@ -143,36 +103,6 @@ export async function createRuntime(
             )
           ).rows.map((r) => r.org_id),
         outbox: identity.emailOutbox,
-        deletionRetention: () => installation.deletionRetention(),
-        deletionMetadata: (orgId) =>
-          withOrg(
-            ddlPool,
-            orgId,
-            async (client) =>
-              (
-                await client.query<{
-                  metadata: { organisationDeletedAt: string | null };
-                }>("SELECT rootset_control.deletion_metadata($1) AS metadata", [
-                  orgId,
-                ])
-              ).rows[0]!.metadata,
-          ),
-        purgeAccountAudit: (orgId, before, suppliedClient) => {
-          const purge = async (
-            client: import("@rootset/database").PoolClient,
-          ) =>
-            Number(
-              (
-                await client.query<{ count: string }>(
-                  "SELECT rootset_control.purge_retained_account_audit($1,$2::timestamptz)::text AS count",
-                  [orgId, before],
-                )
-              ).rows[0]!.count,
-            );
-          return suppliedClient
-            ? purge(suppliedClient)
-            : withOrg(ddlPool, orgId, purge);
-        },
         reconcileOperation: (job) =>
           withOrg(pool, job.org_id, async (client) => {
             const row = (
@@ -232,7 +162,6 @@ export async function createRuntime(
       config,
       installation,
       observer,
-      getAdmissionLimits: () => installation.admissionLimits(),
       getReadiness: () => installation.status(),
       close: async () => {
         await Promise.all([

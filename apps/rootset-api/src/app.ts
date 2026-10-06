@@ -402,7 +402,6 @@ export function createApp(deps: ApiDependencies) {
               "worker",
               "objectStorage",
               "smtp",
-              "storageAdmission",
             ].includes(name) &&
             [
               "healthy",

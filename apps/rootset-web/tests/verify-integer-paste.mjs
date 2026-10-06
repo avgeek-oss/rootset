@@ -56,20 +56,15 @@ try {
     headers: { Origin: new URL(baseURL).origin },
   });
   expect(login.ok()).toBe(true);
-  expect(
-    (
-      await context.request.post("/v1/auth/organisation", {
-        data: { orgId: fixture.orgId },
-        headers: { Origin: new URL(baseURL).origin },
-      })
-    ).ok(),
-  ).toBe(true);
+  expect((await context.request.get("/api/internal/v1/context")).ok()).toBe(
+    true,
+  );
   const root = `/orgs/${fixture.orgId}/databases/${fixture.databaseId}`;
   const created = await call("POST", `${root}/tables`, {
     name: `Integer precision ${randomUUID().slice(0, 8)}`,
     fields: [
-      { apiKey: "TEXT", label: "Text", type: "text", charLimit: 256 },
-      { apiKey: "INTEGER", label: "Integer", type: "integer" },
+      { name: "TEXT", type: "text", charLimit: 256 },
+      { name: "INTEGER", type: "integer" },
     ],
   });
   const path = `${root}/tables/${created.table.id}`;
@@ -80,9 +75,7 @@ try {
     })
   ).row;
   const schema = await call("GET", `${path}/schema`);
-  const integerField = schema.fields.find(
-    (field) => field.apiKey === "INTEGER",
-  );
+  const integerField = schema.fields.find((field) => field.name === "INTEGER");
   report.tableId = created.table.id;
   await page.goto(
     `/settings/table?organisationId=${fixture.orgId}&databaseId=${fixture.databaseId}&tableId=${created.table.id}`,
@@ -190,10 +183,10 @@ try {
     await selectedInteger();
     await page.keyboard.press("Enter");
     const editor = page.getByRole("dialog", {
-      name: "Edit Integer",
+      name: "Edit INTEGER",
       exact: true,
     });
-    await editor.getByLabel("Integer", { exact: true }).fill(spelling);
+    await editor.getByLabel("INTEGER", { exact: true }).fill(spelling);
     const editorBaseline = await stored();
     await editor
       .getByRole("button", { name: "Save value", exact: true })

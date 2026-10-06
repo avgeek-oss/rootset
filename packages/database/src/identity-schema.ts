@@ -18,7 +18,6 @@ export const users = control.table("users", {
   email: varchar("email", { length: 320 }).notNull(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
-  disabled: boolean("disabled").notNull().default(false),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -30,7 +29,6 @@ export const sessions = control.table("sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
-  activeOrganizationId: varchar("active_organization_id", { length: 26 }),
   authenticatedAt: timestamp("authenticated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

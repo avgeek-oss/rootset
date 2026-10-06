@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import {
@@ -11,18 +11,13 @@ import {
   ImportMappingSchema,
   OperatorRepairAccountActionSchema,
   OperatorRepairIntentSchema,
-  CapacityConfigurationSchema,
-  CapacityConfigurationPatchSchema,
-  CapacityStatusSchema,
-  DeleteAccountInputSchema,
-  DeletionRetentionSchema,
-  DeletionRetentionPatchSchema,
   ErrorCodeSchema,
-  ErrorEnvelopeSchema,
-  StorageErrorCodeSchema,
-  storageErrorRecovery,
   FieldDefinitionSchema,
   FieldInputSchema,
+  FieldNameSchema,
+  ActorSchema,
+  KeyMetadataSchema,
+  assertFieldNames,
   IdSchema,
   QuerySpecSchema,
   RootsetError,
@@ -42,7 +37,6 @@ import {
   generateCoverageInventory,
   generateMcpTools,
   generateOpenApi,
-  getOperation,
   getRuntimeOperation,
   limits,
   newId,
@@ -66,86 +60,95 @@ const id = "01K6J7B8000000000000000000";
 const makeField = (
   type: FieldDefinition["type"],
   extra: Partial<FieldDefinition> = {},
-): FieldDefinition => ({ id, apiKey: "CODE", label: "Code", type, ...extra });
+): FieldDefinition => ({ id, name: "CODE", type, ...extra });
 const invalid = (call: () => unknown, code = "VALIDATION_FAILED") =>
   assert.throws(
     call,
     (error) => error instanceof RootsetError && error.code === code,
   );
 
-test("Account deletion has strict personal runtime authority without adding a public API or MCP operation", () => {
-  const operation = getRuntimeOperation("deleteAccount");
-  assert.equal(operation.inputSchema, DeleteAccountInputSchema);
-  assert.deepEqual(operation.scopes, ["account:security"]);
-  assert.equal(operation.minimumRole, "viewer");
-  assert.equal(operation.personal, true);
-  assert.equal(operation.operator, false);
-  assert.equal(operation.stepUp, "required");
-  assert.equal(operation.idempotencyRequired, true);
-  assert.equal(operation.job, true);
-  assert.equal(operation.destructive, true);
-  assert.equal(operation.successStatus, 202);
-  assert.ok(operation.errors.includes("LAST_OWNER"));
-  assert.deepEqual(DeleteAccountInputSchema.parse({ confirmation: "DELETE" }), {
-    confirmation: "DELETE",
-  });
-  assert.deepEqual(
-    DeleteAccountInputSchema.parse({
-      orgId: id.toLowerCase(),
-      confirmation: "DELETE",
-      approvalId: id.toLowerCase(),
-    }),
-    { orgId: id, confirmation: "DELETE", approvalId: id },
-  );
-  for (const input of [
-    {},
-    { confirmation: "delete" },
-    { confirmation: true },
-    { confirmation: "DELETE", userId: id },
-    { confirmation: "DELETE", sql: "forbidden" },
-    { confirmation: "DELETE", orgId: "invalid" },
-    { confirmation: "DELETE", approvalId: "invalid" },
-  ])
-    assert.equal(DeleteAccountInputSchema.safeParse(input).success, false);
-  const acceptance = {
-    jobId: id,
-    state: "queued",
-    statusUrl: `/v1/orgs/${id}/jobs/${id}`,
-  };
-  assert.deepEqual(operation.outputSchema.parse(acceptance), acceptance);
-  assert.equal(
-    operation.outputSchema.safeParse({ ...acceptance, secret: "forbidden" })
-      .success,
-    false,
-  );
-  assert.throws(
-    () => getOperation("deleteAccount"),
-    /Unknown Rootset operation/,
-  );
-  assert.throws(
-    () => getRuntimeOperation("rootset_delete_account"),
-    /Unknown Rootset operation/,
-  );
-  assert.throws(
-    () => getRuntimeOperation("deleteUser"),
-    /Unknown Rootset operation/,
-  );
-  for (const publicOperation of operations)
-    assert.equal(getRuntimeOperation(publicOperation.id), publicOperation);
-  assert.equal(operations.length, 104);
-  assert.equal(operationMap.deleteAccount, undefined);
+test("unsupported organisation, resource grant, account deletion and team-key operations are absent", () => {
+  const removed = [
+    "createOrganisation",
+    "listOrganisations",
+    "switchOrganisation",
+    "deleteOrganisation",
+    "transferOwnership",
+    "getGrants",
+    "updateGrants",
+    "queryOrganisationAudit",
+    "deleteAccount",
+    "listTeamKeys",
+    "createTeamKey",
+    "rotateTeamKey",
+    "revokeTeamKey",
+    "getBackupPolicy",
+    "setBackupPolicy",
+    "previewBackupSchedule",
+    "getInstallationConfiguration",
+    "updateInstallationConfiguration",
+    "testEmail",
+  ];
   const tools = generateMcpTools();
-  assert.equal(tools.length, 104);
+  const client = generateClientSource();
+  for (const name of removed) {
+    assert.equal(operationMap[name], undefined);
+    assert.throws(() => getRuntimeOperation(name), /Unknown Rootset operation/);
+    assert(!client.includes(`async ${name}(`));
+  }
+  assert.equal(operations.length, 88);
+  assert.equal(tools.length, operations.length);
+  for (const operation of operations)
+    assert.equal(getRuntimeOperation(operation.id), operation);
+  assert(!JSON.stringify(generateOpenApi()).includes('"team_key"'));
   assert.equal(
-    tools.some((tool) => tool.name === "rootset_delete_account"),
+    AccountActionTypeSchema.safeParse("delete_account").success,
     false,
   );
-  assert.equal(ProtocolAdapterInventory.length, 19);
   assert.equal(
-    ProtocolAdapterInventory.find(
-      (adapter) => adapter.path === "/v1/auth/*",
-    )?.reason?.includes("DELETE confirmation"),
-    true,
+    AccountActionTypeSchema.safeParse("transfer_ownership").success,
+    false,
+  );
+  assert.equal(
+    AccountActionTypeSchema.safeParse("delete_organisation").success,
+    false,
+  );
+});
+
+test("profile and installation organisation outputs omit removed lifecycle flags", () => {
+  const timestamps = {
+    createdAt: "2026-10-05T00:00:00.000Z",
+    updatedAt: "2026-10-05T00:00:00.000Z",
+  };
+  const profile = {
+    id,
+    name: "Admin",
+    email: "admin@example.test",
+    emailVerified: true,
+    ...timestamps,
+  };
+  const organisation = { id, name: "Installation", ...timestamps };
+  assert.deepEqual(
+    operationMap.getProfile!.outputSchema.parse(profile),
+    profile,
+  );
+  assert.deepEqual(
+    operationMap.getOrganisation!.outputSchema.parse(organisation),
+    organisation,
+  );
+  assert.equal(
+    operationMap.getProfile!.outputSchema.safeParse({
+      ...profile,
+      disabled: false,
+    }).success,
+    false,
+  );
+  assert.equal(
+    operationMap.getOrganisation!.outputSchema.safeParse({
+      ...organisation,
+      state: "active",
+    }).success,
+    false,
   );
 });
 
@@ -199,8 +202,7 @@ test("all field variants reject unknown options and validate bounds and defaults
   );
   assert.equal(
     FieldInputSchema.safeParse({
-      apiKey: "CODE",
-      label: "Code",
+      name: "CODE",
       type: "integer",
       default: 1.2,
     }).success,
@@ -208,8 +210,7 @@ test("all field variants reject unknown options and validate bounds and defaults
   );
   assert.equal(
     FieldInputSchema.safeParse({
-      apiKey: "_CODE",
-      label: "Code",
+      name: "CODE1",
       type: "integer",
     }).success,
     false,
@@ -234,8 +235,8 @@ test("text character limits count Unicode scalar values while byte limits count 
 test("nullable, missing, zero, false, empty string and patch omission are distinct", () => {
   const fields = [
     makeField("integer", { default: 0 }),
-    makeField("boolean", { id: newId(), apiKey: "ACTIVE" }),
-    makeField("text", { id: newId(), apiKey: "TEXT" }),
+    makeField("boolean", { id: newId(), name: "ACTIVE" }),
+    makeField("text", { id: newId(), name: "TEXT" }),
   ];
   assert.deepEqual(
     { ...validateValues(fields, {}) },
@@ -373,7 +374,7 @@ test("JSON cells and dictionary adapters preserve own prototype-named keys witho
     JSON.stringify(JsonValueSchema.parse(input)),
     JSON.stringify(input),
   );
-  const field = makeField("json", { apiKey: "META" });
+  const field = makeField("json", { name: "META" });
   const parsed = operationMap.createRow!.inputSchema.parse({
     ...operationExample(operationMap.createRow!),
     values: { META: input },
@@ -393,12 +394,15 @@ test("JSON cells and dictionary adapters preserve own prototype-named keys witho
   );
   assert.equal(Object.hasOwn(mapped, "__proto__"), true);
   assert.equal(mapped.__proto__, "META");
-  const unknown = operationMap.createRow!.inputSchema.parse({
-    ...operationExample(operationMap.createRow!),
-    values: parseStrictJson('{"__proto__":1}'),
-  }) as { values: Record<string, unknown> };
-  assert.equal(Object.hasOwn(unknown.values, "__proto__"), true);
-  invalid(() => validateValues([field], unknown.values));
+  const unknownValues = parseStrictJson('{"__proto__":1}');
+  assert.equal(
+    operationMap.createRow!.inputSchema.safeParse({
+      ...operationExample(operationMap.createRow!),
+      values: unknownValues,
+    }).success,
+    false,
+  );
+  invalid(() => validateValues([field], unknownValues));
   const cycle: Record<string, unknown> = {};
   cycle.self = cycle;
   assert.equal(JsonValueSchema.safeParse(cycle).success, false);
@@ -430,7 +434,7 @@ test("row budget boundary includes every null cell and stable field-key byte", (
     new TextEncoder().encode(`{"${id}":null}`).byteLength,
   );
   assert.equal(
-    rowBytes([{ ...field, label: "Renamed", apiKey: "RENAMED" }], {
+    rowBytes([{ ...field, name: "RENAMED" }], {
       RENAMED: atLimit.CODE,
     }),
     65536,
@@ -486,10 +490,10 @@ test("numeric lexemes preserve fractional source intent while allowing finite fl
   assert.equal(lexemes[2]!.pointer, "/values/JSON/a~1b~0c");
   invalid(() => assertValueLexemes([makeField("integer")], lexemes));
   assert.doesNotThrow(() =>
-    assertValueLexemes([makeField("float", { apiKey: "FLOAT" })], lexemes),
+    assertValueLexemes([makeField("float", { name: "FLOAT" })], lexemes),
   );
   invalid(() =>
-    assertValueLexemes([makeField("json", { apiKey: "JSON" })], lexemes),
+    assertValueLexemes([makeField("json", { name: "JSON" })], lexemes),
   );
   invalid(() =>
     assertSchemaNumberLexemes(operationMap.queryRows!.inputSchema, lexemes),
@@ -512,8 +516,8 @@ test("numeric lexemes preserve fractional source intent while allowing finite fl
 test("query numeric lexemes validate integer predicates and JSON paths without restricting floats", () => {
   const fields = [
     makeField("integer"),
-    makeField("json", { id: newId(), apiKey: "META" }),
-    makeField("float", { id: newId(), apiKey: "SCORE" }),
+    makeField("json", { id: newId(), name: "META" }),
+    makeField("float", { id: newId(), name: "SCORE" }),
   ];
   function check(text: string, path: (string | number)[] = ["query"]): void {
     const lexemes: NumberLexeme[] = [];
@@ -585,9 +589,9 @@ test("query numeric lexemes validate integer predicates and JSON paths without r
 test("typed query validation supports all documented field operators without applying data bounds to filters", () => {
   const fields = [
     makeField("integer", { min: 10, max: 20 }),
-    makeField("text", { id: newId(), apiKey: "NAME" }),
-    makeField("date-time", { id: newId(), apiKey: "TIME" }),
-    makeField("json", { id: newId(), apiKey: "META" }),
+    makeField("text", { id: newId(), name: "NAME" }),
+    makeField("date-time", { id: newId(), name: "TIME" }),
+    makeField("json", { id: newId(), name: "META" }),
   ];
   const query = validateQuery(
     {
@@ -629,7 +633,7 @@ test("typed query validation supports all documented field operators without app
   );
 });
 
-test("query stable-ID aliases normalise to the same API-key projection/filter/sort", () => {
+test("query stable-ID aliases normalise to the same name projection/filter/sort", () => {
   const fields = [makeField("integer")];
   const ids = validateQuery(
     {
@@ -656,51 +660,7 @@ test("query stable-ID aliases normalise to the same API-key projection/filter/so
   );
 });
 
-test("configuration patches preserve omitted values and full output applies defaults", () => {
-  assert.deepEqual(CapacityConfigurationPatchSchema.parse({}), {});
-  assert.deepEqual(
-    CapacityConfigurationPatchSchema.parse({ reportMaxAgeSeconds: 60 }),
-    { reportMaxAgeSeconds: 60 },
-  );
-  assert.deepEqual(CapacityConfigurationSchema.parse({}), {
-    installationQuotaBytes: null,
-    defaultOrganisationQuotaBytes: null,
-    minimumFreeBytes: null,
-    reportMaxAgeSeconds: 30,
-    organisationOverrides: [],
-  });
-  for (const schema of [
-    CapacityConfigurationSchema,
-    CapacityConfigurationPatchSchema,
-  ]) {
-    assert.equal(
-      schema.safeParse({
-        organisationOverrides: [
-          { orgId: id, quotaBytes: "100" },
-          { orgId: id.toLowerCase(), quotaBytes: "200" },
-        ],
-      }).success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({ installationQuotaBytes: "9223372036854775808" })
-        .success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({ installationQuotaBytes: "12.5" }).success,
-      false,
-    );
-  }
-  assert.deepEqual(DeletionRetentionPatchSchema.parse({}), {});
-  assert.deepEqual(
-    DeletionRetentionPatchSchema.parse({ organisationDays: 90 }),
-    { organisationDays: 90 },
-  );
-  assert.deepEqual(DeletionRetentionSchema.parse({}), {
-    organisationDays: null,
-    accountAuditDays: null,
-  });
+test("upload contracts retain exact method and byte limits", () => {
   const upload = operationMap.prepareImportUpload!.outputSchema.parse({
     artifactId: id,
     uploadUrl: "http://localhost:9000/signed-upload",
@@ -727,7 +687,7 @@ test("configuration patches preserve omitted values and full output applies defa
   );
 });
 
-test("usage keeps exact organisation quota and rejects installation-wide capacity leakage", () => {
+test("usage rejects removed quota and storage-admission fields", () => {
   const usage = {
     databases: 1,
     tables: 2,
@@ -736,9 +696,6 @@ test("usage keeps exact organisation quota and rejects installation-wide capacit
     indexBytes: 40,
     historyBytes: 20,
     artifactBytes: 30,
-    storageQuotaBytes: "9223372036854775807",
-    storageAdmission: { state: "available", reason: null },
-    admissionAvailable: true,
   };
   assert.deepEqual(operationMap.getUsage!.outputSchema.parse(usage), usage);
   assert.equal(
@@ -751,7 +708,7 @@ test("usage keeps exact organisation quota and rejects installation-wide capacit
   assert.equal(
     operationMap.getUsage!.outputSchema.safeParse({
       ...usage,
-      storageAdmission: { ...usage.storageAdmission, usedBytes: "99999" },
+      storageAdmission: { state: "available", reason: null },
     }).success,
     false,
   );
@@ -759,7 +716,7 @@ test("usage keeps exact organisation quota and rejects installation-wide capacit
     healthy: false,
     version: "0.1.0",
     migrationVersion: "001",
-    dependencies: { database: "unavailable", storageAdmission: "unavailable" },
+    dependencies: { database: "unavailable", objectStorage: "unavailable" },
     workerHeartbeatAt: null,
     metrics: {
       collectedAt: "2026-10-02T00:00:00.000Z",
@@ -771,7 +728,6 @@ test("usage keeps exact organisation quota and rejects installation-wide capacit
         errors: 0,
         timeouts: 0,
         rowLimitRejections: 0,
-        storageAdmissionRejections: 0,
         rateLimitRejections: 0,
         loggingFailures: 0,
         operations: [],
@@ -781,7 +737,6 @@ test("usage keeps exact organisation quota and rejects installation-wide capacit
       database: null,
       signals: [],
     },
-    storage: null,
   };
   assert.deepEqual(
     operationMap.getInstallationStatus!.outputSchema.parse(status),
@@ -793,107 +748,6 @@ test("usage keeps exact organisation quota and rejects installation-wide capacit
     operationMap.getInstallationStatus!.outputSchema.safeParse(missingMetrics)
       .success,
     false,
-  );
-  assert.equal(
-    CapacityStatusSchema.safeParse({
-      installation: {
-        usedBytes: "0",
-        quotaBytes: null,
-        availableQuotaBytes: null,
-        metric: "postgresql_database_bytes",
-      },
-      organisation: null,
-      disk: {
-        minimumFreeBytes: null,
-        reportedAvailableBytes: null,
-        reportedTotalBytes: null,
-        headroomClaimsBytes: "0",
-        effectiveAvailableBytes: null,
-        reportedAt: "2026-10-02 00:00:00+00",
-        reportMaxAgeSeconds: 30,
-        fresh: false,
-        volumes: [],
-      },
-      admission: { enabled: false, state: "available", reason: null },
-    }).success,
-    false,
-  );
-});
-
-test("capacity failure codes stay actionable across actual SQL, REST, MCP and generated clients", () => {
-  const migrations = new URL("../../database/migrations/", import.meta.url);
-  const actualCodes = new Set<string>();
-  for (const file of readdirSync(migrations).filter((entry) =>
-    entry.endsWith(".sql"),
-  )) {
-    const source = readFileSync(new URL(file, migrations), "utf8");
-    for (const match of source.matchAll(/ROOTSET_CAPACITY:(STORAGE_[A-Z_]+)/g))
-      actualCodes.add(match[1]!);
-  }
-  assert.deepEqual(
-    [...actualCodes].sort(),
-    [...StorageErrorCodeSchema.options].sort(),
-  );
-  assert.equal(
-    ErrorCodeSchema.parse("DEPENDENCY_UNAVAILABLE"),
-    "DEPENDENCY_UNAVAILABLE",
-  );
-  for (const code of actualCodes) {
-    assert.equal(ErrorCodeSchema.parse(code), code);
-    assert.equal(
-      storageErrorRecovery[code as keyof typeof storageErrorRecovery].status,
-      503,
-    );
-    const envelope = errorEnvelope(
-      new RootsetError(code, "Storage admission refused", 503),
-      id,
-    );
-    assert.deepEqual(ErrorEnvelopeSchema.parse(envelope), envelope);
-    for (const definition of operations.filter((entry) => !entry.readOnly))
-      assert.equal(definition.errors.includes(code), true);
-  }
-  for (const code of [
-    "STORAGE_ADMISSION_BUSY",
-    "STORAGE_POLICY_CHANGED",
-  ] as const) {
-    assert.equal(storageErrorRecovery[code].retryable, true);
-    assert.equal(storageErrorRecovery[code].action, "retry_unchanged");
-  }
-  assert.equal(
-    storageErrorRecovery.STORAGE_RESERVATION_REQUIRED.retryable,
-    false,
-  );
-  assert.equal(storageErrorRecovery.STORAGE_REPORT_STALE.retryable, false);
-  const spec = generateOpenApi();
-  const components = spec.components as {
-    schemas: Record<string, Record<string, unknown>>;
-  };
-  assert.deepEqual(components.schemas.ErrorCode!.enum, ErrorCodeSchema.options);
-  const paths = spec.paths as Record<
-    string,
-    Record<string, Record<string, unknown>>
-  >;
-  const createRow = paths[operationMap.createRow!.path]!.post!;
-  assert.deepEqual(createRow["x-rootset-error-recovery"], storageErrorRecovery);
-  const tools = generateMcpTools();
-  const createTool = tools.find(
-    (tool) => tool.name === operationMap.createRow!.toolName,
-  )!;
-  const metadata = createTool._meta as Record<string, unknown>;
-  assert.deepEqual(metadata["rootset.fyi/errorRecovery"], storageErrorRecovery);
-  const client = generateClientSource();
-  assert.equal(client.includes("export type ErrorCode ="), true);
-  for (const code of actualCodes)
-    assert.equal(client.includes(JSON.stringify(code)), true);
-  assert.equal(
-    ErrorEnvelopeSchema.safeParse({
-      error: {
-        code: "FUTURE_CODE",
-        message: "Future compatible",
-        requestId: id,
-      },
-    }).success,
-    true,
   );
 });
 
@@ -991,10 +845,9 @@ test("catalog covers every named baseline MCP operation with unique routes and s
     operations.length,
   );
   assert.equal(operationMap.queryRows!.readOnly, true);
-  assert.equal(operationMap.previewBackupSchedule!.readOnly, true);
+  assert.equal(operationMap.getInstallationStatus!.readOnly, true);
   assert.equal(operationMap.createRow!.readOnly, false);
-  assert.equal(operationMap.createTeamKey!.stepUp, "required");
-  assert.equal(operationMap.getInstallationConfiguration!.operator, true);
+  assert.equal(operationMap.createTeamKey, undefined);
   const indexInput = operationExample(operationMap.createIndex!);
   assert.equal(
     operationMap.createIndex!.inputSchema.safeParse(indexInput).success,
@@ -1014,14 +867,6 @@ test("catalog covers every named baseline MCP operation with unique routes and s
     }).success,
     true,
   );
-  const policy = operationExample(operationMap.setBackupPolicy!);
-  assert.equal(
-    operationMap.setBackupPolicy!.inputSchema.safeParse({
-      ...policy,
-      suspension: { code: "ACCESS_DENIED", at: "2026-10-02T00:00:00.000Z" },
-    }).success,
-    false,
-  );
   for (const operation of operations)
     assert.equal(
       operation.inputSchema.safeParse({ actor: {}, rawSql: "SELECT 1" })
@@ -1039,13 +884,13 @@ test("catalog covers every named baseline MCP operation with unique routes and s
   );
 });
 
-test("published invitation authority requires a personal Owner/Admin and retains team membership operations", () => {
+test("published invitation authority requires an admin and only supported membership roles", () => {
   const definition = operationMap.inviteMember!;
   assert.equal(definition.personal, true);
   assert.equal(definition.minimumRole, "admin");
   assert.deepEqual(definition.scopes, ["members:manage"]);
   assert.ok(definition.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
-  assert.ok(definition.description.includes("personal Owner or Admin"));
+  assert.ok(definition.description.includes("as an admin"));
   for (const internal of [false, true]) {
     const spec = generateOpenApi({ internal });
     const paths = spec.paths as Record<
@@ -1324,12 +1169,12 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.equal(operation.job, true);
   assert.equal(operation.stepUp, "conditional");
   assert.equal(operation.personal, false);
-  assert.equal(operation.operator, false);
+  assert.equal("operator" in operation, false);
   assert.deepEqual(operation.scopes, ["rows:write"]);
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
-  assert.ok(operation.errors.includes("OPERATOR_REQUIRED"));
+  assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 104);
+  assert.equal(operations.length, 88);
   const api = generateOpenApi() as {
     paths: Record<
       string,
@@ -1365,7 +1210,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
 
 test("operator repair approval intent preserves business keys and excludes credentials from its strict envelope", () => {
   const values = JSON.parse(
-    '{"password":"business password","token":{"secret":"business secret"},"__proto__":{"marker":"retained"}}',
+    '{"password":"business password","token":{"secret":"business secret"},"META":{"__proto__":{"marker":"retained"}}}',
   );
   const intent = {
     orgId: id,
@@ -1397,7 +1242,10 @@ test("operator repair approval intent preserves business keys and excludes crede
       canonicalJson(values),
     );
     assert.equal(
-      Object.hasOwn(parsed.repairIntent!.updates[0]!.values, "__proto__"),
+      Object.hasOwn(
+        parsed.repairIntent!.updates[0]!.values.META as object,
+        "__proto__",
+      ),
       true,
     );
     assert.equal(
@@ -1627,4 +1475,123 @@ test("error envelopes expose domain detail but redact unexpected stack/SQL and r
     }).success,
     false,
   );
+});
+
+test("property names are shared labels and row keys with stable IDs and collision protection", () => {
+  for (const name of ["name", "Name", "_name", "_", "A".repeat(64)])
+    assert.equal(FieldNameSchema.parse(name), name);
+  for (const name of [
+    "",
+    "A".repeat(65),
+    "field1",
+    "First Name",
+    "field-name",
+    "id",
+    "VERSION",
+    "createdAt",
+    "updatedAt",
+    "__proto__",
+    "constructor",
+    "prototype",
+  ])
+    assert.equal(FieldNameSchema.safeParse(name).success, false, name);
+  const field = makeField("text", { name: "first_name" });
+  assert.equal(
+    FieldDefinitionSchema.safeParse({ ...field, apiKey: "legacy" }).success,
+    false,
+  );
+  assert.equal(
+    FieldDefinitionSchema.safeParse({ ...field, label: "legacy" }).success,
+    false,
+  );
+  assert.deepEqual(
+    { ...validateValues([field], { first_name: "Ada" }) },
+    { first_name: "Ada" },
+  );
+  const renamed = { ...field, name: "given_name" };
+  assert.equal(
+    rowBytes([field], { first_name: "Ada" }),
+    rowBytes([renamed], { given_name: "Ada" }),
+  );
+  invalid(() =>
+    assertFieldNames([field, { ...field, id: newId(), name: "FIRST_NAME" }]),
+  );
+  invalid(() =>
+    validateQuery({ select: ["first_name"] }, [
+      field,
+      { ...field, id: newId() },
+    ]),
+  );
+});
+
+test("personal key metadata excludes selected authority and all actors use supported roles", () => {
+  const actor = {
+    kind: "personal_key",
+    id: "personal:key",
+    orgId: id,
+    userId: id,
+    role: "viewer",
+    scopes: [],
+  };
+  assert.equal(ActorSchema.safeParse(actor).success, true);
+  for (const extra of [
+    { targets: [] },
+    { unrestricted: true },
+    { operator: true },
+    { kind: "team_key" },
+    { role: "owner" },
+  ])
+    assert.equal(ActorSchema.safeParse({ ...actor, ...extra }).success, false);
+  const input = {
+    orgId: id,
+    name: "Automation",
+    expiresAt: "2030-01-01T00:00:00.000Z",
+  };
+  assert.equal(
+    operationMap.createPersonalKey!.inputSchema.safeParse(input).success,
+    true,
+  );
+  for (const extra of [
+    { scopes: ["rows:read"] },
+    { targets: [] },
+    { unrestricted: true },
+  ])
+    assert.equal(
+      operationMap.createPersonalKey!.inputSchema.safeParse({
+        ...input,
+        ...extra,
+      }).success,
+      false,
+    );
+  const key = {
+    id,
+    orgId: id,
+    userId: id,
+    name: "Automation",
+    prefix: "rs_key_",
+    createdAt: "2026-10-05T00:00:00.000Z",
+    expiresAt: null,
+    revokedAt: null,
+    lastUsedAt: null,
+  };
+  assert.equal(KeyMetadataSchema.safeParse(key).success, true);
+  for (const extra of [
+    { ownerKind: "team" },
+    { scopes: [] },
+    { targets: [] },
+    { unrestricted: true },
+  ])
+    assert.equal(
+      KeyMetadataSchema.safeParse({ ...key, ...extra }).success,
+      false,
+    );
+  for (const operation of operations)
+    if (
+      operation.scopes.some(
+        (scope) =>
+          scope.endsWith(":manage") &&
+          !["profile:manage", "keys:manage"].includes(scope),
+      )
+    )
+      assert.equal(operation.minimumRole, "admin", operation.id);
 });

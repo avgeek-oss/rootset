@@ -233,28 +233,6 @@ try {
   report.checks.runtimeRolesRestricted = true;
   for (const role of ["rootset_app", "rootset_ddl", "rootset_identity"])
     assert.throws(() => sql("SET ROLE rootset_owner; SELECT true", role));
-  const reporter = sql(
-    "SET ROLE rootset_capacity_reporter; SELECT json_build_object('paths',(SELECT count(*) FROM rootset_control.capacity_storage_paths()),'checkpoint',rootset_control.capacity_report_checkpoint() IS NOT NULL)",
-  );
-  assert.ok(reporter.paths >= 2 && reporter.checkpoint);
-  assert.throws(() =>
-    sql(
-      "SET ROLE rootset_capacity_reporter; SELECT count(*) FROM rootset_control.users",
-    ),
-  );
-  assert.throws(() =>
-    sql("SET ROLE rootset_capacity_reporter; SELECT true", "rootset_app"),
-  );
-  compose(
-    "exec",
-    "-T",
-    "--user",
-    "postgres",
-    "postgres",
-    "sh",
-    "/usr/local/bin/rootset-postgres-health",
-  );
-  report.checks.narrowDatabaseHostReporter = true;
   for (const service of ["api", "worker"]) {
     compose(
       "exec",
@@ -346,27 +324,14 @@ try {
     claimed: true,
     verified: true,
   });
-  report.stage = "operator_binding";
-  compose(
-    "exec",
-    "-T",
-    "api",
-    "node",
-    "dist/operator.mjs",
-    "bind",
-    provision.userId,
-    "--reason",
-    "isolated installation verification",
-  );
   const before = sql(
-    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships WHERE state='active'),'operatorBindings',(SELECT count(*) FROM rootset_control.operator_bindings),'operatorAudit',(SELECT count(*) FROM rootset_control.account_audit WHERE operation='bindOperator'))",
+    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships),'admins',(SELECT count(*) FROM rootset_control.memberships WHERE role='admin'))",
   );
   assert.equal(before.migrations, report.migrationInventory.count);
   assert.equal(before.users, 1);
   assert.equal(before.memberships, 1);
-  assert.equal(before.operatorBindings, 1);
-  assert.equal(before.operatorAudit, 1);
-  report.checks.bootstrapVerifiedAndAudited = true;
+  assert.equal(before.admins, 1);
+  report.checks.bootstrapVerifiedWithAdmin = true;
   report.stage = "preserved_restart";
   compose("restart", "api", "worker", "web");
   await poll(async () => {
@@ -394,7 +359,7 @@ try {
     verified: true,
   });
   const after = sql(
-    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships WHERE state='active'),'operatorBindings',(SELECT count(*) FROM rootset_control.operator_bindings),'operatorAudit',(SELECT count(*) FROM rootset_control.account_audit WHERE operation='bindOperator'))",
+    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships),'admins',(SELECT count(*) FROM rootset_control.memberships WHERE role='admin'))",
   );
   assert.deepEqual(after, before);
   assertMigrationLedger(installedMigrations(), report.migrationInventory);

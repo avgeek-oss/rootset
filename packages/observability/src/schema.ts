@@ -129,7 +129,6 @@ export const OperationalMetricsSchema = z.strictObject({
     errors: count,
     timeouts: count,
     rowLimitRejections: count,
-    storageAdmissionRejections: count,
     rateLimitRejections: count,
     loggingFailures: count,
     operations: z.array(OperationMetricsSchema).max(256),

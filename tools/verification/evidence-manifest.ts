@@ -3,159 +3,108 @@ import { createHash } from "node:crypto";
 export interface EvidenceRequirement {
   id: string;
   requirement: string;
-  positiveReviewOracle: string;
 }
 
 export interface EvidenceAuditContext {
-  candidateCommit: string;
-  sourceClean: boolean;
+  candidateVersion: string;
   requirements: EvidenceRequirement[];
   readArtifact: (path: string) => Promise<Uint8Array>;
-  inspectImage: (digest: string) => Promise<{
-    available: boolean;
-    sourceCommit?: string;
-  }>;
 }
 
 export interface EvidenceAuditResult {
-  requiredGates: number;
-  locallyValidGateEvidence: number;
-  verified: number;
-  acceptanceReady: boolean;
+  requiredChecks: number;
+  reportedPassed: number;
+  validRecords: number;
+  reportComplete: boolean;
+  acceptanceReady: false;
   failures: string[];
 }
-
-const imageServices = ["postgres", "api", "worker", "web"] as const;
-const commitPattern = /^[a-f0-9]{40}$/;
-const digestPattern = /^(?:[^\s@]+@)?sha256:[a-f0-9]{64}$/;
-const checksumPattern = /^[a-f0-9]{64}$/;
 
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
+const nonempty = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+const utc = (value: unknown): boolean =>
+  typeof value === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) &&
+  Number.isFinite(Date.parse(value)) &&
+  new Date(value).toISOString().slice(0, 19) === value.slice(0, 19);
 
-function nonempty(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function strings(value: unknown): value is string[] {
-  return Array.isArray(value) && value.length > 0 && value.every(nonempty);
-}
-
-function utc(value: unknown): boolean {
-  return (
-    typeof value === "string" &&
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value) &&
-    Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString().slice(0, 19) === value.slice(0, 19)
-  );
-}
-
+/** Validates recorded results. It cannot establish product behavior or acceptance. */
 export async function auditEvidenceManifest(
   input: unknown,
   context: EvidenceAuditContext,
 ): Promise<EvidenceAuditResult> {
-  const globalFailures: string[] = [];
-  const gateFailures: string[] = [];
+  const failures: string[] = [];
+  const requiredIds = new Set(context.requirements.map(({ id }) => id));
   if (
-    context.requirements.length !== 205 ||
-    new Set(context.requirements.map(({ id }) => id)).size !== 205
+    context.requirements.length !== 40 ||
+    requiredIds.size !== 40 ||
+    context.requirements.some(
+      ({ id }) => !/^V1-(?:0[1-9]|[1-3]\d|40)$/.test(id),
+    )
   )
-    globalFailures.push(
-      "The complete 205 unique v1 gate requirements are required",
+    failures.push(
+      "The current 40 unique V1 checklist requirements are required",
     );
   const manifest = object(input);
-  if (!manifest) globalFailures.push("Candidate manifest must be an object");
+  if (!manifest) failures.push("Candidate report must be an object");
   if (
-    !manifest ||
-    typeof manifest.candidateCommit !== "string" ||
-    !commitPattern.test(manifest.candidateCommit) ||
-    manifest.candidateCommit !== context.candidateCommit
+    !nonempty(context.candidateVersion) ||
+    manifest?.candidateVersion !== context.candidateVersion
   )
-    globalFailures.push("Candidate source does not match HEAD");
-  if (!context.sourceClean)
-    globalFailures.push("Candidate source has uncommitted changes");
-
-  const images = object(manifest?.imageDigests);
-  for (const service of imageServices) {
-    const digest = images?.[service];
-    if (typeof digest !== "string" || !digestPattern.test(digest)) {
-      globalFailures.push(
-        `${service}: immutable image digest is missing or invalid`,
-      );
-      continue;
-    }
-    try {
-      const inspected = await context.inspectImage(digest);
-      if (!inspected.available)
-        globalFailures.push(
-          `${service}: immutable image digest is not available locally`,
-        );
-      else if (
-        service !== "postgres" &&
-        inspected.sourceCommit !== context.candidateCommit
-      )
-        globalFailures.push(
-          `${service}: immutable image source does not match HEAD`,
-        );
-    } catch {
-      globalFailures.push(`${service}: immutable image inspection failed`);
-    }
-  }
-
-  const gates = object(manifest?.gates);
-  if (!gates) globalFailures.push("Gate evidence must be an object");
-  const requiredIds = new Set(context.requirements.map(({ id }) => id));
-  for (const id of Object.keys(gates ?? {}))
+    failures.push("Candidate version does not match the requested review");
+  const checks = object(manifest?.checks);
+  if (!checks) failures.push("Check records must be an object");
+  for (const id of Object.keys(checks ?? {}))
     if (!requiredIds.has(id))
-      globalFailures.push(`${id}: gate is not in the candidate checklist`);
-
-  let locallyValidGateEvidence = 0;
+      failures.push(`${id}: not in the current checklist`);
+  let reportedPassed = 0,
+    validRecords = 0;
   for (const requirement of context.requirements) {
-    const before = gateFailures.length;
-    const evidence = object(gates?.[requirement.id]);
+    const before = failures.length;
+    const record = object(checks?.[requirement.id]);
     const fail = (message: string) =>
-      gateFailures.push(`${requirement.id}: ${message}`);
-    if (!evidence) {
-      fail("reviewed passing evidence missing");
+      failures.push(`${requirement.id}: ${message}`);
+    if (!record) {
+      fail("result record missing");
       continue;
     }
+    if (record.requirement !== requirement.requirement)
+      fail("requirement does not match the current checklist");
+    if (record.status === "passed") reportedPassed++;
+    else if (record.status !== "failed" && record.status !== "pending")
+      fail("status must be passed, failed or pending");
     if (
-      evidence.status !== "passed" ||
-      evidence.candidateCommit !== manifest?.candidateCommit
+      !nonempty(record.method) ||
+      !nonempty(record.environment) ||
+      !nonempty(record.result)
     )
-      fail("passing result for the exact candidate is missing");
+      fail("method, environment and result are required");
+    if (!utc(record.recordedAt)) fail("valid UTC result date is required");
     if (
-      evidence.requirement !== requirement.requirement ||
-      evidence.positiveReviewOracle !== requirement.positiveReviewOracle
+      !Array.isArray(record.limitations) ||
+      !record.limitations.every(nonempty)
     )
-      fail("literal requirement and review oracle do not match the candidate");
-    if (evidence.wholeRequirementReviewed !== true)
-      fail("whole requirement has not been reviewed");
-    if (!strings(evidence.coveredClauses))
-      fail("reviewed oracle clauses are missing");
+      fail("remaining limitations must be a string array");
     if (
-      !Array.isArray(evidence.remainingClauses) ||
-      evidence.remainingClauses.length !== 0
+      !Array.isArray(record.artifacts) ||
+      (record.status !== "pending" && !record.artifacts.length)
     )
-      fail("remaining clauses must be explicitly empty");
-    if (!nonempty(evidence.reviewer) || !utc(evidence.reviewerUTC))
-      fail("named reviewer and UTC review time are missing");
-    if (!strings(evidence.testCases)) fail("named test cases are missing");
-    if (!Array.isArray(evidence.artifacts) || !evidence.artifacts.length) {
-      fail("hashed evidence artifacts are missing");
-    } else {
-      for (const value of evidence.artifacts) {
+      fail("executed checks require result artifacts");
+    else
+      for (const value of record.artifacts) {
         const artifact = object(value);
         if (
           !artifact ||
           !nonempty(artifact.path) ||
           typeof artifact.sha256 !== "string" ||
-          !checksumPattern.test(artifact.sha256)
+          !/^[a-f0-9]{64}$/.test(artifact.sha256)
         ) {
-          fail("artifact path or SHA256 is invalid");
+          fail("artifact path or checksum is invalid");
           continue;
         }
         try {
@@ -168,15 +117,14 @@ export async function auditEvidenceManifest(
           fail(`artifact unavailable ${artifact.path}`);
         }
       }
-    }
-    if (gateFailures.length === before) locallyValidGateEvidence++;
+    if (failures.length === before) validRecords++;
   }
-  const failures = [...globalFailures, ...gateFailures];
   return {
-    requiredGates: context.requirements.length,
-    locallyValidGateEvidence,
-    verified: globalFailures.length ? 0 : locallyValidGateEvidence,
-    acceptanceReady: failures.length === 0,
+    requiredChecks: context.requirements.length,
+    reportedPassed,
+    validRecords,
+    reportComplete: failures.length === 0,
+    acceptanceReady: false,
     failures,
   };
 }

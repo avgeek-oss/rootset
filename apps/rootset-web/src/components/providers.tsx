@@ -1,4 +1,5 @@
 "use client";
+import { Toast } from "./ui/towbar/design-system/overlays/toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 
@@ -18,6 +19,9 @@ export function Providers({ children }: { children: ReactNode }) {
       }),
   );
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <Toast.Provider />
+    </QueryClientProvider>
   );
 }

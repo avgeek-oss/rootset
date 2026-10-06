@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Button,
   Checkbox,
   Description,
   FieldError,
@@ -12,6 +11,7 @@ import {
   TextArea,
   TextField,
 } from "@heroui/react";
+import { Button } from "../ui/button";
 import {
   lazy,
   Suspense,
@@ -204,7 +204,7 @@ export function CellEditor({
       onSubmit={(event) => void submit(event)}
       onKeyDown={onKeyDown}
       noValidate
-      aria-label={`Edit ${field.label}`}
+      aria-label={`Edit ${field.name}`}
       lang={locale}
     >
       {field.type === "boolean" ? (
@@ -217,14 +217,14 @@ export function CellEditor({
             <Checkbox.Control>
               <Checkbox.Indicator />
             </Checkbox.Control>
-            {field.label}: {draft.text === "true" ? "True" : "False"}
+            {field.name}: {draft.text === "true" ? "True" : "False"}
           </Checkbox.Content>
           <Description>{instructions}</Description>
         </Checkbox>
       ) : field.type === "json" ? (
         <div>
           <label id={labelId}>
-            {field.label}
+            {field.name}
             {field.required ? " (required)" : ""}
           </label>
           <Suspense fallback={<p role="status">Loading JSON editor…</p>}>
@@ -249,7 +249,7 @@ export function CellEditor({
           validationBehavior="aria"
           fullWidth
         >
-          <Label>{field.label}</Label>
+          <Label>{field.name}</Label>
           {field.type === "text" ? (
             <TextArea {...commonInput} rows={3} />
           ) : (

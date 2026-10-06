@@ -149,15 +149,11 @@ try {
     headers: { Origin: new URL(baseURL).origin },
   });
   expect(login.ok()).toBe(true);
-  const chosen = await context.request.post("/v1/auth/organisation", {
-    data: { orgId: fixture.orgId },
-    headers: { Origin: new URL(baseURL).origin },
-  });
+  const chosen = await context.request.get("/api/internal/v1/context");
   expect(chosen.ok()).toBe(true);
   const root = `/orgs/${fixture.orgId}/databases/${fixture.databaseId}`;
   const definitions = Array.from({ length: 24 }, (_, i) => ({
-    apiKey: `COL_${i}`,
-    label: `Column ${i}`,
+    name: `COL_${String.fromCharCode(65 + i)}`,
     type:
       i === 5
         ? "integer"
@@ -183,7 +179,7 @@ try {
   const path = `${root}/tables/${created.table.id}`;
   const firstValues = Object.fromEntries(
     definitions.map((f, i) => [
-      f.apiKey,
+      f.name,
       i === 0
         ? ""
         : i === 1
@@ -225,21 +221,21 @@ try {
   );
   const secondValues = {
     ...firstValues,
-    COL_0: null,
-    COL_1: "",
-    COL_5: 0,
-    COL_6: 0,
-    COL_7: true,
-    COL_8: "1900-01-01",
-    COL_9: "00:00:00Z",
-    COL_10: "1900-01-01T00:00:00Z",
-    COL_11: "null",
-    COL_12: { empty: "", null: null },
-    COL_18: "✈️ — Unicode",
+    COL_A: null,
+    COL_B: "",
+    COL_F: 0,
+    COL_G: 0,
+    COL_H: true,
+    COL_I: "1900-01-01",
+    COL_J: "00:00:00Z",
+    COL_K: "1900-01-01T00:00:00Z",
+    COL_L: "null",
+    COL_M: { empty: "", null: null },
+    COL_S: "✈️ — Unicode",
   };
   const targetValues = Object.fromEntries(
     definitions.map((f, i) => [
-      f.apiKey,
+      f.name,
       f.type === "integer" || f.type === "float"
         ? 123
         : f.type === "boolean"
@@ -350,19 +346,13 @@ try {
     const expected = Object.fromEntries(
       created.fields
         .slice(0, 21)
-        .map((field) => [
-          field.apiKey,
-          canonicalSources[i].values[field.apiKey],
-        ]),
+        .map((field) => [field.name, canonicalSources[i].values[field.name]]),
     );
     expect(
       Object.fromEntries(
         created.fields
           .slice(0, 21)
-          .map((field) => [
-            field.apiKey,
-            canonicalTargets[i].values[field.apiKey],
-          ]),
+          .map((field) => [field.name, canonicalTargets[i].values[field.name]]),
       ),
     ).toEqual(expected);
     expect(canonicalTargets[i].version).toBe("2");
@@ -375,8 +365,8 @@ try {
       expect(
         history.data.filter((entry) => entry.operation === "update"),
       ).toHaveLength(1);
-      expect(latest.before).toEqual(targetRows[i].values[field.apiKey]);
-      expect(latest.after).toEqual(canonicalSources[i].values[field.apiKey]);
+      expect(latest.before).toEqual(targetRows[i].values[field.name]);
+      expect(latest.after).toEqual(canonicalSources[i].values[field.name]);
       histories.push({
         rowId: targetRows[i].id,
         fieldId: field.id,
@@ -399,7 +389,7 @@ try {
   await call("PATCH", `${path}/rows/${sourceRows[0].id}`, {
     expectedVersion: current.version,
     expectedSchemaVersion: created.table.schemaVersion,
-    values: { COL_2: "changed after the displayed projection" },
+    values: { COL_C: "changed after the displayed projection" },
   });
   await page.keyboard.press("Control+c");
   await expect(
@@ -410,7 +400,7 @@ try {
     name: "Stale canonical row revision refuses copy and preserves the previous system clipboard",
     status: "passed",
   });
-  await page.getByRole("button", { name: "Refresh rows", exact: true }).click();
+  await page.reload();
   await page.waitForTimeout(700);
   await select(0, 21);
   await context.setOffline(true);

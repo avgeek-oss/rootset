@@ -76,28 +76,17 @@ function watch(page) {
       });
   });
 }
-async function selectOrg(page, name) {
+async function assertInstallation(page) {
   await page.goto(baseURL);
-  const choose = page.getByRole("heading", {
-    name: "Choose an organisation",
-    exact: true,
-  });
-  await expect(
-    choose.or(page.getByRole("button", { name: /^Switch organisation from / })),
-  ).toBeVisible();
-  if (!(await choose.isVisible())) {
-    await page
-      .getByRole("button", { name: /^Switch organisation from / })
-      .click();
-  }
-  await page
-    .getByRole("button", { name: new RegExp(`${name}\\s*owner$`) })
-    .click();
   await expect(page.locator(".rootset-shell")).toBeVisible();
-  await expect(page.locator(".org-switch")).toHaveAttribute(
-    "aria-label",
-    `Switch organisation from ${name}`,
-  );
+  const context = await page.request.get("/api/internal/v1/context");
+  expect((await context.json()).organisation.id).toBe(fixture.orgId);
+  await expect(page.locator(".organisation-name")).not.toBeEmpty();
+  await expect(
+    page.getByRole("button", {
+      name: /Switch organisation|Create organisation/,
+    }),
+  ).toHaveCount(0);
 }
 async function table(page, databaseName, tableName) {
   if (
@@ -154,7 +143,7 @@ watch(page);
 
 try {
   await login(context);
-  await selectOrg(page, "Rootset UI verification");
+  await assertInstallation(page);
   const database = await call(
     context,
     "GET",
@@ -215,9 +204,7 @@ try {
     await page.evaluate(() => {
       document.documentElement.style.zoom = "2";
     });
-    await expect(
-      page.getByRole("button", { name: "Last row window" }),
-    ).toBeVisible();
+    await expect(page.getByLabel("Go to row", { exact: true })).toBeVisible();
     await page.screenshot({
       path: new URL(`${engine}-grid-zoom200.png`, output).pathname,
     });
@@ -241,7 +228,7 @@ try {
     await expect(
       page
         .getByRole("navigation", { name: "Settings sections" })
-        .getByRole("button", { name: "People and invitations", exact: true }),
+        .getByRole("button", { name: "People", exact: true }),
     ).toBeVisible();
     const sections = await page
       .getByRole("navigation", { name: "Settings sections" })
@@ -279,7 +266,7 @@ try {
       if (
         [
           "Your profile",
-          "People and invitations",
+          "People",
           "API keys",
           "Fields",
           "Database backups",
@@ -320,7 +307,7 @@ try {
     watch(surface);
     try {
       await login(mobile);
-      await selectOrg(surface, "Rootset UI verification");
+      await assertInstallation(surface);
       const viewport = await table(surface, database.name, fixture.tableName);
       expect(
         await surface.evaluate(
@@ -334,7 +321,11 @@ try {
       await expect(surface.getByRole("dialog")).toBeVisible();
       await surface.getByRole("button", { name: "Cancel", exact: true }).tap();
       await expect(surface.getByRole("dialog")).not.toBeVisible();
-      await surface.getByRole("button", { name: "Last row window" }).tap();
+      const lastRow = Number(await viewport.getAttribute("aria-rowcount")) - 1;
+      await surface
+        .getByLabel("Go to row", { exact: true })
+        .fill(String(lastRow));
+      await surface.getByRole("button", { name: "Go", exact: true }).tap();
       await expect(viewport).toBeVisible();
       const a11y = await new AxeBuilder({ page: surface }).analyze();
       await writeFile(
@@ -364,24 +355,15 @@ try {
         if (visible)
           await page.getByRole("button", { name: "Close settings" }).click();
       });
-    await page
-      .getByRole("button", { name: /^Switch organisation from / })
-      .click();
-    await page
-      .getByRole("button", {
-        name: /Five-million-row verification fixture\s*owner$/,
-      })
-      .click();
-    await expect(
-      page.getByRole("button", {
-        name: "Switch organisation from Five-million-row verification fixture",
-        exact: true,
-      }),
-    ).toBeAttached();
-    const orgId = "01M3YBJF63FQKFPQSK568N7A1D",
-      databaseId = "01M3YBJF72543P36XD1F8H4NZT",
-      tableId = "01M3YBJF7RQTTAFG160ST17VWR",
-      wideTableId = "01M3YCBF1XT4YKMQWNY4BR6PJ7";
+    const scaleFixturePath = process.env.ROOTSET_SCALE_BROWSER_FIXTURE;
+    if (!scaleFixturePath)
+      throw new Error(
+        "ROOTSET_SCALE_BROWSER_FIXTURE must identify a real five-million-row and 200-field fixture in this installation.",
+      );
+    const { orgId, databaseId, tableId, wideTableId } = JSON.parse(
+      await readFile(scaleFixturePath, "utf8"),
+    );
+    expect(orgId).toBe(fixture.orgId);
     const db = await call(
       context,
       "GET",
@@ -399,14 +381,8 @@ try {
     );
     grid = await table(page, db.name, scale.name);
     const snapshots = [];
-    for (const mode of [
-      "First row window",
-      "Middle row window",
-      "Last row window",
-      "First row window",
-      "Next row window",
-      "Middle row window",
-      "Last row window",
+    for (const rowNumber of [
+      1, 2_500_001, 4_999_801, 1, 201, 2_500_001, 4_999_801,
     ]) {
       const before = performance.now();
       const response = page.waitForResponse(
@@ -416,14 +392,15 @@ try {
           ) && r.request().method() === "POST",
         { timeout: 90_000 },
       );
-      await page.getByRole("button", { name: mode, exact: true }).click();
+      await page
+        .getByLabel("Go to row", { exact: true })
+        .fill(String(rowNumber));
+      await page.getByRole("button", { name: "Go", exact: true }).click();
       const result = await response;
       expect(result.status()).toBe(200);
       const data = await result.json();
-      await expect(page.locator(".row-navigation span")).toHaveText(
-        new RegExp(
-          `${data.window.start + 1}–${data.window.start + data.data.length} of 5,000,000`,
-        ),
+      await expect(page.getByLabel("Go to row", { exact: true })).toHaveValue(
+        String(data.window.start + 1),
       );
       const memory = await grid.evaluate((element) => ({
         rows: element.querySelectorAll(".grid-row").length,
@@ -435,12 +412,14 @@ try {
         heapUsed: performance.memory?.usedJSHeapSize ?? null,
       }));
       expect(memory.rows).toBeLessThan(32);
-      expect(memory.columns).toBeLessThan(12);
+      expect(memory.columns).toBe(
+        Number(await grid.getAttribute("aria-colcount")),
+      );
       expect(memory.cacheWindows).toBeLessThanOrEqual(5);
       expect(memory.cacheBytes).toBeLessThanOrEqual(33554432);
       expect(memory.scrollHeight).toBeLessThan(10_000);
       snapshots.push({
-        mode,
+        rowNumber,
         elapsedMs: performance.now() - before,
         start: data.window.start,
         returned: data.data.length,

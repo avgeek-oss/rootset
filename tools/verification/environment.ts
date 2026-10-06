@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { createPool, type Pool } from "@rootset/database";
+import { createPool, migrationStatus, type Pool } from "@rootset/database";
 
 export const root = resolve(import.meta.dirname, "../..");
 const configuration = resolve(root, ".env.test");
@@ -38,6 +38,11 @@ export async function assertPreparedDatabase(pool: Pool): Promise<void> {
   if (!result.rows[0]?.prepared)
     throw new Error(
       "Control migrations are not ready. Apply finalized migrations before this suite.",
+    );
+  const status = await migrationStatus(pool);
+  if (!status.complete || status.version !== "0001_baseline.sql")
+    throw new Error(
+      "Use a fresh current V1 database with only 0001_baseline.sql; historical installations are not fixture targets.",
     );
 }
 

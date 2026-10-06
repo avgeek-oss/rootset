@@ -98,7 +98,7 @@ async function finite<T>(
   }
 }
 
-// Root executes this on its fresh isolated55467 PostgreSQL/provider fixture.
+// Root executes this on a fresh isolated PostgreSQL/provider fixture.
 // Auth is deliberately controlled component state, separate from the genuine
 // installed session/personal/OAuth addon. No native history/tombstone is seeded.
 export async function runNativeRetainedArchiveRegression(
@@ -138,11 +138,8 @@ export async function runNativeRetainedArchiveRegression(
     kind: "operator",
     id: newId(),
     orgId: newId(),
-    role: "owner",
+    role: "admin",
     scopes: [...scopeNames],
-    targets: [],
-    unrestricted: true,
-    operator: false,
   };
   const current = new Map<string, Actor>(),
     revoked = new Set<string>();
@@ -206,21 +203,6 @@ export async function runNativeRetainedArchiveRegression(
       "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
       [owner.orgId, "Retained archive component " + newId()],
     );
-    const foreignActor: Actor = { ...owner, id: newId(), orgId: newId() };
-    current.set(foreignActor.id, foreignActor);
-    await db.owner.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-      [foreignActor.orgId, "Unrelated retained component " + newId()],
-    );
-    const foreignDatabase = await storage.createDatabase(foreignActor, {
-      name: "Unrelated native database",
-      idempotencyKey: newId(),
-    });
-    const foreignTable = await storage.createTable(
-      foreignActor,
-      foreignDatabase.id,
-      { name: "Unrelated native table", fields: [], idempotencyKey: newId() },
-    );
     const unrelatedDatabase = await storage.createDatabase(owner, {
       name: "Unrelated own database",
       idempotencyKey: newId(),
@@ -256,8 +238,8 @@ export async function runNativeRetainedArchiveRegression(
       const table = await storage.createTable(owner, database.id, {
         name: "Retained events",
         fields: [
-          { apiKey: "TEXT", label: "Text", type: "text", charLimit: 128 },
-          { apiKey: "DATA", label: "Data", type: "json" },
+          { name: "TEXT", type: "text", charLimit: 128 },
+          { name: "DATA", type: "json" },
         ],
         idempotencyKey: newId(),
       });
@@ -319,44 +301,24 @@ export async function runNativeRetainedArchiveRegression(
       assert(native.verified_at);
       assert.equal(native.cell_count, "6");
       assert.equal(native.row_count, "3");
-      const actors = [
+      const actors: Actor[] = [
         owner,
-        ...(["admin", "editor", "viewer"] as const).map((role) => ({
+        ...(["session", "personal_key", "oauth"] as const).map((kind) => ({
           ...owner,
           id: newId(),
-          role,
-          unrestricted: false,
-          targets: [
-            {
-              databaseId: database.id,
-              tableId: table.id,
-              level: "manage" as const,
-            },
-          ],
+          kind,
+          userId: newId(),
+          credentialId: newId(),
+          role: "admin" as const,
         })),
       ];
-      const inheritance: Actor[] = [
-        { ...actors[2]!, id: newId(), targets: [{ level: "manage" }] },
-        {
-          ...actors[2]!,
-          id: newId(),
-          targets: [{ tableId: table.id, level: "manage" }],
-        },
-      ];
-      for (const actor of [...actors, ...inheritance])
-        current.set(actor.id, actor);
-      const reader = {
-        ...actors[3]!,
+      const readers: Actor[] = (["editor", "viewer"] as const).map((role) => ({
+        ...actors[1]!,
         id: newId(),
-        targets: [
-          {
-            databaseId: database.id,
-            tableId: table.id,
-            level: "read" as const,
-          },
-        ],
-      };
-      current.set(reader.id, reader);
+        role,
+      }));
+      for (const actor of [...actors, ...readers]) current.set(actor.id, actor);
+      const reader = readers[1]!;
       const fresh = async (actor: Actor, id: string, body: Input) =>
         core!.execute(id, actor, body, {
           surface: "rest",
@@ -471,7 +433,7 @@ export async function runNativeRetainedArchiveRegression(
           asynchronousProductSpoolCleanupNotJoinedByThisReceipt: true,
         });
       }
-      await allow(reader, "active-read-grant-positive");
+      await allow(reader, "active-viewer-role-read-positive");
       if (branch === "table")
         await storage.deleteTable(owner, table.id, {
           expectedSchemaVersion: table.schemaVersion,
@@ -540,8 +502,8 @@ export async function runNativeRetainedArchiveRegression(
           redDemonstrated: true,
         });
       } else {
-        for (const actor of [...actors, ...inheritance])
-          await allow(actor, "retained-explicit-management-positive");
+        for (const actor of actors)
+          await allow(actor, "retained-admin-role-positive");
         const standalone = new constructors.Jobs({
           pool: db.app,
           ddlPool: db.ddl,
@@ -549,7 +511,7 @@ export async function runNativeRetainedArchiveRegression(
           config: jobs.config,
         });
         try {
-          for (const actor of inheritance)
+          for (const actor of actors)
             for (const operation of [
               "getHistoryArchive",
               "listHistoryArchives",
@@ -578,7 +540,7 @@ export async function runNativeRetainedArchiveRegression(
             }
           await record({
             branch,
-            phase: "actual-standalone-org-wide-table-only-positive",
+            phase: "actual-standalone-admin-role-positive",
             archiveId,
             configuredCallbackAbsent: true,
             controlledCurrentActorSupplied: true,
@@ -586,33 +548,7 @@ export async function runNativeRetainedArchiveRegression(
         } finally {
           standalone.artifacts.client.destroy();
         }
-        for (const actor of [
-          { ...actors[2]!, id: newId(), unrestricted: true, targets: [] },
-          {
-            ...owner,
-            id: newId(),
-            unrestricted: false,
-            targets: [
-              {
-                databaseId: database.id,
-                tableId: table.id,
-                level: "read" as const,
-              },
-            ],
-          },
-          {
-            ...actors[2]!,
-            id: newId(),
-            targets: [{ databaseId: newId(), level: "manage" as const }],
-          },
-          {
-            ...actors[2]!,
-            id: newId(),
-            targets: [{ tableId: newId(), level: "manage" as const }],
-          },
-          reader,
-          { ...actors[2]!, id: newId(), targets: [] },
-        ]) {
+        for (const actor of readers) {
           current.set(actor.id, actor);
           for (const id of [
             "getHistoryArchive",
@@ -638,12 +574,7 @@ export async function runNativeRetainedArchiveRegression(
           );
         }
         const old = actors[2]!;
-        current.set(old.id, {
-          ...old,
-          targets: [
-            { databaseId: database.id, tableId: table.id, level: "read" },
-          ],
-        });
+        current.set(old.id, { ...old, role: "viewer" });
         await assert.rejects(
           fresh(old, "getHistoryArchive", { ...target, id: archiveId }),
           denied("RESOURCE_NOT_FOUND"),
@@ -655,7 +586,11 @@ export async function runNativeRetainedArchiveRegression(
           denied("UNAUTHENTICATED"),
         );
         revoked.delete(old.id);
-        const noScope = { ...owner, id: newId(), scopes: ["rows:read"] };
+        const noScope: Actor = {
+          ...actors[3]!,
+          id: newId(),
+          scopes: ["rows:read"],
+        };
         current.set(noScope.id, noScope);
         await assert.rejects(
           fresh(noScope, "getHistoryArchive", { ...target, id: archiveId }),
@@ -665,9 +600,9 @@ export async function runNativeRetainedArchiveRegression(
           { ...target, databaseId: unrelatedDatabase.id },
           { ...target, tableId: unrelatedTable.id },
           {
-            orgId: foreignActor.orgId,
-            databaseId: foreignDatabase.id,
-            tableId: foreignTable.id,
+            orgId: newId(),
+            databaseId: database.id,
+            tableId: table.id,
           },
         ])
           await assert.rejects(
@@ -693,9 +628,9 @@ export async function runNativeRetainedArchiveRegression(
         await record({
           branch,
           phase: "actual-native-negative-guards",
-          noManageAndReadDenied: true,
+          editorAndViewerTombstoneReadDenied: true,
           revokedOriginalControlledActorDenied: true,
-          noScopeDenied: true,
+          unconsentedOAuthScopeDenied: true,
           wrongParentTargetOrgDenied: true,
           activeOnlyMutationAndPolicyDenied: true,
         });

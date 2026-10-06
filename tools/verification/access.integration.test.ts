@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { before, after } from "node:test";
 import { createRuntime } from "@rootset/core/runtime";
 import { loadConfig } from "@rootset/core/config";
-import { newId, scopeNames, type Actor, type Role } from "@rootset/contracts";
+import { newId, type Actor, type Role } from "@rootset/contracts";
 import { isolatedDatabase } from "./isolated-database.js";
 import { verificationCase } from "./evidence.js";
 
@@ -29,14 +29,7 @@ const failure = (error: unknown): string =>
     : "INTERNAL_ERROR";
 const deny = async (
   work: Promise<unknown>,
-  codes = [
-    "FORBIDDEN",
-    "INSUFFICIENT_SCOPE",
-    "ACCESS_DENIED",
-    "DELEGATION_EXCEEDS_AUTHORITY",
-    "PERSONAL_IDENTITY_REQUIRED",
-    "OPERATOR_REQUIRED",
-  ],
+  codes = ["FORBIDDEN", "INSUFFICIENT_SCOPE", "ACCESS_DENIED"],
 ) => {
   await assert.rejects(work, (error) => codes.includes(failure(error)));
 };
@@ -44,13 +37,25 @@ const execute = (
   operation: string,
   actor: Actor,
   input: Record<string, unknown>,
+  idempotencyKey = newId(),
 ) =>
   runtime.core.execute(operation, actor, input, {
     surface: "browser",
-    idempotencyKey: newId(),
+    idempotencyKey,
     requestId: newId(),
   });
 const ids = () => ({ orgId, databaseId, tableId });
+const resolveKey = async (secret: unknown) => {
+  assert.equal(typeof secret, "string");
+  const actor = await runtime.identity.resolveActor(
+    new Request(`${runtime.config.baseURL}/v1/me`, {
+      headers: { Authorization: `Bearer ${secret}` },
+    }),
+    "api",
+  );
+  assert.ok(actor);
+  return actor;
+};
 
 before(async () => {
   database = await isolatedDatabase();
@@ -60,13 +65,11 @@ before(async () => {
     ddlDatabaseURL: database.ddl.options.connectionString!,
     identityDatabaseURL: database.identity.options.connectionString!,
   });
-  // Verified identities and session actors are explicit local service fixtures.
-  // Real password, session-cookie and OAuth authentication have separate transport tests.
   await database.owner.query(
     "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-    [orgId, "Service authority matrix fixture"],
+    [orgId, "Role authority fixture"],
   );
-  for (const role of ["owner", "admin", "editor", "viewer"] as const) {
+  for (const role of ["admin", "editor", "viewer"] as const) {
     const userId = newId();
     await database.owner.query(
       "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
@@ -86,45 +89,44 @@ before(async () => {
       userId,
       orgId,
       role,
-      scopes: [...scopeNames],
-      targets: [],
-      unrestricted: true,
+      scopes: [],
       authenticatedAt: Date.now(),
+      membershipVersion: 1,
     };
     await database.owner.query(
-      "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,active_organization_id,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',$4,now())",
-      [actors[role].id, userId, newId(), orgId],
+      "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',now())",
+      [actors[role].id, userId, newId()],
     );
   }
   databaseId = idOf(
-    await execute("createDatabase", actors.owner, {
+    await execute("createDatabase", actors.admin, {
       orgId,
-      name: "Granted database",
+      name: "Primary database",
     }),
   );
   peerDatabaseId = idOf(
-    await execute("createDatabase", actors.owner, {
+    await execute("createDatabase", actors.admin, {
       orgId,
       name: "Peer database",
     }),
   );
   tableId = idOf(
     record(
-      await execute("createTable", actors.owner, {
+      await execute("createTable", actors.admin, {
         orgId,
         databaseId,
-        name: "Granted table",
-        fields: [{ type: "text", apiKey: "CODE", label: "Code" }],
+        name: "Primary table",
+        fields: [{ type: "text", name: "CODE" }],
       }),
     ).table,
   );
   peerTableId = idOf(
     record(
-      await execute("createTable", actors.owner, {
+      await execute("createTable", actors.admin, {
         orgId,
         databaseId: peerDatabaseId,
         name: "Peer table",
-        fields: [{ type: "text", apiKey: "CODE", label: "Code" }],
+        fields: [{ type: "text", name: "CODE" }],
       }),
     ).table,
   );
@@ -136,13 +138,58 @@ after(async () => {
 
 verificationCase(
   {
-    id: "ACCESS-ROLE-01",
-    gates: ["ACC-02", "ACC-03", "ACC-04", "API-05"],
+    id: "ACCESS-SINGLE-ORG-01",
+    gates: ["V1-03"],
     scope:
-      "Actual core runtime and role-specific verified actor fixtures enforce owner/admin/editor/viewer read, write, schema and member authority; authentication transport is separate",
+      "Direct and concurrent SQL attempts cannot create a second organisation or bypass the singleton check",
   },
   async () => {
-    for (const role of ["owner", "admin", "editor", "viewer"] as const) {
+    const attempts = await Promise.allSettled([
+      database.owner.query(
+        "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+        [newId(), "Second fixture"],
+      ),
+      database.owner.query(
+        "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+        [newId(), "Concurrent second fixture"],
+      ),
+    ]);
+    for (const attempt of attempts) {
+      assert.equal(attempt.status, "rejected");
+      if (attempt.status === "rejected")
+        assert.equal(attempt.reason.code, "23505");
+    }
+    await assert.rejects(
+      database.owner.query(
+        "INSERT INTO rootset_control.organisations(id,name,singleton) VALUES($1,$2,false)",
+        [newId(), "Bypass fixture"],
+      ),
+      (error: unknown) =>
+        !!error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "23514",
+    );
+    assert.deepEqual(
+      (
+        await database.owner.query(
+          "SELECT id FROM rootset_control.organisations",
+        )
+      ).rows,
+      [{ id: orgId }],
+    );
+  },
+);
+
+verificationCase(
+  {
+    id: "ACCESS-ROLE-01",
+    gates: ["V1-04"],
+    scope:
+      "Real Core runtime enforces Admin/Editor/Viewer read, row-write, schema, people and installation authority; password/MFA transports have separate tests",
+  },
+  async () => {
+    for (const role of ["admin", "editor", "viewer"] as const) {
       const actor = actors[role];
       await execute("queryRows", actor, { ...ids(), query: {} });
       const write = execute("createRow", actor, {
@@ -152,207 +199,57 @@ verificationCase(
       });
       if (role === "viewer") await deny(write);
       else await write;
-      const schema = execute("createTable", actor, {
-        orgId,
-        databaseId,
-        name: `${role} schema authority`,
-      });
-      if (["owner", "admin"].includes(role)) await schema;
-      else await deny(schema);
-      const members = execute("listMembers", actor, { orgId });
-      if (["owner", "admin"].includes(role)) await members;
-      else await deny(members);
-      await deny(execute("getInstallationConfiguration", actor, {}));
+      for (const [operation, input] of [
+        [
+          "createTable",
+          { orgId, databaseId, name: `${role} schema authority` },
+        ],
+        ["listMembers", { orgId }],
+        ["getInstallationStatus", {}],
+      ] as const) {
+        const work = execute(operation, actor, input);
+        if (role === "admin") await work;
+        else await deny(work);
+      }
     }
-    const rows = await runtime.storage.queryRows(actors.owner, tableId, {});
-    assert.equal(rows.data.length, 3);
+    assert.equal(
+      (await runtime.storage.queryRows(actors.admin, tableId, {})).data.length,
+      2,
+    );
   },
 );
 
 verificationCase(
   {
-    id: "ACCESS-GRANT-01",
-    gates: ["ACC-03", "ACC-04", "API-06"],
+    id: "ACCESS-PARENT-01",
+    gates: ["V1-10"],
     scope:
-      "Real stored editor manage grant enables only its database; peer resources and mismatched parents remain inaccessible; viewer elevation to manage is rejected",
+      "Every role can read both same-organisation databases; a mismatched database/table parent or unrelated organisation ID returns RESOURCE_NOT_FOUND",
   },
   async () => {
-    const member = (
-      await database.owner.query(
-        "SELECT id,version FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
-        [orgId, actors.editor.userId],
-      )
-    ).rows[0]!;
-    await execute("updateGrants", actors.owner, {
-      orgId,
-      grants: [
-        {
-          membershipId: member.id,
-          version: Number(member.version),
-          unrestricted: false,
-          targets: [{ databaseId, level: "manage" }],
-        },
-      ],
-    });
-    await execute("updateTable", actors.editor, {
-      ...ids(),
-      expectedSchemaVersion: 1,
-      name: "Editor managed table",
-    });
-    await execute("createTable", actors.editor, {
-      orgId,
-      databaseId,
-      name: "Editor managed creation",
-    });
-    await deny(
-      execute("queryRows", actors.editor, {
+    for (const actor of Object.values(actors)) {
+      await execute("queryRows", actor, {
         orgId,
         databaseId: peerDatabaseId,
         tableId: peerTableId,
         query: {},
-      }),
-      ["RESOURCE_NOT_FOUND"],
-    );
-    await deny(
-      execute("queryRows", actors.editor, {
-        ...ids(),
-        databaseId: peerDatabaseId,
-        query: {},
-      }),
-      ["RESOURCE_NOT_FOUND"],
-    );
-    const list = record(
-      await execute("listDatabases", actors.editor, { orgId }),
-    );
-    assert.ok(Array.isArray(list.data));
-    assert.deepEqual(list.data.map(idOf), [databaseId]);
-    const viewer = (
-      await database.owner.query(
-        "SELECT id,version FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
-        [orgId, actors.viewer.userId],
-      )
-    ).rows[0]!;
-    await deny(
-      execute("updateGrants", actors.owner, {
-        orgId,
-        grants: [
-          {
-            membershipId: viewer.id,
-            version: Number(viewer.version),
-            unrestricted: false,
-            targets: [{ databaseId, level: "manage" }],
-          },
-        ],
-      }),
-      ["VALIDATION_FAILED"],
-    );
-  },
-);
-
-verificationCase(
-  {
-    id: "ACCESS-CREATE-01",
-    gates: ["ACC-03", "KEY-02", "API-06"],
-    scope:
-      "New database creation requires organisation-level manage authority: a database-restricted bearer cannot create a namespace outside its targets",
-  },
-  async () => {
-    const created = record(
-      await execute("createPersonalKey", actors.owner, {
-        orgId,
-        name: "One database management fixture",
-        scopes: ["databases:read", "databases:manage"],
-        targets: [{ databaseId, level: "manage" }],
-        unrestricted: false,
-      }),
-    );
-    const restricted = await runtime.identity.resolveActor(
-      new Request(`${runtime.config.baseURL}/v1/me`, {
-        headers: { Authorization: `Bearer ${created.secret}` },
-      }),
-      "api",
-    );
-    assert.ok(restricted);
-    await deny(
-      execute("createDatabase", restricted, {
-        orgId,
-        name: "Outside credential target",
-      }),
-      [
-        "RESOURCE_NOT_FOUND",
-        "FORBIDDEN",
-        "INSUFFICIENT_SCOPE",
-        "ACCESS_DENIED",
-      ],
-    );
-  },
-);
-
-verificationCase(
-  {
-    id: "ACCESS-CREATE-02",
-    gates: ["ACC-03", "API-05"],
-    scope:
-      "The approved role matrix permits an Editor with an explicit organisation-level manage grant to create a database; restoring the grant prevents fixture authority from leaking across cases",
-  },
-  async () => {
-    const member = (
-      await database.owner.query(
-        "SELECT id,version FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
-        [orgId, actors.editor.userId],
-      )
-    ).rows[0]!;
-    await execute("updateGrants", actors.owner, {
-      orgId,
-      grants: [
-        {
-          membershipId: member.id,
-          version: Number(member.version),
-          unrestricted: false,
-          targets: [{ level: "manage" }],
-        },
-      ],
-    });
-    try {
-      const newDatabase = await execute("createDatabase", actors.editor, {
-        orgId,
-        name: "Explicit Editor organisation manage fixture",
       });
-      const createdId = idOf(newDatabase);
-      await execute("getDatabase", actors.editor, {
-        orgId,
-        databaseId: createdId,
-      });
-      const listed = record(
-        await execute("listDatabases", actors.editor, { orgId }),
+      await deny(
+        execute("queryRows", actor, {
+          ...ids(),
+          databaseId: peerDatabaseId,
+          query: {},
+        }),
+        ["RESOURCE_NOT_FOUND"],
       );
-      assert.ok(Array.isArray(listed.data));
-      assert.ok(
-        listed.data.some((item) => idOf(item) === createdId),
-        "The organisation manage grant must inherit into the newly created database and its enumeration.",
+      await deny(
+        execute("queryRows", actor, { ...ids(), orgId: newId(), query: {} }),
+        ["RESOURCE_NOT_FOUND"],
       );
-      await execute("listTables", actors.editor, {
-        orgId,
-        databaseId: createdId,
-      });
-    } finally {
-      const current = (
-        await database.owner.query(
-          "SELECT version FROM rootset_control.memberships WHERE id=$1",
-          [member.id],
-        )
-      ).rows[0]!;
-      await execute("updateGrants", actors.owner, {
-        orgId,
-        grants: [
-          {
-            membershipId: member.id,
-            version: Number(current.version),
-            unrestricted: false,
-            targets: [{ databaseId, level: "manage" }],
-          },
-        ],
-      });
+      const list = record(await execute("listDatabases", actor, { orgId }));
+      assert.ok(Array.isArray(list.data));
+      assert.ok(list.data.some((item) => idOf(item) === databaseId));
+      assert.ok(list.data.some((item) => idOf(item) === peerDatabaseId));
     }
   },
 );
@@ -360,74 +257,44 @@ verificationCase(
 verificationCase(
   {
     id: "ACCESS-PERSONAL-01",
-    gates: ["KEY-02", "KEY-04", "ACC-07", "API-05", "API-06"],
+    gates: ["V1-07", "V1-05", "V1-17"],
     scope:
-      "Real issued personal bearer keys intersect scope, target and current membership; viewer cannot mint writes and an editor demotion or key revocation affects the next core request",
+      "Issued personal keys inherit live roles across all resources; demotion blocks new and replayed writes while reads remain allowed; revocation, expiry and membership removal invalidate existing actors",
   },
   async () => {
     const created = record(
       await execute("createPersonalKey", actors.editor, {
         orgId,
-        name: "Editor write fixture",
-        scopes: ["rows:read", "rows:write", "tables:read", "databases:read"],
-        targets: [{ databaseId, tableId, level: "edit" }],
-        unrestricted: false,
+        name: "Editor role fixture",
       }),
     );
-    assert.equal(typeof created.secret, "string");
-    const actor = await runtime.identity.resolveActor(
-      new Request(`${runtime.config.baseURL}/v1/me`, {
-        headers: { Authorization: `Bearer ${created.secret}` },
-      }),
-      "api",
-    );
-    assert.ok(actor);
-    const schema = await runtime.storage.getTable(actors.owner, tableId);
-    await execute("createRow", actor, {
+    const actor = await resolveKey(created.secret);
+    const schema = await runtime.storage.getTable(actors.admin, tableId);
+    const writeInput = {
       ...ids(),
       expectedSchemaVersion: schema.schemaVersion,
       values: { CODE: "personal-write" },
+    };
+    const replayKey = newId();
+    await execute("createRow", actor, writeInput, replayKey);
+    await execute("queryRows", actor, {
+      orgId,
+      databaseId: peerDatabaseId,
+      tableId: peerTableId,
+      query: {},
     });
-    await deny(
-      execute("queryRows", actor, {
-        orgId,
-        databaseId: peerDatabaseId,
-        tableId: peerTableId,
-        query: {},
-      }),
-      ["RESOURCE_NOT_FOUND"],
-    );
-    await deny(
-      execute("createPersonalKey", actors.viewer, {
-        orgId,
-        name: "Forbidden write delegation",
-        scopes: ["rows:write"],
-        targets: [],
-        unrestricted: true,
-      }),
-    );
     const viewerKey = record(
       await execute("createPersonalKey", actors.viewer, {
         orgId,
-        name: "Viewer read fixture",
-        scopes: ["rows:read", "tables:read", "databases:read"],
-        targets: [],
-        unrestricted: true,
+        name: "Viewer role fixture",
       }),
     );
-    const viewerActor = await runtime.identity.resolveActor(
-      new Request(`${runtime.config.baseURL}/v1/me`, {
-        headers: { Authorization: `Bearer ${viewerKey.secret}` },
-      }),
-      "api",
-    );
-    assert.ok(viewerActor);
-    await execute("queryRows", viewerActor, { ...ids(), query: {} });
+    const viewer = await resolveKey(viewerKey.secret);
+    await execute("queryRows", viewer, { ...ids(), query: {} });
     await deny(
-      execute("createRow", viewerActor, {
-        ...ids(),
-        expectedSchemaVersion: schema.schemaVersion,
-        values: { CODE: "denied" },
+      execute("createRow", viewer, {
+        ...writeInput,
+        values: { CODE: "viewer-denied" },
       }),
     );
     const member = (
@@ -436,7 +303,7 @@ verificationCase(
         [orgId, actors.editor.userId],
       )
     ).rows[0]!;
-    await execute("updateMember", actors.owner, {
+    await execute("updateMember", actors.admin, {
       orgId,
       id: member.id,
       expectedVersion: member.version,
@@ -444,11 +311,11 @@ verificationCase(
     });
     await deny(
       execute("createRow", actor, {
-        ...ids(),
-        expectedSchemaVersion: schema.schemaVersion,
+        ...writeInput,
         values: { CODE: "demoted" },
       }),
     );
+    await deny(execute("createRow", actor, writeInput, replayKey));
     await execute("queryRows", actor, { ...ids(), query: {} });
     await execute("revokePersonalKey", actors.editor, {
       id: idOf(created.key),
@@ -456,74 +323,71 @@ verificationCase(
     await deny(execute("queryRows", actor, { ...ids(), query: {} }), [
       "UNAUTHENTICATED",
     ]);
+
+    const expiring = record(
+      await execute("createPersonalKey", actors.viewer, {
+        orgId,
+        name: "Expiry fixture",
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      }),
+    );
+    const expiredActor = await resolveKey(expiring.secret);
+    await database.owner.query(
+      "UPDATE rootset_control.api_keys SET expires_at=now()-interval '1 second' WHERE id=$1",
+      [idOf(expiring.key)],
+    );
+    await deny(execute("queryRows", expiredActor, { ...ids(), query: {} }), [
+      "UNAUTHENTICATED",
+    ]);
+    const viewerMember = (
+      await database.owner.query(
+        "SELECT id,version::text version FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
+        [orgId, actors.viewer.userId],
+      )
+    ).rows[0]!;
+    await execute("removeMember", actors.admin, {
+      orgId,
+      id: viewerMember.id,
+      expectedVersion: viewerMember.version,
+    });
+    await deny(execute("queryRows", viewer, { ...ids(), query: {} }), [
+      "UNAUTHENTICATED",
+    ]);
+    await deny(execute("queryRows", actors.viewer, { ...ids(), query: {} }), [
+      "UNAUTHENTICATED",
+    ]);
   },
 );
 
 verificationCase(
   {
-    id: "ACCESS-TEAM-01",
-    gates: ["KEY-03", "KEY-04", "API-06", "API-12"],
-    scope:
-      "Real team bearer key uses scoped service authority independent of disabled creator, rejects personal/operator APIs, excludes peer resources and fails immediately after revocation",
+    id: "ACCESS-LAST-ADMIN-01",
+    gates: ["V1-05"],
+    scope: "The sole Admin cannot demote or remove itself",
   },
   async () => {
-    const created = record(
-      await execute("createTeamKey", actors.admin, {
-        orgId,
-        name: "Scoped team fixture",
-        scopes: ["rows:read", "rows:write", "tables:read", "databases:read"],
-        targets: [{ databaseId, tableId, level: "edit" }],
-        unrestricted: false,
-      }),
-    );
-    const actor = await runtime.identity.resolveActor(
-      new Request(`${runtime.config.baseURL}/v1/me`, {
-        headers: { Authorization: `Bearer ${created.secret}` },
-      }),
-      "api",
-    );
-    assert.ok(actor);
-    assert.equal(actor.kind, "team_key");
-    assert.equal(actor.userId, undefined);
-    const schema = await runtime.storage.getTable(actors.owner, tableId);
-    await execute("createRow", actor, {
-      ...ids(),
-      expectedSchemaVersion: schema.schemaVersion,
-      values: { CODE: "team-write" },
-    });
-    await deny(execute("getProfile", actor, {}));
-    await deny(execute("getInstallationConfiguration", actor, {}));
-    await deny(
-      execute("queryRows", actor, {
-        orgId,
-        databaseId: peerDatabaseId,
-        tableId: peerTableId,
-        query: {},
-      }),
-      ["RESOURCE_NOT_FOUND"],
-    );
     const member = (
       await database.owner.query(
         "SELECT id,version::text version FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
         [orgId, actors.admin.userId],
       )
     ).rows[0]!;
-    await execute("updateMember", actors.owner, {
-      orgId,
-      id: member.id,
-      expectedVersion: member.version,
-      state: "disabled",
-    });
-    await deny(execute("queryRows", actors.admin, { ...ids(), query: {} }), [
-      "UNAUTHENTICATED",
-    ]);
-    await execute("queryRows", actor, { ...ids(), query: {} });
-    await execute("revokeTeamKey", actors.owner, {
-      orgId,
-      id: idOf(created.key),
-    });
-    await deny(execute("queryRows", actor, { ...ids(), query: {} }), [
-      "UNAUTHENTICATED",
-    ]);
+    await deny(
+      execute("updateMember", actors.admin, {
+        orgId,
+        id: member.id,
+        expectedVersion: member.version,
+        role: "viewer",
+      }),
+      ["LAST_ADMIN"],
+    );
+    await deny(
+      execute("removeMember", actors.admin, {
+        orgId,
+        id: member.id,
+        expectedVersion: member.version,
+      }),
+      ["LAST_ADMIN"],
+    );
   },
 );

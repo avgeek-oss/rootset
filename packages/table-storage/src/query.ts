@@ -17,7 +17,7 @@ import {
 
 export interface ResolvedSort {
   fieldId: string | null;
-  apiKey: string | null;
+  name: string | null;
   column: string;
   type: FieldType | "row_id";
   direction: "asc" | "desc";
@@ -54,8 +54,7 @@ function bindValue(field: FieldDefinition, value: unknown): JsonValue {
   // Filter values may lie outside a field's configured population bounds.
   const unbounded: FieldDefinition = {
     id: field.id,
-    apiKey: field.apiKey,
-    label: field.label,
+    name: field.name,
     type: field.type,
     ...(field.type === "text" ? { charLimit: limits.rowBytes } : {}),
   };
@@ -81,7 +80,7 @@ export function compileQuery(
     if (generated.has(column))
       invalid("Field metadata contains duplicate identifiers");
     generated.add(column);
-    for (const key of [field.id, field.apiKey]) {
+    for (const key of [field.id, field.name]) {
       if (byName.has(key) && byName.get(key) !== field)
         invalid("Field metadata contains ambiguous names");
       byName.set(key, field);
@@ -164,7 +163,7 @@ export function compileQuery(
     const field = resolve(sort.field);
     return {
       fieldId: field.id,
-      apiKey: field.apiKey,
+      name: field.name,
       column: fieldColumn(field),
       type: field.type,
       direction: sort.direction,
@@ -174,7 +173,7 @@ export function compileQuery(
     invalid("Sorting repeats a field");
   sorts.push({
     fieldId: null,
-    apiKey: null,
+    name: null,
     column: "row_id",
     type: "row_id",
     direction: "asc",
@@ -220,8 +219,7 @@ function sortValue(sort: ResolvedSort, value: unknown): unknown {
   const typed = bindValue(
     {
       id: sort.fieldId!,
-      apiKey: sort.apiKey!,
-      label: sort.apiKey!,
+      name: sort.name!,
       type: sort.type,
     },
     value,
@@ -291,7 +289,7 @@ export interface CursorBinding {
   orgId: string;
   tableId: string;
   schemaVersion: number;
-  grantVersion: number;
+  membershipVersion: number;
   queryHash: string;
   actorId: string;
 }
@@ -308,8 +306,8 @@ function validBinding(binding: CursorBinding): boolean {
     IdSchema.safeParse(binding.tableId).success &&
     Number.isSafeInteger(binding.schemaVersion) &&
     binding.schemaVersion > 0 &&
-    Number.isSafeInteger(binding.grantVersion) &&
-    binding.grantVersion >= 0 &&
+    Number.isSafeInteger(binding.membershipVersion) &&
+    binding.membershipVersion >= 0 &&
     typeof binding.actorId === "string" &&
     binding.actorId.length > 0 &&
     binding.actorId.length <= 256 &&

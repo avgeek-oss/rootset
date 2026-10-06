@@ -11,7 +11,9 @@ import { Pool } from "pg";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const directory = resolve(process.argv[2] ?? "");
 if (
-  !directory.startsWith(join(root, "verification/delivery/physical-recovery-"))
+  !directory.startsWith(
+    join(root, "verification/v1-recovery/physical-recovery-"),
+  )
 )
   throw new Error(
     "Choose the protected Rootset physical-recovery rehearsal directory",
@@ -21,7 +23,10 @@ if (((await stat(directory)).mode & 0o077) !== 0)
 const report = JSON.parse(
   await readFile(join(directory, "report.json"), "utf8"),
 );
-if (report.status !== "physical_restore_verified")
+if (
+  report.baseline !== "0001_baseline.sql" ||
+  report.status !== "physical_restore_verified"
+)
   throw new Error("Physical PostgreSQL recovery must pass first");
 const retained = JSON.parse(
   await readFile(join(directory, "protected-keys.json"), "utf8"),
@@ -36,10 +41,10 @@ process.loadEnvFile(join(root, ".env.test"));
 const restoredURL = new URL(process.env.ROOTSET_TEST_DATABASE_URL);
 if (
   !["localhost", "127.0.0.1"].includes(restoredURL.hostname) ||
-  restoredURL.port !== "55448"
+  restoredURL.port !== (process.env.ROOTSET_RECOVERY_SOURCE_PORT ?? "55468")
 )
   throw new Error("Use the authorized Rootset fixture configuration");
-restoredURL.port = String(report.restoredPort ?? 55460);
+restoredURL.port = String(report.restoredPort ?? 55469);
 const pool = new Pool({ connectionString: restoredURL.toString(), max: 1 });
 const require = createRequire(join(root, "packages/core/package.json"));
 const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
@@ -61,6 +66,8 @@ try {
       "SELECT id,org_id,purpose,object_key,byte_length,ciphertext_length,checksum,ciphertext_checksum,encryption_key_id,iv,tag FROM rootset_control.artifacts WHERE state='ready' ORDER BY id",
     )
   ).rows;
+  if (!artifacts.length)
+    throw new Error("Recovery requires a nonempty referenced object set");
   for (const artifact of artifacts) {
     const name = createHash("sha256").update(artifact.object_key).digest("hex");
     const path = join(destination, name);

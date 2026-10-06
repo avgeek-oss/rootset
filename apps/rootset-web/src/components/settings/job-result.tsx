@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "../ui/button";
 import type { JsonValue } from "@rootset/contracts";
 
 export function JobResultDetails({

@@ -1,6 +1,6 @@
 "use client";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Modal } from "@heroui/react";
+import type { ReactNode } from "react";
 
 export function Dialog({
   title,
@@ -15,38 +15,30 @@ export function Dialog({
   wide?: boolean;
   closeDisabled?: boolean;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useLayoutEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    ref.current?.showModal();
-    return () => {
-      ref.current?.close();
-      opener?.focus();
-    };
-  }, []);
   return (
-    <dialog
-      ref={ref}
-      className={`rootset-dialog ${wide ? "wide" : ""}`}
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!closeDisabled) onClose();
+    <Modal
+      isOpen
+      onOpenChange={(open) => {
+        if (!open && !closeDisabled) onClose();
       }}
-      aria-labelledby="dialog-title"
     >
-      <header>
-        <h2 id="dialog-title">{title}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Close dialog"
-          disabled={closeDisabled}
-          onClick={onClose}
-        >
-          <X size={18} />
-        </button>
-      </header>
-      {children}
-    </dialog>
+      <Modal.Backdrop
+        isDismissable={false}
+        isKeyboardDismissDisabled={closeDisabled}
+      >
+        <Modal.Container>
+          <Modal.Dialog className={`rootset-dialog ${wide ? "wide" : ""}`}>
+            <Modal.Header>
+              <Modal.Heading>{title}</Modal.Heading>
+              <Modal.CloseTrigger
+                aria-label="Close dialog"
+                isDisabled={closeDisabled}
+              />
+            </Modal.Header>
+            <Modal.Body>{children}</Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }

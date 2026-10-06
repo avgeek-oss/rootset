@@ -70,18 +70,12 @@ try {
       })
     ).ok(),
   ).toBe(true);
-  expect(
-    (
-      await context.request.post("/v1/auth/organisation", {
-        data: { orgId: fixture.orgId },
-        headers: { Origin: new URL(baseURL).origin },
-      })
-    ).ok(),
-  ).toBe(true);
+  expect((await context.request.get("/api/internal/v1/context")).ok()).toBe(
+    true,
+  );
   const root = `/orgs/${fixture.orgId}/databases/${fixture.databaseId}`;
   const fields = Array.from({ length: 200 }, (_, i) => ({
-    apiKey: `C${String(i).padStart(3, "0")}_${"K".repeat(59)}`,
-    label: `Wide ${i}`,
+    name: `${String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26))}_${"K".repeat(61)}`,
     type: "text",
     charLimit: 190,
   }));
@@ -97,7 +91,7 @@ try {
       type: "create",
       values: Object.fromEntries(
         fields.map((field, column) => [
-          field.apiKey,
+          field.name,
           `row-${String(start + i).padStart(3, "0")}-col-${String(column).padStart(3, "0")}-`.padEnd(
             190,
             "X",
@@ -177,7 +171,7 @@ try {
   });
   await expect(dialog).toBeVisible();
   const text = await page.evaluate(() => window.__rootsetLimitPaste);
-  const expected = `${rows.map((row) => fields.map((field) => row.values[field.apiKey]).join("\t")).join("\n")}\n`;
+  const expected = `${rows.map((row) => fields.map((field) => row.values[field.name]).join("\t")).join("\n")}\n`;
   expect(text).toBe(expected);
   expect(Buffer.byteLength(text)).toBeLessThan(8 * 1024 * 1024);
   await expect(
@@ -280,7 +274,7 @@ try {
     expect(
       history.data.filter((entry) => entry.operation === "update"),
     ).toHaveLength(2);
-    expect(history.data.at(-1).after).toBe(rows[0].values[firstField.apiKey]);
+    expect(history.data.at(-1).after).toBe(rows[0].values[firstField.name]);
     report.checks.push({
       name: "Actual over-8-MiB paste uploads encrypted JSONL, validates 200 records, runs an owned-org scoped worker, reaches terminal UI, restores changed canonical value once and leaves no-op rows/revisions unchanged",
       status: "passed",

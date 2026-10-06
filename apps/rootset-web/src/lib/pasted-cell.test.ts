@@ -4,8 +4,7 @@ import { parsePastedCell } from "./pasted-cell";
 
 const field: FieldDefinition = {
   id: "01M3YTS99KPQXTMVWRN1V91562",
-  apiKey: "INTEGER",
-  label: "Integer",
+  name: "INTEGER",
   type: "integer",
   order: 0,
 };

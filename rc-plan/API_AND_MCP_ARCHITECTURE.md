@@ -1,259 +1,89 @@
-# API and MCP architecture
-
-Baseline: 2026-10-02. Status: shared contracts and adapters implemented; verification and final acceptance remain in progress. Related contracts: [accounts](ACCOUNT_ARCHITECTURE.md), [database](MDM_DATABASE_ARCHITECTURE.md), [stack](STACK_ARCHITECTURE.md), and [verification](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
-
-## Shared operation model
-
-Browser, public REST, MCP, and workers execute the same domain operations. Each definition has a stable operation ID, input/output schemas, required scopes, role ceiling, resource-target resolver, read/mutation classification, idempotency/concurrency rules, step-up requirement, audit event, and error codes.
-
-Generate the public OpenAPI document, browser client, MCP schemas, and coverage inventory from these definitions. Transport adapters handle authentication and formatting; they cannot implement independent validation or permissions. In particular, a read-only key can execute a read-classified POST query. Do not copy Towbar's broad HTTP-method read/write guard as the Rootset permission decision.
-
-The executable catalog generates the [operation inventory](../packages/contracts/generated/operation-inventory.json), [public OpenAPI](../packages/contracts/generated/openapi.json), [internal OpenAPI](../packages/contracts/generated/internal-openapi.json), [typed client](../packages/contracts/generated/client.ts) and [MCP tool schemas](../packages/contracts/generated/mcp-tools.json). The current catalog contains 104 named operations and 104 MCP tools, including table history-retention policies and archives. Public OpenAPI declares 77 distinct paths with 106 method operations: the named operations plus raw upload/download. Internal OpenAPI declares 78 distinct paths with 107 method operations, including the session-only browser download. The generated manifest binds all artifacts to one contract digest. Regeneration and drift checks are required before sign-off.
-
-The operation inventory records internal/public routes, MCP names, job behavior, scopes, role, interactive requirements and schemas. The [operation coverage review](../docs/verification/OPERATION_COVERAGE_REVIEW.md) maps every handler to actual assertion sources and separates successful runtime classes, rendered workflows and remaining verification. Discovery and route authentication do not establish successful execution of every operation. The catalog below is the v1 baseline. A route added during implementation needs a corresponding matrix row and sign-off check; no undocumented admin bypass is permitted.
-
-## Surfaces and origins
-
-Use one configured HTTPS installation origin. Examples below use `https://rootset.example`; they do not establish deployment or DNS at rootset.fyi.
-
-| Surface                     | Entry point                                                               | Authentication                                                                                                        |
-| --------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Browser operation API       | `/api/internal/v1/...`                                                    | Secure HttpOnly cookie, current organisation context, CSRF/origin validation on mutations.                            |
-| Public REST                 | `/v1/...`                                                                 | Bearer personal/team API key or REST-audience OAuth access token.                                                     |
-| Remote MCP                  | `/mcp`                                                                    | Streamable HTTP with OAuth access token bound to this resource.                                                       |
-| OAuth HTTP                  | `/oauth/...` and well-known metadata                                      | Protocol-specific client/user verification; consent uses the browser session.                                         |
-| Setup/authentication        | `/v1/setup`, `/v1/auth/...`                                               | Bootstrap, public challenge, or browser authentication as appropriate.                                                |
-| Installation administration | Restricted operator CLI or authenticated operator browser/API/MCP actions | Current installation authority, separately checked from organisation ownership; bound approval for sensitive changes. |
-| Worker service              | Restricted direct database/job adapters                                   | Dedicated service role and current original job authority; no public arbitrary-worker endpoint.                       |
-
-The web app routes the existing API, MCP, OAuth and discovery paths through a local streaming adapter to the private API configured by `ROOTSET_API_INTERNAL_URL`. The adapter admits only the inventoried paths; clients cannot choose an upstream, and redirects are passed through without following them. It forwards cookies, bearer credentials, Origin and idempotency to the existing authority checks, removes hop-by-hop and untrusted forwarding headers, and bounds request line/headers at 192 KiB. Ordinary input is limited to 8 MiB of actual bytes and ten seconds while input remains unfinished; overflow fails rather than forwarding a valid prefix. Completed-input MCP/SSE and binary responses continue streaming. The narrow raw upload adapter keeps its separate 128 MiB backend limit. The generated inventory records this transport separately from the 104 business operations.
-
-Internal browser routes use the same operation schemas and services as public REST. They do not expose worker credentials. Workers poll jobs directly with their restricted database role; do not ship a public arbitrary-worker endpoint.
-
-## REST authentication
-
-Accept `Authorization: Bearer <token>` only, with no query-string token. Keys are resolved by non-secret lookup ID and verified against stored hashes. Evaluate expiry/revocation, current user/membership where personal, operation scopes, target grants, role ceiling, and any step-up proof. Team keys are organisation service principals. Do not create a browser session from a key.
-
-OAuth grants are audience-bound to `/v1` or `/mcp` as consented. Ordinary JSON REST accepts the API audience; MCP accepts the MCP resource. Two explicit raw artifact handoffs also accept the originating MCP grant so tools can upload an import or retrieve an export with their existing authority. These artifact-bound routes recheck the original purpose scopes, requester, organisation and current target. They do not grant access to other `/v1` operations. Client tokens are not passed to another service. Effective permission is the intersection of credential scope/targets and current actor authority. A key's ability to manage keys does not allow it to mint a broader credential.
-
-Scopes follow domain operations, for example `databases:read`, `databases:manage`, `schema:manage`, `rows:read`, `rows:write`, `history:read`, `imports:write`, `exports:read`, `backups:manage`, `members:manage`, `keys:manage`, and `account:security`. Group names are not a full-admin shortcut. Organisation/database/table targets are separate grants so a key can read one table without enumerating all others.
-
-## OAuth and remote MCP
-
-Implement OAuth authorisation-code flow with S256 PKCE, exact registered redirect matching, single-use short-lived codes, issuer validation, resource indicators, client attribution, and explicit consent. Advertise protected-resource metadata and authorisation-server metadata. The implemented MCP protocol version is `2025-11-25`, matching the pinned SDK/runtime negotiation and its [authorisation specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) and [HTTP transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports). Real SDK tests verify discovery, token use, typed results and errors; protocol upgrades require compatibility verification.
-
-| Endpoint                                             | Responsibility                                                                                             |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `GET /.well-known/oauth-protected-resource/mcp`      | MCP resource URI, authorisation servers, relevant supported scopes, bearer method.                         |
-| `GET /.well-known/oauth-protected-resource/v1`       | REST protected-resource metadata.                                                                          |
-| `GET /.well-known/oauth-authorization-server`        | Issuer, authorise/token/revoke endpoints, code/refresh support, S256 and client-registration capabilities. |
-| `GET /oauth/authorize`                               | Validate request/client/resource/scope, associate issuer/PKCE/state, enter login/consent.                  |
-| `GET /api/internal/v1/oauth/requests/{id}`           | Browser-only consent details with verified client identity/trust level and exact grants.                   |
-| `POST /api/internal/v1/oauth/requests/{id}/decision` | Approve/deny once, preserving the bound request and user authority.                                        |
-| `POST /oauth/token`                                  | Exchange a code or rotate a refresh token; validate client and resource binding.                           |
-| `POST /oauth/revoke`                                 | Revoke token/grant or refresh family without revealing token validity to unrelated callers.                |
-| `POST /oauth/register`                               | Optional compatibility dynamic registration, with rate limits and SSRF/redirect validation.                |
-
-Prefer Client ID Metadata Documents and preregistered clients; dynamic registration is a compatibility feature. Metadata-document fetching requires redirect/size/time limits, private-network rejection, HTTPS origin validation, and bounded caching. A fetched client name/logo does not establish trust by itself. Consent must distinguish verified metadata provenance from an unverified claim.
-
-Access tokens expire after 15 minutes. Refresh tokens rotate, have seven-day inactivity and 30-day absolute expiry, and are stored hashed. Reuse revokes the family. Token issuance and consumption are transactional under concurrent exchanges. Revoked membership, grants, or account state also invalidate effective access before token expiry.
-
-Return standards-compatible 401 `WWW-Authenticate` resource metadata and insufficient-scope challenges. Rate-limit pre-authentication OAuth endpoints and authenticated operation buckets separately. Never request all write/admin scopes simply because a client wants to list databases.
-
-MCP supports initialise, tools/list, tools/call, the protocol's lifecycle/negotiation, and authorised artifact resources where implemented. A protocol session ID is transport state, not authentication. Reauthenticate each request. Browser Origin checks and negotiated headers must follow the pinned Streamable HTTP spec; do not rely on Origin as the sole credential check.
-
-## Requests, rows and concurrency
-
-Resource paths resolve IDs plus their full parent ownership. Passing an existing table ID under another database/organisation fails without leaking its real location. Unknown and unauthorised targets have a consistent disclosure policy.
-
-History archive list/get operations refresh current identity and require `history:read`. An active table uses ordinary read authority. After table or database deletion, retained reads require matching management authority; actors outside Owner/Admin also need an explicit matching `manage` grant. Database-wide, table-only and organisation-wide grants inherit only within the actual organisation and matching parent. Current grant downgrade, credential or membership revocation, an unrelated target, or a wrong parent cannot recover access through a retained artifact ID. Artifact metadata and plaintext downloads authorize against the archive's actual table. Retention policy access, new archive jobs and ordinary schema/data operations continue to require active resources.
-
-Rows return `{ id, version, createdAt, updatedAt, values }`. Row versions are decimal strings to preserve bigint precision; schema versions are bounded positive integers. Internal IDs are returned by API/MCP and are not user grid columns. `values` maps immutable API keys to canonical typed values. Unknown fields, coercions, system writes, and invalid temporal values are rejected.
-
-Mutations require `Idempotency-Key` for row creates/patches/deletes, schema writes, batch writes, imports, jobs and credential creation/rotation. The catalog declares every other account/configuration mutation. Reusing a key with changed business input yields `IDEMPOTENCY_CONFLICT`; equivalent input returns the committed non-secret result after current credential, membership, scope and target checks. Read-only operations, including preference previews, create no mutation receipt.
-
-Account writes, installation configuration, synchronous job controls and queued job admission use the organisation-scoped `@rootset/idempotency` journal. Receipt, domain effects and approval consumption commit in one transaction. HMAC bindings include the organisation, principal kind/ID, user, credential, client, operation, supplied key and canonical business input. Raw control keys and secret-bearing input are not stored in these receipts. Top-level approval identifiers are excluded from the business digest; current authorization occurs before pre-approval replay lookup so another request cannot spend a consumed ticket. Keep the installation key-hash secret stable across restart/recovery.
-
-Shared synchronous control receipts expire after 24 hours. Durable job/batch identities retain their separate journal for the job lifetime. Key issuance/rotation and account-action completion retain their dedicated one-time-secret journals. Generic replay removes explicit password/token/key/TOTP/recovery secrets while preserving domain error codes and public credential identifiers. A stored receipt never redisplays a one-time secret.
-
-Queued operation admission keeps an authenticated job-lifetime binding of the principal, credential, client, operation, request key, canonical public input, exact approval ID and trusted source/approval state. Current authority is checked before lookup. The admission lock precedes receipt and approval locks, and an unchanged retry returns the original job acknowledgement even after the outer 24-hour receipt expires and its approval has been consumed. Changed business input, proof, credential, client or trusted context conflicts; missing or invalid legacy admission provenance fails closed. Request IDs remain correlation only. Account and organisation deletion retain their Identity authority and last-Owner checks inside this shared admission path.
-
-`mutateRows` optionally accepts `repair: { reason }` for explicitly approved operator updates. Normal batches keep their synchronous result and HTTP 201. Repair requires `expectedSchemaVersion`, update-only mutations with expected row revisions, current personal operator and table write authority, and an exact `operator_repair` approval. It returns the existing HTTP 202 job acknowledgement. The same operation and typed output union are used by the browser, REST and `rootset_mutate_rows`; it adds no separate SQL or repair tool. The strict approval review preserves legitimate business keys named `password`, `token` or `secret` without exposing authentication proof.
-
-Named key issuance, rotation and their account-action completion lock the dedicated receipt before approval consumption. Identical concurrent requests issue one credential; an exact retry returns its metadata after the ticket has been consumed. This receipt uses a keyed binding of the original business input, principal kind/ID, organisation, user, credential, OAuth client and exact approval ID. Replays recheck current delegation, key ownership and active target parents. Changed input or approval IDs conflict, and a different request key cannot spend the consumed ticket. Receipts from the earlier unbound digest protocol fail with an idempotency conflict; they cannot recover a one-time secret or issue another credential under the old request key. External account-action completion enters the shared Core executor before touching the approval row, preserving current resource authorization and the same receipt-before-approval lock order as the named operation.
-
-Receipt lookup follows current credential, membership, scope and resource validation. An account-action retry also validates the original target operation and its numeric input before lookup; browser approval cannot expand the initiating credential's authority. Initial and replayed outcomes satisfy the same strict output schema. Contention waiting for an identical receipt is bounded and returns a retryable dependency error when the original request has not completed.
-
-An already-consumed account action is the initiating identity's historical receipt: current authentication and ticket ownership permit its stored, redacted metadata to be read. Completing a pending ticket and replaying a named mutation require current authority for that operation and its resources before any effect.
-
-Row update/delete requires the expected revision. PATCH accepts `expectedVersion`; DELETE uses `If-Match: "<row-id>:<version>"`. Schema mutation requires `expectedSchemaVersion`. Stale values return 409 with authorised current revision/value details. A batch checks every expected revision and is atomic unless explicitly submitted as a large import job.
-
-Ordinary JSON requests are capped at 8 MiB, with a ten-second body-read deadline. Reject a declared oversized body before reading it, then bound streamed bytes independently of Content-Length. A timed-out body returns `REQUEST_TIMEOUT` with HTTP 408. The authenticated raw artifact upload retains its separate 128 MiB limit and longer bounded transfer deadline. Duplicate/malformed members, unknown envelope keys, invalid UTF-8, too-deep inputs, excess predicates and unsupported field values fail with typed errors. Validate body size before parsing and use a decoder that can reject duplicate members where the contract requires it.
-
-## Query contract
-
-The same object is accepted by `POST .../query` and `rootset_query_rows`. Filters resolve API keys or stable field IDs, and output projection controls user values independently of hidden row identity.
-
-```json
-{
-  "select": ["AIRLINE_ID", "SHORT_NAME", "IS_ACTIVE"],
-  "where": {
-    "and": [
-      { "field": "IS_ACTIVE", "op": "eq", "value": true },
-      { "field": "SHORT_NAME", "op": "contains", "value": "Air" }
-    ]
-  },
-  "orderBy": [{ "field": "AIRLINE_ID", "direction": "asc" }],
-  "limit": 5000,
-  "cursor": null
-}
-```
-
-REST defaults to 5,000 rows; MCP defaults to 200. Explicit limits are 1-25,000. The result uses `data`, `schemaVersion`, and `page` containing `returned`, `requestedLimit`, `hasMore`, `nextCursor`, `stopReason`, and `consistency: "live"`. Stop reasons distinguish row limit, byte limit, and end of results. A timeout is an error, not a truncated successful page.
-
-REST/browser results fit an 8 MiB encoded budget; MCP results fit 1 MiB including structured result overhead. Return complete rows only and an appropriate continuation. An exact filtered count is an explicit job when expensive; do not count for every page. A cursor binds query/schema/target/grants and expires after one hour. Live cursor traversal is not snapshot isolation; exports offer a consistent whole-result snapshot.
-
-GET row listing supports a compact documented subset of projection/order/limit/cursor. Signed row cursors may contain up to 131,200 characters when sorting wide legal values. The Node API admits a bounded 192 KiB request line/header budget, with a 15-second header timeout and 660-second body timeout; the web process and every edge proxy must preserve that budget. The [installation guide](../docs/operations/installation.md) includes proxy settings. POST query accepts the same cursor in its body. Use POST query for full typed filters rather than embedding a SQL-like language in a URL. JSON-path filters use a bounded segment-array representation, avoiding ambiguous escaped path strings. Include indexed operator guidance in schema discovery.
-
-## Operation inventory
-
-Path shorthand: `O = /v1/orgs/{orgId}`, `D = O/databases/{databaseId}`, `T = D/tables/{tableId}`. Expanded paths are emitted in OpenAPI. The browser operation API mirrors these operations under its internal prefix and adds the explicit session/context/grid/interactive/binary adapters listed below. Protocol adapters are not additional domain tools.
-
-The "authority" column describes the minimum scope plus role/resource gate; the account contract defines exact ceilings. "Step-up" means a bound account-action approval where required. The 104 named tools are implemented and available from a configured running Rootset service after the client connects and completes OAuth consent. Generated schemas describe that service contract; client configuration determines the server and resource grant in use.
-
-### Accounts and organisation
-
-| Operation                              | Public HTTP                                                      | Authority                                                                                                                  | MCP                                                                              |
-| -------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Get caller/context                     | `GET /v1/me`                                                     | Authenticated principal; redacted service-principal representation                                                         | `rootset_get_context`                                                            |
-| Get/update own profile                 | `GET/PATCH /v1/me/profile`                                       | Personal `profile:manage`                                                                                                  | `rootset_get_profile`, `rootset_update_profile`                                  |
-| Get/update preferences                 | `GET/PATCH /v1/me/preferences`                                   | Personal `profile:manage`                                                                                                  | `rootset_get_preferences`, `rootset_update_preferences`                          |
-| Preference options/preview             | `GET /v1/preferences/options`, `POST /v1/me/preferences/preview` | Authenticated; preview is read-only                                                                                        | `rootset_get_preference_options`, `rootset_preview_preferences`                  |
-| List/revoke own sessions               | `GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`             | Personal `account:security`; owned single-session revocation has no step-up; broad sign-out is a separate sensitive action | `rootset_list_sessions`, `rootset_revoke_session`                                |
-| List/revoke OAuth grants               | `GET /v1/me/connections`, `DELETE /v1/me/connections/{id}`       | Personal `account:security`                                                                                                | `rootset_list_connections`, `rootset_revoke_connection`                          |
-| Start/inspect sensitive account action | `POST /v1/me/actions`, `GET /v1/me/actions/{id}`                 | Personal authority for requested action                                                                                    | `rootset_begin_account_action`, `rootset_get_account_action`                     |
-| Complete sensitive action              | `POST /v1/me/actions/{id}/complete`                              | Bound action approval; single use                                                                                          | `rootset_complete_account_action`                                                |
-| List accessible organisations          | `GET /v1/orgs`                                                   | Current memberships/service-principal organisation                                                                         | `rootset_list_organisations`                                                     |
-| Get/update organisation                | `GET/PATCH O`                                                    | `org:read` / `org:manage`, Owner/Admin                                                                                     | `rootset_get_organisation`, `rootset_update_organisation`                        |
-| Transfer ownership                     | `POST O/ownership-transfer`                                      | Owner `ownership:manage`, step-up                                                                                          | `rootset_transfer_ownership`                                                     |
-| Delete organisation                    | `DELETE O`                                                       | Owner `ownership:manage`, step-up, deletion job                                                                            | `rootset_delete_organisation`                                                    |
-| List/update/remove members             | `GET O/members`, `PATCH/DELETE O/members/{id}`                   | `members:read/manage`, role/last-owner gates                                                                               | `rootset_list_members`, `rootset_update_member`, `rootset_remove_member`         |
-| List/create/cancel invitations         | `GET/POST O/invitations`, `DELETE O/invitations/{id}`            | `members:manage`, Owner/Admin; creation requires a personal identity                                                       | `rootset_list_invitations`, `rootset_invite_member`, `rootset_cancel_invitation` |
-| List/update resource grants            | `GET/PATCH O/grants`                                             | `grants:manage`, Owner/Admin, no authority expansion                                                                       | `rootset_get_grants`, `rootset_update_grants`                                    |
-| Read organisation audit                | `POST O/audit/query`                                             | `audit:read`, target restrictions                                                                                          | `rootset_query_organisation_audit`                                               |
-| List/create personal keys              | `GET/POST /v1/me/keys`                                           | Personal `keys:manage`, authority intersection, creation step-up as applicable                                             | `rootset_list_personal_keys`, `rootset_create_personal_key`                      |
-| Rotate/revoke personal key             | `POST /v1/me/keys/{id}/rotate`, `DELETE /v1/me/keys/{id}`        | Personal `keys:manage`, ownership and step-up gates                                                                        | `rootset_rotate_personal_key`, `rootset_revoke_personal_key`                     |
-| List/create team keys                  | `GET/POST O/keys`                                                | `keys:manage`, Owner/Admin; create step-up                                                                                 | `rootset_list_team_keys`, `rootset_create_team_key`                              |
-| Rotate/revoke team key                 | `POST O/keys/{id}/rotate`, `DELETE O/keys/{id}`                  | `keys:manage`, Owner/Admin, rotation step-up                                                                               | `rootset_rotate_team_key`, `rootset_revoke_team_key`                             |
-| List passkeys/factor status            | `GET /v1/me/security`                                            | Personal `account:security`; credential metadata only                                                                      | `rootset_get_security_status`                                                    |
-
-Password/email change, passkey registration/removal, TOTP enable/disable, recovery-code rotation, account deletion, and sign-out-everywhere are named account-action types. Starting/completing them is available through API/MCP, but proof of user presence or factor verification is completed in the browser. The action status does not return factor secrets to a third-party MCP client.
-
-### Databases, tables and schema
-
-| Operation                      | Public HTTP                                                | Authority                                               | MCP                                                                          |
-| ------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| List/create databases          | `GET/POST O/databases`                                     | `databases:read/manage`, create Owner/Admin             | `rootset_list_databases`, `rootset_create_database`                          |
-| Get/update/delete database     | `GET/PATCH/DELETE D`                                       | `databases:read/manage`; delete step-up/job             | `rootset_get_database`, `rootset_update_database`, `rootset_delete_database` |
-| List/create tables             | `GET/POST D/tables`                                        | `tables:read/manage`, database resource grant           | `rootset_list_tables`, `rootset_create_table`                                |
-| Get/update/delete table        | `GET/PATCH/DELETE T`                                       | `tables:read/manage`; delete step-up/job                | `rootset_get_table`, `rootset_update_table`, `rootset_delete_table`          |
-| Get complete table schema      | `GET T/schema`                                             | `tables:read`                                           | `rootset_get_table_schema`                                                   |
-| List/create fields             | `GET/POST T/fields`                                        | `tables:read` / `schema:manage`                         | `rootset_list_fields`, `rootset_create_field`                                |
-| Update/remove field            | `PATCH/DELETE T/fields/{fieldId}`                          | `schema:manage`, expected schema/dependency checks      | `rootset_update_field`, `rootset_delete_field`                               |
-| Reorder fields                 | `PUT T/field-order`                                        | `schema:manage`; labels/order only                      | `rootset_reorder_fields`                                                     |
-| Preview schema change          | `POST T/schema/preview`                                    | `schema:manage`; read-only dry run                      | `rootset_preview_schema_change`                                              |
-| Start/inspect schema operation | `POST T/schema/operations`, `GET T/schema/operations/{id}` | `schema:manage`; job and final catalogue readback       | `rootset_apply_schema_change`, `rootset_get_schema_operation`                |
-| List/create unique rules       | `GET/POST T/unique-rules`                                  | `tables:read` / `schema:manage`; creation job if needed | `rootset_list_unique_rules`, `rootset_create_unique_rule`                    |
-| Remove unique rule             | `DELETE T/unique-rules/{id}`                               | `schema:manage`, expected schema version                | `rootset_delete_unique_rule`                                                 |
-| List/create/remove indexes     | `GET/POST T/indexes`, `DELETE T/indexes/{id}`              | `tables:read` / `schema:manage`; build job              | `rootset_list_indexes`, `rootset_create_index`, `rootset_delete_index`       |
-
-### Rows, query and history
-
-| Operation                        | Public HTTP                                             | Authority                                                                                          | MCP                                                                            |
-| -------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| List/query rows                  | `GET T/rows`, `POST T/query`                            | `rows:read`; POST query remains read-only                                                          | `rootset_list_rows`, `rootset_query_rows`                                      |
-| Get a row                        | `GET T/rows/{rowId}`                                    | `rows:read`                                                                                        | `rootset_get_row`                                                              |
-| Create a row                     | `POST T/rows`                                           | `rows:write`, idempotency/capacity                                                                 | `rootset_create_row`                                                           |
-| Patch a row                      | `PATCH T/rows/{rowId}`                                  | `rows:write`, expected version, idempotency                                                        | `rootset_update_row`                                                           |
-| Delete a row                     | `DELETE T/rows/{rowId}`                                 | `rows:write`, If-Match, idempotency                                                                | `rootset_delete_row`                                                           |
-| Atomic batch mutation            | `POST T/rows/batch`                                     | `rows:write`, maximum 1,000 rows                                                                   | `rootset_mutate_rows`                                                          |
-| Query/count metadata             | `GET T/statistics`, `POST T/count`                      | `rows:read`; exact filtered count may be a job                                                     | `rootset_get_table_statistics`, `rootset_count_rows`                           |
-| Get cell history                 | `GET T/rows/{rowId}/cells/{fieldId}/history`            | `history:read`; retained resource grants                                                           | `rootset_get_cell_history`                                                     |
-| Query row/table history          | `POST T/history/query`                                  | `history:read`, bounded filters/projection/paging                                                  | `rootset_query_history`                                                        |
-| Get mutation outcome             | `GET O/mutations/{id}`                                  | Resolve the mutation's real table and require current `rows:read`; no secret replay                | `rootset_get_mutation`                                                         |
-| Get/set history retention policy | `GET/PUT T/history-retention-policy`                    | `history:read`; update adds `schema:manage`, Admin and conditional approval                        | `rootset_get_history_retention_policy`, `rootset_set_history_retention_policy` |
-| Start history archive            | `POST T/history-archives`                               | `history:read` plus `schema:manage`, Admin, conditional approval and verified job before hot purge | `rootset_archive_history`                                                      |
-| List/get history archives        | `GET T/history-archives`, `GET T/history-archives/{id}` | `history:read`, current retained target grants; typed manifest state                               | `rootset_list_history_archives`, `rootset_get_history_archive`                 |
-
-### Imports, exports, backups and jobs
-
-| Operation                       | Public HTTP                                         | Authority                                                                                                                     | MCP                                                      |
-| ------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Prepare/upload import artifact  | `POST T/imports/uploads`                            | `imports:write`, bounded authenticated/presigned upload                                                                       | `rootset_prepare_import_upload`                          |
-| Validate import                 | `POST T/imports/validate`                           | `imports:write`, schema/mapping, report/job                                                                                   | `rootset_validate_import`                                |
-| Run import                      | `POST T/imports`                                    | `imports:write` plus `rows:write`, idempotent job                                                                             | `rootset_import_rows`                                    |
-| Run snapshot export             | `POST T/exports`                                    | `exports:read` plus source read, job                                                                                          | `rootset_export_rows`                                    |
-| Get artifact/download access    | `GET O/artifacts/{id}`                              | Current source/target access, short-lived access                                                                              | `rootset_get_artifact`                                   |
-| Get/set backup policy           | `GET/PUT D/backup-policy`                           | `backups:read/manage`, Owner/Admin; secret-change step-up                                                                     | `rootset_get_backup_policy`, `rootset_set_backup_policy` |
-| Preview cron occurrences        | `POST D/backup-policy/preview`                      | `backups:read`; read-only                                                                                                     | `rootset_preview_backup_schedule`                        |
-| List/get backups                | `GET D/backups`, `GET D/backups/{id}`               | `backups:read`                                                                                                                | `rootset_list_backups`, `rootset_get_backup`             |
-| Run manual backup               | `POST D/backups`                                    | `backups:manage`, idempotent job                                                                                              | `rootset_create_backup`                                  |
-| Delete a backup                 | `DELETE D/backups/{id}`                             | `backups:manage`, recovery-point policy; queued `202` deletion, poll the job                                                  | `rootset_delete_backup`                                  |
-| Preview restore                 | `POST D/backups/{id}/restore-preview`               | `backups:manage`, compatibility/target dry run                                                                                | `rootset_preview_restore`                                |
-| Run restore                     | `POST D/backups/{id}/restores`                      | `backups:manage` plus target manage; replacement step-up                                                                      | `rootset_restore_backup`                                 |
-| List/get jobs                   | `GET O/jobs`, `GET O/jobs/{id}`                     | `jobs:read`, requester/resource restrictions                                                                                  | `rootset_list_jobs`, `rootset_get_job`                   |
-| Cancel/retry job                | `POST O/jobs/{id}/cancel`, `POST O/jobs/{id}/retry` | `jobs:cancel/retry` plus current original operation and requester authority; Viewers may control their own authorized exports | `rootset_cancel_job`, `rootset_retry_job`                |
-| Get organisation storage/limits | `GET O/usage`                                       | `org:read`, appropriately redacted                                                                                            | `rootset_get_usage`                                      |
-
-### Browser, setup and installation adapters
-
-| HTTP adapter                                                                                                                        | Purpose and MCP relationship                                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/setup`, `POST /v1/setup`                                                                                                   | Installation bootstrap status/claim, protected by bootstrap secret where needed. OAuth cannot precede creation of the first identity; no pre-authenticated MCP setup tool is advertised.                                                                                                                                                          |
-| `/v1/auth/sign-in/email`, `/v1/auth/sign-out`, `/v1/auth/request-password-reset`, `/v1/auth/verify-email`, `/v1/auth/invitations/*` | Identity establishment and proof use the configured Better Auth routes plus the bound invitation adapter. Management actions use the shared account-action service after authentication.                                                                                                                                                          |
-| `/v1/auth/passkey/*`, `/v1/auth/two-factor/*`                                                                                       | Start/finish factor challenges. Actual WebAuthn/TOTP proof stays browser-mediated and bound to the account action.                                                                                                                                                                                                                                |
-| `GET /api/internal/v1/context`                                                                                                      | Selected organisation, current permissions, preferences, and onboarding state. Public equivalent is `rootset_get_context`.                                                                                                                                                                                                                        |
-| `POST /api/internal/v1/tables/{id}/windows/query`                                                                                   | Grid anchor/window navigation adapter to the shared query compiler; public clients use query/cursors. It does not add unauthorised data access.                                                                                                                                                                                                   |
-| `GET/PUT /api/internal/v1/view-preferences/{tableId}`                                                                               | Per-user column width/order/freeze/filter preferences. Public `GET/PUT /v1/me/view-preferences/{tableId}` and `rootset_get_view_preferences` / `rootset_update_view_preferences` use the same service and current table access checks.                                                                                                            |
-| `/api/internal/v1/account-actions/{id}/approve`                                                                                     | Browser session/factor approval, issuer/client/action-bound. MCP can inspect and then complete the approved action.                                                                                                                                                                                                                               |
-| `GET /v1/installation/status`, `GET/PATCH /v1/installation/configuration`, `POST /v1/installation/email-test`                       | Operator-authorised health/configuration/redacted email test. MCP equivalents are `rootset_get_installation_status`, `rootset_get_installation_configuration`, `rootset_update_installation_configuration`, `rootset_test_email`, subject to installation authority and step-up. Organisation Owner alone does not confer installation authority. |
-| `PUT /v1/orgs/{orgId}/artifacts/{id}/upload`                                                                                        | Up to 128 MiB raw import bytes using the prepared exact method, headers, byte length and checksum. API bearer, original artifact-bound MCP bearer or browser session with mutation CSRF proof; source import authority is rechecked.                                                                                                              |
-| `GET /v1/orgs/{orgId}/artifacts/{id}/download`                                                                                      | Integrity-verified raw artifact bytes. API bearer or original artifact-bound MCP bearer; current purpose/requester/target authority and expiry apply. Public download is bearer-only.                                                                                                                                                             |
-| `GET /api/internal/v1/orgs/{orgId}/artifacts/{id}/download`                                                                         | Session-only browser download uses the same artifact service and integrity checks. Browser clients remap only a validated same-origin metadata URL to this adapter; bearer tokens use the public handoff. A read-only GET requires no mutation CSRF proof.                                                                                        |
-| `/mcp`, `/oauth/*`, `/.well-known/*`, `/api/internal/v1/oauth/requests/*`                                                           | MCP protocol transport and OAuth discovery/client/consent/token proof follow their separate authenticated protocol contracts. The named business operations still come from the shared catalog.                                                                                                                                                   |
-| `GET /v1/openapi.json`, `GET /api/internal/v1/openapi.json`, `GET /v1/operation-coverage`                                           | Redacted generated schema/inventory publication; the internal spec requires a browser session. These are static contracts, not execution sign-off reports.                                                                                                                                                                                        |
-| `/health/live`, `/health/ready`                                                                                                     | Bounded, redacted operational probes. They are not general data operations or private configuration disclosure.                                                                                                                                                                                                                                   |
-
-The matrix must explicitly distinguish identity/protocol bootstrap and interactive proof from ordinary business operations. Administrative actions remain available through API/MCP initiation and completion; a tool must return an actionable approval state when human presence is required. It must not silently omit the operation or claim to have performed a WebAuthn ceremony.
-
-## OpenAPI and schemas
-
-Emit [OpenAPI 3.1.2](https://spec.openapis.org/oas/v3.1.2.html) with JSON Schema 2020-12. Publish `/v1/openapi.json` with no credentials or private installation configuration. Generate a separate internal browser description for development. Evaluate 3.2.x only after selected validators/generators/client tools pass compatibility checks.
-
-Every operation needs operationId, tags, expanded path parameters, request/output schemas, auth/scopes, required concurrency/idempotency headers, examples, status/errors, and job semantics. Use a union/discriminator for field definitions. JSON Schema `format` annotations do not replace runtime UTC/date/number validation. Runtime-created tables expose their schemas through `T/schema`; the root spec uses generic row values plus schema discovery rather than regenerating the entire installation spec on each field edit.
-
-The verification workflow checks the emitted spec, validates examples, compares operation inventory across transports, and generates a client that compiles. Separate actual endpoint/SDK tests establish transport behavior. `pnpm contracts:generate --check` rejects drift between the catalog and generated artifacts; the manifest records OpenAPI `3.1.2`, operation count and each artifact checksum. Specification generation is not enough: verify HTTP status/media type, nullability, numeric/temporal serialisation, pagination, and job responses. Secret-bearing outputs such as one-time key creation have explicit write-only/non-replay behavior.
-
-## MCP outputs and tool behavior
-
-Tools are named for tasks and have bounded, typed input schemas, descriptions, output schemas, and correct read-only/destructive/idempotent annotations. Annotations inform the client; server permissions remain authoritative. Tools/list does not leak hidden table names, rows, or keys. Tool arguments cannot choose an actor or bypass a resource grant.
-
-Use `structuredContent` for machine-readable results and a short text summary. Do not duplicate thousands of rows in text and structured output. Pagination defaults/budgets differ from REST only where specified; data types, field validation, history, and mutation behavior remain identical. Large reads start exports and return job/artifact references, with current access checked on retrieval.
-
-Mutation tools return committed row revisions/mutation IDs or a durable job ID and state. Tool errors distinguish validation, denied access, conflict, timeout, and upstream/job failure. A tool that starts a backup must not say "backup completed" before verified terminal success. Protected export resources can use `rootset://artifacts/{id}`; resource reads validate credentials, audience, current grants and artifact expiry.
-
-Table listing, table queries and spreadsheet windows propagate client disconnects to their owned database read. MCP also accepts `notifications/cancelled` on a separate authenticated POST. The lookup binds organisation, actor kind/ID, credential, OAuth client and user; string and numeric JSON-RPC IDs remain distinct. IDs are strings of at most 128 characters or safe integers. Unknown IDs and another principal's IDs disclose no active-read information. Current credential validity is checked before processing the notification.
-
-The v1 cancellation registry belongs to one API process. It reserves at most 1,024 active reads overall and 128 per principal, aborts a read after a 120-second registry lifetime, and keeps its slot until execution and cleanup finish. Mutation commit, replay and job cancellation retain their separate semantics. Deploy v1 with one API instance; multiple replicas require request affinity or shared cancellation dispatch before claiming cross-replica cancellation. Client-ended reads use `REQUEST_TIMEOUT`; the unchanged ten-second query budget uses `QUERY_TIMEOUT`. Failure to deliver native cancellation safely uses `DEPENDENCY_UNAVAILABLE` with retry guidance.
-
-## Errors, rate limits and jobs
-
-REST error envelope is `{ error: { code, message, requestId, details? } }`, with field errors keyed by field ID/API key and no stack/SQL/secret output. Known codes are generated with the client and MCP/OpenAPI error metadata. Capacity errors include `STORAGE_ADMISSION_BUSY` and `STORAGE_POLICY_CHANGED` (retry the unchanged request), plus quota, disk-pressure, stale-report and reservation failures requiring the documented recovery action. Public capacity errors omit SQL details and installation-wide usage/free-space measurements. Codes include `VALIDATION_FAILED`, `UNAUTHENTICATED`, `ACCESS_DENIED`, `RESOURCE_NOT_FOUND`, `ROW_VERSION_CONFLICT`, `SCHEMA_VERSION_CONFLICT`, `UNIQUE_CONFLICT`, `ROW_SIZE_LIMIT`, `ROW_LIMIT_REACHED`, `PAYLOAD_TOO_LARGE`, `REQUEST_TIMEOUT`, `QUERY_TIMEOUT`, `CURSOR_INVALID`, `STEP_UP_REQUIRED`, `IDEMPOTENCY_CONFLICT`, and `JOB_FAILED`. Use appropriate 400/401/403/404/408/409/413/422/429/5xx statuses. MCP carries the same domain code/details in its error result, separately from protocol errors.
-
-Rate limits include pre-auth IP buckets, credential/organisation request buckets, mutation budgets, query concurrency and job admission. Engineering starting point is 120 authenticated requests/minute per principal, ten concurrent reads, and five concurrent mutations, with configurable operator ceilings and explicit Retry-After. Performance rehearsal can tune these values; do not reduce correctness or expose unbounded jobs to increase throughput.
-
-Asynchronous operations return 202 with a job ID and status URL. Job responses identify queued/running/succeeded/failed/cancelled/partially_completed states and domain substage such as backup verifying. Polling is available on REST/MCP. Browser events may provide updates but are not the only completion mechanism. Retry/cancel checks current original operation permissions, requester/same-user ownership and target grants, and records already committed work. A Viewer can cancel/retry their own authorized export; Owner/Admin status does not bypass original-operation authority. Backup deletion is a durable resumable job: object cleanup progresses through checkpoints and the final metadata/outcome publication is lease-fenced. Protect the last verified recovery point and backups needed by an active replacement restore. An accepted deletion receipt is not a terminal deletion result.
-
-## Acceptance
-
-Verification gates `API-*`, `MCP-*`, `KEY-*`, and all domain gates apply. The coverage inventory must show every ordinary domain/admin operation across UI, browser service, REST and MCP, with documented bootstrap/interactive adapters. Test real OAuth clients, short-token expiry, refresh races/reuse, resource mismatch, read-only POST queries, parent-resource isolation, idempotent retries, byte-bounded paging, generated clients, and job terminal readback.
+# REST, browser and MCP
+
+One operation catalog owns input/output validation, role requirements, execution
+and the generated OpenAPI/client/MCP contracts. Browser adapters call those same
+domain services. Generated inventories are the route/tool reference; do not keep
+a second handwritten operation count or endpoint table here.
+
+## Current authority
+
+Resolve the SQL-singleton organisation and the person's live membership for every
+request. Enforce Admin, Editor and Viewer capabilities from the
+[account contract](ACCOUNT_ARCHITECTURE.md). Validate every nested target against
+its real database/table even within a single organisation; an unrelated ID must
+not authorize the wrong parent.
+
+Personal REST keys inherit current role permissions and have no selected-operation
+or resource whitelist. OAuth MCP credentials additionally require approved
+operations. Operation consent has no database/table selection. Member removal,
+demotion and credential revocation apply before new effects and before replay of
+stored results. Sessions, REST keys and MCP tokens keep their distinct audiences;
+a transport/session identifier never replaces authentication.
+
+## Transport
+
+Use JSON Schema 2020-12 and OpenAPI 3.1.2 with strict request/output validation.
+Reject unknown fields and invalid types before effects. Return stable error codes,
+request IDs and meaningful status codes without secrets or inaccessible values.
+Bound JSON requests/results to 8 MiB, and MCP structured results to 1 MiB.
+
+Browser mutations enforce the configured Origin and cookie/CSRF policy. Expose
+one HTTPS origin for remote use; loopback HTTP is the local exception. OAuth
+retains PKCE, exact redirect/state/issuer/audience/resource checks, single-use
+codes, refresh rotation/reuse detection and protected metadata discovery.
+
+Hardware authentication and browser approval have explicit interactive adapters.
+Data, schema, operation progress, manual backups and read-only installation health retain the applicable
+REST/MCP operation path and current-role checks. Approval binds the exact input,
+principal, client and expiry; it cannot add permissions to the credential.
+
+## Fields, rows and queries
+
+A field has one `name` property matching `/^[A-Za-z_]+$/`, length 1–64. Its name is
+both the UI label and the key in row `values`. Renaming preserves the internal
+field ID. Query compilation resolves names/IDs through metadata; names never
+become SQL identifiers and values are parameters.
+
+Require the expected row/schema revision for writes. Commit values, row revision,
+uniqueness, row count and cell history together. Synchronous batches contain at
+most 1,000 rows and are atomic. Idempotency binds method/operation, principal and
+canonical input. A changed request conflicts; retries report the committed
+outcome and never redisplay a one-time secret.
+
+Queries support typed filters, projection, sorting and signed cursors. Default
+order uses row ID; explicit sort adds row ID as a tie breaker. Cursors bind table,
+schema, query and current authority. Incompatible schema/permission changes
+require a restart. REST defaults to 5,000 rows, MCP/UI to 200; requested size is
+1–25,000. Stop at the byte cap with complete rows and honest continuation metadata.
+
+Cancel timed-out/disconnected work and physically close or return its owned
+connection only after it is safe. An expensive scan has a ten-second statement
+budget plus bounded transport cleanup; it must not return misleading partial
+success or prevent unrelated foreground requests.
+
+## Jobs and artifacts
+
+Import/export, schema work, backup/restore and history archiving can return a job
+ID. An accepted request is not terminal success. Progress describes committed
+checkpoints; cancellation reports already committed work. Revalidate current role
+and OAuth consent before publication or a new effect.
+
+Artifact downloads verify current access and use authenticated streams or bounded,
+short-lived handoffs. Never place reusable credentials in URLs. History and
+archives resolve their actual table and parent; after table/database deletion,
+retained history is an Admin management operation. There are no retained resource
+grant exceptions.
+
+Backup policy/schedule and installation configuration/test-email operations do
+not exist in V1. `createBackup` explicitly queues an on-demand snapshot; there is
+no automatic backup or retention schedule. SMTP/S3 credentials are loaded only
+from the deployment environment. Job IDs and status/cancellation/retry operations
+remain the protocol for long-running actions; there is no separate jobs UI.
+
+## Verification
+
+Regenerate contracts and check drift. Exercise equivalent supported behavior
+through REST, MCP and the rendered browser, including denial, revocation,
+concurrency, cancellation, idempotency and typed errors. Record real OAuth-client
+compatibility and artifact transfer behavior. Source schemas alone are not runtime
+proof.

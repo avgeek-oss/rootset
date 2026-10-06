@@ -37,7 +37,7 @@ export async function comparePhysicalScaleRestore(
     orgId: fixture.orgId,
     databaseId: fixture.databaseId,
     tableId: fixture.tableId,
-    gateSignOffs: [],
+    acceptance: false,
     provenance: await sourceProvenance(),
     scope:
       "Read-only consistent source and restored-target PostgreSQL snapshots; complete native rows including normal ULIDs and every retained cell-event field. This does not replace artifact/key/deployment recovery verification.",
@@ -71,7 +71,7 @@ export async function comparePhysicalScaleRestore(
       assert.ok(version.rows[0]!.version.startsWith("18."));
       const metadata = (
         await client.query(
-          "SELECT id,org_id,database_id,name,description,schema_version,row_count,state,physical_name FROM rootset_control.tables WHERE id=$1",
+          "SELECT id,org_id,database_id,name,schema_version,row_count,state,physical_name FROM rootset_control.tables WHERE id=$1",
           [fixture.tableId],
         )
       ).rows[0];

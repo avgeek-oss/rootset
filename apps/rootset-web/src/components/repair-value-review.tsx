@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "./ui/button";
 import { useMemo, useState } from "react";
 import type { JsonValue } from "@rootset/contracts";
 import styles from "./repair-intent-review.module.css";
@@ -39,7 +39,7 @@ export default function RepairValueReview({
         <div className={styles.pager}>
           <Button
             type="button"
-            size="sm"
+
             variant="secondary"
             isDisabled={current.page === 0}
             onPress={() => setPage(current.page - 1)}
@@ -52,7 +52,7 @@ export default function RepairValueReview({
           </p>
           <Button
             type="button"
-            size="sm"
+
             variant="secondary"
             isDisabled={current.page === current.count - 1}
             onPress={() => setPage(current.page + 1)}

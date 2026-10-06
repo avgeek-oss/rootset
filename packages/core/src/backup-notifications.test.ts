@@ -19,8 +19,7 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
       foreignOrgId = newId(),
       databaseId = newId();
     const requesterId = newId(),
-      ownerId = newId(),
-      foreignUserId = newId();
+      ownerId = newId();
     const email = (id: string) =>
       `rootset-backup-${id.toLowerCase()}@example.test`;
     const ciphertextKey = randomBytes(32).toString("base64");
@@ -48,13 +47,12 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
       config.baseURL,
     );
     await db.owner.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Backup notifications'),($2,'Foreign notifications')",
-      [orgId, foreignOrgId],
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Backup notifications')",
+      [orgId],
     );
     for (const [userId, org, role] of [
       [requesterId, orgId, "admin"],
-      [ownerId, orgId, "owner"],
-      [foreignUserId, foreignOrgId, "owner"],
+      [ownerId, orgId, "admin"],
     ]) {
       await db.owner.query(
         "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,'Notification recipient',$2,true)",
@@ -76,8 +74,6 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
       userId: requesterId,
       role: "admin",
       scopes: ["backups:manage"],
-      targets: [],
-      unrestricted: true,
     };
     const seed = async (
       state: "succeeded" | "failed" | "queued" | "cancelled",
@@ -144,7 +140,7 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
         const actionUrl = new URL(payload.actionUrl!);
         assert.equal(actionUrl.origin, new URL(config.baseURL).origin);
         assert.equal(actionUrl.pathname, "/settings/backups");
-        assert.equal(actionUrl.searchParams.get("organisationId"), orgId);
+        assert.equal(actionUrl.searchParams.has("organisationId"), false);
         assert.equal(actionUrl.searchParams.get("databaseId"), databaseId);
         assert.equal(
           await notifications.notificationStatus(deliveryId),
@@ -291,13 +287,13 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
       },
     );
     await t.test(
-      "Team-key backup picks one current verified Owner, requester invalidity is material failure and nonterminal events refuse enqueue",
+      "Personal-key backup uses its verified user, requester invalidity is material failure and nonterminal events refuse enqueue",
       async () => {
         const team = await seed("cancelled", {
           ...actor,
           id: newId(),
-          kind: "team_key",
-          userId: undefined,
+          kind: "personal_key",
+          userId: ownerId,
         });
         const selected = await notifications.notify(team);
         assert.equal(
@@ -324,7 +320,7 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
             "BACKUP_NOTIFICATION_NOT_TERMINAL",
         );
         await db.owner.query(
-          "UPDATE rootset_control.users SET disabled=true WHERE id=$1",
+          "DELETE FROM rootset_control.memberships WHERE user_id=$1",
           [requesterId],
         );
         await assert.rejects(
@@ -342,8 +338,8 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
             notifications.notify(
               await seed("failed", {
                 ...actor,
-                kind: "team_key",
-                userId: undefined,
+                kind: "personal_key",
+                userId: ownerId,
               }),
             ),
           (error) =>

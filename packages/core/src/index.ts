@@ -15,12 +15,10 @@ import {
   type NumberLexeme,
   type JsonValue,
   type Row,
-  type Role,
 } from "@rootset/contracts";
-import { assertAccess, targetAllows } from "@rootset/access";
+import { assertAccess } from "@rootset/access";
 import { withOrg, type Pool, type PoolClient } from "@rootset/database";
 import type { IdentityService } from "@rootset/identity";
-import type { CapacityService } from "@rootset/capacity";
 import {
   lookupMutation,
   recordedOps,
@@ -84,7 +82,6 @@ export interface CoreOptions {
   config: Config;
   paging?: MetadataPaging;
   installation: {
-    capacity: CapacityService;
     execute(
       id: string,
       actor: Actor,
@@ -231,11 +228,8 @@ const asynchronous = new Set([
   "updateField",
   "deleteField",
   "countRows",
-  "testEmail",
 ]);
 const queuedFamilies = new Set([
-  "deleteAccount",
-  "deleteOrganisation",
   "validateImport",
   "importRows",
   "exportRows",
@@ -254,9 +248,6 @@ const jobOperations = new Set([
   "importRows",
   "exportRows",
   "getArtifact",
-  "getBackupPolicy",
-  "setBackupPolicy",
-  "previewBackupSchedule",
   "listBackups",
   "getBackup",
   "createBackup",
@@ -283,19 +274,6 @@ export class RootsetCore {
     const actor = await this.options.identity.refreshActor(incoming),
       op = getRuntimeOperation(operationId);
     const orgId = typeof input.orgId === "string" ? input.orgId : actor.orgId;
-    if (
-      operationId === "createDatabase" &&
-      !actor.unrestricted &&
-      !actor.targets.some(
-        (grant) =>
-          !grant.databaseId && !grant.tableId && grant.level === "manage",
-      )
-    )
-      throw new RootsetError(
-        "FORBIDDEN",
-        "Creating a database requires organisation-wide management authority",
-        403,
-      );
     let databaseId =
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
@@ -344,18 +322,7 @@ export class RootsetCore {
         );
       archived = archived || database.state === "deleted";
     }
-    if (
-      history &&
-      archived &&
-      (!targetAllows(actor, { databaseId, tableId }, "manage") ||
-        (!["owner", "admin"].includes(actor.role) &&
-          !actor.targets.some(
-            (g) =>
-              g.level === "manage" &&
-              (!g.databaseId || g.databaseId === databaseId) &&
-              (!g.tableId || g.tableId === tableId),
-          )))
-    )
+    if (history && archived && actor.role !== "admin")
       throw new RootsetError(
         "RESOURCE_NOT_FOUND",
         "Retained history was not found",
@@ -377,18 +344,11 @@ export class RootsetCore {
         ...(!enumeration ? { databaseId, tableId } : {}),
         level,
         personal: op.personal,
-        operator: op.operator,
-        ...(!op.personal && !op.operator && op.minimumRole === "admin"
-          ? { roles: ["owner", "admin"] as Role[] }
+        ...(!op.personal && op.minimumRole === "admin"
+          ? { roles: ["admin"] }
           : {}),
       });
     }
-    if (op.minimumRole === "owner" && actor.role !== "owner")
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Owner authority is required",
-        403,
-      );
     if (orgId !== actor.orgId)
       throw new RootsetError(
         "RESOURCE_NOT_FOUND",
@@ -398,7 +358,7 @@ export class RootsetCore {
     if (operationId === "mutateRows" && input.repair !== undefined)
       assertAccess(actor, {
         scope: "installation:manage",
-        operator: true,
+        roles: ["admin"],
         personal: true,
         orgId,
       });
@@ -415,21 +375,10 @@ export class RootsetCore {
             orgId,
             databaseId: replacementId,
             level: "manage",
-            roles: ["owner", "admin"],
+            roles: ["admin"],
           });
       }
     }
-    if (
-      enumeration &&
-      databaseId &&
-      !actor.unrestricted &&
-      !actor.targets.some((g) => !g.databaseId || g.databaseId === databaseId)
-    )
-      throw new RootsetError(
-        "RESOURCE_NOT_FOUND",
-        "Resource was not found",
-        404,
-      );
     return actor;
   }
   async execute(
@@ -583,10 +532,7 @@ export class RootsetCore {
           surface: context.surface === "operator" ? "worker" : context.surface,
         },
       );
-      if (
-        operationMap[bound.operationId] ||
-        bound.operationId === "deleteAccount"
-      )
+      if (operationMap[bound.operationId])
         await this.authorise(actor, bound.operationId, bound.input);
       if (
         bound.operationId === "mutateRows" &&
@@ -803,38 +749,9 @@ export class RootsetCore {
         client: ctx.approvalClient,
       });
     switch (id) {
-      case "deleteAccount":
-      case "deleteOrganisation": {
-        if (ctx.surface !== "worker")
-          return this.options.identity.execute(id, a, input, {
-            ...ctx,
-            surface: ctx.surface === "operator" ? "worker" : ctx.surface,
-          });
-        if (id === "deleteOrganisation") {
-          for (const database of await s.listDatabases(a))
-            await s.deleteDatabase(a, database.id, {
-              ...mutationOptions(input, ctx),
-              idempotencyKey: `${ctx.idempotencyKey}:database:${database.id}`,
-            });
-        }
-        return this.options.identity.finishDeletion(
-          a,
-          id === "deleteAccount" ? "account" : "organisation",
-          input,
-          { ...ctx, surface: "worker" },
-          (client, result) =>
-            this.recordOperationOutcome(client, a, id, ctx, result),
-        );
-      }
       case "listDatabases":
         return this.paging.paginate(
-          (await s.listDatabases(a))
-            .filter(
-              (d) =>
-                a.unrestricted ||
-                a.targets.some((g) => !g.databaseId || g.databaseId === d.id),
-            )
-            .map(databasePublic),
+          (await s.listDatabases(a)).map(databasePublic),
           a,
           {
             resource: "databases",
@@ -871,11 +788,7 @@ export class RootsetCore {
         return s.deleteDatabase(a, databaseId, mutationOptions(input, ctx));
       case "listTables":
         return this.paging.paginate(
-          (await s.listTables(a, databaseId))
-            .filter((t) =>
-              targetAllows(a, { databaseId, tableId: t.id }, "read"),
-            )
-            .map(tablePublic),
+          (await s.listTables(a, databaseId)).map(tablePublic),
           a,
           {
             resource: `database:${databaseId}:tables`,
@@ -1322,15 +1235,8 @@ export class RootsetCore {
         };
       }
       case "getUsage":
-        return readUsage(
-          this.options.pool,
-          a,
-          this.options.installation.capacity,
-        );
+        return readUsage(this.options.pool, a);
       case "getInstallationStatus":
-      case "getInstallationConfiguration":
-      case "updateInstallationConfiguration":
-      case "testEmail":
         return this.options.installation.execute(id, a, input, ctx);
       default:
         return this.options.identity.execute(id, a, input, {

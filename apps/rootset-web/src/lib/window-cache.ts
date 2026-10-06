@@ -68,27 +68,17 @@ export function visibleRange(
   return { start, end };
 }
 
-export function visibleColumns(
-  widths: number[],
-  scrollLeft: number,
-  viewportWidth: number,
-  frozen = 0,
-) {
+export function columnLayout(widths: number[], frozen = 0) {
   let left = 0;
-  const visible: {
+  const columns: {
     index: number;
     left: number;
     width: number;
     frozen: boolean;
   }[] = [];
   widths.forEach((width, index) => {
-    if (
-      index < frozen ||
-      (left + width >= scrollLeft - 100 &&
-        left < scrollLeft + viewportWidth + 100)
-    )
-      visible.push({ index, left, width, frozen: index < frozen });
+    columns.push({ index, left, width, frozen: index < frozen });
     left += width;
   });
-  return visible;
+  return columns;
 }

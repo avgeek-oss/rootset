@@ -67,6 +67,10 @@
   min-height: 10rem;
 }
 
+.json :global(.cm-editor.cm-focused) {
+  outline: none;
+}
+
 .json :global(.cm-scroller) {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }

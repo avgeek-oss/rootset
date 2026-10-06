@@ -1,52 +1,73 @@
 "use client";
-
-import { Button } from "@heroui/react";
-import { useEffect, useState } from "react";
-import { useResource } from "./api";
+import { useState, useEffect } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { TypographyHeading } from "../ui/towbar/design-system/typography/typography";
+import { TooltipText } from "../ui/towbar/design-system/overlays/tooltip";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  OrganisationSettings,
-  MembersSettings,
-  GrantsSettings,
-  KeysSettings,
+  PageSelectionContext,
+  type PageSelection,
+} from "./account/page-selection-title";
+import { RelativeTimeProvider } from "./account/last-synced-time";
+import {
   ProfileSettings,
-  PreferencesSettings,
-  SessionsSettings,
-  ConnectionsSettings,
-  AuditSettings,
-} from "./accounts";
-import { AccountActionApproval, SecuritySettings } from "./security";
+  EmailPasswordSettings,
+  SessionSettings,
+} from "./account/settings-pages";
+import { SecuritySettings } from "./account/security-settings";
+import { ApiMcpSettings } from "./account/api-mcp-settings";
+import { settingsScope, settingsIcons } from "./navigation";
+
+import { Button } from "../ui/button";
+import { useResource } from "./api";
+import { OrganisationSettings, MembersSettings } from "./accounts";
+import { PreferencesSettings } from "./preferences";
+import { AccountActionApproval } from "./security";
 import { FieldsSettings, RulesIndexesSettings, TableSettings } from "./schema";
-import {
-  BackupsSettings,
-  ImportsSettings,
-  ExportsSettings,
-  JobsSettings,
-} from "./jobs";
+import { BackupsSettings, ImportsSettings, ExportsSettings } from "./jobs";
 import { InstallationSettings } from "./operator";
 import { DatabaseSettings } from "./database";
-import { SECTION_LABELS, type SettingsPanelProps } from "./types";
+import {
+  canOpenSettings,
+  SECTION_LABELS,
+  type SettingsPanelProps,
+} from "./types";
+import { Empty, Loading } from "./ui";
 import "./settings.css";
 
 export type { SettingsPanelProps, SettingsSection } from "./types";
 
 export function SettingsPanel(props: SettingsPanelProps) {
-  const [activeSection, setActiveSection] = useState(props.section);
+  const activeSection = props.section;
+  const account = settingsScope(activeSection) === "account";
+  const [selection, setSelection] = useState<PageSelection | null>(null);
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ["account-settings"] });
+      props.onChanged?.();
+    };
+    window.addEventListener("rootset:account-refresh", refresh);
+    window.addEventListener("rootset:identity-changed", refresh);
+    return () => {
+      window.removeEventListener("rootset:account-refresh", refresh);
+      window.removeEventListener("rootset:identity-changed", refresh);
+    };
+  }, [queryClient, props.onChanged]);
   const context = useResource<{
-    principal: { role: string; operator: boolean };
+    principal: { role: string };
     scopes: string[];
-  } | null>("/context", null);
-  useEffect(() => setActiveSection(props.section), [props.section]);
+  } | null>(props.role ? undefined : "/context", null);
   const components = {
     organisation: OrganisationSettings,
     members: MembersSettings,
-    grants: GrantsSettings,
-    keys: KeysSettings,
+    "api-keys": PersonalKeysSettings,
     profile: ProfileSettings,
     preferences: PreferencesSettings,
-    security: SecuritySettings,
-    sessions: SessionsSettings,
-    connections: ConnectionsSettings,
-    audit: AuditSettings,
+    "email-password": EmailPasswordSettings,
+    "2fa": SecuritySettings,
+    sessions: SessionSettings,
+    mcp: McpGuideSettings,
     database: DatabaseSettings,
     table: TableSettings,
     fields: FieldsSettings,
@@ -55,11 +76,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
     backups: BackupsSettings,
     imports: ImportsSettings,
     exports: ExportsSettings,
-    jobs: JobsSettings,
     operator: InstallationSettings,
   };
   const Component = components[activeSection];
-  const sections = Object.keys(components) as (keyof typeof components)[];
   const tableSections = [
     "table",
     "fields",
@@ -69,57 +88,90 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "exports",
   ];
   const databaseSections = ["database", "backups"];
-  const adminSections = ["members", "grants", "audit"];
-  const admin =
-    context.data && ["owner", "admin"].includes(context.data.principal.role);
   return (
-    <div className="rootset-settings">
-      <header className="settings-header">
-        <div>
-          <span className="settings-eyebrow">Settings</span>
-          <h1>{SECTION_LABELS[activeSection]}</h1>
-        </div>
-        <Button
-          variant="ghost"
-          onPress={props.onClose}
-          aria-label="Close settings"
+    <PageSelectionContext.Provider value={setSelection}>
+      <RelativeTimeProvider>
+        <div
+          className={
+            account
+              ? "rootset-settings rootset-account-settings"
+              : "rootset-settings"
+          }
         >
-          Close
-        </Button>
-      </header>
-      <div className="settings-layout">
-        <nav className="settings-navigation" aria-label="Settings sections">
-          {sections
-            .filter(
-              (section) =>
-                section !== "operator" || context.data?.principal.operator,
-            )
-            .filter((section) => !adminSections.includes(section) || admin)
-            .map((section) => (
+          <header className="settings-header">
+            {account ? (
+              <div className="flex min-w-0 flex-wrap items-center gap-3 pl-1 sm:pl-0">
+                <TypographyHeading
+                  className="flex min-w-0 items-center text-xl font-medium"
+                  elementType="h3"
+                  level={3}
+                >
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex shrink-0 [&_svg]:size-6"
+                    >
+                      <HugeiconsIcon icon={settingsIcons[activeSection]} />
+                    </span>
+                    <TooltipText
+                      className="truncate"
+                      tooltip={
+                        selection?.label ?? SECTION_LABELS[activeSection]
+                      }
+                    >
+                      {selection?.label ?? SECTION_LABELS[activeSection]}
+                    </TooltipText>
+                  </span>
+                </TypographyHeading>
+              </div>
+            ) : (
+              <div>
+                <h1>{SECTION_LABELS[activeSection]}</h1>
+              </div>
+            )}
+            {account ? (
+              selection?.actions
+            ) : (
               <Button
-                key={section}
-                variant={activeSection === section ? "secondary" : "ghost"}
-                aria-current={activeSection === section ? "page" : undefined}
-                isDisabled={
-                  (tableSections.includes(section) && !props.tableId) ||
-                  (databaseSections.includes(section) && !props.databaseId)
-                }
-                onPress={() => setActiveSection(section)}
+                variant="ghost"
+                onPress={props.onClose}
+                aria-label="Close settings"
               >
-                {SECTION_LABELS[section]}
+                Back to data
               </Button>
-            ))}
-        </nav>
-        <div className="settings-content">
-          <Component
-            key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}
-            {...props}
-            section={activeSection}
-            {...(activeSection === "indexes" ? { indexes: true } : {})}
-          />
+            )}
+          </header>
+          <div className="settings-content">
+            {context.loading || context.error ? (
+              <Loading {...context} retry={context.reload} />
+            ) : !canOpenSettings(
+                activeSection,
+                props.role ?? context.data?.principal.role,
+              ) ? (
+              <Empty>
+                {activeSection === "imports"
+                  ? "Editor or admin access is required to import rows."
+                  : "Admin access is required to manage these settings."}
+              </Empty>
+            ) : (
+              <Component
+                key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}
+                {...props}
+                section={activeSection}
+                {...(activeSection === "indexes" ? { indexes: true } : {})}
+              />
+            )}
+          </div>
+          <AccountActionApproval orgId={props.orgId} />
         </div>
-      </div>
-      <AccountActionApproval orgId={props.orgId} />
-    </div>
+      </RelativeTimeProvider>
+    </PageSelectionContext.Provider>
   );
+}
+
+function PersonalKeysSettings() {
+  return <ApiMcpSettings section="personal-keys" />;
+}
+function McpGuideSettings() {
+  return <ApiMcpSettings section="mcp" />;
 }

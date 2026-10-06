@@ -57,23 +57,9 @@ export interface JobsConfig {
     actor: Actor,
     target: { tableId: string },
   ) => Promise<Actor>;
-  deletionRetention?:
-    | (() => Promise<{
-        organisationDays: number | null;
-        accountAuditDays: number | null;
-      }>)
-    | { organisationDays: number | null; accountAuditDays: number | null };
   notificationStatus?: (
     deliveryId: string,
   ) => Promise<"pending" | "sent" | "failed">;
-  deletionMetadata?: (
-    orgId: string,
-  ) => Promise<{ organisationDeletedAt: string | null }>;
-  purgeAccountAudit?: (
-    orgId: string,
-    before: string,
-    client?: PoolClient,
-  ) => Promise<number>;
   authorisePolicy?: (
     actor: Actor,
     target: { databaseId: string },

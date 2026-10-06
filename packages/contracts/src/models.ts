@@ -174,7 +174,27 @@ export const CanonicalUtcDateTimeSchema = z
       Number.isFinite(instant.getTime()) && instant.toISOString() === value
     );
   }, "Expected a canonical valid UTC instant");
-export const ApiKeySchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
+export const reservedFieldNames = [
+  "id",
+  "version",
+  "createdAt",
+  "updatedAt",
+  "__proto__",
+  "prototype",
+  "constructor",
+] as const;
+const reservedNames = new Set(
+  reservedFieldNames.map((name) => name.toLowerCase()),
+);
+export const FieldNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z_]+$/)
+  .refine(
+    (name) => !reservedNames.has(name.toLowerCase()),
+    "Field name is reserved",
+  );
 export const FieldTypeSchema = z.enum([
   "text",
   "integer",
@@ -186,21 +206,10 @@ export const FieldTypeSchema = z.enum([
   "json",
 ]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
-export const RoleSchema = z.enum(["owner", "admin", "editor", "viewer"]);
+export const RoleSchema = z.enum(["admin", "editor", "viewer"]);
 export type Role = z.infer<typeof RoleSchema>;
-export const ResourceTargetSchema = z
-  .strictObject({
-    databaseId: IdSchema.optional(),
-    tableId: IdSchema.optional(),
-    level: z.enum(["read", "edit", "manage"]),
-  })
-  .refine(
-    (target) => !target.tableId || !!target.databaseId,
-    "Table target requires databaseId",
-  );
-export type ResourceTarget = z.infer<typeof ResourceTargetSchema>;
 export const ActorSchema = z.strictObject({
-  kind: z.enum(["session", "personal_key", "team_key", "oauth", "operator"]),
+  kind: z.enum(["session", "personal_key", "oauth", "operator"]),
   id: z.string().min(1),
   orgId: IdSchema,
   userId: IdSchema.optional(),
@@ -208,85 +217,19 @@ export const ActorSchema = z.strictObject({
   clientId: z.string().optional(),
   role: RoleSchema,
   scopes: z.array(z.string()),
-  targets: z.array(ResourceTargetSchema),
-  unrestricted: z.boolean().optional(),
-  operator: z.boolean().optional(),
   authenticatedAt: z.number().optional(),
-  grantVersion: z.number().int().nonnegative().optional(),
+  membershipVersion: z.number().int().nonnegative().optional(),
 });
 export type Actor = z.infer<typeof ActorSchema>;
 
-export const StorageErrorCodeSchema = z.enum([
-  "STORAGE_ADMISSION_BUSY",
-  "STORAGE_POLICY_CHANGED",
-  "STORAGE_QUOTA_EXCEEDED",
-  "STORAGE_DISK_PRESSURE",
-  "STORAGE_REPORT_STALE",
-  "STORAGE_RESERVATION_REQUIRED",
-  "STORAGE_RESERVATION_EXCEEDED",
-]);
-export type StorageErrorCode = z.infer<typeof StorageErrorCodeSchema>;
-export const storageErrorRecovery = {
-  STORAGE_ADMISSION_BUSY: {
-    status: 503,
-    retryable: true,
-    action: "retry_unchanged",
-    guidance:
-      "Retry the unchanged request after the active storage operation completes.",
-  },
-  STORAGE_POLICY_CHANGED: {
-    status: 503,
-    retryable: true,
-    action: "retry_unchanged",
-    guidance: "Retry the unchanged request under the current storage policy.",
-  },
-  STORAGE_QUOTA_EXCEEDED: {
-    status: 503,
-    retryable: false,
-    action: "adjust_capacity",
-    guidance:
-      "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying.",
-  },
-  STORAGE_DISK_PRESSURE: {
-    status: 503,
-    retryable: false,
-    action: "restore_disk_headroom",
-    guidance:
-      "Restore PostgreSQL filesystem headroom through approved maintenance before retrying.",
-  },
-  STORAGE_REPORT_STALE: {
-    status: 503,
-    retryable: false,
-    action: "restore_capacity_reporter",
-    guidance:
-      "Restore the database-host capacity reporter or revise the configured free-space policy before retrying.",
-  },
-  STORAGE_RESERVATION_REQUIRED: {
-    status: 503,
-    retryable: false,
-    action: "contact_operator",
-    guidance:
-      "The write lacks its required transaction reservation; an operator must repair the admission integration.",
-  },
-  STORAGE_RESERVATION_EXCEEDED: {
-    status: 503,
-    retryable: false,
-    action: "reduce_operation",
-    guidance:
-      "Use a smaller batch or sufficient reserved schema space before retrying.",
-  },
-} as const satisfies Record<
-  StorageErrorCode,
-  { status: 503; retryable: boolean; action: string; guidance: string }
->;
 export const ErrorCodeSchema = z.enum([
   "VALIDATION_FAILED",
   "UNAUTHENTICATED",
   "ACCESS_DENIED",
   "FORBIDDEN",
+  "LAST_ADMIN",
   "INSUFFICIENT_SCOPE",
   "PERSONAL_IDENTITY_REQUIRED",
-  "OPERATOR_REQUIRED",
   "DELEGATION_EXCEEDS_AUTHORITY",
   "RESOURCE_NOT_FOUND",
   "ROW_VERSION_CONFLICT",
@@ -308,7 +251,6 @@ export const ErrorCodeSchema = z.enum([
   "ARTIFACT_EXPIRED",
   "CONFIGURATION_INVALID",
   "DEPENDENCY_UNAVAILABLE",
-  ...StorageErrorCodeSchema.options,
   "INTERNAL_ERROR",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
@@ -367,8 +309,7 @@ export function newId(): string {
 
 export interface FieldDefinition {
   id: string;
-  apiKey: string;
-  label: string;
+  name: string;
   type: FieldType;
   required?: boolean;
   default?: JsonValue;
@@ -377,12 +318,37 @@ export interface FieldDefinition {
   max?: number | string;
   order?: number;
 }
+export function assertFieldNames(
+  fields: readonly Pick<FieldDefinition, "id" | "name">[],
+): void {
+  const names = new Set<string>();
+  const ids = new Set<string>();
+  for (const field of fields) {
+    if (!FieldNameSchema.safeParse(field.name).success)
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Invalid or reserved field name",
+        422,
+        { fieldId: field.id, field: field.name },
+      );
+    const normalized = field.name.toLowerCase();
+    if (names.has(normalized) || ids.has(field.id))
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Field names and identifiers must be unique",
+        422,
+        { fieldId: field.id, field: field.name },
+      );
+    names.add(normalized);
+    ids.add(field.id);
+  }
+}
 export const RowSchema = z.strictObject({
   id: IdSchema,
   version: VersionSchema,
   createdAt: CanonicalUtcDateTimeSchema,
   updatedAt: CanonicalUtcDateTimeSchema,
-  values: z.record(ApiKeySchema, JsonValueSchema),
+  values: z.record(FieldNameSchema, JsonValueSchema),
 });
 export type Row = z.infer<typeof RowSchema>;
 export const PageSchema = z

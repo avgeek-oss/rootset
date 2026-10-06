@@ -75,7 +75,7 @@ export async function copySelectedRows(
       const index = next++;
       const displayed = rows[index]!;
       const row = fields.every((field) =>
-        Object.hasOwn(displayed.values, field.apiKey),
+        Object.hasOwn(displayed.values, field.name),
       )
         ? displayed
         : await fetchRow(displayed.id, signal);
@@ -85,11 +85,11 @@ export async function copySelectedRows(
           "A selected row changed. Refresh the rows, review the selection, and copy again. Your clipboard has not changed.",
         );
       const cells = fields.map((field) => {
-        if (!Object.hasOwn(row.values, field.apiKey))
+        if (!Object.hasOwn(row.values, field.name))
           throw new Error(
             "A selected column is unavailable. Refresh the schema and rows before copying. Your clipboard has not changed.",
           );
-        const value = row.values[field.apiKey]!;
+        const value = row.values[field.name]!;
         return value === null
           ? null
           : field.type === "json"

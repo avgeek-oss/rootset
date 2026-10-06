@@ -30,20 +30,14 @@ try {
   await page
     .getByLabel(/^Expires on/)
     .fill(new Date().toISOString().slice(0, 10));
-  await page.getByLabel("Database target ID", { exact: true }).fill(databaseId);
-  await page.getByLabel("Table target ID", { exact: true }).fill(tableId);
-  for (const scope of ["databases:read", "rows:write"]) {
-    const control = page.getByRole("switch", { name: scope, exact: true });
-    await control.focus();
-    await control.press("Space");
-    await expect(control).toBeChecked();
-  }
   await page.getByRole("button", { name: "Create key", exact: true }).click();
   const approval = page.getByRole("dialog", {
     name: "Approve account action",
     exact: true,
   });
-  await expect(approval.locator(".action-review")).toContainText(tableId);
+  await expect(approval.locator(".action-review")).toContainText(
+    "Local five-million-row HTTP verification",
+  );
   await approval
     .getByRole("button", { name: "Approve action", exact: true })
     .click();
@@ -57,8 +51,6 @@ try {
       orgId,
       databaseId,
       tableId,
-      scopes: ["databases:read", "tables:read", "rows:read", "rows:write"],
-      unrestricted: false,
       source:
         "Actual rendered personal-key creation and immutable recent-auth approval; UTC date-precision expiry today",
     }),

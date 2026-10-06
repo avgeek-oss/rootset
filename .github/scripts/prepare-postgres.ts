@@ -25,9 +25,6 @@ try {
     );
   }
   await owner.query("GRANT CREATE ON DATABASE rootset TO rootset_ddl");
-  await owner.query(
-    "CREATE ROLE rootset_capacity_reporter NOLOGIN NOSUPERUSER NOBYPASSRLS",
-  );
 } finally {
   await owner.end();
 }

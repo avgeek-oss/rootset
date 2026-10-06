@@ -13,8 +13,7 @@ const actor: Actor = {
   credentialId: id(3),
   role: "editor",
   scopes: ["databases:read", "tables:read"],
-  targets: [{ databaseId: id(4), level: "read" }],
-  grantVersion: 4,
+  membershipVersion: 4,
 };
 const rows = [8, 4, 7, 5, 6].map((value) => ({
   id: id(value),
@@ -59,7 +58,7 @@ test("metadata paging produces stable complete keyset pages despite changing lab
   assert.equal(final.hasMore, false);
 });
 
-test("metadata cursors bind organisation, principal, credential, grants and query", () => {
+test("metadata cursors bind organisation, principal, credential, role revision and query", () => {
   const paging = new MetadataPaging("x".repeat(32));
   const cursor = paging.paginate(rows, actor, request).nextCursor;
   const actors = [
@@ -69,10 +68,8 @@ test("metadata cursors bind organisation, principal, credential, grants and quer
     { ...actor, credentialId: id(9) },
     { ...actor, kind: "oauth" as const, clientId: id(9) },
     { ...actor, role: "viewer" as const },
-    { ...actor, grantVersion: 5 },
+    { ...actor, membershipVersion: 5 },
     { ...actor, scopes: ["databases:read"] },
-    { ...actor, targets: [{ databaseId: id(4), level: "edit" as const }] },
-    { ...actor, unrestricted: true },
   ];
   for (const changed of actors)
     assert.throws(

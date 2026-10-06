@@ -1,32 +1,7 @@
-import { targetAllows } from "@rootset/access";
-import { limits, type Actor } from "@rootset/contracts";
+import { roleAllows } from "@rootset/access";
+import { type Actor } from "@rootset/contracts";
 import { withOrg, type Pool } from "@rootset/database";
-import type { CapacityService } from "@rootset/capacity";
-export async function readUsage(
-  pool: Pool,
-  actor: Actor,
-  capacity: CapacityService,
-) {
-  let storageQuotaBytes: string | null = null;
-  let storageAdmission: {
-    state:
-      | "available"
-      | "quota_exceeded"
-      | "disk_pressure"
-      | "report_stale"
-      | "unavailable";
-    reason: string | null;
-  } = {
-    state: "unavailable",
-    reason: "Storage capacity status is unavailable",
-  };
-  try {
-    const status = await capacity.status(undefined, actor.orgId);
-    storageQuotaBytes = status.organisation?.quotaBytes ?? null;
-    storageAdmission = status.admission;
-  } catch {
-    // Capacity failure cannot hide existing data or produce false admission.
-  }
+export async function readUsage(pool: Pool, actor: Actor) {
   return withOrg(pool, actor.orgId, async (c) => {
     const visible = (
       await c.query<{
@@ -39,14 +14,13 @@ export async function readUsage(
         "SELECT t.id,t.database_id,t.row_count::text,d.schema_name,t.physical_name FROM rootset_control.tables t JOIN rootset_control.databases d ON d.id=t.database_id WHERE t.state IN ('active','maintenance') AND d.state='active'",
       )
     ).rows.filter(
-      (t) =>
-        actor.scopes.includes("rows:read") &&
-        actor.scopes.includes("tables:read") &&
-        targetAllows(
-          actor,
-          { databaseId: t.database_id, tableId: t.id },
-          "read",
-        ),
+      () =>
+        roleAllows(actor.role, "rows:read") &&
+        roleAllows(actor.role, "tables:read") &&
+        (actor.kind !== "oauth" ||
+          ["rows:read", "tables:read"].every((scope) =>
+            actor.scopes.includes(scope),
+          )),
     );
     const databaseIds = (
       await c.query<{ id: string }>(
@@ -54,10 +28,9 @@ export async function readUsage(
       )
     ).rows
       .filter(
-        (d) =>
-          actor.scopes.includes("databases:read") &&
-          (actor.unrestricted ||
-            actor.targets.some((g) => !g.databaseId || g.databaseId === d.id)),
+        () =>
+          roleAllows(actor.role, "databases:read") &&
+          (actor.kind !== "oauth" || actor.scopes.includes("databases:read")),
       )
       .map((d) => d.id);
     let dataBytes = 0,
@@ -93,20 +66,6 @@ export async function readUsage(
       indexBytes,
       historyBytes: Number(history?.bytes ?? 0),
       artifactBytes: Number(artifacts?.bytes ?? 0),
-      storageQuotaBytes,
-      storageAdmission,
-      admissionAvailable:
-        storageAdmission.state === "available" &&
-        actor.scopes.includes("rows:write") &&
-        visible.some(
-          (t) =>
-            Number(t.row_count) < limits.maxRows &&
-            targetAllows(
-              actor,
-              { databaseId: t.database_id, tableId: t.id },
-              "edit",
-            ),
-        ),
     };
   });
 }

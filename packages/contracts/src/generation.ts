@@ -3,8 +3,6 @@ import {
   ErrorCodeSchema,
   ErrorEnvelopeSchema,
   RootsetError,
-  StorageErrorCodeSchema,
-  storageErrorRecovery,
   limits,
 } from "./models";
 import type { NumberLexeme } from "./decoder";
@@ -117,7 +115,7 @@ export function schemaExample(schema: z.ZodType): unknown {
       if (name === "timezone") return "UTC";
       if (name === "locale") return "en-GB";
       if (name === "cron") return "* * * * *";
-      if (name === "apiKey" || name === "field") return "CODE";
+      if (name === "field") return "CODE";
       if (name === "checksum") return "a".repeat(64);
       if (name === "cursor") return "example-cursor";
       if (
@@ -126,7 +124,7 @@ export function schemaExample(schema: z.ZodType): unknown {
         name === "recipient" ||
         name === "from"
       )
-        return "owner@example.test";
+        return "admin@example.test";
       if (
         part.format === "uri" ||
         /url$/i.test(name) ||
@@ -303,7 +301,7 @@ export function generateOpenApi(
             "502":
               "The configured API upstream is unavailable at the same-origin web transport.",
             "503":
-              "Required dependency unavailable or storage admission refused. STORAGE_ADMISSION_BUSY and STORAGE_POLICY_CHANGED permit retrying the unchanged request; other storage codes require their documented recovery action first.",
+              "A required service is unavailable. Check installation health before retrying.",
           } as Record<string, string>
         )[status],
         headers:
@@ -352,16 +350,10 @@ export function generateOpenApi(
       "x-rootset-job": definition.job,
       "x-rootset-minimum-role": definition.minimumRole,
       "x-rootset-personal": definition.personal,
-      "x-rootset-operator": definition.operator,
       "x-rootset-mcp-tool": definition.toolName,
       "x-rootset-error-codes": definition.errors,
       "x-rootset-json-request-max-bytes": limits.requestBytes,
       "x-rootset-json-read-timeout-ms": limits.requestTimeoutMs,
-      "x-rootset-error-recovery": Object.fromEntries(
-        Object.entries(storageErrorRecovery).filter(([code]) =>
-          definition.errors.includes(code),
-        ),
-      ),
       "x-rootset-request-example": requestExample,
     };
   }
@@ -486,9 +478,7 @@ export function generateOpenApi(
         "ARTIFACT_EXPIRED",
         "PAYLOAD_TOO_LARGE",
         "DEPENDENCY_UNAVAILABLE",
-        ...StorageErrorCodeSchema.options,
       ],
-      "x-rootset-error-recovery": storageErrorRecovery,
     },
   };
   paths["/v1/orgs/{orgId}/artifacts/{id}/download"] = {
@@ -498,7 +488,7 @@ export function generateOpenApi(
       summary:
         "Stream verified artifact bytes under current artifact-purpose and target authority.",
       description:
-        "Use the authenticated download URL returned by getArtifact. An API key or API-audience OAuth bearer token is accepted; the MCP-audience OAuth grant used for artifact retrieval is also accepted only at this bound binary handoff. The server rechecks the artifact's organisation, original purpose scopes, requester and current target grants, verifies encrypted-object integrity, then streams the bytes with their exact declared size and checksum. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes remain API-audience only. The ordinary JSON response budget does not apply to the binary stream. MCP artifact resources return bounded metadata with this authenticated download URL.",
+        "Use the authenticated download URL returned by getArtifact. An API key or API-audience OAuth bearer token is accepted; the MCP-audience OAuth grant used for artifact retrieval is also accepted only at this bound binary handoff. The server rechecks the artifact's organisation, original purpose scopes, requester and current role, verifies encrypted-object integrity, then streams the bytes with their exact declared size and checksum. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes remain API-audience only. The ordinary JSON response budget does not apply to the binary stream. MCP artifact resources return bounded metadata with this authenticated download URL.",
       parameters: ["orgId", "id"].map((name) => ({
         name,
         in: "path",
@@ -577,7 +567,7 @@ export function generateOpenApi(
     [...new Set(operations.flatMap((operation) => operation.scopes))].map(
       (scope) => [
         scope,
-        `Current ${scope} authority; role and resource grants still apply.`,
+        `Current ${scope} authority; the live role ceiling still applies.`,
       ],
     ),
   );
@@ -597,7 +587,7 @@ export function generateOpenApi(
         apiKey: {
           type: "http",
           scheme: "bearer",
-          bearerFormat: "Rootset personal/team API key",
+          bearerFormat: "Rootset personal API key",
         },
         browserSession: {
           type: "apiKey",
@@ -619,7 +609,6 @@ export function generateOpenApi(
     "x-rootset-protocol-adapters": ProtocolAdapterInventory,
     "x-rootset-json-request-max-bytes": limits.requestBytes,
     "x-rootset-json-read-timeout-ms": limits.requestTimeoutMs,
-    "x-rootset-error-recovery": storageErrorRecovery,
   };
 }
 export const generateOpenAPI = generateOpenApi;
@@ -695,11 +684,6 @@ export function generateMcpTools(): Record<string, unknown>[] {
         "rootset.fyi/jsonRequestMaxBytes": limits.requestBytes,
         "rootset.fyi/jsonReadTimeoutMs": limits.requestTimeoutMs,
         "rootset.fyi/errorCodes": definition.errors,
-        "rootset.fyi/errorRecovery": Object.fromEntries(
-          Object.entries(storageErrorRecovery).filter(([code]) =>
-            definition.errors.includes(code),
-          ),
-        ),
       },
     };
   });
@@ -714,18 +698,12 @@ export function generateCoverageInventory(): Record<string, unknown>[] {
     role: definition.minimumRole,
     resource: definition.resource,
     personal: definition.personal,
-    operator: definition.operator,
     readOnly: definition.readOnly,
     stepUp: definition.stepUp,
     job: definition.job,
     errors: definition.errors,
     jsonRequestMaxBytes: limits.requestBytes,
     jsonReadTimeoutMs: limits.requestTimeoutMs,
-    errorRecovery: Object.fromEntries(
-      Object.entries(storageErrorRecovery).filter(([code]) =>
-        definition.errors.includes(code),
-      ),
-    ),
     uiEntry: definition.tags[0],
     verification: [
       "API-01",
@@ -817,7 +795,7 @@ export function generateClientSource(): string {
         `  ${operation.id}(input: ${operation.id}Input, options?: CallOptions): Promise<${operation.id}Output> { return this.call(${JSON.stringify(operation.id)}, input, options) as Promise<${operation.id}Output>; }`,
     )
     .join("\n");
-  return `// Generated from @rootset/contracts. Regenerate through pnpm contracts:generate.\nexport type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };\nexport type ErrorCode = ${errorCodeType};\nexport const transportLimits = ${JSON.stringify({ jsonRequestMaxBytes: limits.requestBytes, jsonReadTimeoutMs: limits.requestTimeoutMs, restResultMaxBytes: limits.restResultBytes, mcpResultMaxBytes: limits.mcpResultBytes }, null, 2)} as const;\nexport const storageErrorRecovery = ${JSON.stringify(storageErrorRecovery, null, 2)} as const;\n${definitions}\nexport interface CallOptions { signal?: AbortSignal; idempotencyKey?: string }\nconst routes = ${JSON.stringify(routes, null, 2)} as const;\nexport class RootsetClient {\n  constructor(readonly baseUrl: string, readonly options: { bearer?: string; fetch?: typeof fetch; internal?: boolean } = {}) {}\n  private async call(operationId: keyof typeof routes, input: object, call: CallOptions = {}): Promise<unknown> {\n    const operation = routes[operationId]; const body = { ...input } as Record<string, unknown>;\n    let path: string = operation.path; path = path.replace(/\\{([^}]+)\\}/g, (_, name: string) => { const value = body[name]; if (typeof value !== 'string') throw new Error('Missing path parameter ' + name); delete body[name]; return encodeURIComponent(value); });\n    if (this.options.internal) path = path.replace(/^\\/v1/, '/api/internal/v1');\n    const headers = new Headers({ Accept: 'application/json' }); if (this.options.bearer) headers.set('Authorization', 'Bearer ' + this.options.bearer);\n    if (operation.idempotencyRequired) { if (!call.idempotencyKey) throw new Error('Idempotency-Key is required'); headers.set('Idempotency-Key', call.idempotencyKey); }\n    if (operationId === 'deleteRow') { const rowId = (input as Record<string, unknown>).rowId; headers.set('If-Match', '"' + String(rowId) + ':' + String(body.expectedVersion) + '"'); }\n    const url = new URL(path, this.baseUrl); let encoded: string | undefined;\n    if (operation.method === 'GET') { for (const [name, value] of Object.entries(body)) if (value !== undefined) url.searchParams.set(name, typeof value === 'object' ? JSON.stringify(value) : String(value)); } else { headers.set('Content-Type', 'application/json'); encoded = JSON.stringify(body); }\n    const response = await (this.options.fetch ?? fetch)(url, { method: operation.method, headers, body: encoded, signal: call.signal, credentials: 'include' });\n    const result = await response.json() as unknown; if (!response.ok) { const error = new Error('Rootset request failed'); Object.assign(error, { status: response.status, result }); throw error; } return result;\n  }\n${methods}\n}\n`;
+  return `// Generated from @rootset/contracts. Regenerate through pnpm contracts:generate.\nexport type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };\nexport type ErrorCode = ${errorCodeType};\nexport const transportLimits = ${JSON.stringify({ jsonRequestMaxBytes: limits.requestBytes, jsonReadTimeoutMs: limits.requestTimeoutMs, restResultMaxBytes: limits.restResultBytes, mcpResultMaxBytes: limits.mcpResultBytes }, null, 2)} as const;\n${definitions}\nexport interface CallOptions { signal?: AbortSignal; idempotencyKey?: string }\nconst routes = ${JSON.stringify(routes, null, 2)} as const;\nexport class RootsetClient {\n  constructor(readonly baseUrl: string, readonly options: { bearer?: string; fetch?: typeof fetch; internal?: boolean } = {}) {}\n  private async call(operationId: keyof typeof routes, input: object, call: CallOptions = {}): Promise<unknown> {\n    const operation = routes[operationId]; const body = { ...input } as Record<string, unknown>;\n    let path: string = operation.path; path = path.replace(/\\{([^}]+)\\}/g, (_, name: string) => { const value = body[name]; if (typeof value !== 'string') throw new Error('Missing path parameter ' + name); delete body[name]; return encodeURIComponent(value); });\n    if (this.options.internal) path = path.replace(/^\\/v1/, '/api/internal/v1');\n    const headers = new Headers({ Accept: 'application/json' }); if (this.options.bearer) headers.set('Authorization', 'Bearer ' + this.options.bearer);\n    if (operation.idempotencyRequired) { if (!call.idempotencyKey) throw new Error('Idempotency-Key is required'); headers.set('Idempotency-Key', call.idempotencyKey); }\n    if (operationId === 'deleteRow') { const rowId = (input as Record<string, unknown>).rowId; headers.set('If-Match', '"' + String(rowId) + ':' + String(body.expectedVersion) + '"'); }\n    const url = new URL(path, this.baseUrl); let encoded: string | undefined;\n    if (operation.method === 'GET') { for (const [name, value] of Object.entries(body)) if (value !== undefined) url.searchParams.set(name, typeof value === 'object' ? JSON.stringify(value) : String(value)); } else { headers.set('Content-Type', 'application/json'); encoded = JSON.stringify(body); }\n    const response = await (this.options.fetch ?? fetch)(url, { method: operation.method, headers, body: encoded, signal: call.signal, credentials: 'include' });\n    const result = await response.json() as unknown; if (!response.ok) { const error = new Error('Rootset request failed'); Object.assign(error, { status: response.status, result }); throw error; } return result;\n  }\n${methods}\n}\n`;
 }
 export function inputJsonSchema(
   definition: OperationDefinition,

@@ -8,7 +8,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -24,7 +23,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -48,7 +46,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -65,7 +62,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -89,7 +85,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -103,61 +98,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -182,7 +126,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -199,7 +142,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -223,7 +165,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -237,61 +178,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -316,7 +206,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -332,7 +221,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -356,7 +244,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -372,7 +259,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -396,7 +282,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -413,7 +298,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -437,7 +321,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -451,61 +334,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -530,7 +362,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -547,7 +378,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -571,7 +401,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -585,61 +414,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -664,7 +442,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -678,61 +455,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -757,7 +483,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -774,7 +499,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -798,7 +522,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "required",
     "job": false,
@@ -813,61 +536,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -886,46 +558,6 @@
     ]
   },
   {
-    "operationId": "listOrganisations",
-    "publicRoute": "GET /v1/orgs",
-    "browserRoute": "GET /api/internal/v1/orgs",
-    "mcpTool": "rootset_list_organisations",
-    "scopes": [],
-    "role": "viewer",
-    "resource": "none",
-    "personal": false,
-    "operator": false,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
     "operationId": "getOrganisation",
     "publicRoute": "GET /v1/orgs/{orgId}",
     "browserRoute": "GET /api/internal/v1/orgs/{orgId}",
@@ -934,7 +566,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -950,7 +581,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -974,7 +604,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -987,61 +616,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1051,201 +629,6 @@
       "API-12",
       "MCP-08",
       "API-09",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "transferOwnership",
-    "publicRoute": "POST /v1/orgs/{orgId}/ownership-transfer",
-    "browserRoute": "POST /api/internal/v1/orgs/{orgId}/ownership-transfer",
-    "mcpTool": "rootset_transfer_ownership",
-    "scopes": ["ownership:manage"],
-    "role": "owner",
-    "resource": "organisation",
-    "personal": true,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "required",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "PERSONAL_IDENTITY_REQUIRED",
-      "STEP_UP_REQUIRED",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "deleteOrganisation",
-    "publicRoute": "DELETE /v1/orgs/{orgId}",
-    "browserRoute": "DELETE /api/internal/v1/orgs/{orgId}",
-    "mcpTool": "rootset_delete_organisation",
-    "scopes": ["ownership:manage"],
-    "role": "owner",
-    "resource": "organisation",
-    "personal": true,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "required",
-    "job": true,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "PERSONAL_IDENTITY_REQUIRED",
-      "STEP_UP_REQUIRED",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09",
-      "JOB-04",
-      "JOB-06",
-      "MCP-10",
       "ACC-03",
       "ACC-04",
       "ACC-12",
@@ -1261,7 +644,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -1277,7 +659,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1301,7 +682,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": false,
@@ -1312,64 +692,14 @@
       "FORBIDDEN",
       "INSUFFICIENT_SCOPE",
       "STEP_UP_REQUIRED",
+      "LAST_ADMIN",
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1396,7 +726,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": false,
@@ -1407,64 +736,14 @@
       "FORBIDDEN",
       "INSUFFICIENT_SCOPE",
       "STEP_UP_REQUIRED",
+      "LAST_ADMIN",
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1491,7 +770,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -1507,7 +785,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1531,7 +808,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -1545,61 +821,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1624,7 +849,6 @@
     "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -1637,61 +861,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1706,168 +879,6 @@
       "ACC-12",
       "UI-14"
     ]
-  },
-  {
-    "operationId": "getGrants",
-    "publicRoute": "GET /v1/orgs/{orgId}/grants",
-    "browserRoute": "GET /api/internal/v1/orgs/{orgId}/grants",
-    "mcpTool": "rootset_get_grants",
-    "scopes": ["grants:manage"],
-    "role": "admin",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "updateGrants",
-    "publicRoute": "PATCH /v1/orgs/{orgId}/grants",
-    "browserRoute": "PATCH /api/internal/v1/orgs/{orgId}/grants",
-    "mcpTool": "rootset_update_grants",
-    "scopes": ["grants:manage"],
-    "role": "admin",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "DELEGATION_EXCEEDS_AUTHORITY",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "API-09",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "queryOrganisationAudit",
-    "publicRoute": "POST /v1/orgs/{orgId}/audit/query",
-    "browserRoute": "POST /api/internal/v1/orgs/{orgId}/audit/query",
-    "mcpTool": "rootset_query_organisation_audit",
-    "scopes": ["audit:read"],
-    "role": "viewer",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "data",
-    "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
   {
     "operationId": "listPersonalKeys",
@@ -1878,7 +889,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -1895,7 +905,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -1919,7 +928,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": false,
@@ -1931,65 +939,13 @@
       "INSUFFICIENT_SCOPE",
       "PERSONAL_IDENTITY_REQUIRED",
       "STEP_UP_REQUIRED",
-      "DELEGATION_EXCEEDS_AUTHORITY",
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -2016,7 +972,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": false,
@@ -2028,65 +983,13 @@
       "INSUFFICIENT_SCOPE",
       "PERSONAL_IDENTITY_REQUIRED",
       "STEP_UP_REQUIRED",
-      "DELEGATION_EXCEEDS_AUTHORITY",
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -2113,7 +1016,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -2127,385 +1029,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "API-09",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "listTeamKeys",
-    "publicRoute": "GET /v1/orgs/{orgId}/keys",
-    "browserRoute": "GET /api/internal/v1/orgs/{orgId}/keys",
-    "mcpTool": "rootset_list_team_keys",
-    "scopes": ["keys:manage"],
-    "role": "admin",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "createTeamKey",
-    "publicRoute": "POST /v1/orgs/{orgId}/keys",
-    "browserRoute": "POST /api/internal/v1/orgs/{orgId}/keys",
-    "mcpTool": "rootset_create_team_key",
-    "scopes": ["keys:manage"],
-    "role": "admin",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "required",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "STEP_UP_REQUIRED",
-      "DELEGATION_EXCEEDS_AUTHORITY",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "rotateTeamKey",
-    "publicRoute": "POST /v1/orgs/{orgId}/keys/{id}/rotate",
-    "browserRoute": "POST /api/internal/v1/orgs/{orgId}/keys/{id}/rotate",
-    "mcpTool": "rootset_rotate_team_key",
-    "scopes": ["keys:manage"],
-    "role": "admin",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "required",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "STEP_UP_REQUIRED",
-      "DELEGATION_EXCEEDS_AUTHORITY",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "accounts",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09",
-      "ACC-03",
-      "ACC-04",
-      "ACC-12",
-      "UI-14"
-    ]
-  },
-  {
-    "operationId": "revokeTeamKey",
-    "publicRoute": "DELETE /v1/orgs/{orgId}/keys/{id}",
-    "browserRoute": "DELETE /api/internal/v1/orgs/{orgId}/keys/{id}",
-    "mcpTool": "rootset_revoke_team_key",
-    "scopes": ["keys:manage"],
-    "role": "admin",
-    "resource": "organisation",
-    "personal": false,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -2530,7 +1057,6 @@
     "role": "viewer",
     "resource": "none",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -2547,7 +1073,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -2571,7 +1096,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -2587,7 +1111,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "databases",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -2597,10 +1120,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases",
     "mcpTool": "rootset_create_database",
     "scopes": ["databases:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -2613,61 +1135,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "databases",
     "verification": [
       "API-01",
@@ -2688,7 +1159,6 @@
     "role": "viewer",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -2704,7 +1174,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "databases",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -2717,7 +1186,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -2730,61 +1198,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "databases",
     "verification": [
       "API-01",
@@ -2805,7 +1222,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "required",
     "job": true,
@@ -2819,61 +1235,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "databases",
     "verification": [
       "API-01",
@@ -2899,7 +1264,6 @@
     "role": "viewer",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -2915,7 +1279,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -2925,10 +1288,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables",
     "mcpTool": "rootset_create_table",
     "scopes": ["tables:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -2941,61 +1303,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3016,7 +1327,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -3032,7 +1342,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -3042,10 +1351,9 @@
     "browserRoute": "PATCH /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}",
     "mcpTool": "rootset_update_table",
     "scopes": ["tables:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -3058,61 +1366,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3130,10 +1387,9 @@
     "browserRoute": "DELETE /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}",
     "mcpTool": "rootset_delete_table",
     "scopes": ["tables:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "required",
     "job": true,
@@ -3147,61 +1403,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3227,7 +1432,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -3243,7 +1447,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -3256,7 +1459,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -3272,7 +1474,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -3282,10 +1483,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields",
     "mcpTool": "rootset_create_field",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -3298,61 +1498,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3373,10 +1522,9 @@
     "browserRoute": "PATCH /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields/{fieldId}",
     "mcpTool": "rootset_update_field",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -3389,61 +1537,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3464,10 +1561,9 @@
     "browserRoute": "DELETE /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/fields/{fieldId}",
     "mcpTool": "rootset_delete_field",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -3480,61 +1576,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3555,10 +1600,9 @@
     "browserRoute": "PUT /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/field-order",
     "mcpTool": "rootset_reorder_fields",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -3571,61 +1615,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3643,10 +1636,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema/preview",
     "mcpTool": "rootset_preview_schema_change",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -3662,7 +1654,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -3672,10 +1663,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema/operations",
     "mcpTool": "rootset_apply_schema_change",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -3688,61 +1678,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3763,10 +1702,9 @@
     "browserRoute": "GET /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/schema/operations/{id}",
     "mcpTool": "rootset_get_schema_operation",
     "scopes": ["schema:manage"],
-    "role": "viewer",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -3782,7 +1720,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -3795,7 +1732,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -3811,7 +1747,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -3821,10 +1756,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/unique-rules",
     "mcpTool": "rootset_create_unique_rule",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -3837,61 +1771,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -3912,10 +1795,9 @@
     "browserRoute": "DELETE /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/unique-rules/{id}",
     "mcpTool": "rootset_delete_unique_rule",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -3928,61 +1810,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -4003,7 +1834,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4019,7 +1849,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "schema",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4029,10 +1858,9 @@
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes",
     "mcpTool": "rootset_create_index",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -4045,61 +1873,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -4120,10 +1897,9 @@
     "browserRoute": "DELETE /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes/{id}",
     "mcpTool": "rootset_delete_index",
     "scopes": ["schema:manage"],
-    "role": "editor",
+    "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -4136,61 +1912,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "schema",
     "verification": [
       "API-01",
@@ -4211,7 +1936,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4227,7 +1951,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4240,7 +1963,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4256,7 +1978,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4269,7 +1990,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4285,7 +2005,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4298,7 +2017,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -4311,61 +2029,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -4386,7 +2053,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -4399,61 +2065,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -4474,7 +2089,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -4487,61 +2101,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -4562,7 +2125,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": true,
@@ -4573,66 +2135,14 @@
       "FORBIDDEN",
       "INSUFFICIENT_SCOPE",
       "PERSONAL_IDENTITY_REQUIRED",
-      "OPERATOR_REQUIRED",
       "STEP_UP_REQUIRED",
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -4658,7 +2168,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4674,7 +2183,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4687,7 +2195,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": true,
@@ -4703,7 +2210,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -4726,7 +2232,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4742,7 +2247,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4755,7 +2259,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4771,7 +2274,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -4784,7 +2286,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -4800,7 +2301,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -4824,7 +2324,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -4837,61 +2336,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "artifacts",
     "verification": [
       "API-01",
@@ -4912,7 +2360,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -4925,61 +2372,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "artifacts",
     "verification": [
       "API-01",
@@ -5003,7 +2399,6 @@
     "role": "editor",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -5016,61 +2411,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "artifacts",
     "verification": [
       "API-01",
@@ -5094,7 +2438,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -5107,61 +2450,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "artifacts",
     "verification": [
       "API-01",
@@ -5185,7 +2477,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5201,7 +2492,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "artifacts",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -5214,7 +2504,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5230,7 +2519,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -5243,7 +2531,6 @@
     "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": false,
@@ -5257,61 +2544,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -5334,7 +2570,6 @@
     "role": "admin",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": true,
@@ -5348,61 +2583,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "data",
     "verification": [
       "API-01",
@@ -5428,7 +2612,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5444,7 +2627,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -5457,7 +2639,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5473,157 +2654,7 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "data",
-    "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
-  },
-  {
-    "operationId": "getBackupPolicy",
-    "publicRoute": "GET /v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
-    "browserRoute": "GET /api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
-    "mcpTool": "rootset_get_backup_policy",
-    "scopes": ["backups:read"],
-    "role": "admin",
-    "resource": "database",
-    "personal": false,
-    "operator": false,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "backups",
-    "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
-  },
-  {
-    "operationId": "setBackupPolicy",
-    "publicRoute": "PUT /v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
-    "browserRoute": "PUT /api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
-    "mcpTool": "rootset_set_backup_policy",
-    "scopes": ["backups:manage"],
-    "role": "admin",
-    "resource": "database",
-    "personal": false,
-    "operator": false,
-    "readOnly": false,
-    "stepUp": "conditional",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "STEP_UP_REQUIRED",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "backups",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09"
-    ]
-  },
-  {
-    "operationId": "previewBackupSchedule",
-    "publicRoute": "POST /v1/orgs/{orgId}/databases/{databaseId}/backup-policy/preview",
-    "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-policy/preview",
-    "mcpTool": "rootset_preview_backup_schedule",
-    "scopes": ["backups:read"],
-    "role": "admin",
-    "resource": "database",
-    "personal": false,
-    "operator": false,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "backups",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
   {
@@ -5635,7 +2666,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5651,7 +2681,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "backups",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -5664,7 +2693,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5680,7 +2708,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "backups",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -5693,7 +2720,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -5706,61 +2732,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "backups",
     "verification": [
       "API-01",
@@ -5784,7 +2759,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -5797,61 +2771,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "backups",
     "verification": [
       "API-01",
@@ -5875,7 +2798,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -5891,7 +2813,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "backups",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -5904,7 +2825,6 @@
     "role": "admin",
     "resource": "database",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "conditional",
     "job": true,
@@ -5918,61 +2838,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "backups",
     "verification": [
       "API-01",
@@ -5998,7 +2867,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -6014,7 +2882,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "jobs",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -6027,7 +2894,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -6043,7 +2909,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "jobs",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
@@ -6056,7 +2921,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -6069,61 +2933,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "jobs",
     "verification": [
       "API-01",
@@ -6144,7 +2957,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": true,
@@ -6157,61 +2969,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "jobs",
     "verification": [
       "API-01",
@@ -6235,7 +2996,6 @@
     "role": "viewer",
     "resource": "organisation",
     "personal": false,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -6251,7 +3011,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -6275,7 +3034,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": true,
-    "operator": false,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -6292,7 +3050,6 @@
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -6316,7 +3073,6 @@
     "role": "viewer",
     "resource": "table",
     "personal": true,
-    "operator": false,
     "readOnly": false,
     "stepUp": "never",
     "job": false,
@@ -6330,61 +3086,10 @@
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
+      "IDEMPOTENCY_CONFLICT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
     "uiEntry": "accounts",
     "verification": [
       "API-01",
@@ -6406,10 +3111,9 @@
     "browserRoute": "GET /api/internal/v1/installation/status",
     "mcpTool": "rootset_get_installation_status",
     "scopes": ["installation:read"],
-    "role": "viewer",
+    "role": "admin",
     "resource": "none",
     "personal": false,
-    "operator": true,
     "readOnly": true,
     "stepUp": "never",
     "job": false,
@@ -6419,232 +3123,13 @@
       "ACCESS_DENIED",
       "FORBIDDEN",
       "INSUFFICIENT_SCOPE",
-      "OPERATOR_REQUIRED",
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT"
     ],
     "jsonRequestMaxBytes": 8388608,
     "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
     "uiEntry": "installation",
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
-  },
-  {
-    "operationId": "getInstallationConfiguration",
-    "publicRoute": "GET /v1/installation/configuration",
-    "browserRoute": "GET /api/internal/v1/installation/configuration",
-    "mcpTool": "rootset_get_installation_configuration",
-    "scopes": ["installation:read"],
-    "role": "viewer",
-    "resource": "none",
-    "personal": false,
-    "operator": true,
-    "readOnly": true,
-    "stepUp": "never",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "OPERATOR_REQUIRED",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {},
-    "uiEntry": "installation",
-    "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
-  },
-  {
-    "operationId": "updateInstallationConfiguration",
-    "publicRoute": "PATCH /v1/installation/configuration",
-    "browserRoute": "PATCH /api/internal/v1/installation/configuration",
-    "mcpTool": "rootset_update_installation_configuration",
-    "scopes": ["installation:manage"],
-    "role": "viewer",
-    "resource": "none",
-    "personal": false,
-    "operator": true,
-    "readOnly": false,
-    "stepUp": "required",
-    "job": false,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "OPERATOR_REQUIRED",
-      "STEP_UP_REQUIRED",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "installation",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09"
-    ]
-  },
-  {
-    "operationId": "testEmail",
-    "publicRoute": "POST /v1/installation/email-test",
-    "browserRoute": "POST /api/internal/v1/installation/email-test",
-    "mcpTool": "rootset_test_email",
-    "scopes": ["installation:manage"],
-    "role": "viewer",
-    "resource": "none",
-    "personal": false,
-    "operator": true,
-    "readOnly": false,
-    "stepUp": "required",
-    "job": true,
-    "errors": [
-      "VALIDATION_FAILED",
-      "UNAUTHENTICATED",
-      "ACCESS_DENIED",
-      "FORBIDDEN",
-      "INSUFFICIENT_SCOPE",
-      "OPERATOR_REQUIRED",
-      "STEP_UP_REQUIRED",
-      "RESOURCE_NOT_FOUND",
-      "DEPENDENCY_UNAVAILABLE",
-      "REQUEST_TIMEOUT",
-      "IDEMPOTENCY_CONFLICT",
-      "STORAGE_ADMISSION_BUSY",
-      "STORAGE_POLICY_CHANGED",
-      "STORAGE_QUOTA_EXCEEDED",
-      "STORAGE_DISK_PRESSURE",
-      "STORAGE_REPORT_STALE",
-      "STORAGE_RESERVATION_REQUIRED",
-      "STORAGE_RESERVATION_EXCEEDED"
-    ],
-    "jsonRequestMaxBytes": 8388608,
-    "jsonReadTimeoutMs": 10000,
-    "errorRecovery": {
-      "STORAGE_ADMISSION_BUSY": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request after the active storage operation completes."
-      },
-      "STORAGE_POLICY_CHANGED": {
-        "status": 503,
-        "retryable": true,
-        "action": "retry_unchanged",
-        "guidance": "Retry the unchanged request under the current storage policy."
-      },
-      "STORAGE_QUOTA_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "adjust_capacity",
-        "guidance": "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying."
-      },
-      "STORAGE_DISK_PRESSURE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_disk_headroom",
-        "guidance": "Restore PostgreSQL filesystem headroom through approved maintenance before retrying."
-      },
-      "STORAGE_REPORT_STALE": {
-        "status": 503,
-        "retryable": false,
-        "action": "restore_capacity_reporter",
-        "guidance": "Restore the database-host capacity reporter or revise the configured free-space policy before retrying."
-      },
-      "STORAGE_RESERVATION_REQUIRED": {
-        "status": 503,
-        "retryable": false,
-        "action": "contact_operator",
-        "guidance": "The write lacks its required transaction reservation; an operator must repair the admission integration."
-      },
-      "STORAGE_RESERVATION_EXCEEDED": {
-        "status": 503,
-        "retryable": false,
-        "action": "reduce_operation",
-        "guidance": "Use a smaller batch or sufficient reserved schema space before retrying."
-      }
-    },
-    "uiEntry": "installation",
-    "verification": [
-      "API-01",
-      "API-02",
-      "API-03",
-      "API-06",
-      "API-12",
-      "MCP-08",
-      "AUTH-07",
-      "MCP-11",
-      "API-09",
-      "JOB-04",
-      "JOB-06",
-      "MCP-10"
-    ]
   }
 ]

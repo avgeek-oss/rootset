@@ -28,34 +28,51 @@ async function fixture(
 ) {
   const owner = new Pool({ connectionString: databaseURL }),
     issuer = new Pool({ connectionString: identityURL ?? databaseURL });
+  const existingOrg = (
+    await owner.query("SELECT id FROM rootset_control.organisations LIMIT 1")
+  ).rows[0];
   const userId = newId(),
-    orgId = newId(),
+    orgId = existingOrg?.id ?? newId(),
     actor: Actor = {
       id: `user:${userId}`,
       kind: "session",
       userId,
       orgId,
-      role: "owner",
+      role: "admin",
       scopes: ["*"],
-      targets: [],
-      unrestricted: true,
     };
   await owner.query(
     "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
     [userId, "OAuth verification", `${userId.toLowerCase()}@oauth.example`],
   );
+  if (!existingOrg)
+    await owner.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+      [orgId, "OAuth verification"],
+    );
   await owner.query(
-    "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-    [orgId, "OAuth verification"],
-  );
-  await owner.query(
-    "INSERT INTO rootset_control.memberships(id,user_id,org_id,role) VALUES($1,$2,$3,'owner')",
+    "INSERT INTO rootset_control.memberships(id,user_id,org_id,role) VALUES($1,$2,$3,'admin')",
     [newId(), userId, orgId],
   );
   const service = new OAuthService(issuer, {
     baseURL,
     scopes: ["rows:read", "rows:write", "databases:read"],
     clients: [client],
+    refreshActor: async (credential) => {
+      const row = (
+        await owner.query(
+          "SELECT m.role,m.version FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.user_id=$1 AND m.org_id=$2",
+          [credential.userId, credential.orgId],
+        )
+      ).rows[0];
+      return row
+        ? {
+            ...credential,
+            role: row.role,
+            membershipVersion: Number(row.version),
+          }
+        : null;
+    },
     resolveSession: async (request) =>
       request.headers.get("cookie") === "test=session" ? actor : null,
   });
@@ -70,7 +87,6 @@ async function fixture(
       code_challenge: challenge,
       code_challenge_method: "S256",
       resource,
-      organization_id: orgId,
       scope: "rows:read",
       state: "bound-state",
     }).toString();
@@ -123,8 +139,8 @@ async function fixture(
       [userId],
     );
     await owner.query(
-      "UPDATE rootset_control.users SET disabled=true WHERE id=$1",
-      [userId],
+      "DELETE FROM rootset_control.memberships WHERE user_id=$1 AND org_id=$2",
+      [userId, orgId],
     );
     await issuer.end();
     await owner.end();
@@ -283,8 +299,8 @@ test(
         "mcp",
       );
       assert.equal(ActorSchema.parse(resolved).orgId, actor.orgId);
-      assert.equal(resolved?.unrestricted, true);
-      assert.deepEqual(resolved?.targets, []);
+      assert.equal(resolved?.role, "admin");
+      assert.equal(resolved && "targets" in resolved, false);
       assert.equal(
         await service.resolveActor(
           new Request(`${baseURL}/v1`, {
@@ -320,7 +336,7 @@ test(
           form(exchange(next)),
         ))!.json();
       await owner.query(
-        "UPDATE rootset_control.memberships SET state='disabled' WHERE user_id=$1 AND org_id=$2",
+        "DELETE FROM rootset_control.memberships WHERE user_id=$1 AND org_id=$2",
         [actor.userId, actor.orgId],
       );
       assert.equal(
@@ -346,13 +362,10 @@ test(
     }),
 );
 test(
-  "standard OAuth parameters bind the browser organisation and freeze exact consent targets despite later expansion",
+  "standard OAuth parameters bind the installation organisation and freeze operation consent",
   { skip: !databaseURL },
   async () =>
     fixture(async ({ service, actor }) => {
-      actor.unrestricted = false;
-      const databaseId = newId();
-      actor.targets = [{ databaseId, level: "read" }];
       const verifier = randomBytes(40).toString("base64url"),
         challenge = createHash("sha256").update(verifier).digest("base64url");
       const url = new URL(`${baseURL}/oauth/authorize`);
@@ -375,10 +388,8 @@ test(
         }),
       ))!.json();
       assert.equal(details.organizationId, actor.orgId);
-      assert.deepEqual(details.targets, [{ databaseId, level: "read" }]);
-      assert.equal(details.unrestricted, false);
-      actor.unrestricted = true;
-      actor.targets.push({ databaseId: newId(), level: "manage" });
+      assert.equal("targets" in details, false);
+      assert.equal("unrestricted" in details, false);
       const decision = await (await service.handler(
         new Request(
           `${baseURL}/api/internal/v1/oauth/requests/${requestId}/decision`,
@@ -412,8 +423,8 @@ test(
           "mcp",
         ),
       );
-      assert.equal(resolved.unrestricted, false);
-      assert.deepEqual(resolved.targets, [{ databaseId, level: "read" }]);
+      assert.equal("targets" in resolved, false);
+      assert.equal("unrestricted" in resolved, false);
       assert(
         !resolved.scopes.some(
           (s) => s.endsWith(":write") || s.endsWith(":manage"),
@@ -519,3 +530,168 @@ test(
       );
     }),
 );
+
+test("OAuth bearer authority follows live role demotion and user removal", async () => {
+  const orgId = newId(),
+    userId = newId(),
+    grantId = newId();
+  const saved: Actor = {
+    kind: "oauth",
+    id: `oauth:${grantId}`,
+    credentialId: grantId,
+    userId,
+    orgId,
+    role: "admin",
+    scopes: ["rows:read", "rows:write"],
+  };
+  let liveRole: Actor["role"] | null = "editor";
+  const pool = {
+    query: async (_sql: string, values: unknown[]) => ({
+      rows:
+        values[1] === `${baseURL}/mcp`
+          ? [
+              {
+                actor: saved,
+                grant_id: grantId,
+                scopes: saved.scopes,
+                resource: `${baseURL}/mcp`,
+                user_id: userId,
+                org_id: orgId,
+              },
+            ]
+          : [],
+    }),
+  } as unknown as Pool;
+  const service = new OAuthService(pool, {
+    baseURL,
+    scopes: saved.scopes,
+    clients: [client],
+    resolveSession: async () => null,
+    refreshActor: async (actor) =>
+      liveRole ? { ...actor, role: liveRole } : null,
+  });
+  const request = new Request(`${baseURL}/mcp`, {
+    headers: { Authorization: "Bearer rs_oauth_unit_token" },
+  });
+  assert.deepEqual((await service.resolveActor(request, "mcp"))?.scopes, [
+    "rows:read",
+    "rows:write",
+  ]);
+  liveRole = "viewer";
+  const demoted = ActorSchema.parse(await service.resolveActor(request, "mcp"));
+  assert.equal(demoted.role, "viewer");
+  assert.deepEqual(demoted.scopes, ["rows:read"]);
+  assert.equal(await service.resolveActor(request, "api"), null);
+  liveRole = null;
+  assert.equal(await service.resolveActor(request, "mcp"), null);
+});
+
+function consentUnitFixture() {
+  const orgId = newId(),
+    userId = newId(),
+    requestId = newId();
+  const actor: Actor = {
+    kind: "session",
+    id: `user:${userId}`,
+    userId,
+    orgId,
+    role: "admin",
+    scopes: [],
+  };
+  const row = {
+    id: requestId,
+    client_id: clientId,
+    redirect_uri: client.redirect_uris[0],
+    resource: `${baseURL}/mcp`,
+    scopes: ["rows:read", "rows:write"],
+    org_id: orgId,
+    user_id: userId,
+    state: "state",
+    challenge: "x".repeat(43),
+    expires_at: new Date(Date.now() + 60_000),
+    status: "pending",
+    reviewed_at: null as Date | null,
+  };
+  const writes: string[] = [];
+  const query = async (sql: string) => {
+    if (sql.startsWith("SELECT * FROM rootset_control.oauth_requests"))
+      return { rows: [{ ...row }] };
+    if (sql.includes("reviewed_at=now()")) row.reviewed_at = new Date();
+    if (sql.startsWith("INSERT INTO rootset_control.oauth_grants"))
+      writes.push(sql);
+    return { rows: [] };
+  };
+  const pool = {
+    query,
+    connect: async () => ({ query, release: () => {} }),
+  } as unknown as Pool;
+  const service = new OAuthService(pool, {
+    baseURL,
+    scopes: row.scopes,
+    clients: [client],
+    resolveSession: async () => actor,
+    refreshActor: async (credential) => ({ ...credential, role: actor.role }),
+  });
+  const inspect = () =>
+    service.handler(
+      new Request(`${baseURL}/api/internal/v1/oauth/requests/${requestId}`),
+    );
+  const decide = () =>
+    service.handler(
+      new Request(
+        `${baseURL}/api/internal/v1/oauth/requests/${requestId}/decision`,
+        {
+          method: "POST",
+          headers: { Origin: baseURL, "Content-Type": "application/json" },
+          body: '{"approve":true}',
+        },
+      ),
+    );
+  return { actor, row, writes, service, inspect, decide };
+}
+
+test("OAuth approval requires reviewed real consent and rechecks the current role", async () => {
+  const fixture = consentUnitFixture();
+  const unreviewed = (await fixture.decide())!;
+  assert.equal(unreviewed.status, 400);
+  assert.equal(fixture.writes.length, 0);
+  const consent = (await fixture.inspect())!;
+  assert.equal(consent.status, 200);
+  const detail = await consent.json();
+  assert.deepEqual(detail.scopes, ["rows:read", "rows:write"]);
+  assert.equal("targets" in detail, false);
+  assert.equal("unrestricted" in detail, false);
+  fixture.actor.role = "viewer";
+  assert.equal((await fixture.decide())!.status, 403);
+  assert.equal(fixture.writes.length, 0);
+  fixture.actor.role = "admin";
+  assert.equal((await fixture.decide())!.status, 200);
+  assert.equal(fixture.writes.length, 1);
+});
+
+test("OAuth rejects resource whitelists and requires S256 PKCE", async () => {
+  const fixture = consentUnitFixture();
+  const authorize = async (extra: Record<string, string>) => {
+    const url = new URL(`${baseURL}/oauth/authorize`);
+    url.search = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: client.redirect_uris[0]!,
+      response_type: "code",
+      code_challenge_method: "S256",
+      code_challenge: "x".repeat(43),
+      resource: `${baseURL}/mcp`,
+      scope: "rows:read",
+      ...extra,
+    }).toString();
+    return (await fixture.service.handler(new Request(url)))!;
+  };
+  const invalidParameters: Record<string, string>[] = [
+    { database_ids: newId() },
+    { table_ids: newId() },
+    { organization_id: newId() },
+    { code_challenge_method: "plain" },
+    { code_challenge: "short" },
+  ];
+  for (const extra of invalidParameters)
+    assert.equal((await authorize(extra)).status, 400);
+});

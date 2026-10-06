@@ -6,9 +6,9 @@ export type ErrorCode =
   | "UNAUTHENTICATED"
   | "ACCESS_DENIED"
   | "FORBIDDEN"
+  | "LAST_ADMIN"
   | "INSUFFICIENT_SCOPE"
   | "PERSONAL_IDENTITY_REQUIRED"
-  | "OPERATOR_REQUIRED"
   | "DELEGATION_EXCEEDS_AUTHORITY"
   | "RESOURCE_NOT_FOUND"
   | "ROW_VERSION_CONFLICT"
@@ -30,13 +30,6 @@ export type ErrorCode =
   | "ARTIFACT_EXPIRED"
   | "CONFIGURATION_INVALID"
   | "DEPENDENCY_UNAVAILABLE"
-  | "STORAGE_ADMISSION_BUSY"
-  | "STORAGE_POLICY_CHANGED"
-  | "STORAGE_QUOTA_EXCEEDED"
-  | "STORAGE_DISK_PRESSURE"
-  | "STORAGE_REPORT_STALE"
-  | "STORAGE_RESERVATION_REQUIRED"
-  | "STORAGE_RESERVATION_EXCEEDED"
   | "INTERNAL_ERROR";
 export const transportLimits = {
   jsonRequestMaxBytes: 8388608,
@@ -44,86 +37,26 @@ export const transportLimits = {
   restResultMaxBytes: 8388608,
   mcpResultMaxBytes: 1048576,
 } as const;
-export const storageErrorRecovery = {
-  STORAGE_ADMISSION_BUSY: {
-    status: 503,
-    retryable: true,
-    action: "retry_unchanged",
-    guidance:
-      "Retry the unchanged request after the active storage operation completes.",
-  },
-  STORAGE_POLICY_CHANGED: {
-    status: 503,
-    retryable: true,
-    action: "retry_unchanged",
-    guidance: "Retry the unchanged request under the current storage policy.",
-  },
-  STORAGE_QUOTA_EXCEEDED: {
-    status: 503,
-    retryable: false,
-    action: "adjust_capacity",
-    guidance:
-      "Increase the applicable quota, remove retained data through approved maintenance, or reduce the operation size before retrying.",
-  },
-  STORAGE_DISK_PRESSURE: {
-    status: 503,
-    retryable: false,
-    action: "restore_disk_headroom",
-    guidance:
-      "Restore PostgreSQL filesystem headroom through approved maintenance before retrying.",
-  },
-  STORAGE_REPORT_STALE: {
-    status: 503,
-    retryable: false,
-    action: "restore_capacity_reporter",
-    guidance:
-      "Restore the database-host capacity reporter or revise the configured free-space policy before retrying.",
-  },
-  STORAGE_RESERVATION_REQUIRED: {
-    status: 503,
-    retryable: false,
-    action: "contact_operator",
-    guidance:
-      "The write lacks its required transaction reservation; an operator must repair the admission integration.",
-  },
-  STORAGE_RESERVATION_EXCEEDED: {
-    status: 503,
-    retryable: false,
-    action: "reduce_operation",
-    guidance:
-      "Use a smaller batch or sufficient reserved schema space before retrying.",
-  },
-} as const;
 export type getContextInput = Record<string, never>;
 export type getContextOutput = {
   principal: {
     id: string;
     kind: string;
     userId?: string;
-    role: "owner" | "admin" | "editor" | "viewer";
-    operator: boolean;
+    role: "admin" | "editor" | "viewer";
   };
   organisation: {
     id: string;
     name: string;
-    description: string | null;
-    state:
-      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
     createdAt: string;
     updatedAt: string;
   } | null;
   scopes: string[];
-  targets: {
-    databaseId?: string;
-    tableId?: string;
-    level: "read" | "edit" | "manage";
-  }[];
   profile: {
     id: string;
     name: string;
     email: string;
     emailVerified: boolean;
-    disabled: boolean;
     createdAt: string;
     updatedAt: string;
   } | null;
@@ -142,7 +75,6 @@ export type getProfileOutput = {
   name: string;
   email: string;
   emailVerified: boolean;
-  disabled: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -152,7 +84,6 @@ export type updateProfileOutput = {
   name: string;
   email: string;
   emailVerified: boolean;
-  disabled: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -225,11 +156,6 @@ export type listConnectionsOutput = {
     orgId: string;
     audience: string;
     scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
     createdAt: string;
     expiresAt: string;
     revokedAt: string | null;
@@ -241,6 +167,8 @@ export type revokeConnectionInput = { id: string };
 export type revokeConnectionOutput = { deleted: boolean; mutationId?: string };
 export type beginAccountActionInput = {
   type:
+    | "update_member"
+    | "remove_member"
     | "change_password"
     | "change_email"
     | "register_passkey"
@@ -248,16 +176,13 @@ export type beginAccountActionInput = {
     | "enable_totp"
     | "disable_totp"
     | "rotate_recovery_codes"
-    | "delete_account"
     | "sign_out_everywhere"
-    | "transfer_ownership"
     | "create_key"
     | "rotate_key"
     | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
     | "restore_backup"
-    | "delete_organisation"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -273,6 +198,8 @@ export type beginAccountActionOutput = {
   expiresAt: string;
   approvalUrl: string;
   type:
+    | "update_member"
+    | "remove_member"
     | "change_password"
     | "change_email"
     | "register_passkey"
@@ -280,16 +207,13 @@ export type beginAccountActionOutput = {
     | "enable_totp"
     | "disable_totp"
     | "rotate_recovery_codes"
-    | "delete_account"
     | "sign_out_everywhere"
-    | "transfer_ownership"
     | "create_key"
     | "rotate_key"
     | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
     | "restore_backup"
-    | "delete_organisation"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -320,6 +244,8 @@ export type getAccountActionOutput = {
   expiresAt: string;
   approvalUrl: string;
   type:
+    | "update_member"
+    | "remove_member"
     | "change_password"
     | "change_email"
     | "register_passkey"
@@ -327,16 +253,13 @@ export type getAccountActionOutput = {
     | "enable_totp"
     | "disable_totp"
     | "rotate_recovery_codes"
-    | "delete_account"
     | "sign_out_everywhere"
-    | "transfer_ownership"
     | "create_key"
     | "rotate_key"
     | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
     | "restore_backup"
-    | "delete_organisation"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -367,6 +290,8 @@ export type completeAccountActionOutput = {
   expiresAt: string;
   approvalUrl: string;
   type:
+    | "update_member"
+    | "remove_member"
     | "change_password"
     | "change_email"
     | "register_passkey"
@@ -374,16 +299,13 @@ export type completeAccountActionOutput = {
     | "enable_totp"
     | "disable_totp"
     | "rotate_recovery_codes"
-    | "delete_account"
     | "sign_out_everywhere"
-    | "transfer_ownership"
     | "create_key"
     | "rotate_key"
     | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
     | "restore_backup"
-    | "delete_organisation"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -407,69 +329,19 @@ export type completeAccountActionOutput = {
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
-export type listOrganisationsInput = Record<string, never>;
-export type listOrganisationsOutput = {
-  data: {
-    id: string;
-    name: string;
-    description: string | null;
-    state:
-      "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
-    createdAt: string;
-    updatedAt: string;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
 export type getOrganisationInput = { orgId: string };
 export type getOrganisationOutput = {
   id: string;
   name: string;
-  description: string | null;
-  state:
-    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
   createdAt: string;
   updatedAt: string;
 };
-export type updateOrganisationInput = {
-  orgId: string;
-  name: string;
-  description?: string | null;
-};
+export type updateOrganisationInput = { orgId: string; name: string };
 export type updateOrganisationOutput = {
   id: string;
   name: string;
-  description: string | null;
-  state:
-    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
   createdAt: string;
   updatedAt: string;
-};
-export type transferOwnershipInput = {
-  orgId: string;
-  userId: string;
-  approvalId?: string;
-};
-export type transferOwnershipOutput = {
-  id: string;
-  name: string;
-  description: string | null;
-  state:
-    "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
-  createdAt: string;
-  updatedAt: string;
-};
-export type deleteOrganisationInput = { orgId: string; approvalId?: string };
-export type deleteOrganisationOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
 };
 export type listMembersInput = {
   orgId: string;
@@ -483,8 +355,7 @@ export type listMembersOutput = {
     userId: string;
     name: string;
     email: string;
-    role: "owner" | "admin" | "editor" | "viewer";
-    state: "active" | "disabled";
+    role: "admin" | "editor" | "viewer";
     version: string;
     verified: boolean;
   }[];
@@ -494,8 +365,7 @@ export type listMembersOutput = {
 export type updateMemberInput = {
   orgId: string;
   id: string;
-  role?: "owner" | "admin" | "editor" | "viewer";
-  state?: "active" | "disabled";
+  role?: "admin" | "editor" | "viewer";
   expectedVersion: string;
   approvalId?: string;
 };
@@ -505,8 +375,7 @@ export type updateMemberOutput = {
   userId: string;
   name: string;
   email: string;
-  role: "owner" | "admin" | "editor" | "viewer";
-  state: "active" | "disabled";
+  role: "admin" | "editor" | "viewer";
   version: string;
   verified: boolean;
 };
@@ -551,89 +420,14 @@ export type inviteMemberOutput = {
 };
 export type cancelInvitationInput = { orgId: string; id: string };
 export type cancelInvitationOutput = { deleted: boolean; mutationId?: string };
-export type getGrantsInput = { orgId: string };
-export type getGrantsOutput = {
-  data: {
-    membershipId: string;
-    unrestricted: boolean;
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    version: number;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
-export type updateGrantsInput = {
-  orgId: string;
-  grants: {
-    membershipId: string;
-    unrestricted: boolean;
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    version: number;
-  }[];
-};
-export type updateGrantsOutput = {
-  data: {
-    membershipId: string;
-    unrestricted: boolean;
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    version: number;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
-export type queryOrganisationAuditInput = {
-  orgId: string;
-  limit?: number;
-  cursor?: string | null;
-  from?: string;
-  to?: string;
-  operationId?: string;
-  actorId?: string;
-  databaseId?: string;
-  tableId?: string;
-};
-export type queryOrganisationAuditOutput = {
-  data: {
-    id: string;
-    operationId: string;
-    actorId: string;
-    timestamp: string;
-    target:
-      null | boolean | number | string | unknown[] | Record<string, unknown>;
-    outcome:
-      null | boolean | number | string | unknown[] | Record<string, unknown>;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
 export type listPersonalKeysInput = Record<string, never>;
 export type listPersonalKeysOutput = {
   data: {
     id: string;
     orgId: string;
     name: string;
-    ownerKind: "personal" | "team";
-    userId?: string;
+    userId: string;
     prefix: string;
-    scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    unrestricted?: boolean;
     createdAt: string;
     expiresAt: string | null;
     revokedAt: string | null;
@@ -645,13 +439,6 @@ export type listPersonalKeysOutput = {
 export type createPersonalKeyInput = {
   orgId: string;
   name: string;
-  scopes: string[];
-  targets: {
-    databaseId?: string;
-    tableId?: string;
-    level: "read" | "edit" | "manage";
-  }[];
-  unrestricted?: boolean;
   expiresAt?: string | null;
   approvalId?: string;
 };
@@ -660,16 +447,8 @@ export type createPersonalKeyOutput = {
     id: string;
     orgId: string;
     name: string;
-    ownerKind: "personal" | "team";
-    userId?: string;
+    userId: string;
     prefix: string;
-    scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    unrestricted?: boolean;
     createdAt: string;
     expiresAt: string | null;
     revokedAt: string | null;
@@ -681,6 +460,8 @@ export type createPersonalKeyOutput = {
 export type rotatePersonalKeyInput = {
   id: string;
   overlapSeconds?: number;
+  name?: string;
+  expiresAt?: string | null;
   approvalId?: string;
 };
 export type rotatePersonalKeyOutput = {
@@ -688,16 +469,8 @@ export type rotatePersonalKeyOutput = {
     id: string;
     orgId: string;
     name: string;
-    ownerKind: "personal" | "team";
-    userId?: string;
+    userId: string;
     prefix: string;
-    scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    unrestricted?: boolean;
     createdAt: string;
     expiresAt: string | null;
     revokedAt: string | null;
@@ -708,97 +481,6 @@ export type rotatePersonalKeyOutput = {
 };
 export type revokePersonalKeyInput = { id: string };
 export type revokePersonalKeyOutput = { deleted: boolean; mutationId?: string };
-export type listTeamKeysInput = { orgId: string };
-export type listTeamKeysOutput = {
-  data: {
-    id: string;
-    orgId: string;
-    name: string;
-    ownerKind: "personal" | "team";
-    userId?: string;
-    prefix: string;
-    scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    unrestricted?: boolean;
-    createdAt: string;
-    expiresAt: string | null;
-    revokedAt: string | null;
-    lastUsedAt: string | null;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
-export type createTeamKeyInput = {
-  orgId: string;
-  name: string;
-  scopes: string[];
-  targets: {
-    databaseId?: string;
-    tableId?: string;
-    level: "read" | "edit" | "manage";
-  }[];
-  unrestricted?: boolean;
-  expiresAt?: string | null;
-  approvalId?: string;
-};
-export type createTeamKeyOutput = {
-  key: {
-    id: string;
-    orgId: string;
-    name: string;
-    ownerKind: "personal" | "team";
-    userId?: string;
-    prefix: string;
-    scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    unrestricted?: boolean;
-    createdAt: string;
-    expiresAt: string | null;
-    revokedAt: string | null;
-    lastUsedAt: string | null;
-  };
-  secret?: string;
-  replayed?: boolean;
-};
-export type rotateTeamKeyInput = {
-  orgId: string;
-  id: string;
-  overlapSeconds?: number;
-  approvalId?: string;
-};
-export type rotateTeamKeyOutput = {
-  key: {
-    id: string;
-    orgId: string;
-    name: string;
-    ownerKind: "personal" | "team";
-    userId?: string;
-    prefix: string;
-    scopes: string[];
-    targets: {
-      databaseId?: string;
-      tableId?: string;
-      level: "read" | "edit" | "manage";
-    }[];
-    unrestricted?: boolean;
-    createdAt: string;
-    expiresAt: string | null;
-    revokedAt: string | null;
-    lastUsedAt: string | null;
-  };
-  secret?: string;
-  replayed?: boolean;
-};
-export type revokeTeamKeyInput = { orgId: string; id: string };
-export type revokeTeamKeyOutput = { deleted: boolean; mutationId?: string };
 export type getSecurityStatusInput = Record<string, never>;
 export type getSecurityStatusOutput = {
   twoFactorEnabled: boolean;
@@ -917,8 +599,7 @@ export type createTableInput = {
   description?: string | null;
   fields?: (
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -932,8 +613,7 @@ export type createTableInput = {
         charLimit?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -948,8 +628,7 @@ export type createTableInput = {
         max?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -964,8 +643,7 @@ export type createTableInput = {
         max?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -978,8 +656,7 @@ export type createTableInput = {
         type: "boolean";
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -994,8 +671,7 @@ export type createTableInput = {
         max?: string;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1008,8 +684,7 @@ export type createTableInput = {
         type: "time";
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1024,8 +699,7 @@ export type createTableInput = {
         max?: string;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1056,8 +730,7 @@ export type createTableOutput = {
   fields: (
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1072,8 +745,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1089,8 +761,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1106,8 +777,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1121,8 +791,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1138,8 +807,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1153,8 +821,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1170,8 +837,7 @@ export type createTableOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1286,8 +952,7 @@ export type getTableSchemaOutput = {
   fields: (
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1302,8 +967,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1319,8 +983,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1336,8 +999,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1351,8 +1013,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1368,8 +1029,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1383,8 +1043,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1400,8 +1059,7 @@ export type getTableSchemaOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1446,8 +1104,7 @@ export type listFieldsOutput = {
   data: (
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1462,8 +1119,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1479,8 +1135,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1496,8 +1151,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1511,8 +1165,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1528,8 +1181,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1543,8 +1195,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1560,8 +1211,7 @@ export type listFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1584,8 +1234,7 @@ export type createFieldInput = {
   expectedSchemaVersion: number;
   field:
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1599,8 +1248,7 @@ export type createFieldInput = {
         charLimit?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1615,8 +1263,7 @@ export type createFieldInput = {
         max?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1631,8 +1278,7 @@ export type createFieldInput = {
         max?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1645,8 +1291,7 @@ export type createFieldInput = {
         type: "boolean";
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1661,8 +1306,7 @@ export type createFieldInput = {
         max?: string;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1675,8 +1319,7 @@ export type createFieldInput = {
         type: "time";
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1691,8 +1334,7 @@ export type createFieldInput = {
         max?: string;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1728,8 +1370,7 @@ export type createFieldOutput =
       fields: (
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1744,8 +1385,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1761,8 +1401,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1778,8 +1417,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1793,8 +1431,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1810,8 +1447,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1825,8 +1461,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1842,8 +1477,7 @@ export type createFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -1898,8 +1532,7 @@ export type updateFieldInput = {
   fieldId: string;
   field:
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1913,8 +1546,7 @@ export type updateFieldInput = {
         charLimit?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1929,8 +1561,7 @@ export type updateFieldInput = {
         max?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1945,8 +1576,7 @@ export type updateFieldInput = {
         max?: number;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1959,8 +1589,7 @@ export type updateFieldInput = {
         type: "boolean";
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1975,8 +1604,7 @@ export type updateFieldInput = {
         max?: string;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -1989,8 +1617,7 @@ export type updateFieldInput = {
         type: "time";
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2005,8 +1632,7 @@ export type updateFieldInput = {
         max?: string;
       }
     | {
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2043,8 +1669,7 @@ export type updateFieldOutput =
       fields: (
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2059,8 +1684,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2076,8 +1700,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2093,8 +1716,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2108,8 +1730,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2125,8 +1746,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2140,8 +1760,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2157,8 +1776,7 @@ export type updateFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2236,8 +1854,7 @@ export type deleteFieldOutput =
       fields: (
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2252,8 +1869,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2269,8 +1885,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2286,8 +1901,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2301,8 +1915,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2318,8 +1931,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2333,8 +1945,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2350,8 +1961,7 @@ export type deleteFieldOutput =
           }
         | {
             id: string;
-            apiKey: string;
-            label: string;
+            name: string;
             required?: boolean;
             default?:
               | null
@@ -2422,8 +2032,7 @@ export type reorderFieldsOutput = {
   fields: (
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2438,8 +2047,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2455,8 +2063,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2472,8 +2079,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2487,8 +2093,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2504,8 +2109,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2519,8 +2123,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2536,8 +2139,7 @@ export type reorderFieldsOutput = {
       }
     | {
         id: string;
-        apiKey: string;
-        label: string;
+        name: string;
         required?: boolean;
         default?:
           | null
@@ -2671,8 +2273,7 @@ export type getSchemaOperationOutput = {
         description?: string | null;
         fields: (
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2686,8 +2287,7 @@ export type getSchemaOperationOutput = {
               charLimit?: number;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2702,8 +2302,7 @@ export type getSchemaOperationOutput = {
               max?: number;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2718,8 +2317,7 @@ export type getSchemaOperationOutput = {
               max?: number;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2732,8 +2330,7 @@ export type getSchemaOperationOutput = {
               type: "boolean";
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2748,8 +2345,7 @@ export type getSchemaOperationOutput = {
               max?: string;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2762,8 +2358,7 @@ export type getSchemaOperationOutput = {
               type: "time";
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2778,8 +2373,7 @@ export type getSchemaOperationOutput = {
               max?: string;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2799,8 +2393,7 @@ export type getSchemaOperationOutput = {
         kind: "field.create";
         field:
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2814,8 +2407,7 @@ export type getSchemaOperationOutput = {
               charLimit?: number;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2830,8 +2422,7 @@ export type getSchemaOperationOutput = {
               max?: number;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2846,8 +2437,7 @@ export type getSchemaOperationOutput = {
               max?: number;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2860,8 +2450,7 @@ export type getSchemaOperationOutput = {
               type: "boolean";
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2876,8 +2465,7 @@ export type getSchemaOperationOutput = {
               max?: string;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2890,8 +2478,7 @@ export type getSchemaOperationOutput = {
               type: "time";
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2906,8 +2493,7 @@ export type getSchemaOperationOutput = {
               max?: string;
             }
           | {
-              apiKey: string;
-              label: string;
+              name: string;
               required?: boolean;
               default?:
                 | null
@@ -2924,8 +2510,7 @@ export type getSchemaOperationOutput = {
         kind: "field.update";
         fieldId?: string;
         changes: {
-          apiKey?: string;
-          label?: string;
+          name?: string;
           type?:
             | "text"
             | "integer"
@@ -2953,8 +2538,7 @@ export type getSchemaOperationOutput = {
         kind: "field.convert";
         fieldId?: string;
         changes: {
-          apiKey?: string;
-          label?: string;
+          name?: string;
           type?:
             | "text"
             | "integer"
@@ -3012,8 +2596,7 @@ export type getSchemaOperationOutput = {
     fields: (
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3028,8 +2611,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3045,8 +2627,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3062,8 +2643,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3077,8 +2657,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3094,8 +2673,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3109,8 +2687,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3126,8 +2703,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3167,8 +2743,7 @@ export type getSchemaOperationOutput = {
     nextField?:
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3183,8 +2758,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3200,8 +2774,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3217,8 +2790,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3232,8 +2804,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3249,8 +2820,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3264,8 +2834,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3281,8 +2850,7 @@ export type getSchemaOperationOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3747,8 +3315,7 @@ export type getCellHistoryOutput = {
     fieldDefinition:
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3763,8 +3330,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3780,8 +3346,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3797,8 +3362,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3812,8 +3376,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3829,8 +3392,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3844,8 +3406,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3861,8 +3422,7 @@ export type getCellHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3920,8 +3480,7 @@ export type queryHistoryOutput = {
     fieldDefinition:
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3936,8 +3495,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3953,8 +3511,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3970,8 +3527,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -3985,8 +3541,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -4002,8 +3557,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -4017,8 +3571,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -4034,8 +3587,7 @@ export type queryHistoryOutput = {
         }
       | {
           id: string;
-          apiKey: string;
-          label: string;
+          name: string;
           required?: boolean;
           default?:
             | null
@@ -4334,61 +3886,6 @@ export type getHistoryArchiveOutput = {
     null | boolean | number | string | unknown[] | Record<string, unknown>;
   error?: string;
 };
-export type getBackupPolicyInput = { orgId: string; databaseId: string };
-export type getBackupPolicyOutput = {
-  policy: {
-    enabled: boolean;
-    cron: string;
-    timezone: string;
-    destination: "installation";
-    retentionDays: number;
-    retentionCount: number;
-    encryption: true;
-    maxRuntimeSeconds: number;
-    notifications: boolean;
-    suspension?: { code: string; at: string };
-  } | null;
-};
-export type setBackupPolicyInput = {
-  orgId: string;
-  databaseId: string;
-  enabled: boolean;
-  cron: string;
-  timezone: string;
-  destination: "installation";
-  retentionDays: number;
-  retentionCount: number;
-  encryption: true;
-  maxRuntimeSeconds: number;
-  notifications: boolean;
-  approvalId?: string;
-};
-export type setBackupPolicyOutput = {
-  enabled: boolean;
-  cron: string;
-  timezone: string;
-  destination: "installation";
-  retentionDays: number;
-  retentionCount: number;
-  encryption: true;
-  maxRuntimeSeconds: number;
-  notifications: boolean;
-  suspension?: { code: string; at: string };
-};
-export type previewBackupScheduleInput = {
-  orgId: string;
-  databaseId: string;
-  cron?: string;
-  timezone?: string;
-  count?: number;
-  from?: string;
-};
-export type previewBackupScheduleOutput = {
-  occurrences: string[];
-  timezone: string;
-  repeatedTimePolicy: "earlier";
-  nonexistentTimePolicy: "skip";
-};
 export type listBackupsInput = {
   orgId: string;
   databaseId: string;
@@ -4645,17 +4142,6 @@ export type getUsageOutput = {
   indexBytes: number;
   historyBytes: number;
   artifactBytes: number;
-  storageQuotaBytes: string | null;
-  storageAdmission: {
-    state:
-      | "available"
-      | "quota_exceeded"
-      | "disk_pressure"
-      | "report_stale"
-      | "unavailable";
-    reason: unknown;
-  };
-  admissionAvailable: boolean;
 };
 export type getViewPreferencesInput = { tableId: string };
 export type getViewPreferencesOutput = {
@@ -4708,7 +4194,6 @@ export type getInstallationStatusOutput = {
       errors: number;
       timeouts: number;
       rowLimitRejections: number;
-      storageAdmissionRejections: number;
       rateLimitRejections: number;
       loggingFailures: number;
       operations: {
@@ -4821,122 +4306,6 @@ export type getInstallationStatusOutput = {
       message: string;
     }[];
   };
-  storage: {
-    installation: {
-      usedBytes: string;
-      quotaBytes: string | null;
-      availableQuotaBytes: string | null;
-      metric: "postgresql_database_bytes";
-    };
-    organisation: {
-      orgId: string;
-      nativeRelationBytes: string;
-      retainedControlTupleBytes: string;
-      usedBytes: string;
-      quotaBytes: string | null;
-      availableQuotaBytes: string | null;
-      metric: "native_relation_and_retained_control_tuple_bytes";
-    } | null;
-    disk: {
-      minimumFreeBytes: string | null;
-      reportedAvailableBytes: string | null;
-      reportedTotalBytes: string | null;
-      headroomClaimsBytes: string;
-      effectiveAvailableBytes: string | null;
-      reportedAt: string | null;
-      reportMaxAgeSeconds: number;
-      fresh: boolean;
-      volumes: { name: string; availableBytes: string; totalBytes: string }[];
-    };
-    admission: {
-      enabled: boolean;
-      state: "available" | "quota_exceeded" | "disk_pressure" | "report_stale";
-      reason: unknown;
-    };
-  } | null;
-};
-export type getInstallationConfigurationInput = Record<string, never>;
-export type getInstallationConfigurationOutput = {
-  baseUrl: string;
-  signupEnabled: false;
-  smtpConfigured: boolean;
-  objectStorageConfigured: boolean;
-  limits: Record<string, number>;
-  operatorRecoveryEnabled: boolean;
-  restartRequired?: boolean;
-  storage: {
-    installationQuotaBytes?: string | null;
-    defaultOrganisationQuotaBytes?: string | null;
-    minimumFreeBytes?: string | null;
-    reportMaxAgeSeconds?: number;
-    organisationOverrides?: { orgId: string; quotaBytes: string | null }[];
-  };
-  deletionRetention: {
-    organisationDays?: number | null;
-    accountAuditDays?: number | null;
-  };
-};
-export type updateInstallationConfigurationInput = {
-  limits?: Record<string, number>;
-  storage?: {
-    installationQuotaBytes?: string | null;
-    defaultOrganisationQuotaBytes?: string | null;
-    minimumFreeBytes?: string | null;
-    reportMaxAgeSeconds?: number;
-    organisationOverrides?: { orgId: string; quotaBytes: string | null }[];
-  };
-  deletionRetention?: {
-    organisationDays?: number | null;
-    accountAuditDays?: number | null;
-  };
-  smtp?: {
-    host: string;
-    port: number;
-    secure: boolean;
-    from: string;
-    user?: string;
-    password?: string;
-  };
-  objectStorage?: {
-    endpoint: string;
-    region: string;
-    bucket: string;
-    accessKeyId?: string;
-    secretAccessKey?: string;
-  };
-  approvalId?: string;
-};
-export type updateInstallationConfigurationOutput = {
-  baseUrl: string;
-  signupEnabled: false;
-  smtpConfigured: boolean;
-  objectStorageConfigured: boolean;
-  limits: Record<string, number>;
-  operatorRecoveryEnabled: boolean;
-  restartRequired?: boolean;
-  storage: {
-    installationQuotaBytes?: string | null;
-    defaultOrganisationQuotaBytes?: string | null;
-    minimumFreeBytes?: string | null;
-    reportMaxAgeSeconds?: number;
-    organisationOverrides?: { orgId: string; quotaBytes: string | null }[];
-  };
-  deletionRetention: {
-    organisationDays?: number | null;
-    accountAuditDays?: number | null;
-  };
-};
-export type testEmailInput = { recipient: string; approvalId?: string };
-export type testEmailOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
 };
 export interface CallOptions {
   signal?: AbortSignal;
@@ -5013,11 +4382,6 @@ const routes = {
     method: "POST",
     idempotencyRequired: true,
   },
-  listOrganisations: {
-    path: "/v1/orgs",
-    method: "GET",
-    idempotencyRequired: false,
-  },
   getOrganisation: {
     path: "/v1/orgs/{orgId}",
     method: "GET",
@@ -5026,16 +4390,6 @@ const routes = {
   updateOrganisation: {
     path: "/v1/orgs/{orgId}",
     method: "PATCH",
-    idempotencyRequired: true,
-  },
-  transferOwnership: {
-    path: "/v1/orgs/{orgId}/ownership-transfer",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  deleteOrganisation: {
-    path: "/v1/orgs/{orgId}",
-    method: "DELETE",
     idempotencyRequired: true,
   },
   listMembers: {
@@ -5068,21 +4422,6 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
-  getGrants: {
-    path: "/v1/orgs/{orgId}/grants",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  updateGrants: {
-    path: "/v1/orgs/{orgId}/grants",
-    method: "PATCH",
-    idempotencyRequired: true,
-  },
-  queryOrganisationAudit: {
-    path: "/v1/orgs/{orgId}/audit/query",
-    method: "POST",
-    idempotencyRequired: false,
-  },
   listPersonalKeys: {
     path: "/v1/me/keys",
     method: "GET",
@@ -5100,26 +4439,6 @@ const routes = {
   },
   revokePersonalKey: {
     path: "/v1/me/keys/{id}",
-    method: "DELETE",
-    idempotencyRequired: true,
-  },
-  listTeamKeys: {
-    path: "/v1/orgs/{orgId}/keys",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  createTeamKey: {
-    path: "/v1/orgs/{orgId}/keys",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  rotateTeamKey: {
-    path: "/v1/orgs/{orgId}/keys/{id}/rotate",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  revokeTeamKey: {
-    path: "/v1/orgs/{orgId}/keys/{id}",
     method: "DELETE",
     idempotencyRequired: true,
   },
@@ -5363,21 +4682,6 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
-  getBackupPolicy: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  setBackupPolicy: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
-    method: "PUT",
-    idempotencyRequired: true,
-  },
-  previewBackupSchedule: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy/preview",
-    method: "POST",
-    idempotencyRequired: false,
-  },
   listBackups: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
     method: "GET",
@@ -5447,21 +4751,6 @@ const routes = {
     path: "/v1/installation/status",
     method: "GET",
     idempotencyRequired: false,
-  },
-  getInstallationConfiguration: {
-    path: "/v1/installation/configuration",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  updateInstallationConfiguration: {
-    path: "/v1/installation/configuration",
-    method: "PATCH",
-    idempotencyRequired: true,
-  },
-  testEmail: {
-    path: "/v1/installation/email-test",
-    method: "POST",
-    idempotencyRequired: true,
   },
 } as const;
 export class RootsetClient {
@@ -5663,16 +4952,6 @@ export class RootsetClient {
       options,
     ) as Promise<completeAccountActionOutput>;
   }
-  listOrganisations(
-    input: listOrganisationsInput,
-    options?: CallOptions,
-  ): Promise<listOrganisationsOutput> {
-    return this.call(
-      "listOrganisations",
-      input,
-      options,
-    ) as Promise<listOrganisationsOutput>;
-  }
   getOrganisation(
     input: getOrganisationInput,
     options?: CallOptions,
@@ -5692,26 +4971,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<updateOrganisationOutput>;
-  }
-  transferOwnership(
-    input: transferOwnershipInput,
-    options?: CallOptions,
-  ): Promise<transferOwnershipOutput> {
-    return this.call(
-      "transferOwnership",
-      input,
-      options,
-    ) as Promise<transferOwnershipOutput>;
-  }
-  deleteOrganisation(
-    input: deleteOrganisationInput,
-    options?: CallOptions,
-  ): Promise<deleteOrganisationOutput> {
-    return this.call(
-      "deleteOrganisation",
-      input,
-      options,
-    ) as Promise<deleteOrganisationOutput>;
   }
   listMembers(
     input: listMembersInput,
@@ -5773,32 +5032,6 @@ export class RootsetClient {
       options,
     ) as Promise<cancelInvitationOutput>;
   }
-  getGrants(
-    input: getGrantsInput,
-    options?: CallOptions,
-  ): Promise<getGrantsOutput> {
-    return this.call("getGrants", input, options) as Promise<getGrantsOutput>;
-  }
-  updateGrants(
-    input: updateGrantsInput,
-    options?: CallOptions,
-  ): Promise<updateGrantsOutput> {
-    return this.call(
-      "updateGrants",
-      input,
-      options,
-    ) as Promise<updateGrantsOutput>;
-  }
-  queryOrganisationAudit(
-    input: queryOrganisationAuditInput,
-    options?: CallOptions,
-  ): Promise<queryOrganisationAuditOutput> {
-    return this.call(
-      "queryOrganisationAudit",
-      input,
-      options,
-    ) as Promise<queryOrganisationAuditOutput>;
-  }
   listPersonalKeys(
     input: listPersonalKeysInput,
     options?: CallOptions,
@@ -5838,46 +5071,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<revokePersonalKeyOutput>;
-  }
-  listTeamKeys(
-    input: listTeamKeysInput,
-    options?: CallOptions,
-  ): Promise<listTeamKeysOutput> {
-    return this.call(
-      "listTeamKeys",
-      input,
-      options,
-    ) as Promise<listTeamKeysOutput>;
-  }
-  createTeamKey(
-    input: createTeamKeyInput,
-    options?: CallOptions,
-  ): Promise<createTeamKeyOutput> {
-    return this.call(
-      "createTeamKey",
-      input,
-      options,
-    ) as Promise<createTeamKeyOutput>;
-  }
-  rotateTeamKey(
-    input: rotateTeamKeyInput,
-    options?: CallOptions,
-  ): Promise<rotateTeamKeyOutput> {
-    return this.call(
-      "rotateTeamKey",
-      input,
-      options,
-    ) as Promise<rotateTeamKeyOutput>;
-  }
-  revokeTeamKey(
-    input: revokeTeamKeyInput,
-    options?: CallOptions,
-  ): Promise<revokeTeamKeyOutput> {
-    return this.call(
-      "revokeTeamKey",
-      input,
-      options,
-    ) as Promise<revokeTeamKeyOutput>;
   }
   getSecurityStatus(
     input: getSecurityStatusInput,
@@ -6304,36 +5497,6 @@ export class RootsetClient {
       options,
     ) as Promise<getHistoryArchiveOutput>;
   }
-  getBackupPolicy(
-    input: getBackupPolicyInput,
-    options?: CallOptions,
-  ): Promise<getBackupPolicyOutput> {
-    return this.call(
-      "getBackupPolicy",
-      input,
-      options,
-    ) as Promise<getBackupPolicyOutput>;
-  }
-  setBackupPolicy(
-    input: setBackupPolicyInput,
-    options?: CallOptions,
-  ): Promise<setBackupPolicyOutput> {
-    return this.call(
-      "setBackupPolicy",
-      input,
-      options,
-    ) as Promise<setBackupPolicyOutput>;
-  }
-  previewBackupSchedule(
-    input: previewBackupScheduleInput,
-    options?: CallOptions,
-  ): Promise<previewBackupScheduleOutput> {
-    return this.call(
-      "previewBackupSchedule",
-      input,
-      options,
-    ) as Promise<previewBackupScheduleOutput>;
-  }
   listBackups(
     input: listBackupsInput,
     options?: CallOptions,
@@ -6446,31 +5609,5 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<getInstallationStatusOutput>;
-  }
-  getInstallationConfiguration(
-    input: getInstallationConfigurationInput,
-    options?: CallOptions,
-  ): Promise<getInstallationConfigurationOutput> {
-    return this.call(
-      "getInstallationConfiguration",
-      input,
-      options,
-    ) as Promise<getInstallationConfigurationOutput>;
-  }
-  updateInstallationConfiguration(
-    input: updateInstallationConfigurationInput,
-    options?: CallOptions,
-  ): Promise<updateInstallationConfigurationOutput> {
-    return this.call(
-      "updateInstallationConfiguration",
-      input,
-      options,
-    ) as Promise<updateInstallationConfigurationOutput>;
-  }
-  testEmail(
-    input: testEmailInput,
-    options?: CallOptions,
-  ): Promise<testEmailOutput> {
-    return this.call("testEmail", input, options) as Promise<testEmailOutput>;
   }
 }

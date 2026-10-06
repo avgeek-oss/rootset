@@ -2,16 +2,14 @@ import type { FieldDefinition, JsonValue } from "@rootset/contracts";
 
 export const cellBrowserFields: Omit<FieldDefinition, "id">[] = [
   {
-    apiKey: "NAME",
-    label: "Name",
+    name: "NAME",
     type: "text",
     required: true,
     charLimit: 24,
     order: 0,
   },
   {
-    apiKey: "INTEGER",
-    label: "Integer",
+    name: "INTEGER",
     type: "integer",
     required: true,
     min: 0,
@@ -19,32 +17,29 @@ export const cellBrowserFields: Omit<FieldDefinition, "id">[] = [
     order: 1,
   },
   {
-    apiKey: "FLOAT",
-    label: "Float",
+    name: "FLOAT",
     type: "float",
     min: -100,
     max: 100,
     order: 2,
   },
-  { apiKey: "BOOLEAN", label: "Boolean", type: "boolean", order: 3 },
+  { name: "BOOLEAN", type: "boolean", order: 3 },
   {
-    apiKey: "DATE",
-    label: "Date",
+    name: "DATE",
     type: "date",
     min: "2020-01-01",
     max: "2030-12-31",
     order: 4,
   },
-  { apiKey: "TIME", label: "Time", type: "time", order: 5 },
+  { name: "TIME", type: "time", order: 5 },
   {
-    apiKey: "DATETIME",
-    label: "Date-time",
+    name: "DATETIME",
     type: "date-time",
     min: "2020-01-01T00:00:00.000Z",
     max: "2030-12-31T23:59:59.999Z",
     order: 6,
   },
-  { apiKey: "JSON", label: "JSON", type: "json", order: 7 },
+  { name: "JSON", type: "json", order: 7 },
 ];
 
 export const cellBrowserValues: Record<string, JsonValue> = {

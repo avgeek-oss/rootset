@@ -44,10 +44,7 @@ try {
     },
   });
   expect(signed.ok()).toBe(true);
-  await context.request.post("/v1/auth/organisation", {
-    headers: { Origin: baseURL },
-    data: { orgId: fixture.orgId },
-  });
+  await context.request.get("/api/internal/v1/context");
   await page.goto(baseURL);
   await expect(page.locator(".rootset-shell")).toBeVisible();
   const result = await page.evaluate(
@@ -149,7 +146,7 @@ try {
       },
       body: JSON.stringify({
         name: `Request budget verification ${crypto.randomUUID().slice(0, 8)}`,
-        fields: [{ label: "Payload", apiKey: "PAYLOAD", type: "json" }],
+        fields: [{ name: "PAYLOAD", type: "json" }],
       }),
     });
     if (!created.ok)

@@ -14,6 +14,7 @@ import {
   type Actor,
   type JsonValue,
 } from "@rootset/contracts";
+import { assertAccess } from "@rootset/access";
 import { withOrg, type PoolClient } from "@rootset/database";
 import {
   jobsMutationSet,
@@ -54,20 +55,11 @@ export * from "./backups.js";
 export * from "./imports.js";
 export * from "./archives.js";
 
-const importOperations = new Set([
-  "prepareImportUpload",
-  "validateImport",
-  "importRows",
-]);
-const maintenancePrincipal = "00000000000000000000000001";
 const scopes: Record<string, string[]> = {
   prepareImportUpload: ["imports:write"],
   validateImport: ["imports:write"],
   importRows: ["imports:write", "rows:write"],
   exportRows: ["exports:read", "rows:read"],
-  getBackupPolicy: ["backups:read"],
-  setBackupPolicy: ["backups:manage"],
-  previewBackupSchedule: ["backups:read"],
   listBackups: ["backups:read"],
   getBackup: ["backups:read"],
   createBackup: ["backups:manage"],
@@ -158,24 +150,6 @@ function jobView(job: JobRecord): Record<string, unknown> {
     attempt: job.attempt,
   };
 }
-interface PolicyRow {
-  id: string;
-  org_id: string;
-  database_id: string;
-  actor: Actor;
-  enabled: boolean;
-  cron: string;
-  timezone: string;
-  destination: string;
-  retention_days: number;
-  retention_count: number;
-  max_runtime_seconds: number;
-  encryption: boolean;
-  notifications: boolean;
-  next_occurrence: Date | null;
-  suspension_code: string | null;
-  suspended_at: Date | null;
-}
 interface HistoryPolicyRow {
   id: string;
   org_id: string;
@@ -215,27 +189,6 @@ function historyPolicyView(row: HistoryPolicyRow | null) {
         retentionDays: 365,
         maxRuntimeSeconds: 3600,
       };
-}
-function policyView(row: PolicyRow) {
-  return {
-    enabled: row.enabled,
-    cron: row.cron,
-    timezone: row.timezone,
-    destination: row.destination,
-    retentionDays: row.retention_days,
-    retentionCount: row.retention_count,
-    encryption: row.encryption,
-    maxRuntimeSeconds: row.max_runtime_seconds,
-    notifications: row.notifications,
-    ...(row.suspension_code
-      ? {
-          suspension: {
-            code: row.suspension_code,
-            at: row.suspended_at!.toISOString(),
-          },
-        }
-      : {}),
-  };
 }
 
 export class JobsService {
@@ -334,127 +287,50 @@ export class JobsService {
       actor = current ?? actor;
       if (!inputTarget.repair) return actor;
     }
-    if (
-      inputTarget.repair &&
-      (!actor.operator ||
-        !actor.userId ||
-        actor.kind === "team_key" ||
-        actor.role === "viewer")
-    )
+    const required = [
+      ...(scopes[operationId] ?? []),
+      ...(inputTarget.repair ? ["rows:write", "installation:manage"] : []),
+    ];
+    for (const scope of required)
+      assertAccess(actor, {
+        scope,
+        orgId: actor.orgId,
+        personal: Boolean(inputTarget.repair),
+      });
+    if (inputTarget.repair && actor.role !== "admin")
       throw new RootsetError(
         "ACCESS_DENIED",
-        "Operator repair requires a current personal operator with edit authority",
+        "Repair requires a current Admin identity",
         403,
       );
-    if (
-      [
-        ...(scopes[operationId] ?? []),
-        ...(inputTarget.repair ? ["rows:write", "installation:manage"] : []),
-      ].some(
-        (scope) => !actor.scopes.includes(scope) && !actor.scopes.includes("*"),
-      )
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "The credential lacks the required operation scope",
-        403,
-      );
-    if (
-      (/Backup|Restore/.test(operationId) ||
-        ["setHistoryRetentionPolicy", "archiveHistory"].includes(
-          operationId,
-        )) &&
-      !["owner", "admin"].includes(actor.role)
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Backup administration requires an Owner or Admin",
-        403,
-      );
-    const historyArchive =
-      operationId === "getHistoryArchive" ||
-      operationId === "listHistoryArchives";
-    let historyDatabaseId: string | undefined;
-    if (historyArchive && inputTarget.tableId) {
-      const table = await this.storage.getArchivedTable(
-        actor,
-        inputTarget.tableId,
-      );
-      const database = await this.storage.getArchivedDatabase(
-        actor,
-        table.databaseId,
-      );
-      if (
-        (inputTarget.databaseId &&
-          inputTarget.databaseId !== table.databaseId) ||
-        !["active", "maintenance", "deleted"].includes(table.state) ||
-        !["active", "deleted"].includes(database.state)
-      )
+    if (inputTarget.tableId) {
+      const archived =
+        operationId === "getHistoryArchive" ||
+        operationId === "listHistoryArchives";
+      const table = await (archived
+        ? this.storage.getArchivedTable(actor, inputTarget.tableId)
+        : this.storage.getTable(actor, inputTarget.tableId));
+      if (inputTarget.databaseId && inputTarget.databaseId !== table.databaseId)
         throw new RootsetError(
           "RESOURCE_NOT_FOUND",
-          "Retained history was not found",
+          "Resource was not found",
           404,
         );
-      historyDatabaseId = table.databaseId;
-      const explicitManage = actor.targets.some(
-        (grant) =>
-          grant.level === "manage" &&
-          (!grant.databaseId || grant.databaseId === table.databaseId) &&
-          (!grant.tableId || grant.tableId === table.id),
-      );
-      // Standalone Jobs uses the same retained-history target/role condition as
-      // Core.authorise; the configured current-actor callback takes precedence.
+      const database = await (archived
+        ? this.storage.getArchivedDatabase(actor, table.databaseId)
+        : this.storage.getDatabase(actor, table.databaseId));
       if (
+        archived &&
         (table.state === "deleted" || database.state === "deleted") &&
-        (!(actor.unrestricted || explicitManage) ||
-          (!["owner", "admin"].includes(actor.role) && !explicitManage))
+        actor.role !== "admin"
       )
         throw new RootsetError(
           "RESOURCE_NOT_FOUND",
           "Retained history was not found",
           404,
         );
-    }
-    if (
-      !actor.unrestricted &&
-      (!actor.operator || inputTarget.repair) &&
-      (inputTarget.databaseId || inputTarget.tableId)
-    ) {
-      const dbId =
-        inputTarget.databaseId ??
-        historyDatabaseId ??
-        (inputTarget.tableId
-          ? (await this.storage.getTable(actor, inputTarget.tableId)).databaseId
-          : undefined);
-      const needManage =
-        (/Backup|Restore/.test(operationId) ||
-          ["setHistoryRetentionPolicy", "archiveHistory"].includes(
-            operationId,
-          )) &&
-        !(
-          operationId.startsWith("get") ||
-          operationId.startsWith("list") ||
-          operationId.startsWith("preview")
-        );
-      const needEdit =
-        importOperations.has(operationId) || Boolean(inputTarget.repair);
-      if (
-        !actor.targets.some(
-          (grant) =>
-            (historyArchive
-              ? !grant.databaseId || grant.databaseId === dbId
-              : grant.databaseId === dbId) &&
-            (!grant.tableId || grant.tableId === inputTarget.tableId) &&
-            (!needManage || grant.level === "manage") &&
-            (!needEdit || grant.level !== "read"),
-        )
-      )
-        throw new RootsetError(
-          "ACCESS_DENIED",
-          "The credential has no applicable resource grant",
-          403,
-        );
-    }
+    } else if (inputTarget.databaseId)
+      await this.storage.getDatabase(actor, inputTarget.databaseId);
     return actor;
   }
 
@@ -975,26 +851,6 @@ export class JobsService {
           String(input.tableId),
           String(input.id),
         );
-      case "getBackupPolicy":
-        return { policy: await this.policy(actor, String(input.databaseId)) };
-      case "setBackupPolicy":
-        return this.setPolicy(actor, input, context.client);
-      case "previewBackupSchedule": {
-        const policy = await this.policy(actor, String(input.databaseId));
-        const cron = String(input.cron ?? policy?.cron ?? "0 0 * * *");
-        const timezone = String(input.timezone ?? policy?.timezone ?? "UTC");
-        return {
-          occurrences: previewSchedule(
-            cron,
-            timezone,
-            typeof input.from === "string" ? new Date(input.from) : new Date(),
-            Number(input.count ?? 5),
-          ),
-          timezone,
-          repeatedTimePolicy: "earlier",
-          nonexistentTimePolicy: "skip",
-        };
-      }
       case "listBackups":
         return this.listBackups(actor, String(input.databaseId), input);
       case "getBackup":
@@ -1005,7 +861,6 @@ export class JobsService {
         );
       case "createBackup": {
         await this.storage.getDatabase(actor, String(input.databaseId));
-        const policy = await this.policy(actor, String(input.databaseId));
         const job = await this.queue.enqueue(
           actor,
           operationId,
@@ -1013,14 +868,14 @@ export class JobsService {
           { type: "database", id: String(input.databaseId) },
           {
             ...input,
-            maxRuntimeSeconds: policy?.maxRuntimeSeconds ?? 3600,
+            maxRuntimeSeconds: 3600,
             ...(context.requestId
               ? { operationContext: { requestId: context.requestId } }
               : {}),
           },
           this.requireKey(idempotencyKey),
           context.client,
-          { manualBackupPolicyRuntime: true },
+          { manualBackupRuntime: true },
         );
         await this.backups.ensureRecord(
           actor,
@@ -1233,7 +1088,7 @@ export class JobsService {
     if (!job)
       throw new RootsetError("RESOURCE_NOT_FOUND", "Job not found", 404);
     if (
-      !["owner", "admin"].includes(actor.role) &&
+      !["admin"].includes(actor.role) &&
       job.requester_id !== `${actor.kind}:${actor.id}` &&
       (!actor.userId || actor.userId !== job.actor.userId)
     )
@@ -1322,7 +1177,7 @@ export class JobsService {
         : { databaseId: artifact.target_id },
     );
     if (
-      !["owner", "admin"].includes(actor.role) &&
+      !["admin"].includes(actor.role) &&
       artifact.purpose !== "history-archive" &&
       artifact.requester_id !== `${actor.kind}:${actor.id}`
     ) {
@@ -1688,242 +1543,11 @@ export class JobsService {
     return this.authoriseHistoryPolicy(policy.actor, policy.table_id);
   }
 
-  private async policy(actor: Actor, databaseId: string) {
-    await this.storage.getDatabase(actor, databaseId);
-    const row = await withOrg(
-      this.queue.pool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<PolicyRow>(
-            "SELECT * FROM rootset_control.backup_policies WHERE database_id=$1",
-            [databaseId],
-          )
-        ).rows[0],
-    );
-    return row ? policyView(row) : null;
-  }
-
-  private async setPolicy(
-    actor: Actor,
-    input: Record<string, unknown>,
-    client?: PoolClient,
-  ) {
-    const dbId = String(input.databaseId);
-    await this.storage.getDatabase(actor, dbId);
-    const cron = String(input.cron);
-    const timezone = String(input.timezone ?? "UTC");
-    validateSchedule(cron, timezone);
-    const retentionDays = Number(input.retentionDays);
-    const retentionCount = Number(input.retentionCount);
-    const runtime = Number(input.maxRuntimeSeconds);
-    if (
-      input.destination !== "installation" ||
-      input.encryption !== true ||
-      !Number.isInteger(retentionDays) ||
-      retentionDays < 1 ||
-      retentionDays > 3650 ||
-      !Number.isInteger(retentionCount) ||
-      retentionCount < 1 ||
-      retentionCount > 1000 ||
-      !Number.isInteger(runtime) ||
-      runtime < 30 ||
-      runtime > 86400
-    )
-      throw new RootsetError(
-        "VALIDATION_FAILED",
-        "Backup policy limits, destination or encryption are invalid",
-      );
-    const next = input.enabled
-      ? (previewSchedule(cron, timezone, new Date(), 1)[0] ?? null)
-      : null;
-    const run = async (client: PoolClient) =>
-      (
-        await client.query<PolicyRow>(
-          `INSERT INTO rootset_control.backup_policies
-      (id,org_id,database_id,actor,enabled,cron,timezone,destination,retention_days,retention_count,max_runtime_seconds,encryption,notifications,next_occurrence)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,$12,$13) ON CONFLICT(database_id) DO UPDATE SET actor=excluded.actor,enabled=excluded.enabled,cron=excluded.cron,
-        timezone=excluded.timezone,destination=excluded.destination,retention_days=excluded.retention_days,retention_count=excluded.retention_count,max_runtime_seconds=excluded.max_runtime_seconds,
-        notifications=excluded.notifications,next_occurrence=excluded.next_occurrence,suspension_code=NULL,suspended_at=NULL,updated_at=now() RETURNING *`,
-          [
-            newId(),
-            actor.orgId,
-            dbId,
-            actor,
-            input.enabled === true,
-            cron,
-            timezone,
-            "installation",
-            retentionDays,
-            retentionCount,
-            runtime,
-            input.notifications !== false,
-            next,
-          ],
-        )
-      ).rows[0]!;
-    const row = client
-      ? await run(client)
-      : await withOrg(this.queue.pool, actor.orgId, run);
-    return policyView(row);
-  }
-
-  async scheduleDue(orgId: string, now = new Date()): Promise<number> {
-    return withOrg(this.queue.workerPool, orgId, async (client) => {
-      const policies = (
-        await client.query<PolicyRow>(
-          "SELECT * FROM rootset_control.backup_policies WHERE enabled AND next_occurrence<=$1 FOR UPDATE SKIP LOCKED LIMIT 10",
-          [now],
-        )
-      ).rows;
-      let enqueued = 0;
-      for (const policy of policies) {
-        let currentActor: Actor;
-        try {
-          currentActor = await this.authorisePolicy(
-            policy.actor,
-            policy.database_id,
-          );
-        } catch (error) {
-          if (
-            !(error instanceof RootsetError) ||
-            ![
-              "UNAUTHENTICATED",
-              "ACCESS_DENIED",
-              "RESOURCE_NOT_FOUND",
-            ].includes(error.code)
-          )
-            throw error;
-          await client.query(
-            "UPDATE rootset_control.backup_policies SET enabled=false,next_occurrence=NULL,suspension_code=$2,suspended_at=now(),updated_at=now() WHERE id=$1",
-            [policy.id, error.code],
-          );
-          continue;
-        }
-        const occurrence = policy.next_occurrence!;
-        const duplicate = await client.query(
-          "SELECT 1 FROM rootset_control.backup_occurrences WHERE policy_id=$1 AND scheduled_at=$2",
-          [policy.id, occurrence],
-        );
-        if (!duplicate.rowCount) {
-          const running = await client.query(
-            "SELECT 1 FROM rootset_control.jobs WHERE target_type='database' AND target_id=$1 AND kind='backup' AND state IN ('queued','running') LIMIT 1",
-            [policy.database_id],
-          );
-          const job = running.rowCount
-            ? null
-            : await this.queue.enqueue(
-                currentActor,
-                "createBackup",
-                "backup",
-                { type: "database", id: policy.database_id },
-                {
-                  databaseId: policy.database_id,
-                  policyId: policy.id,
-                  scheduledAt: occurrence.toISOString(),
-                  maxRuntimeSeconds: policy.max_runtime_seconds,
-                },
-                `schedule:${policy.id}:${occurrence.toISOString()}`,
-                client,
-              );
-          await client.query(
-            "INSERT INTO rootset_control.backup_occurrences(policy_id,scheduled_at,state,job_id) VALUES($1,$2,$3,$4)",
-            [
-              policy.id,
-              occurrence,
-              job ? "enqueued" : "skipped_overlap",
-              job?.id ?? null,
-            ],
-          );
-          if (job) enqueued++;
-        }
-        const next =
-          previewSchedule(policy.cron, policy.timezone, occurrence, 1)[0] ??
-          null;
-        await client.query(
-          "UPDATE rootset_control.backup_policies SET next_occurrence=$2 WHERE id=$1",
-          [policy.id, next],
-        );
-      }
-      return enqueued;
-    });
-  }
-
-  private authorisePolicy(actor: Actor, databaseId: string): Promise<Actor> {
-    return this.config.authorisePolicy
-      ? this.config.authorisePolicy(actor, { databaseId })
-      : this.authorise(actor, "createBackup", { databaseId });
-  }
-
-  private async scheduledActor(job: JobRecord): Promise<Actor> {
-    const policy = await withOrg(
-      this.queue.workerPool,
-      job.org_id,
-      async (client) =>
-        (
-          await client.query<PolicyRow>(
-            `SELECT p.* FROM rootset_control.backup_policies p JOIN rootset_control.backup_occurrences o ON o.policy_id=p.id
-      WHERE p.id=$1 AND p.database_id=$2 AND o.job_id=$3 AND o.scheduled_at=$4::timestamptz AND o.state='enqueued'`,
-            [job.input.policyId, job.target_id, job.id, job.input.scheduledAt],
-          )
-        ).rows[0],
-    );
-    if (!policy)
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Scheduled backup does not have a valid persisted policy occurrence",
-        403,
-      );
-    return this.authorisePolicy(policy.actor, policy.database_id);
-  }
-
   private async jobActor(job: JobRecord): Promise<Actor> {
-    if (
-      ["organisation_retention", "account_audit_retention"].includes(job.kind)
-    ) {
-      await this.assertMaintenance(job);
-      return job.actor;
-    }
-    if (
-      job.kind === "delete_backup" &&
-      typeof job.input.retentionPolicyId === "string"
-    ) {
-      const policy = await withOrg(
-        this.queue.workerPool,
-        job.org_id,
-        async (client) =>
-          (
-            await client.query<{ actor: Actor }>(
-              "SELECT p.actor FROM rootset_control.backup_policies p JOIN rootset_control.backups b ON b.database_id=p.database_id WHERE p.id=$1 AND p.database_id=$2 AND b.job_id=$3 AND b.state='succeeded'",
-              [
-                job.input.retentionPolicyId,
-                job.target_id,
-                job.input.retentionFor,
-              ],
-            )
-          ).rows[0],
-      );
-      if (
-        !policy ||
-        policy.actor.id !== job.actor.id ||
-        policy.actor.kind !== job.actor.kind ||
-        !this.config.authorisePolicy
-      )
-        throw new RootsetError(
-          "ACCESS_DENIED",
-          "Backup retention authority is no longer available",
-          403,
-        );
-      return this.config.authorisePolicy(policy.actor, {
-        databaseId: job.target_id,
-      });
-    }
     const actor =
       job.kind === "history_archive" && typeof job.input.policyId === "string"
         ? await this.scheduledHistoryActor(job)
-        : job.kind === "backup" && typeof job.input.policyId === "string"
-          ? await this.scheduledActor(job)
-          : await this.authorise(job.actor, job.operation_id, target(job));
+        : await this.authorise(job.actor, job.operation_id, target(job));
     if (job.kind === "restore" && job.input.mode === "replace")
       await this.authorise(actor, "restoreBackup", {
         databaseId: String(job.input.targetDatabaseId ?? job.target_id),
@@ -2317,55 +1941,6 @@ export class JobsService {
     return result;
   }
 
-  async applyRetention(
-    actor: Actor,
-    databaseId: string,
-    parentJob?: JobRecord,
-  ): Promise<number> {
-    const policy = await this.policy(actor, databaseId);
-    if (!policy) return 0;
-    const verified = await withOrg(
-      this.queue.workerPool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<{ id: string; verified_at: Date }>(
-            "SELECT id,verified_at FROM rootset_control.backups WHERE database_id=$1 AND state='succeeded' ORDER BY verified_at DESC,id DESC",
-            [databaseId],
-          )
-        ).rows,
-    );
-    let admitted = 0;
-    for (const [position, backup] of verified.entries()) {
-      if (
-        position === 0 ||
-        (position < policy.retentionCount &&
-          backup.verified_at.getTime() >
-            Date.now() - policy.retentionDays * 86400000)
-      )
-        continue;
-      await this.queue.enqueue(
-        actor,
-        "deleteBackup",
-        "delete_backup",
-        { type: "database", id: databaseId },
-        {
-          databaseId,
-          id: backup.id,
-          ...(parentJob && typeof parentJob.input.policyId === "string"
-            ? {
-                retentionPolicyId: parentJob.input.policyId,
-                retentionFor: parentJob.id,
-              }
-            : {}),
-        },
-        `retention:${parentJob?.id ?? databaseId}:${backup.id}`,
-      );
-      admitted++;
-    }
-    return admitted;
-  }
-
   async cleanupArtifacts(orgId: string): Promise<number> {
     await this.artifacts.cleanupTemporaryFiles();
     await withOrg(this.queue.workerPool, orgId, async (client) => {
@@ -2439,9 +2014,6 @@ export class JobsService {
       orgId,
       role: "admin",
       scopes: ["*"],
-      targets: [],
-      operator: true,
-      unrestricted: true,
     };
     let removed = 0;
     for (const artifact of records) {
@@ -2483,328 +2055,6 @@ export class JobsService {
       }
     }
     return removed;
-  }
-
-  private async deletionPolicy() {
-    const configured =
-      typeof this.config.deletionRetention === "function"
-        ? await this.config.deletionRetention()
-        : this.config.deletionRetention;
-    const policy = configured ?? {
-      organisationDays: null,
-      accountAuditDays: null,
-    };
-    for (const value of [policy.organisationDays, policy.accountAuditDays])
-      if (
-        value !== null &&
-        (!Number.isInteger(value) || value < 1 || value > 36500)
-      )
-        throw new RootsetError(
-          "CONFIGURATION_INVALID",
-          "Deletion retention must be indefinite or between 1 and 36500 days",
-          500,
-        );
-    return policy;
-  }
-
-  async scheduleMaintenance(orgId: string, now = new Date()): Promise<number> {
-    const policy = await this.deletionPolicy();
-    if (policy.organisationDays === null && policy.accountAuditDays === null)
-      return 0;
-    const actor: Actor = {
-      kind: "operator",
-      id: maintenancePrincipal,
-      orgId,
-      role: "admin",
-      scopes: ["*"],
-      targets: [],
-      operator: true,
-      unrestricted: true,
-    };
-    const day = now.toISOString().slice(0, 10);
-    let count = 0;
-    if (policy.organisationDays !== null) {
-      if (!this.config.deletionMetadata)
-        throw new RootsetError(
-          "CONFIGURATION_INVALID",
-          "Organisation deletion retention metadata is not configured",
-          500,
-        );
-      const metadata = await this.config.deletionMetadata(orgId);
-      const active = await withOrg(
-        this.queue.workerPool,
-        orgId,
-        async (client) =>
-          (
-            await client.query(
-              "SELECT 1 FROM rootset_control.jobs WHERE kind='organisation_retention' AND state IN ('queued','running') LIMIT 1",
-            )
-          ).rowCount,
-      );
-      if (
-        !active &&
-        metadata.organisationDeletedAt &&
-        new Date(metadata.organisationDeletedAt).getTime() +
-          policy.organisationDays * 86400000 <=
-          now.getTime()
-      ) {
-        await this.queue.enqueue(
-          actor,
-          "lifecycleRetention",
-          "organisation_retention",
-          { type: "organisation", id: orgId },
-          {
-            deletedAt: metadata.organisationDeletedAt,
-            retentionDays: policy.organisationDays,
-            maxRuntimeSeconds: 86400,
-          },
-          `organisation-retention:${metadata.organisationDeletedAt}:${policy.organisationDays}:${day}`,
-        );
-        count++;
-      }
-    }
-    if (policy.accountAuditDays !== null) {
-      const active = await withOrg(
-        this.queue.workerPool,
-        orgId,
-        async (client) =>
-          (
-            await client.query(
-              "SELECT 1 FROM rootset_control.jobs WHERE kind='account_audit_retention' AND state IN ('queued','running') LIMIT 1",
-            )
-          ).rowCount,
-      );
-      if (active) return count;
-      await this.queue.enqueue(
-        actor,
-        "accountAuditRetention",
-        "account_audit_retention",
-        { type: "organisation", id: orgId },
-        {
-          before: new Date(
-            now.getTime() - policy.accountAuditDays * 86400000,
-          ).toISOString(),
-          retentionDays: policy.accountAuditDays,
-          maxRuntimeSeconds: 3600,
-        },
-        `account-audit-retention:${policy.accountAuditDays}:${day}`,
-      );
-      count++;
-    }
-    return count;
-  }
-
-  private async assertMaintenance(job: JobRecord) {
-    if (
-      job.actor.kind !== "operator" ||
-      job.actor.id !== maintenancePrincipal ||
-      job.target_type !== "organisation" ||
-      job.target_id !== job.org_id ||
-      !["organisation_retention", "account_audit_retention"].includes(
-        job.kind,
-      ) ||
-      job.operation_id !==
-        (job.kind === "organisation_retention"
-          ? "lifecycleRetention"
-          : "accountAuditRetention")
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Invalid durable lifecycle maintenance authority",
-        403,
-      );
-    const policy = await this.deletionPolicy();
-    if (job.kind === "organisation_retention") {
-      const metadata = await this.config.deletionMetadata?.(job.org_id);
-      if (
-        policy.organisationDays === null ||
-        !metadata?.organisationDeletedAt ||
-        metadata.organisationDeletedAt !== job.input.deletedAt ||
-        new Date(metadata.organisationDeletedAt).getTime() +
-          policy.organisationDays * 86400000 >
-          Date.now()
-      )
-        throw new RootsetError(
-          "ACCESS_DENIED",
-          "Organisation retention is not enabled or its deletion grace period has not elapsed",
-          403,
-        );
-    } else if (
-      policy.accountAuditDays === null ||
-      new Date(String(job.input.before)).getTime() >
-        Date.now() - policy.accountAuditDays * 86400000 ||
-      !this.config.purgeAccountAudit
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Account audit retention is not enabled or its cutoff is no longer permitted",
-        403,
-      );
-  }
-
-  private async runMaintenance(job: JobRecord): Promise<JsonValue> {
-    await this.assertMaintenance(job);
-    if (job.kind === "account_audit_retention") {
-      for (;;) {
-        await this.assertMaintenance(job);
-        const removed = await this.queue.fenced(job, async (client) => {
-          const count = await this.config.purgeAccountAudit!(
-            job.org_id,
-            String(job.input.before),
-            client,
-          );
-          const checkpoint = {
-            ...job.checkpoint,
-            deletedAuditRecords:
-              Number(job.checkpoint.deletedAuditRecords ?? 0) + count,
-          };
-          await client.query(
-            "UPDATE rootset_control.jobs SET checkpoint=$2,progress=$3,stage='purging_account_audit',updated_at=now() WHERE id=$1",
-            [
-              job.id,
-              checkpoint,
-              { completed: checkpoint.deletedAuditRecords, unit: "events" },
-            ],
-          );
-          job.checkpoint = checkpoint;
-          return count;
-        });
-        await this.config.failpoint?.("retention.afterAuditBatch", job.id);
-        if (removed < 1000) break;
-      }
-      return {
-        deletedAuditRecords: Number(job.checkpoint.deletedAuditRecords ?? 0),
-        retainedDeletionMarkers: true,
-        retainedTombstones: true,
-      };
-    }
-    const otherJobs = await withOrg(
-      this.queue.workerPool,
-      job.org_id,
-      async (client) =>
-        (
-          await client.query(
-            "SELECT 1 FROM rootset_control.jobs WHERE id<>$1 AND state IN ('queued','running') AND kind NOT IN ('organisation_retention','account_audit_retention') LIMIT 1",
-            [job.id],
-          )
-        ).rowCount,
-    );
-    if (otherJobs)
-      throw new RootsetError(
-        "UPSTREAM_UNAVAILABLE",
-        "Organisation retention is waiting for its earlier jobs to settle",
-        503,
-      );
-    for (;;) {
-      await this.assertMaintenance(job);
-      const artifacts = await this.queue.fenced(
-        job,
-        async (client) =>
-          (
-            await client.query<ArtifactRecord>(
-              "SELECT * FROM rootset_control.artifacts WHERE state<>'deleted' ORDER BY id LIMIT 20 FOR UPDATE",
-              [],
-            )
-          ).rows,
-      );
-      if (!artifacts.length) break;
-      for (const artifact of artifacts) {
-        if (
-          artifact.org_id !== job.org_id ||
-          !artifact.object_key.startsWith(`rootset/${job.org_id}/`)
-        )
-          throw new RootsetError(
-            "ACCESS_DENIED",
-            "Lifecycle retention refused an object outside its owned organisation namespace",
-            403,
-          );
-        await this.queue.fenced(job, async (client) => {
-          await client.query(
-            "UPDATE rootset_control.artifacts SET state='deleting',updated_at=now() WHERE id=$1",
-            [artifact.id],
-          );
-        });
-        await this.artifacts.client.send(
-          new DeleteObjectCommand({
-            Bucket: this.config.artifacts.bucket,
-            Key: artifact.object_key,
-          }),
-        );
-        await this.queue.fenced(job, async (client) => {
-          await client.query(
-            "UPDATE rootset_control.artifacts SET state='deleted',updated_at=now() WHERE id=$1",
-            [artifact.id],
-          );
-          const checkpoint = {
-            ...job.checkpoint,
-            deletedArtifacts: Number(job.checkpoint.deletedArtifacts ?? 0) + 1,
-          };
-          await client.query(
-            "UPDATE rootset_control.jobs SET checkpoint=$2,stage='purging_deleted_organisation',updated_at=now() WHERE id=$1",
-            [job.id, checkpoint],
-          );
-          job.checkpoint = checkpoint;
-        });
-        await this.config.failpoint?.("retention.afterArtifactDelete", job.id);
-      }
-    }
-    for (const relation of [
-      "cell_changes",
-      "row_events",
-      "resource_history",
-      "history_gaps",
-      "mutations",
-      "schema_operations",
-    ])
-      for (;;) {
-        await this.assertMaintenance(job);
-        const removed = await this.queue.fenced(job, async (client) => {
-          const count =
-            (
-              await client.query(
-                `WITH covered AS(SELECT id FROM rootset_control.${relation} WHERE org_id=$1 ORDER BY id LIMIT 1000 FOR UPDATE) DELETE FROM rootset_control.${relation} h USING covered c WHERE h.org_id=$1 AND h.id=c.id`,
-                [job.org_id],
-              )
-            ).rowCount ?? 0;
-          const checkpoint = {
-            ...job.checkpoint,
-            deletedHistoryRecords:
-              Number(job.checkpoint.deletedHistoryRecords ?? 0) + count,
-          };
-          await client.query(
-            "UPDATE rootset_control.jobs SET checkpoint=$2,progress=$3,stage='purging_deleted_organisation',updated_at=now() WHERE id=$1",
-            [
-              job.id,
-              checkpoint,
-              { completed: checkpoint.deletedHistoryRecords, unit: "events" },
-            ],
-          );
-          job.checkpoint = checkpoint;
-          return count;
-        });
-        await this.config.failpoint?.("retention.afterHistoryBatch", job.id);
-        if (removed < 1000) break;
-      }
-    await this.queue.fenced(job, async (client) => {
-      await client.query(
-        "UPDATE rootset_control.backups SET state='deleted',manifest=NULL,manifest_artifact_id=NULL,cleanup_error=NULL,updated_at=now()",
-      );
-      await client.query(
-        "UPDATE rootset_control.history_archives SET manifest=NULL,artifact_id=NULL,updated_at=now()",
-      );
-      await client.query(
-        "UPDATE rootset_control.backup_policies SET enabled=false,next_occurrence=NULL",
-      );
-      await client.query(
-        "UPDATE rootset_control.history_retention_policies SET enabled=false,next_occurrence=NULL",
-      );
-    });
-    return {
-      deletedArtifacts: Number(job.checkpoint.deletedArtifacts ?? 0),
-      deletedHistoryRecords: Number(job.checkpoint.deletedHistoryRecords ?? 0),
-      retainedTombstones: true,
-      retainedAudit: true,
-    };
   }
 
   async runOnce(orgId: string): Promise<boolean> {
@@ -2870,11 +2120,7 @@ export class JobsService {
       const actor = await this.jobActor(job);
       if (job.cancel_requested) throw new JobCancelled();
       let result: JsonValue;
-      if (
-        ["organisation_retention", "account_audit_retention"].includes(job.kind)
-      )
-        result = await this.runMaintenance(job);
-      else if (job.kind === "backup") {
+      if (job.kind === "backup") {
         result = await this.backups.run(
           actor,
           job,
@@ -2883,7 +2129,6 @@ export class JobsService {
             ? job.input.recoveryFor
             : undefined,
         );
-        await this.applyRetention(actor, job.target_id, job);
         await this.notifyBackup(
           actor,
           job,
@@ -3061,28 +2306,8 @@ export class JobsService {
     job: JobRecord,
     result: Record<string, JsonValue>,
   ): Promise<void> {
-    const policy = await withOrg(
-      this.queue.workerPool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<{ notifications: boolean }>(
-            "SELECT notifications FROM rootset_control.backup_policies WHERE database_id=$1",
-            [job.target_id],
-          )
-        ).rows[0],
-    );
     const backupId = String(result.backupId ?? "");
     if (!backupId) return;
-    if (policy?.notifications === false) {
-      await withOrg(this.queue.workerPool, actor.orgId, (client) =>
-        client.query(
-          "UPDATE rootset_control.backups SET notification_state='disabled' WHERE id=$1",
-          [backupId],
-        ),
-      );
-      return;
-    }
     let state = "pending";
     let deliveryId: string | null = null;
     try {
@@ -3152,7 +2377,7 @@ export class JobsService {
           this.config.failpoint?.("export.afterBatch", job.id);
         async function* records() {
           if (format === "csv")
-            yield stringify([fields.map((field) => field.apiKey)]);
+            yield stringify([fields.map((field) => field.name)]);
           for await (const batch of source.rows) {
             await checkCurrent();
             for (const row of batch) {
@@ -3163,7 +2388,7 @@ export class JobsService {
                 yield stringify(
                   [
                     fields.map((field) => {
-                      const value = row.values[field.apiKey];
+                      const value = row.values[field.name];
                       let text =
                         value === null
                           ? "\\N"
@@ -3287,17 +2512,12 @@ export class JobsService {
           for (const orgId of orgs) {
             if (options.signal?.aborted) break;
             if (index === 0)
-              await activity("lifecycle_scheduler", orgId, async () => {
-                await this.scheduleMaintenance(orgId);
-              });
+              await activity("lifecycle_scheduler", orgId, async () => {});
             if (index === 0)
-              await activity("scheduler", orgId, async () => {
-                await this.scheduleDue(orgId);
-              });
-            if (index === 0)
-              await activity("history_scheduler", orgId, async () => {
-                await this.scheduleHistoryDue(orgId);
-              });
+              if (index === 0)
+                await activity("history_scheduler", orgId, async () => {
+                  await this.scheduleHistoryDue(orgId);
+                });
             if (index === 0)
               await activity("artifact_cleanup", orgId, async () => {
                 await this.cleanupArtifacts(orgId);

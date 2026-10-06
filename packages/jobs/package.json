@@ -12,6 +12,7 @@
     "test:integration": "tsx --test src/integration.ts"
   },
   "dependencies": {
+    "@rootset/access": "workspace:*",
     "@rootset/contracts": "workspace:*",
     "@rootset/database": "workspace:*",
     "@rootset/idempotency": "workspace:*",

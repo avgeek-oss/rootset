@@ -52,7 +52,7 @@ try {
       .fill("Rootset UI verification");
     await page
       .getByLabel("Your name", { exact: true })
-      .fill("UI verification owner");
+      .fill("UI verification admin");
     await page
       .getByLabel("Email address", { exact: true })
       .fill(credentials.ROOTSET_TEST_OWNER_EMAIL);
@@ -63,10 +63,10 @@ try {
       .getByLabel("Installation setup secret", { exact: true })
       .fill(config.ROOTSET_BOOTSTRAP_SECRET);
     await page
-      .getByRole("button", { name: "Create owner account", exact: true })
+      .getByRole("button", { name: "Create admin account", exact: true })
       .click();
     await page
-      .getByText("Check your email to verify the owner account", {
+      .getByText("Check your email to verify the admin account", {
         exact: false,
       })
       .waitFor({ timeout: 15000 });

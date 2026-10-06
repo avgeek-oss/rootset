@@ -6,8 +6,7 @@ import { CellEditor } from "./CellEditor";
 
 const definition: FieldDefinition = {
   id: "01J00000000000000000000000",
-  apiKey: "VALUE",
-  label: "Value",
+  name: "VALUE",
   type: "text",
 };
 

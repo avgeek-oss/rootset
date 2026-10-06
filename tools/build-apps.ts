@@ -12,7 +12,6 @@ const entryPoints = {
   worker: "apps/rootset-worker/src/main.ts",
   migrate: "tools/migrate.ts",
   operator: "tools/operator.ts",
-  "capacity-reporter": "tools/capacity-reporter.ts",
 };
 const options = {
   bundle: true,
@@ -142,6 +141,7 @@ for (const [name, path] of [
     "identity-ui-reference-notices.md",
     "packages/identity-web-ui/THIRD_PARTY_NOTICES.md",
   ],
+  ["web-ui-reference-notices.md", "apps/rootset-web/THIRD_PARTY_NOTICES.md"],
 ]) {
   await writeFile(
     resolve(noticeDirectory, name!),

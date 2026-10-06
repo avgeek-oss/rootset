@@ -16,8 +16,7 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, "packages/database/migrations");
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, "037_retained.sql"), "SELECT 37;\n");
-  await writeFile(join(directory, "001_initial.sql"), "SELECT 1;\n");
+  await writeFile(join(directory, "0001_baseline.sql"), "SELECT 1;\n");
   await writeFile(join(directory, "README.md"), "Not a SQL migration\n");
   return { root, directory };
 }
@@ -26,17 +25,16 @@ test("inventory hashes exact SQL bytes and derives the candidate boundary", asyn
   const { root, directory } = await fixture(t);
   const before = await candidateMigrationInventory(root);
   assert.deepEqual(before.entries, [
-    { name: "001_initial.sql", digest: digest("SELECT 1;\n") },
-    { name: "037_retained.sql", digest: digest("SELECT 37;\n") },
+    { name: "0001_baseline.sql", digest: digest("SELECT 1;\n") },
   ]);
-  await writeFile(join(directory, "038_completion.sql"), "SELECT 38;\n");
-  const after = await candidateMigrationInventory(root);
-  assert.equal(after.count, 3);
-  assert.equal(after.last, "038_completion.sql");
-  assert.notEqual(after.sha256, before.sha256);
-  await writeFile(join(directory, "038_completion.sql"), "SELECT 38;\r\n");
+  assert.equal(before.count, 1);
+  assert.equal(before.last, "0001_baseline.sql");
+  await writeFile(join(directory, "0002_extra.sql"), "SELECT 2;\n");
+  await assert.rejects(candidateMigrationInventory(root));
+  await rm(join(directory, "0002_extra.sql"));
+  await writeFile(join(directory, "0001_baseline.sql"), "SELECT 1;\r\n");
   const changed = await candidateMigrationInventory(root);
-  assert.notEqual(changed.entries.at(-1).digest, after.entries.at(-1).digest);
+  assert.notEqual(changed.entries[0].digest, before.entries[0].digest);
 });
 
 test("ledger rejects missing, extra, wrong-hash and duplicate entries", async (t) => {
@@ -79,15 +77,17 @@ test("bound source manifest rejects missing, extra and edited candidate files", 
       ],
     }),
   );
-  await writeFile(join(directory, "001_initial.sql"), "SELECT 2;\n");
+  await writeFile(join(directory, "0001_baseline.sql"), "SELECT 2;\n");
   await assert.rejects(candidateMigrationInventory(root, manifest));
 });
 
 test("empty inventories and symlink SQL files are rejected", async (t) => {
   const { root, directory } = await fixture(t);
-  await rm(join(directory, "001_initial.sql"));
-  await rm(join(directory, "037_retained.sql"));
+  await rm(join(directory, "0001_baseline.sql"));
   await assert.rejects(candidateMigrationInventory(root));
-  await symlink(join(directory, "README.md"), join(directory, "001_link.sql"));
+  await symlink(
+    join(directory, "README.md"),
+    join(directory, "0001_baseline.sql"),
+  );
   await assert.rejects(candidateMigrationInventory(root));
 });

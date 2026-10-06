@@ -2,7 +2,8 @@ import { z } from "zod";
 import { canonicalize } from "json-canonicalize";
 import type { NumberLexeme } from "./decoder";
 import {
-  ApiKeySchema,
+  FieldNameSchema,
+  assertFieldNames,
   IdSchema,
   JsonValueSchema,
   RootsetError,
@@ -180,8 +181,7 @@ export const DateTimeSchema = z
 
 const common = {
   id: IdSchema,
-  apiKey: ApiKeySchema,
-  label: z.string().min(1).max(255),
+  name: FieldNameSchema,
   required: z.boolean().optional(),
   default: JsonValueSchema.optional(),
   order: z.number().int().nonnegative().max(199).optional(),
@@ -221,12 +221,6 @@ const rawFields = z.discriminatedUnion("type", [
   z.strictObject({ ...common, type: z.literal("json") }),
 ]);
 export const FieldDefinitionSchema = rawFields.superRefine((field, context) => {
-  if (!validUnicode(field.label))
-    context.addIssue({
-      code: "custom",
-      path: ["label"],
-      message: "Invalid Unicode label",
-    });
   if (
     "min" in field &&
     "max" in field &&
@@ -277,9 +271,9 @@ export function validateCell(
 ): JsonValue {
   if (value === null) {
     if (field.required)
-      invalid(`Field ${field.apiKey} is required`, {
+      invalid(`Field ${field.name} is required`, {
         fieldId: field.id,
-        field: field.apiKey,
+        field: field.name,
       });
     return null;
   }
@@ -287,29 +281,29 @@ export function validateCell(
   switch (field.type) {
     case "text":
       if (typeof value !== "string" || !validUnicode(value))
-        invalid(`Field ${field.apiKey} requires valid Unicode text`);
+        invalid(`Field ${field.name} requires valid Unicode text`);
       if ([...value].length > (field.charLimit ?? limits.textCharLimit))
-        invalid(`Field ${field.apiKey} exceeds its character limit`);
+        invalid(`Field ${field.name} exceeds its character limit`);
       result = value;
       break;
     case "integer":
       if (typeof value !== "number" || !Number.isSafeInteger(value))
-        invalid(`Field ${field.apiKey} requires a safe integer`);
+        invalid(`Field ${field.name} requires a safe integer`);
       result = value === 0 ? 0 : value;
       break;
     case "float":
       if (typeof value !== "number" || !Number.isFinite(value))
-        invalid(`Field ${field.apiKey} requires a finite number`);
+        invalid(`Field ${field.name} requires a finite number`);
       result = value === 0 ? 0 : value;
       break;
     case "boolean":
       if (typeof value !== "boolean")
-        invalid(`Field ${field.apiKey} requires a boolean`);
+        invalid(`Field ${field.name} requires a boolean`);
       result = value;
       break;
     case "date":
       if (typeof value !== "string" || !validDate(value))
-        invalid(`Field ${field.apiKey} requires a valid calendar date`);
+        invalid(`Field ${field.name} requires a valid calendar date`);
       result = value;
       break;
     case "time":
@@ -336,14 +330,14 @@ export function validateCell(
       result <
         (field.type === "date-time" ? parseUtcDateTime(field.min) : field.min)
     )
-      invalid(`Field ${field.apiKey} is below minimum`);
+      invalid(`Field ${field.name} is below minimum`);
     if (
       field.max !== undefined &&
       typeof field.max === typeof result &&
       result >
         (field.type === "date-time" ? parseUtcDateTime(field.max) : field.max)
     )
-      invalid(`Field ${field.apiKey} is above maximum`);
+      invalid(`Field ${field.name} is above maximum`);
   }
   return result;
 }
@@ -360,12 +354,13 @@ export function validateValues(
       Object.getPrototypeOf(input) !== null)
   )
     invalid("Values must be a plain object");
+  assertFieldNames(fields);
   const source = input as Record<string, unknown>;
   const lookup = new Map(
     fields.flatMap(
       (field) =>
         [
-          [field.apiKey, field],
+          [field.name, field],
           [field.id, field],
         ] as const,
     ),
@@ -379,23 +374,23 @@ export function validateValues(
       lookup.get(key) ??
       lookup.get(IdSchema.safeParse(key).success ? key.toUpperCase() : key);
     if (!field) invalid(`Unknown field ${key}`, { field: key });
-    if (Object.hasOwn(result, field.apiKey))
-      invalid(`Field ${field.apiKey} was supplied more than once`);
+    if (Object.hasOwn(result, field.name))
+      invalid(`Field ${field.name} was supplied more than once`);
     try {
-      result[field.apiKey] = validateCell(field, value);
+      result[field.name] = validateCell(field, value);
     } catch (error) {
       if (error instanceof RootsetError)
         throw new RootsetError(error.code, error.message, error.status, {
           fieldId: field.id,
-          field: field.apiKey,
+          field: field.name,
         });
       throw error;
     }
   }
   if (mode === "create")
     for (const field of fields)
-      if (!Object.hasOwn(result, field.apiKey))
-        result[field.apiKey] = validateCell(
+      if (!Object.hasOwn(result, field.name))
+        result[field.name] = validateCell(
           field,
           Object.hasOwn(field, "default") ? field.default : null,
         );
@@ -410,8 +405,8 @@ export function rowBytes(
     JsonValue
   >;
   for (const field of fields)
-    stable[field.id] = Object.hasOwn(values, field.apiKey)
-      ? values[field.apiKey]!
+    stable[field.id] = Object.hasOwn(values, field.name)
+      ? values[field.name]!
       : Object.hasOwn(values, field.id)
         ? values[field.id]!
         : null;
@@ -443,7 +438,7 @@ export function assertValueLexemes(
       (field) =>
         [
           [field.id, field],
-          [field.apiKey, field],
+          [field.name, field],
         ] as const,
     ),
   );
@@ -464,23 +459,23 @@ export function assertValueLexemes(
       field.type === "integer" &&
       (!information.integer || !information.safeInteger)
     )
-      invalid(`Field ${field.apiKey} requires a lossless safe integer`, {
+      invalid(`Field ${field.name} requires a lossless safe integer`, {
         fieldId: field.id,
-        field: field.apiKey,
+        field: field.name,
       });
     if (
       field.type === "json" &&
       information.integer &&
       !information.safeInteger
     )
-      invalid(`JSON field ${field.apiKey} contains an unsafe integral number`, {
+      invalid(`JSON field ${field.name} contains an unsafe integral number`, {
         fieldId: field.id,
-        field: field.apiKey,
+        field: field.name,
       });
   }
 }
 export function assertFieldDefinitionLexemes(
-  field: Pick<FieldDefinition, "type" | "apiKey"> & { id?: string },
+  field: Pick<FieldDefinition, "type" | "name"> & { id?: string },
   lexemes: readonly NumberLexeme[],
   fieldPath: readonly (string | number)[],
 ): void {
@@ -499,8 +494,8 @@ export function assertFieldDefinitionLexemes(
       (!information.integer || !information.safeInteger)
     )
       invalid(
-        `Integer field ${field.apiKey} requires lossless integral defaults and bounds`,
-        { field: field.apiKey, ...(field.id ? { fieldId: field.id } : {}) },
+        `Integer field ${field.name} requires lossless integral defaults and bounds`,
+        { field: field.name, ...(field.id ? { fieldId: field.id } : {}) },
       );
     if (
       field.type === "json" &&
@@ -509,8 +504,8 @@ export function assertFieldDefinitionLexemes(
       !information.safeInteger
     )
       invalid(
-        `JSON field ${field.apiKey} default contains an unsafe integral number`,
-        { field: field.apiKey, ...(field.id ? { fieldId: field.id } : {}) },
+        `JSON field ${field.name} default contains an unsafe integral number`,
+        { field: field.name, ...(field.id ? { fieldId: field.id } : {}) },
       );
   }
 }

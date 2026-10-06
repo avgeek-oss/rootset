@@ -8,8 +8,8 @@ import { copySelectedRows, readSelectedWindow } from "./clipboard-selection";
 import { parseTsvCells } from "./clipboard";
 
 const fields: FieldDefinition[] = [
-  { id: "TEXT", apiKey: "TEXT", label: "Text", type: "text" },
-  { id: "JSON", apiKey: "JSON", label: "JSON", type: "json" },
+  { id: "TEXT", name: "TEXT", type: "text" },
+  { id: "JSON", name: "JSON", type: "json" },
 ];
 function row(
   index: number,

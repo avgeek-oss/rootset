@@ -1,17 +1,19 @@
-import type { ConnectionSchema } from "@rootset/contracts";
+import type {
+  ConnectionSchema,
+  Preferences as AccountPreferences,
+} from "@rootset/contracts";
 import type { z } from "zod";
 
 export type SettingsSection =
   | "organisation"
   | "members"
-  | "grants"
-  | "keys"
+  | "api-keys"
   | "profile"
   | "preferences"
-  | "security"
+  | "email-password"
+  | "2fa"
   | "sessions"
-  | "connections"
-  | "audit"
+  | "mcp"
   | "database"
   | "table"
   | "fields"
@@ -20,14 +22,15 @@ export type SettingsSection =
   | "backups"
   | "imports"
   | "exports"
-  | "jobs"
   | "operator";
 
 export interface SettingsPanelProps {
   section: SettingsSection;
   orgId: string;
+  role?: string;
   databaseId?: string;
   tableId?: string;
+  theme?: Preferences["theme"];
   onClose: () => void;
   onChanged?: () => void;
 }
@@ -35,7 +38,6 @@ export interface SettingsPanelProps {
 export interface Organisation {
   id: string;
   name: string;
-  description?: string;
   state?: string;
 }
 export interface Profile {
@@ -45,55 +47,32 @@ export interface Profile {
   email: string;
   emailVerified?: boolean;
 }
-export interface Preferences {
-  timezone: string;
-  locale: string;
-  dateFormat: string;
-  timeFormat: "12h" | "24h";
-  theme: "system" | "light" | "dark";
-}
+export type Preferences = AccountPreferences;
 export interface Member {
   id: string;
   userId: string;
   name?: string;
   email: string;
-  role: string;
-  state?: string;
-  disabled?: boolean;
+  role: "admin" | "editor" | "viewer";
   version: string;
   verified: boolean;
 }
 export interface Invitation {
   id: string;
   email: string;
-  role: string;
+  role: "admin" | "editor" | "viewer";
   status?: string;
   state?: string;
   expiresAt?: string;
-}
-export interface Grant {
-  id?: string;
-  membershipId?: string;
-  principalId?: string;
-  targetType: "database" | "table";
-  targetId: string;
-  level: "read" | "edit" | "manage";
 }
 export interface ApiKey {
   id: string;
   name: string;
   prefix?: string;
-  ownerKind?: string;
-  scopes: string[];
-  targets?: ResourceTarget[];
+  createdAt?: string;
   expiresAt?: string | null;
   lastUsedAt?: string | null;
   revokedAt?: string | null;
-}
-export interface ResourceTarget {
-  databaseId?: string;
-  tableId?: string;
-  level: "read" | "edit" | "manage";
 }
 export interface Session {
   id: string;
@@ -119,8 +98,7 @@ export interface SecurityStatus {
 }
 export interface TableField {
   id: string;
-  apiKey: string;
-  label: string;
+  name: string;
   type:
     | "text"
     | "integer"
@@ -191,18 +169,6 @@ export interface Job {
     databaseId?: string;
   };
 }
-export interface BackupPolicy {
-  enabled: boolean;
-  cron: string;
-  timezone: string;
-  retentionDays: number;
-  retentionCount: number;
-  maxRuntimeSeconds: number;
-  destination: "installation";
-  encryption: true;
-  notifications: boolean;
-  nextRunAt?: string;
-}
 export interface Backup {
   id: string;
   state: string;
@@ -212,19 +178,6 @@ export interface Backup {
   sizeBytes?: number;
   jobId?: string;
   error?: string;
-}
-export interface AuditEvent {
-  id: string;
-  operation?: string;
-  operationId?: string;
-  actorId?: string;
-  actorKind?: string;
-  targetId?: string;
-  target?: unknown;
-  outcome?: unknown;
-  createdAt?: string;
-  timestamp?: string;
-  requestId?: string;
 }
 export interface Artifact {
   id: string;
@@ -247,15 +200,14 @@ export const FIELD_TYPES: TableField["type"][] = [
 ];
 export const SECTION_LABELS: Record<SettingsSection, string> = {
   organisation: "Organisation",
-  members: "People and invitations",
-  grants: "Resource access",
-  keys: "API keys",
-  profile: "Your profile",
-  preferences: "Viewing preferences",
-  security: "Security",
-  sessions: "Browser sessions",
-  connections: "Connected applications",
-  audit: "Organisation audit",
+  members: "People",
+  "api-keys": "API Keys",
+  profile: "Profile",
+  preferences: "Preferences",
+  "email-password": "Email & Password",
+  "2fa": "Two-factor Auth",
+  sessions: "Sessions",
+  mcp: "MCP Guide",
   database: "Database settings",
   table: "Table settings",
   fields: "Fields",
@@ -264,6 +216,41 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   backups: "Database backups",
   imports: "Import rows",
   exports: "Export rows",
-  jobs: "Jobs",
-  operator: "Installation settings",
+  operator: "Installation health",
 };
+
+const ADMIN_SETTINGS: readonly SettingsSection[] = [
+  "organisation",
+  "members",
+  "database",
+  "table",
+  "fields",
+  "rules",
+  "indexes",
+  "backups",
+  "operator",
+];
+
+export function canOpenSettings(
+  section: SettingsSection,
+  role?: string,
+): boolean {
+  if (!["admin", "editor", "viewer"].includes(role ?? "")) return false;
+  if (ADMIN_SETTINGS.includes(section)) return role === "admin";
+  if (section === "imports") return role === "admin" || role === "editor";
+  return true;
+}
+
+export function resolveSettingsSection(
+  value: string | null,
+): SettingsSection | null {
+  const aliases: Record<string, SettingsSection> = {
+    security: "2fa",
+    keys: "api-keys",
+    connections: "api-keys",
+  };
+  if (value && aliases[value]) return aliases[value];
+  return value && Object.hasOwn(SECTION_LABELS, value)
+    ? (value as SettingsSection)
+    : null;
+}

@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Input, Label, TextField } from "@heroui/react";
+import { Input, Label, TextField } from "@heroui/react";
+import { Button } from "./ui/button";
 import {
   IdentityAuthFrame,
   IdentityCredentialsForm,
@@ -69,7 +70,7 @@ export function AuthScreen({
         },
       });
       setNotice(
-        "Check your email to verify the owner account, then sign in. The organisation is awaiting verification.",
+        "Check your email to verify the admin account, then sign in. You will enter your organisation after signing in.",
       );
     });
   }
@@ -78,7 +79,7 @@ export function AuthScreen({
     return (
       <IdentityAuthFrame
         title="Set up Rootset"
-        description="Create the first owner account and organisation for this installation."
+        description="Create the first admin account and organisation for this installation."
       >
         {notice ? (
           <>
@@ -115,7 +116,7 @@ export function AuthScreen({
               </p>
             )}
             <Button type="submit" isDisabled={pending}>
-              {pending ? "Creating account…" : "Create owner account"}
+              {pending ? "Creating account…" : "Create admin account"}
             </Button>
           </form>
         )}
@@ -274,7 +275,6 @@ export function AuthScreen({
             <Input
               autoComplete="one-time-code"
               inputMode={phase === "totp" ? "numeric" : "text"}
-              autoFocus
             />
           </TextField>
           {error && (

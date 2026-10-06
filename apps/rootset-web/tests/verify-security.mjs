@@ -165,19 +165,9 @@ async function approve({ expectProof = false } = {}) {
   }
   await expect(dialog).not.toBeVisible({ timeout: 15000 });
 }
-async function newKey(name, ownership) {
+async function newKey(name) {
   await settings("API keys");
-  if (ownership === "team") {
-    await page.getByRole("button", { name: /Key ownership$/ }).click();
-    await page.getByRole("option", { name: "Team keys", exact: true }).click();
-  }
   await page.getByLabel(/^Key name/).fill(name);
-  await page
-    .getByLabel("Database target ID", { exact: true })
-    .fill(fixture.databaseId);
-  await page
-    .getByLabel("Table target ID", { exact: true })
-    .fill(fixture.tableId);
   await page.getByRole("button", { name: "Create key", exact: true }).click();
   await approve();
   const field = page.getByLabel("API key secret", { exact: true });
@@ -187,10 +177,7 @@ async function newKey(name, ownership) {
   await page
     .getByRole("button", { name: "Dismiss secret", exact: true })
     .click();
-  const list = await call(
-    "GET",
-    ownership === "team" ? `/orgs/${fixture.orgId}/keys` : "/me/keys",
-  );
+  const list = await call("GET", "/me/keys");
   const key = (list.data ?? list).find((key) => key.name === name);
   expect(key).toBeTruthy();
   return { key, secret };
@@ -213,25 +200,12 @@ try {
     name: "Rendered email/password sign-in for isolated verified Admin",
     status: "passed",
   });
-  const personal = await newKey(
-    `UI personal ${randomUUID().slice(0, 8)}`,
-    "personal",
-  );
+  const personal = await newKey(`UI personal ${randomUUID().slice(0, 8)}`);
   await verifyKey(personal.secret);
   report.checks.push({
-    name: "Personal key safe immutable approval, one-time secret and scoped public API use",
+    name: "Personal key safe immutable approval, one-time secret and role-authorised public API use",
     status: "passed",
   });
-  const team = await newKey(`UI team ${randomUUID().slice(0, 8)}`, "team");
-  await verifyKey(team.secret);
-  await page.screenshot({
-    path: new URL("chromium-key-metadata.png", output).pathname,
-  });
-  report.checks.push({
-    name: "Team key creation and resource-bound public API use",
-    status: "passed",
-  });
-
   await settings("Security");
   if (!privateData.totpUri) {
     await page
@@ -334,11 +308,9 @@ try {
   });
 
   await settings("API keys");
-  await page.getByRole("button", { name: /Key ownership$/ }).click();
-  await page.getByRole("option", { name: "Team keys", exact: true }).click();
   const record = page
     .locator(".settings-record")
-    .filter({ hasText: team.key.name });
+    .filter({ hasText: personal.key.name });
   await record.getByRole("button", { name: "Rotate", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Rotate API key?", exact: true })
@@ -351,10 +323,10 @@ try {
   await page
     .getByRole("button", { name: "Dismiss secret", exact: true })
     .click();
-  await verifyKey(team.secret);
+  await verifyKey(personal.secret);
   await verifyKey(rotated);
   report.checks.push({
-    name: "Rendered team-key rotation preserves bounded overlap and replacement secret works",
+    name: "Rendered personal-key rotation preserves bounded overlap and replacement secret works",
     status: "passed",
   });
 
@@ -364,8 +336,6 @@ try {
         Math.min(30000, 306000 - (Date.now() - signedInAt)),
       );
     await settings("API keys");
-    await page.getByRole("button", { name: /Key ownership$/ }).click();
-    await page.getByRole("option", { name: "Team keys", exact: true }).click();
     await page
       .getByLabel(/^Key name/)
       .fill(`UI aged auth ${randomUUID().slice(0, 8)}`);

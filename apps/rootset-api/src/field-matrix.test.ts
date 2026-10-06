@@ -10,7 +10,6 @@ import { loadConfig } from "@rootset/core/config";
 import {
   getOperation,
   newId,
-  scopeNames,
   type JsonValue,
   type FieldDefinition,
 } from "@rootset/contracts";
@@ -200,7 +199,16 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
         },
       ],
     });
-    app = createRuntimeApp(runtime);
+    const testRuntime = {
+      ...runtime,
+      getAdmissionLimits: () => ({
+        principalRequestsPerMinute: 100000,
+        organisationRequestsPerMinute: 1000000,
+        concurrentReads: 10,
+        concurrentMutations: 5,
+      }),
+    };
+    app = createRuntimeApp(testRuntime);
     const email = `fields-${newId().toLowerCase()}@rootset.example`,
       password = "Rootset matrix password 2026!";
     const setup = await browserFetch("/v1/setup", "POST", {
@@ -223,10 +231,6 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
       { redirect: "manual" },
     );
     assert([200, 302].includes(verification.status));
-    await runtime.identity.bindOperator(provision.userId, {
-      reason:
-        "Isolated field matrix fixture requires higher admission ceilings",
-    });
     const login = await browserFetch("/v1/auth/sign-in/email", "POST", {
       email,
       password,
@@ -236,26 +240,11 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
       .getSetCookie()
       .map((entry) => entry.split(";")[0])
       .join("; ");
-    const limits = await must("updateInstallationConfiguration", {
-      limits: {
-        principalRequestsPerMinute: 100000,
-        organisationRequestsPerMinute: 1000000,
-      },
-    });
-    assert.equal(
-      (limits.limits as Record<string, number>).principalRequestsPerMinute,
-      100000,
-    );
     const orgId = provision.orgId;
     restSecret = (
       await must("createPersonalKey", {
         orgId,
         name: "Field matrix REST",
-        scopes: scopeNames.filter(
-          (scope) => !scope.startsWith("installation:"),
-        ),
-        targets: [],
-        unrestricted: true,
       })
     ).secret as string;
     const databaseId = (
@@ -272,7 +261,6 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
       resource: `${baseURL}/mcp`,
       scope:
         "rows:read rows:write history:read tables:read databases:read exports:read jobs:read",
-      organization_id: orgId,
       state: "field-matrix",
     }).toString();
     const authorization = await fetch(authorize, {
@@ -319,28 +307,24 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
       const fields = [
         {
           type: fixture.type,
-          apiKey: "TEST",
-          label: "Test",
+          name: "TEST",
           ...fixture.options,
         },
         {
           type: fixture.type,
-          apiKey: "DEFAULT",
-          label: "Default",
+          name: "DEFAULT",
           default: fixture.default,
           ...fixture.options,
         },
         {
           type: fixture.type,
-          apiKey: "REQUIRED",
-          label: "Required",
+          name: "REQUIRED",
           required: true,
           ...fixture.options,
         },
         {
           type: fixture.type,
-          apiKey: "REQUIRED_DEFAULT",
-          label: "Required default",
+          name: "REQUIRED_DEFAULT",
           required: true,
           default: fixture.requiredDefault,
           ...fixture.options,
@@ -349,8 +333,7 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
           ? [
               {
                 type: fixture.type,
-                apiKey: "BOUNDED",
-                label: "Bounded",
+                name: "BOUNDED",
                 min: fixture.bounded.min,
                 max: fixture.bounded.max,
                 default: fixture.bounded.default,
@@ -384,12 +367,12 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
                 : field.type === "date-time"
                   ? `to_char(${column} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`
                   : column;
-          return `'${field.apiKey}',to_jsonb(${expression})`;
+          return `'${field.name}',to_jsonb(${expression})`;
         })
         .join(",");
       const types = (
         await db.owner.query(
-          `SELECT ${definitions.map((field) => `pg_typeof(${quote(`f_${field.id.toLowerCase()}`)})::text AS ${quote(field.apiKey)}`).join(",")} FROM ${physical} LIMIT 0`,
+          `SELECT ${definitions.map((field) => `pg_typeof(${quote(`f_${field.id.toLowerCase()}`)})::text AS ${quote(field.name)}`).join(",")} FROM ${physical} LIMIT 0`,
         )
       ).fields;
       assert.equal(types.length, definitions.length);
@@ -462,22 +445,22 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
           new_version: string;
           operation: string;
         }[] = definitions
-          .filter((field) => initial[field.apiKey] !== null)
+          .filter((field) => initial[field.name] !== null)
           .map((field) => ({
             field_id: field.id,
             old_value: null,
-            new_value: initial[field.apiKey],
+            new_value: initial[field.name],
             old_version: null,
             new_version: "1",
             operation: "insert",
           }));
         expectedHistory.push(
           ...definitions
-            .filter((field) => changed.includes(field.apiKey))
+            .filter((field) => changed.includes(field.name))
             .map((field) => ({
               field_id: field.id,
-              old_value: before![field.apiKey],
-              new_value: expected[field.apiKey],
+              old_value: before![field.name],
+              new_value: expected[field.name],
               old_version: "1",
               new_version: "2",
               operation: "update",

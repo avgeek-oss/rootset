@@ -6,6 +6,8 @@ import { cpus, totalmem, platform, release } from "node:os";
 import { join, resolve } from "node:path";
 import { statfsSync } from "node:fs";
 import {
+  ActorSchema,
+  FieldNameSchema,
   newId,
   rowBytes,
   type Actor,
@@ -27,6 +29,13 @@ import {
   testPools,
 } from "./environment.js";
 
+function fieldSuffix(index: number): string {
+  let suffix = "";
+  for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26))
+    suffix = String.fromCharCode(65 + ((value - 1) % 26)) + suffix;
+  return suffix;
+}
+
 const fields: FieldInput[] = [
   "text",
   "integer",
@@ -39,8 +48,7 @@ const fields: FieldInput[] = [
 ].flatMap((type) =>
   Array.from({ length: 3 }, (_, index) => ({
     type: type as FieldType,
-    apiKey: `${type.replace("-", "_").toUpperCase()}_${index + 1}`,
-    label: `${type} ${index + 1}`,
+    name: `${type.replace("-", "_").toUpperCase()}_${fieldSuffix(index)}`,
     ...(type === "text" ? { charLimit: 64 } : {}),
   })),
 );
@@ -53,6 +61,7 @@ const fixtureId = (index: number): string =>
 
 export interface ScaleFixture {
   kind: "scale-fixture";
+  baseline: "0001_baseline.sql";
   sourceCommit: string;
   seededAt: string;
   complete: boolean;
@@ -257,6 +266,11 @@ export async function finalizeScaleFixture(filename: string): Promise<void> {
   ) as ScaleFixture;
   if (manifest.kind !== "scale-fixture")
     throw new Error("A scale fixture manifest is required.");
+  assert.equal(
+    manifest.baseline,
+    "0001_baseline.sql",
+    "Use a fresh V1 scale fixture; historical fixtures remain unchanged.",
+  );
   if (manifest.complete)
     throw new Error(
       "This fixture is already complete; benchmark it rather than reseeding or rewriting checksums.",
@@ -319,17 +333,16 @@ export async function finalizeScaleFixture(filename: string): Promise<void> {
       (await storage.createTable(actor, manifest.databaseId, {
         name: "Two hundred fields near row byte limit",
         fields: Array.from({ length: 200 }, (_, index) => ({
-          apiKey: `FIELD_${index + 1}`,
-          label: `Field ${index + 1}`,
+          name: `FIELD_${fieldSuffix(index)}`,
           type: "text" as const,
           charLimit: 65536,
         })),
         idempotencyKey: newId(),
       }));
     const values: Record<string, JsonValue> = Object.fromEntries(
-      wide.fields.map((field) => [field.apiKey, null]),
+      wide.fields.map((field) => [field.name, null]),
     );
-    values[wide.fields[0]!.apiKey] = "x".repeat(
+    values[wide.fields[0]!.name] = "x".repeat(
       65536 - rowBytes(wide.fields, values) + 2,
     );
     assert.equal(rowBytes(wide.fields, values), 65536);
@@ -338,7 +351,7 @@ export async function finalizeScaleFixture(filename: string): Promise<void> {
         idempotencyKey: newId(),
       });
     manifest.wideTableId = wide.id;
-    const integer = t.fields.find((field) => field.apiKey === "INTEGER_1")!;
+    const integer = t.fields.find((field) => field.name === "INTEGER_A")!;
     const indexes = await storage.listIndexes(actor, t.id);
     if (
       !indexes.some(
@@ -395,11 +408,9 @@ export async function seedScaleFixture(destination: string): Promise<void> {
     id: `performance-fixture:${userId}`,
     userId,
     orgId,
-    role: "owner",
+    role: "admin",
     scopes: ["rows:read", "rows:write", "history:read", "schema:manage"],
-    targets: [],
-    unrestricted: true,
-    grantVersion: 1,
+    membershipVersion: 1,
   };
   let connection: PoolClient | undefined;
   let table: TableRecord | undefined;
@@ -418,7 +429,7 @@ export async function seedScaleFixture(destination: string): Promise<void> {
       [orgId, "Five-million-row verification fixture"],
     );
     await pools.owner.query(
-      "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'owner')",
+      "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin')",
       [newId(), orgId, userId],
     );
     const database = await storage.createDatabase(actor, {
@@ -431,6 +442,7 @@ export async function seedScaleFixture(destination: string): Promise<void> {
     });
     const manifest: ScaleFixture = {
       kind: "scale-fixture",
+      baseline: "0001_baseline.sql",
       sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
         cwd: root,
         encoding: "utf8",
@@ -479,7 +491,7 @@ export async function seedScaleFixture(destination: string): Promise<void> {
         JSON.stringify({ stage: "rows", committed: end, total: rows }) + "\n",
       );
     }
-    const integer = table.fields.find((field) => field.apiKey === "INTEGER_1")!;
+    const integer = table.fields.find((field) => field.name === "INTEGER_A")!;
     const historyEvents = 10_000_000;
     for (let start = 1; start <= historyEvents; start += 100000) {
       const end = Math.min(historyEvents, start + 99999);
@@ -494,7 +506,12 @@ export async function seedScaleFixture(destination: string): Promise<void> {
           integer.id,
           newId(),
           JSON.stringify(integer),
-          JSON.stringify({ kind: "operator", id: "performance-seeder" }),
+          JSON.stringify({
+            kind: "session",
+            id: actor.id,
+            userId,
+            role: actor.role,
+          }),
           start,
           end,
         ],
@@ -552,17 +569,16 @@ export async function seedScaleFixture(destination: string): Promise<void> {
     const wide = await storage.createTable(actor, database.id, {
       name: "Two hundred fields near row byte limit",
       fields: Array.from({ length: 200 }, (_, index) => ({
-        apiKey: `FIELD_${index + 1}`,
-        label: `Field ${index + 1}`,
+        name: `FIELD_${fieldSuffix(index)}`,
         type: "text" as const,
         charLimit: 65536,
       })),
       idempotencyKey: newId(),
     });
     const values: Record<string, JsonValue> = Object.fromEntries(
-      wide.fields.map((field) => [field.apiKey, null]),
+      wide.fields.map((field) => [field.name, null]),
     );
-    values[wide.fields[0]!.apiKey] = "x".repeat(
+    values[wide.fields[0]!.name] = "x".repeat(
       65536 - rowBytes(wide.fields, values) + 2,
     ); // replacing null (4 bytes) with quoted text (2 bytes)
     assert.equal(rowBytes(wide.fields, values), 65536);
@@ -618,6 +634,7 @@ export async function loadScaleFixture(
   ) as ScaleFixture;
   if (
     fixture.kind !== "scale-fixture" ||
+    fixture.baseline !== "0001_baseline.sql" ||
     !fixture.complete ||
     fixture.rows !== 5000000 ||
     fixture.historyEvents < 10000000
@@ -625,6 +642,15 @@ export async function loadScaleFixture(
     throw new Error(
       "Complete actual five-million-row/ten-million-event fixture is required.",
     );
+  ActorSchema.parse(fixture.actor);
+  assert.equal(fixture.actor.kind, "session");
+  assert.equal(fixture.actor.orgId, fixture.orgId);
+  assert.equal(fixture.actor.userId, fixture.userId);
+  for (const field of fixture.fields) FieldNameSchema.parse(field.name);
+  assert.equal(
+    new Set(fixture.fields.map((field) => field.name)).size,
+    fixture.fields.length,
+  );
   return fixture;
 }
 
@@ -632,7 +658,6 @@ export function fixtureActor(fixture: ScaleFixture): Actor {
   return {
     ...fixture.actor,
     scopes: [...fixture.actor.scopes],
-    targets: [...fixture.actor.targets],
   };
 }
 

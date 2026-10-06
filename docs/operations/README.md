@@ -1,19 +1,18 @@
-# Operations runbooks
+# Operations
 
-These runbooks describe operator work on Rootset-owned services. Follow them first
-on an isolated installation with synthetic data. Record the candidate, image IDs,
-migration digests, commands, expected outcome, actual result and reviewer. Written
-steps become acceptance evidence only after a reviewer executes them.
+These guides describe the revised one-organisation V1. Admins manage installation
+settings as well as people, schema and recovery. PostgreSQL deployment credentials
+remain separate from product roles.
 
-| Runbook                                           | Purpose                                                                            |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Installation](installation.md)                   | Non-root Compose, external services, HTTPS, prerequisites and readiness.           |
-| [Upgrade and recovery](upgrade-and-recovery.md)   | Forward migrations, recovery copies, failed upgrades and installation restoration. |
-| [Keys and account recovery](keys-and-recovery.md) | Encryption key ring, API/hash secrets, operator binding and lost factors.          |
-| [Approved operator repair](operator-repair.md)    | Bound update-only repair through the normal typed write and history path.          |
-| [Jobs and dependencies](jobs-and-dependencies.md) | Leases, retries, schema recovery, SMTP/S3 outages and capacity.                    |
+- [Install locally or configure external services](installation.md)
+- [Fresh baseline and installation recovery](upgrade-and-recovery.md)
+- [Operation progress and dependencies](jobs-and-dependencies.md)
+- [Keys and account recovery](keys-and-recovery.md)
+- [Admin data correction](operator-repair.md)
 
-The local Docker profile and CI are verification environments. Neither changes
-`rootset.fyi` DNS nor deploys to production. Logical database backups and full
-installation disaster recovery protect different state and require separate
-rehearsals.
+Use the [current checklist](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md)
+for real rehearsals with isolated synthetic data. Ordinary test logs, browser
+captures, benchmark reports and recovery comparisons are sufficient evidence
+formats when they show the behavior under review. Earlier receipts and obsolete
+multi-organisation/upgrade procedures remain historical; these guides do not
+assert current acceptance or a supported upgrade from earlier prelaunch schemas.

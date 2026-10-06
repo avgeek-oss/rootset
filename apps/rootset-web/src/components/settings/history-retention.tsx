@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "../ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { browserArtifactDownloadPath, client } from "@rootset/web-client";
 import type {
@@ -103,9 +103,7 @@ export function HistoryRetentionSettings(props: SettingsPanelProps) {
     archives.reload();
   });
   const confirmation = useConfirmation();
-  const canManage =
-    authority.data &&
-    ["owner", "admin"].includes(authority.data.principal.role);
+  const canManage = authority.data && authority.data.principal.role === "admin";
   useEffect(() => {
     setDraft({
       enabled: policy.data.enabled,

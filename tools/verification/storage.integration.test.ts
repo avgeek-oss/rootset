@@ -13,20 +13,12 @@ import {
   type TableRecord,
 } from "../../packages/table-storage/src/index.js";
 import { fieldColumn } from "../../packages/table-storage/src/query.js";
-import {
-  assertPreparedDatabase,
-  closePools,
-  fixtureSecret,
-  testPools,
-} from "./environment.js";
+import { fixtureSecret } from "./environment.js";
+import { isolatedDatabase } from "./isolated-database.js";
 import { verificationCase } from "./evidence.js";
 
-const pools = testPools();
-const storage = new TableStorage({
-  pool: pools.app,
-  ddlPool: pools.ddl,
-  cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
-});
+let pools: Awaited<ReturnType<typeof isolatedDatabase>>;
+let storage: TableStorage;
 const orgId = newId();
 const otherOrgId = newId();
 const actor: Actor = {
@@ -34,25 +26,23 @@ const actor: Actor = {
   orgId,
   kind: "session",
   userId: newId(),
-  role: "owner",
+  role: "admin",
   scopes: [],
-  targets: [],
-  unrestricted: true,
-  grantVersion: 1,
+  membershipVersion: 1,
 };
 let databaseId: string;
 let schemaName: string;
 
 before(async () => {
-  await assertPreparedDatabase(pools.owner);
+  pools = await isolatedDatabase();
+  storage = new TableStorage({
+    pool: pools.app,
+    ddlPool: pools.ddl,
+    cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+  });
   await pools.owner.query(
-    "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2),($3,$4)",
-    [
-      orgId,
-      "Storage verification fixture",
-      otherOrgId,
-      "Isolation verification fixture",
-    ],
+    "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+    [orgId, "Storage verification fixture"],
   );
   const database = await storage.createDatabase(actor, {
     name: "Storage conformance",
@@ -64,12 +54,11 @@ after(async () => {
   if (databaseId) await storage.deleteDatabase(actor, databaseId);
   if (schemaName)
     await pools.owner.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
-  await closePools(pools);
+  await pools?.close();
 });
 
-const text = (apiKey = "CODE", charLimit = 40): FieldInput => ({
-  apiKey,
-  label: apiKey,
+const text = (name = "CODE", charLimit = 40): FieldInput => ({
+  name,
   type: "text",
   charLimit,
 });
@@ -94,15 +83,42 @@ const code =
 
 verificationCase(
   {
+    id: "STORAGE-FIELD-NAME-01",
+    gates: ["V1-11"],
+    scope:
+      "Native definitions accept 1–64 letters/underscores, reject digits and invalid names, and enforce table-local name uniqueness",
+  },
+  async () => {
+    const t = await table([text("A"), text("_"), text("z".repeat(64))]);
+    assert.equal(t.fields.length, 3);
+    for (const name of ["", "A1", "1", "a-b", "a b", "é", "z".repeat(65)])
+      await assert.rejects(
+        storage.createField(actor, t.id, {
+          ...text(name),
+          expectedSchemaVersion: 1,
+        }),
+        code("VALIDATION_FAILED"),
+      );
+    await assert.rejects(
+      storage.createField(actor, t.id, {
+        ...text("A"),
+        expectedSchemaVersion: 1,
+      }),
+    );
+    assert.equal((await storage.getTable(actor, t.id)).fields.length, 3);
+    assert.equal((await storage.getTable(actor, t.id)).schemaVersion, 1);
+  },
+);
+
+verificationCase(
+  {
     id: "STORAGE-FILTERED-WINDOW-01",
-    gates: ["QRY-11", "QRY-12", "UI-03"],
+    gates: ["V1-22"],
     scope:
       "Filtered first-window count stays unknown until matching anchors exist; middle/last use actual five matches rather than thirty physical rows",
   },
   async () => {
-    const t = await table([
-      { apiKey: "COUNT", label: "Count", type: "integer" },
-    ]);
+    const t = await table([{ name: "COUNT", type: "integer" }]);
     await storage.mutateRows(actor, t.id, {
       operations: Array.from({ length: 30 }, (_, index) => ({
         kind: "create" as const,
@@ -153,20 +169,20 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-CATALOG-01",
-    gates: ["DB-02", "DB-03", "DB-05"],
+    gates: ["V1-10", "V1-19", "V1-38"],
     scope:
       "Native physical types, hidden ULID metadata, forced RLS, non-owner/no-bypass roles and required history trigger",
   },
   async () => {
     const t = await table([
       text(),
-      { apiKey: "COUNT", label: "Count", type: "integer" },
-      { apiKey: "RATIO", label: "Ratio", type: "float" },
-      { apiKey: "ACTIVE", label: "Active", type: "boolean" },
-      { apiKey: "DAY", label: "Day", type: "date" },
-      { apiKey: "CLOCK", label: "Clock", type: "time" },
-      { apiKey: "INSTANT", label: "Instant", type: "date-time" },
-      { apiKey: "DETAIL", label: "Detail", type: "json" },
+      { name: "COUNT", type: "integer" },
+      { name: "RATIO", type: "float" },
+      { name: "ACTIVE", type: "boolean" },
+      { name: "DAY", type: "date" },
+      { name: "CLOCK", type: "time" },
+      { name: "INSTANT", type: "date-time" },
+      { name: "DETAIL", type: "json" },
     ]);
     const relation = await pools.owner.query<{
       relrowsecurity: boolean;
@@ -234,30 +250,20 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-TYPES-01",
-    gates: [
-      "FLD-01",
-      "FLD-03",
-      "FLD-04",
-      "FLD-05",
-      "FLD-06",
-      "FLD-07",
-      "FLD-08",
-      "FLD-11",
-      "ROW-01",
-    ],
+    gates: ["V1-11", "V1-13", "V1-14", "V1-15", "V1-17"],
     scope:
       "All eight native types round-trip canonical values via actual PostgreSQL service; this case does not establish browser/REST/MCP parity",
   },
   async () => {
     const t = await table([
       text("TEXT", 20),
-      { apiKey: "INTEGER", label: "Integer", type: "integer" },
-      { apiKey: "FLOAT", label: "Float", type: "float" },
-      { apiKey: "BOOLEAN", label: "Boolean", type: "boolean" },
-      { apiKey: "DATE", label: "Date", type: "date" },
-      { apiKey: "TIME", label: "Time", type: "time" },
-      { apiKey: "DATETIME", label: "Datetime", type: "date-time" },
-      { apiKey: "JSON", label: "Json", type: "json" },
+      { name: "INTEGER", type: "integer" },
+      { name: "FLOAT", type: "float" },
+      { name: "BOOLEAN", type: "boolean" },
+      { name: "DATE", type: "date" },
+      { name: "TIME", type: "time" },
+      { name: "DATETIME", type: "date-time" },
+      { name: "JSON", type: "json" },
     ]);
     const values = {
       TEXT: "航空✈️\n001",
@@ -306,46 +312,43 @@ const rejectionCases: {
     field: text("VALUE", 3),
     accepted: "😀éA",
     rejected: ["😀éAA", "\u0000", "\ud800", 123],
-    gate: "FLD-01",
+    gate: "V1-13",
   },
   {
     name: "integer",
     field: {
-      apiKey: "VALUE",
-      label: "Value",
+      name: "VALUE",
       type: "integer",
       min: -3,
       max: 3,
     },
     accepted: -3,
     rejected: [-4, 4, 0.25, "2", Number.MAX_SAFE_INTEGER + 1],
-    gate: "FLD-03",
+    gate: "V1-13",
   },
   {
     name: "float",
     field: {
-      apiKey: "VALUE",
-      label: "Value",
+      name: "VALUE",
       type: "float",
       min: -0.5,
       max: 1.5,
     },
     accepted: 1.5,
     rejected: [-0.50001, 1.50001, "1.5", Number.NaN, Infinity, -Infinity],
-    gate: "FLD-04",
+    gate: "V1-13",
   },
   {
     name: "boolean",
-    field: { apiKey: "VALUE", label: "Value", type: "boolean" },
+    field: { name: "VALUE", type: "boolean" },
     accepted: false,
     rejected: ["false", 0, 1],
-    gate: "FLD-05",
+    gate: "V1-13",
   },
   {
     name: "date",
     field: {
-      apiKey: "VALUE",
-      label: "Value",
+      name: "VALUE",
       type: "date",
       min: "2024-02-28",
       max: "2024-03-01",
@@ -359,11 +362,11 @@ const rejectionCases: {
       "2024-03-02",
       "2024-02-29T00:00:00Z",
     ],
-    gate: "FLD-06",
+    gate: "V1-14",
   },
   {
     name: "time",
-    field: { apiKey: "VALUE", label: "Value", type: "time" },
+    field: { name: "VALUE", type: "time" },
     accepted: "00:00:00Z",
     rejected: [
       "00:00:00",
@@ -372,13 +375,12 @@ const rejectionCases: {
       "23:59:60Z",
       "00:00:00.1234Z",
     ],
-    gate: "FLD-07",
+    gate: "V1-14",
   },
   {
     name: "date-time",
     field: {
-      apiKey: "VALUE",
-      label: "Value",
+      name: "VALUE",
       type: "date-time",
       min: "2024-01-01T00:00:00.000Z",
       max: "2024-12-31T23:59:59.999Z",
@@ -391,11 +393,11 @@ const rejectionCases: {
       "2024-02-29T00:00:00.1234Z",
       "2023-12-31T23:59:59Z",
     ],
-    gate: "FLD-08",
+    gate: "V1-14",
   },
   {
     name: "json",
-    field: { apiKey: "VALUE", label: "Value", type: "json" },
+    field: { name: "VALUE", type: "json" },
     accepted: [true, { x: null }],
     rejected: [
       { invalid: "\u0000" },
@@ -403,14 +405,14 @@ const rejectionCases: {
       { number: Number.MAX_SAFE_INTEGER + 1 },
       { number: Infinity },
     ],
-    gate: "FLD-11",
+    gate: "V1-13",
   },
 ];
 for (const [index, scenario] of rejectionCases.entries())
   verificationCase(
     {
       id: `STORAGE-BOUNDARY-${String(index + 1).padStart(2, "0")}`,
-      gates: [scenario.gate, "AUD-04"],
+      gates: [scenario.gate, "V1-20"],
       scope: `${scenario.name} boundary validation rejects without row/count/history mutation on PostgreSQL service`,
     },
     async () => {
@@ -438,7 +440,7 @@ for (const [index, scenario] of rejectionCases.entries())
 verificationCase(
   {
     id: "STORAGE-DEFAULTS-01",
-    gates: ["FLD-13", "FLD-14", "ROW-02"],
+    gates: ["V1-13", "V1-17"],
     scope:
       "Defaults apply only on omitted create input, patch preserves absent values, explicit null clears nullable cells, required cells/system writes reject",
   },
@@ -446,7 +448,7 @@ verificationCase(
     const t = await table([
       { ...text("CODE"), required: true, default: "default" },
       text("NULLABLE"),
-      { apiKey: "BOOL", label: "Boolean", type: "boolean", default: false },
+      { name: "BOOL", type: "boolean", default: false },
     ]);
     const inserted = await storage.createRow(actor, t.id, {});
     assert.deepEqual(inserted.values, {
@@ -498,7 +500,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-BYTES-01",
-    gates: ["ROW-03", "FLD-02"],
+    gates: ["V1-13", "V1-17"],
     scope:
       "Exactly 65,536 canonical UTF-8 bytes accepted; +1 rejected on creates and patches; multibyte characters are distinct from row bytes",
   },
@@ -538,15 +540,12 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-AUDIT-01",
-    gates: ["AUD-01", "AUD-02", "FLD-12", "ROW-07"],
+    gates: ["V1-15", "V1-17", "V1-20"],
     scope:
       "Canonical JSON no-op retains revision/history; changed cells and deletion record exact old/new values, actor, request and mutation under atomic trigger",
   },
   async () => {
-    const t = await table([
-      text(),
-      { apiKey: "JSON", label: "Json", type: "json" },
-    ]);
+    const t = await table([text(), { name: "JSON", type: "json" }]);
     const inserted = await storage.createRow(
       actor,
       t.id,
@@ -613,7 +612,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-CONCURRENCY-01",
-    gates: ["ROW-06", "ROW-08", "ROW-09", "AUD-04"],
+    gates: ["V1-17", "V1-20"],
     scope:
       "Concurrent same-version writers allow one commit; stale revision and invalid atomic batch leave values/count/history unchanged; idempotent create replays one row",
   },
@@ -701,7 +700,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-UNIQUE-01",
-    gates: ["UNI-01", "UNI-02", "UNI-03", "UNI-04", "UNI-06"],
+    gates: ["V1-18"],
     scope:
       "Native composite scalar uniqueness handles case, whitespace/null semantics, concurrent duplicate writes, deletion release and duplicate-rule activation rollback",
   },
@@ -764,7 +763,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-UNIQUE-02",
-    gates: ["UNI-03", "UNI-04", "UNI-05", "UNI-08", "UNI-09"],
+    gates: ["V1-18"],
     scope:
       "Wide composite registry checks exact tuples concurrently, atomically releases updates/deletes and rejects JSON uniqueness; forced digest collision remains a separate required case",
   },
@@ -772,7 +771,7 @@ verificationCase(
     const t = await table([
       text("A", 20000),
       text("B", 20000),
-      { apiKey: "JSON", label: "Json", type: "json" },
+      { name: "JSON", type: "json" },
     ]);
     const rule = await storage.createUniqueRule(actor, t.id, {
       fieldIds: [t.fields[0]!.id, t.fields[1]!.id],
@@ -828,26 +827,29 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-SCHEMA-01",
-    gates: ["DB-04", "DB-07", "DB-08", "DB-10", "AUD-05", "AUD-07"],
+    gates: ["V1-12", "V1-19", "V1-20", "V1-21"],
     scope:
       "Schema versions reject stale writers; rename/reorder retain field identity; invalid populated bounds roll back; deleted field history survives",
   },
   async () => {
     const t = await table([
       text(),
-      { apiKey: "COUNT", label: "Count", type: "integer", min: 0, max: 10 },
+      { name: "COUNT", type: "integer", min: 0, max: 10 },
     ]);
     const inserted = await storage.createRow(actor, t.id, {
       CODE: "retained",
       COUNT: 9,
     });
     const renamed = await storage.updateField(actor, t.id, t.fields[0]!.id, {
-      label: "New label",
+      name: "RENAMED_CODE",
       expectedSchemaVersion: 1,
       idempotencyKey: key(),
     });
     assert.equal(renamed.fields[0]?.id, t.fields[0]?.id);
-    assert.equal(renamed.fields[0]?.apiKey, "CODE");
+    assert.equal(renamed.fields[0]?.name, "RENAMED_CODE");
+    const renamedRow = await storage.getRow(actor, t.id, inserted.id);
+    assert.equal(renamedRow.values.RENAMED_CODE, "retained");
+    assert.equal(renamedRow.values.CODE, undefined);
     await assert.rejects(
       storage.createField(actor, t.id, {
         ...text("NEW"),
@@ -881,7 +883,7 @@ verificationCase(
       idempotencyKey: key(),
     });
     assert.notEqual(
-      recreated.fields.find((field) => field.apiKey === "CODE")?.id,
+      recreated.fields.find((field) => field.name === "CODE")?.id,
       t.fields[0]?.id,
     );
   },
@@ -890,7 +892,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-RLS-01",
-    gates: ["DB-05", "AUD-04"],
+    gates: ["V1-20", "V1-38"],
     scope:
       "Actual API role rejects absent/mismatched org context, direct unaudited SQL and trigger removal; transaction-local org settings do not leak to pooled requests",
   },
@@ -937,15 +939,12 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-PAGING-01",
-    gates: ["QRY-01", "QRY-03", "QRY-05", "QRY-07", "QRY-08", "QRY-09"],
+    gates: ["V1-22"],
     scope:
       "Typed filtering and stable tied sorting/projected cursors visit unchanged rows once; tampered/query/actor/schema cursors and invalid limits reject",
   },
   async () => {
-    const t = await table([
-      text("GROUP"),
-      { apiKey: "COUNT", label: "Count", type: "integer" },
-    ]);
+    const t = await table([text("GROUP"), { name: "COUNT", type: "integer" }]);
     await storage.mutateRows(actor, t.id, {
       idempotencyKey: key(),
       operations: Array.from({ length: 15 }, (_, i) => ({
@@ -1028,7 +1027,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-BYTEPAGE-01",
-    gates: ["QRY-06", "QRY-09"],
+    gates: ["V1-15", "V1-22"],
     scope:
       "Small encoded response budget cuts on complete rows and cursor resumes without boundary loss or exceeding actual JSON envelope size",
   },
@@ -1065,7 +1064,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-SCHEMA-BYTES-02",
-    gates: ["DB-08", "ROW-03"],
+    gates: ["V1-17", "V1-19"],
     scope:
       "Adding a nullable field to a full-size populated row rejects before metadata/DDL activation; existing schema and values remain readable",
   },
@@ -1094,14 +1093,12 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-CONVERSION-01",
-    gates: ["DB-09", "AUD-03", "AUD-08", "ROW-08"],
+    gates: ["V1-19", "V1-20", "V1-21"],
     scope:
       "Populated explicit conversion publishes one physical generation with row IDs/revisions/history retained, and an identical retry replays instead of converting twice",
   },
   async () => {
-    const t = await table([
-      { apiKey: "VALUE", label: "Value", type: "integer" },
-    ]);
+    const t = await table([{ name: "VALUE", type: "integer" }]);
     const row = await storage.createRow(actor, t.id, { VALUE: 42 });
     const input = {
       type: "text" as const,
@@ -1151,7 +1148,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-CONVERSION-02",
-    gates: ["DB-09", "AUD-04"],
+    gates: ["V1-19", "V1-20"],
     scope:
       "Invalid populated conversion preserves original generation/schema/row/history and reconciles failed staging without exposing partial converted values",
   },
@@ -1193,7 +1190,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-SNAPSHOT-01",
-    gates: ["BKP-03", "IO-06"],
+    gates: ["V1-25", "V1-26"],
     scope:
       "One repeatable-read PostgreSQL snapshot across two tables keeps old values/history during concurrent row edits; extraction schema barrier blocks field DDL and releases afterwards",
   },
@@ -1313,7 +1310,7 @@ verificationCase(
       assert.equal((await storage.getTable(actor, a.id)).schemaVersion, 1);
       assert.equal(
         (await storage.getTable(actor, a.id)).fields.some(
-          (field) => field.apiKey === "NEW",
+          (field) => field.name === "NEW",
         ),
         false,
       );
@@ -1344,7 +1341,7 @@ verificationCase(
 verificationCase(
   {
     id: "STORAGE-INDEX-01",
-    gates: ["DB-11", "QRY-10"],
+    gates: ["V1-21", "V1-23"],
     scope:
       "Real concurrent trigram index build publishes active only with valid PostgreSQL catalogue entry; removal marks metadata and physical index absent",
   },

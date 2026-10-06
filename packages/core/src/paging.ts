@@ -115,7 +115,6 @@ export class MetadataPaging {
         "VALIDATION_FAILED",
         "Metadata filter is too large",
       );
-    const targets = actor.targets.map((target) => canonicalJson(target)).sort();
     return createHash("sha256")
       .update(
         canonicalJson({
@@ -130,11 +129,8 @@ export class MetadataPaging {
             credentialId: actor.credentialId ?? null,
             clientId: actor.clientId ?? null,
             role: actor.role,
-            grantVersion: actor.grantVersion ?? null,
+            membershipVersion: actor.membershipVersion ?? null,
             scopes: [...new Set(actor.scopes)].sort(),
-            targets,
-            unrestricted: actor.unrestricted ?? false,
-            operator: actor.operator ?? false,
           },
         }),
       )

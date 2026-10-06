@@ -1,154 +1,83 @@
-# Upgrade and recovery
+# Fresh baseline and recovery
 
-Upgrade and recovery are installation-operator actions. Record source commit,
-image IDs, current migration names/digests, key IDs and the recovery artifact
-checksums. Use a protected directory with `umask 077`; dumps, object copies and
-configuration contain sensitive data.
+V1 is still prelaunch. It has one fresh-install baseline,
+[`0001_baseline.sql`](../../packages/database/migrations/0001_baseline.sql), which
+may be regenerated before release. There is no supported upgrade from the former
+migration sequence. An earlier ledger or a changed applied digest must refuse
+startup; preserve its data and use a separate empty installation. Do not edit the
+ledger, run reverse DDL or replace old volumes to make the refusal disappear.
 
-## Before an upgrade
+Recover an older installation with its matching source/images/schema and retained
+keys. A recovery copy is not a conversion into the new baseline. Any future data
+transfer needs its own reviewed, tested procedure.
 
-1. Review the candidate's forward migrations and dynamic schema-journal changes.
-   Retain the old image IDs and migration report. Do not replace an applied SQL
-   file: Rootset verifies its digest and rejects an altered migration.
-2. Confirm each logical database's latest backup reached verified success and
-   rehearse its isolated restore. A scheduled or uploaded backup is insufficient.
-3. Prepare a full installation recovery copy using the procedure below. Protect
-   the encryption-key ring separately and confirm the selected copy restores on
-   an isolated installation with the same PostgreSQL major version.
-4. Stop new changes and let active jobs reach safe checkpoints. Preserve their
-   persisted lease/checkpoint/journal state. Stop API and worker for the
-   installation snapshot; leave PostgreSQL and object storage running.
+## Prepare an installation recovery copy
 
-## Apply forward migrations
+A logical database backup includes table data and history, but excludes account
+credentials and much installation state. Full recovery needs PostgreSQL state
+and SQL privileges, referenced objects, protected configuration and retained keys.
 
-Build reviewed images from the candidate, then run the one-shot migration service
-before starting its API/worker:
+1. Identify the installation/project, source version, PostgreSQL major, baseline
+   digest, object bucket and key IDs. Retain the existing images and configuration.
+2. Verify a recent logical backup by encrypted readback and isolated restore.
+   Record its data cutoff and validation result; uploaded is not verified.
+3. Stop new changes and let jobs reach safe checkpoints. Stop this installation's
+   web/API/worker while keeping PostgreSQL/object storage available for copying.
+   Preserve lease, checkpoint and schema-journal state.
+4. Use the PostgreSQL/provider's supported backup procedure in a protected
+   directory (`umask 077`). A database-only `pg_dump` omits cluster roles: retain
+   the complete Rootset login/owner/fixed-function role membership and grant graph.
+   A dedicated-cluster physical backup with WAL preserves that graph together
+   with database state. Shared-cluster procedures must not copy unrelated data
+   or credentials.
+5. Copy the complete referenced Rootset object set with provider tooling while
+   writers remain stopped. Record nonempty inventory, lengths and checksums.
+   Retain protected configuration and every encryption key referenced by data,
+   objects or recovery copies. Encrypt the recovery set and protect its recovery
+   key separately.
+6. Validate the PostgreSQL backup/manifest and object inventory. Mark an interrupted
+   copy failed; restart the source only after its copy is complete or safely
+   abandoned. Keep source volumes and original objects intact.
 
-```sh
-docker compose --profile local stop web api worker
-docker compose --profile local build
-docker compose --profile local run --rm migrate
-docker compose --profile local up -d worker api web
-docker compose --profile local ps
-```
+Never store plaintext recovery copies in Git or public buckets. A role definition
+file, database dump and encrypted artifact can all contain sensitive material.
+Record only redacted metadata in a shared incident report.
 
-For external services omit `--profile local`. The migration process takes an
-advisory lock, verifies existing digests and commits each new migration
-transactionally. A failed migration rolls back its transaction. Previously
-committed migrations remain applied; inspect the persisted migration report.
+## Restore on a separate target
 
-Check actual API readiness, the current worker's fresh heartbeat and redacted
-installation status. Reconcile dynamic journals through their persisted jobs;
-verify a representative existing table's schema, values, row versions, unique
-rules and cell history. Verify restored backups and newly produced backups after
-the upgrade. These checks also catch an accidental switch to new empty volumes.
+1. Create a separate installation/project with new volumes, bucket and browser
+   origin. Match the recorded PostgreSQL major and Rootset source/schema. Keep
+   target web/API/worker stopped and confirm the destination is not the source.
+2. Restore the retained SQL role graph before ownership/grants and database state.
+   Use PostgreSQL's supported restore/physical recovery procedure, stop on errors
+   and preserve the failed target for diagnosis. Do not issue a clean restore
+   against an unconfirmed or populated source.
+3. Restore objects into the separate bucket and configure retained keys/secrets.
+   Check OAuth/passkey/session origin bindings and use the supported reconnect/
+   sign-in procedures where the target origin differs.
+4. Compare the single organisation, memberships/roles, identity/control records,
+   jobs/journals, schemas, typed values, revisions, uniqueness, row/cell history
+   and artifact counts/checksums. Decrypt a nonempty object set and verify a
+   logical restore; an empty bucket proves neither object nor key recovery.
+5. Start target services, check readiness and resume leases/checkpoints without
+   duplicate effects. Exercise authentication, live key authority and a new edit
+   with history. Record actual recovery duration, snapshot/WAL cutoff and any
+   divergence caused by source changes after the copy.
 
-There is no general down-migration promise. Code rollback is safe only if the
-candidate explicitly documents compatibility with the resulting schema. If it
-does not, stop writers and restore the pre-upgrade installation copy into an
-isolated environment before a reviewed cutover. Do not guess at reverse DDL.
+Keep the original available until the recovered state is reviewed. A real cutover
+or deployment requires the user's authorization. Source-preserving recovery,
+failed restore/cutover and fresh installation are distinct checklist checks.
 
-## Full installation recovery copy
+## Logical restore
 
-A logical database backup does not contain all organisations, identities, grants,
-OAuth/key state, control jobs, installation credentials or outbox state. Full
-recovery needs PostgreSQL state, the referenced object set and the protected
-configuration/key ring.
+Admins may restore a verified database backup as a new logical database. Validate
+schema, values, history, constraints and manifests before exposure. Failed or
+unfinished captured indexes/rules remain inactive. Replacement restore needs
+explicit approval, a recovery point, staged validation and atomic cutover; failure
+preserves the existing generation. See the
+[storage contract](../../rc-plan/MDM_DATABASE_ARCHITECTURE.md#imports-exports-and-backups).
 
-After stopping API and worker, write a custom-format dump into a protected
-directory. Use the configured migration-owner service role only for this
-operator-controlled action:
-
-```sh
-umask 077
-mkdir -p recovery-copy
-docker compose --profile local exec -T postgres pg_dump --username rootset_owner --dbname rootset --format custom > recovery-copy/rootset.dump
-```
-
-A database dump does not include PostgreSQL's cluster-global roles or their
-memberships. Retain the definitions and membership graph of every Rootset login,
-managed owner, fixed-function owner and capacity reporter, including the
-NOSUPERUSER/NOBYPASSRLS boundaries and any narrowly scoped fixed-function
-exception. Restore that role graph before replaying dump ownership and grants;
-the initial application/DDL/identity logins alone are insufficient. Protect
-login credentials separately in the retained configuration. For a dedicated
-Rootset PostgreSQL cluster, a supported physical backup with streamed WAL and a
-verified manifest preserves the role graph together with database state. For a
-shared cluster, use the provider's reviewed backup and role export process
-without copying unrelated customer credentials.
-
-Use the storage provider's supported snapshot/export tooling to copy the complete
-Rootset bucket while writers remain stopped. Record the bucket inventory and
-checksums. Copy `.env` and all active/retained encryption keys into the separately
-protected recovery store. Encrypt the recovery set using the organisation's
-reviewed recovery tooling and preserve access to the decryption key separately.
-Do not place unencrypted recovery copies in the repository or a public bucket.
-
-Check that the dump is nonempty and readable with `pg_restore --list`, and that
-the object inventory and protected key IDs were recorded. Restart services only
-after the recovery set is complete. An interrupted copy must be labeled failed.
-
-## Restore on an isolated installation
-
-1. Use a new Compose project, new named volumes and a separate browser origin.
-   Prepare PostgreSQL 18 roles with the same role names. Keep the source
-   installation and its objects intact. Recreate the complete retained Rootset
-   role graph, including managed/fixed-function owners and the reporter, before
-   restoring ownership or grants.
-2. Keep API/worker stopped. Restore the dump with PostgreSQL `pg_restore` as the
-   prepared owner; include ownership and grants, and stop on error. On the new
-   empty target, use `--clean --if-exists --exit-on-error` as appropriate. Do not
-   run a clean restore against an unconfirmed source or populated destination.
-3. Restore the bucket into a separate target bucket and configure its endpoint.
-   Restore retained encryption keys and installation credentials separately.
-   Keep source session/OAuth origins in mind: use a reviewed isolated-origin
-   configuration and reconnect clients/factors where origin binding requires it.
-4. Compare organisations, membership/grants, jobs, schemas, typed values,
-   revisions, uniqueness rules, cell/control history and artifact digests. Verify
-   decryption and an isolated logical restore, then start the worker and verify
-   lease/checkpoint recovery without duplicate committed effects.
-5. Record the actual recovery time and data cutoff. Cutover to a real service
-   requires separate deployment authorization and final dependency checks.
-
-The v1 checklist requires a populated forward-upgrade fixture and a forced failed
-upgrade/recovery rehearsal in addition to clean installation. Evidence from one
-scenario cannot sign off the others.
-
-## Repository verification helpers
-
-The recovery helpers deliberately accept only the dedicated local Rootset v1
-fixture, its `com.rootset.fixture=v1` Docker label and loopback PostgreSQL port 55448. They are rehearsal tools, not general commands for a customer installation.
-Coordinate their I/O with performance verification before running them.
-
-```sh
-pnpm exec tsx --env-file=.env.test tools/recovery-fixture.mjs
-node tools/recovery-rehearsal.mjs --run
-node tools/recovery-objects.mjs verification/delivery/physical-recovery-TIMESTAMP
-```
-
-The fixture creates a separate synthetic organisation, typed row, persisted
-encrypted control payload and encrypted artifact under the retained fixture key.
-The physical backup uses `pg_basebackup`, streamed WAL and SHA-256 manifests,
-then runs `pg_verifybackup` before starting isolated PostgreSQL 18. The host copy
-has a protected 0700 parent; retained keys and reports are mode 0600. Existing
-containers, databases and original fixture volumes are preserved.
-
-The restored test server defaults to port 55460. For a separate subsequent
-rehearsal, set `ROOTSET_RECOVERY_TARGET_NAME` to a name beginning
-`rootset-delivery-physical-recovery-` and `ROOTSET_RECOVERY_TARGET_PORT` to another
-unused loopback port in 55000–55999. Existing recovery containers are never
-overwritten. The report records actual target name/port and image digest.
-
-Metadata comparisons distinguish objects unchanged across the online copy from
-objects legitimately changed by concurrent verification. Record the consistent
-WAL cutoff and compare the complete stable scale rows/history separately; a
-wall-clock global row count is not a snapshot-equivalence test. Object recovery
-copies every ready artifact referenced by the restored metadata, verifies
-ciphertext and plaintext hashes/lengths and authentication tags with the retained
-keys, and discards decrypted bytes without writing another plaintext copy.
-
-An empty set of ciphertext/artifacts does not prove nonempty key/object recovery.
-Use the dedicated encrypted fixture and record its successful decryption,
-matching content hashes and restored control/data relationships before signing
-off that scenario. The original fixture can be removed only after review accepts
-the recovered state and retained evidence.
+Repository recovery helpers use isolated synthetic fixtures. Check their current
+arguments and target restrictions before running them; a historical retained
+fixture from the former schema is not automatically compatible with this baseline.
+The [verification guide](../verification/README.md) records remaining rehearsals.

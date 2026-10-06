@@ -8,8 +8,7 @@ const id = (index: number) =>
 const instant = "2026-10-02T00:00:00.000Z";
 const field = {
   id: id(4),
-  apiKey: "CODE",
-  label: "Code",
+  name: "CODE",
   type: "text",
   charLimit: 10,
   order: 0,
@@ -53,8 +52,7 @@ function journal(kind: string, input: unknown, state = "committed") {
 test("schema journals expose public before/request metadata and preserve user JSON defaults", () => {
   const output = mapSchemaJournal(
     journal("field.create", {
-      apiKey: "META",
-      label: "Metadata",
+      name: "META",
       type: "json",
       default: { context: "user data", physicalName: "user data" },
       context: { requestId: "secret-auth-context" },
@@ -68,8 +66,7 @@ test("schema journals expose public before/request metadata and preserve user JS
   assert.deepEqual(output.change, {
     kind: "add_field",
     field: {
-      apiKey: "META",
-      label: "Metadata",
+      name: "META",
       type: "json",
       default: { context: "user data", physicalName: "user data" },
     },
@@ -93,7 +90,6 @@ test("schema journals expose public before/request metadata and preserve user JS
 
 test("field update/delete identity is reconstructed from the bound job input instead of guessed", () => {
   const update = journal("field.update", {
-    label: "New code",
     expectedSchemaVersion: 3,
     context: { source: "schema" },
   });
@@ -101,12 +97,12 @@ test("field update/delete identity is reconstructed from the bound job input ins
   assert.equal(incomplete.change, undefined);
   const mapped = mapSchemaJournal(update, {
     jobId: id(8),
-    request: { tableId: id(2), fieldId: id(4), field: { label: "New code" } },
+    request: { tableId: id(2), fieldId: id(4), field: {} },
   });
   assert.deepEqual(mapped.change, {
     kind: "update_field",
     fieldId: id(4),
-    changes: { label: "New code" },
+    changes: {},
   });
   assert.equal(mapped.jobId, id(8));
   const deletion = mapSchemaJournal(
@@ -151,7 +147,6 @@ test("conversion recovery phases retain raw state and safe verification metadata
       "field.convert",
       {
         type: "integer",
-        label: "Numeric code",
         conversion: { strategy: "strict" },
         context: { privateKey: "secret" },
       },
@@ -178,7 +173,7 @@ test("conversion recovery phases retain raw state and safe verification metadata
     assert.deepEqual(output.change, {
       kind: "update_field",
       fieldId: id(4),
-      changes: { type: "integer", label: "Numeric code" },
+      changes: { type: "integer" },
       conversion: "lossless",
     });
     assert.equal(output.verification.fieldId, id(4));
@@ -199,7 +194,7 @@ test("non-field schema operations have typed requests without invented field cha
       "table.create",
       {
         name: "Airlines",
-        fields: [{ apiKey: "CODE", label: "Code", type: "text" }],
+        fields: [{ name: "CODE", type: "text" }],
       },
     ],
     ["table.update", { description: null }],

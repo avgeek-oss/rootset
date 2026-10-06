@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
 import {
   databasePath,
@@ -95,7 +95,7 @@ export function DatabaseSettings(props: SettingsPanelProps) {
                     orgId: props.orgId,
                     databaseId: props.databaseId,
                   }),
-                "Database deletion requested. Check Jobs for completion.",
+                "Database deletion requested.",
               );
           }}
         >

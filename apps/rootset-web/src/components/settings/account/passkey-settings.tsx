@@ -1,0 +1,162 @@
+"use client";
+import { useState } from "react";
+
+import { Button } from "../../ui/towbar/design-system/buttons/button";
+import { Modal } from "../../ui/towbar/design-system/overlays/modal";
+import { Chip } from "../../ui/towbar/design-system/data-display/chip";
+import { QueryError, QueryLoading } from "../../ui/towbar/web-ui/query-state";
+import { FormCard, ActionButton } from "./page-parts";
+import { AuthForm } from "./auth-form";
+import { useAccess } from "./adapter";
+import { useApiQuery } from "./adapter";
+import { api } from "./adapter";
+import { useDateDisplay } from "./adapter";
+import { registerPasskey, passkeyError } from "./adapter";
+
+type Passkey = { id: string; name: string | null; createdAt: string };
+export function PasskeySettings() {
+  const displayDate = useDateDisplay();
+  const { user } = useAccess();
+  const keys = useApiQuery<{ passkeys: Passkey[] }>(
+    "/v1/core/profile/passkeys",
+  );
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Passkey | null>(null);
+  const [instance, setInstance] = useState(0);
+  function edit(key: Passkey | null) {
+    setEditing(key);
+    setInstance((v) => v + 1);
+    setOpen(true);
+  }
+  return (
+    <>
+      <FormCard
+        title="Passkeys"
+        headerEnd={
+          keys.data && !keys.error ? (
+            <Chip variant={keys.data.passkeys.length ? "success" : "secondary"}>
+              {keys.data.passkeys.length
+                ? `${keys.data.passkeys.length} added`
+                : "None added"}
+            </Chip>
+          ) : undefined
+        }
+      >
+        <div className="content-grid">
+          <p className="text-sm text-muted">
+            Verify your sign-in after entering your password with your
+            fingerprint, face, or device PIN. Passkeys can be stored on your
+            device or in your password manager.
+          </p>
+          {keys.error ? (
+            <QueryError message={keys.error} />
+          ) : !keys.data ? (
+            <QueryLoading />
+          ) : keys.data.passkeys.length ? (
+            <ul className="divide-y divide-separator">
+              {keys.data.passkeys.map((key) => (
+                <li
+                  key={key.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium break-words">
+                      {key.name || "Passkey"}
+                    </p>
+                    <time
+                      className="text-xs text-muted"
+                      dateTime={key.createdAt}
+                    >
+                      Created {displayDate(key.createdAt)}
+                    </time>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onPress={() => edit(key)}>
+                      Rename
+                    </Button>
+                    <ActionButton
+                      variant="danger"
+                      success="Passkey removed"
+                      confirm={{
+                        title: "Remove passkey?",
+                        description: `${key.name || "This passkey"} will no longer be available for two-factor authentication.`,
+                        actionLabel: "Remove",
+                      }}
+                      action={async () => {
+                        await api.post(
+                          "/v1/public/auth/identity/passkey/delete-passkey",
+                          { id: key.id },
+                        );
+                        keys.refresh();
+                      }}
+                    >
+                      Remove
+                    </ActionButton>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div>
+            <Button onPress={() => edit(null)}>Add passkey</Button>
+          </div>
+        </div>
+      </FormCard>
+      <Modal.Backdrop isOpen={open} onOpenChange={setOpen}>
+        <Modal.Container size="sm">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>
+                {editing ? "Rename passkey" : "Add passkey"}
+              </Modal.Heading>
+              <Modal.CloseTrigger />
+            </Modal.Header>
+            <Modal.Body>
+              <AuthForm
+                key={instance}
+                variant="secondary"
+                errorPresentation="toast"
+                fields={[
+                  {
+                    name: "name",
+                    label: "Name",
+                    required: true,
+                    maxLength: 120,
+                    defaultValue: editing?.name ?? "",
+                    autoComplete: "off",
+                  },
+                ]}
+                submitLabel={editing ? "Update" : "Continue"}
+                onCancel={() => setOpen(false)}
+                onSubmit={async (values) => {
+                  try {
+                    if (editing)
+                      await api.post(
+                        "/v1/public/auth/identity/passkey/update-passkey",
+                        { id: editing.id, name: values.name },
+                      );
+                    else {
+                      if (!user) throw new Error("Sign in to add a passkey.");
+                      await registerPasskey(values.name ?? "");
+                    }
+                  } catch (error) {
+                    throw new Error(passkeyError(error));
+                  }
+                  setOpen(false);
+                  keys.refresh();
+                }}
+              >
+                {!editing ? (
+                  <p className="text-sm text-muted">
+                    Your browser will ask where to save your passkey and verify
+                    your identity.
+                  </p>
+                ) : null}
+              </AuthForm>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </>
+  );
+}

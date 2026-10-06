@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
 import { HistoryRetentionSettings } from "./history-retention";
 import {
@@ -30,6 +30,13 @@ import {
   type TableField,
   type TableSchemaResult,
 } from "./types";
+
+import {
+  fieldDraft,
+  parseFieldDraft,
+  type FieldDraft,
+  type FieldDraftErrors,
+} from "./field-draft";
 
 const EMPTY_SCHEMA: TableSchemaResult = {
   table: { name: "", schemaVersion: 1 },
@@ -127,7 +134,7 @@ export function TableSettings(props: SettingsPanelProps) {
                     tableId: props.tableId,
                     expectedSchemaVersion: schema.data.table.schemaVersion,
                   }),
-                "Table deletion requested. Check Jobs for its terminal state.",
+                "Table deletion requested.",
               );
           }}
         >
@@ -140,70 +147,7 @@ export function TableSettings(props: SettingsPanelProps) {
   );
 }
 
-interface FieldDraft {
-  label: string;
-  apiKey: string;
-  type: TableField["type"];
-  required: boolean;
-  charLimit: string;
-  min: string;
-  max: string;
-  defaultMode: string;
-  defaultValue: string;
-  defaultBoolean: boolean;
-}
-function draft(field?: TableField): FieldDraft {
-  return {
-    label: field?.label ?? "",
-    apiKey: field?.apiKey ?? "",
-    type: field?.type ?? "text",
-    required: field?.required ?? false,
-    charLimit: String(field?.charLimit ?? 4096),
-    min: String(field?.min ?? ""),
-    max: String(field?.max ?? ""),
-    defaultMode:
-      field && Object.hasOwn(field, "default")
-        ? field.default === null
-          ? "null"
-          : "value"
-        : "none",
-    defaultValue:
-      field && field.default !== undefined && field.default !== null
-        ? field.type === "json"
-          ? JSON.stringify(field.default, null, 2)
-          : String(field.default)
-        : "",
-    defaultBoolean: field?.default === true,
-  };
-}
-function fieldInput(value: FieldDraft) {
-  const result: Record<string, unknown> = {
-    apiKey: value.apiKey,
-    label: value.label,
-    type: value.type,
-    required: value.required,
-  };
-  if (value.type === "text") result.charLimit = Number(value.charLimit);
-  if (["integer", "float", "date", "date-time"].includes(value.type))
-    for (const bound of ["min", "max"] as const)
-      if (value[bound] !== "")
-        result[bound] = ["integer", "float"].includes(value.type)
-          ? Number(value[bound])
-          : value[bound];
-  if (value.defaultMode === "null") result.default = null;
-  if (value.defaultMode === "value")
-    result.default =
-      value.type === "json"
-        ? JSON.parse(value.defaultValue)
-        : value.type === "boolean"
-          ? value.defaultBoolean
-          : ["integer", "float"].includes(value.type)
-            ? Number(value.defaultValue)
-            : value.defaultValue;
-  return result;
-}
-
-function FieldForm({
+export function FieldForm({
   field,
   busy,
   submit,
@@ -212,10 +156,30 @@ function FieldForm({
   busy: boolean;
   submit: (input: Record<string, unknown>) => Promise<void>;
 }) {
-  const [value, setValue] = useState(() => draft(field));
+  const [value, setValue] = useState(() => fieldDraft(field));
+  const [errors, setErrors] = useState<FieldDraftErrors>({});
   const [error, setError] = useState<string>();
   function patch<K extends keyof FieldDraft>(key: K, next: FieldDraft[K]) {
-    setValue((previous) => ({ ...previous, [key]: next }));
+    const updated = { ...value, [key]: next };
+    setValue(updated);
+    if (Object.keys(errors).length) {
+      const nextErrors = parseFieldDraft(updated).errors ?? {};
+      setErrors(
+        Object.fromEntries(
+          Object.keys(errors).map((field) => [
+            field,
+            nextErrors[field as keyof FieldDraft],
+          ]),
+        ),
+      );
+    }
+  }
+  function validate(...keys: (keyof FieldDraft)[]) {
+    const nextErrors = parseFieldDraft(value).errors ?? {};
+    setErrors((previous) => ({
+      ...previous,
+      ...Object.fromEntries(keys.map((key) => [key, nextErrors[key]])),
+    }));
   }
   return (
     <Form
@@ -223,8 +187,11 @@ function FieldForm({
       submit={field ? "Preview and apply changes" : "Create field"}
       onSubmit={async () => {
         setError(undefined);
+        const parsed = parseFieldDraft(value);
+        setErrors(parsed.errors ?? {});
+        if (!parsed.input) return;
         try {
-          await submit(fieldInput(value));
+          await submit(parsed.input);
         } catch (reason) {
           setError(
             reason instanceof Error
@@ -234,23 +201,18 @@ function FieldForm({
         }
       }}
     >
-      <div className="settings-inline">
-        <Field
-          label="Label"
-          value={value.label}
-          onChange={(next) => patch("label", next)}
-          required
-        />
-        <Field
-          label="API key"
-          value={value.apiKey}
-          onChange={(next) => patch("apiKey", next)}
-          required
-          readOnly={Boolean(field)}
-          pattern="[A-Za-z][A-Za-z0-9_]{0,63}"
-          description="Stable identifier used by API and MCP. It cannot be renamed."
-        />
-      </div>
+      <Field
+        label="Name"
+        value={value.name}
+        onChange={(next) => patch("name", next)}
+        onBlur={() => validate("name")}
+        required
+        minLength={1}
+        maxLength={64}
+        pattern="[A-Za-z_]+"
+        description="Use 1–64 letters or underscores. Reserved system names are unavailable. This name is the column label and the key used by API requests."
+        error={errors.name}
+      />
       <Choice
         label="Field type"
         value={value.type}
@@ -265,10 +227,12 @@ function FieldForm({
       />
       {value.type === "text" && (
         <Field
+          error={errors.charLimit}
           label="Maximum characters"
           type="number"
           value={value.charLimit}
           onChange={(next) => patch("charLimit", next)}
+          onBlur={() => validate("charLimit")}
           min={1}
           max={65536}
           required
@@ -277,9 +241,11 @@ function FieldForm({
       {["integer", "float", "date", "date-time"].includes(value.type) && (
         <div className="settings-inline">
           <Field
+            error={errors.min}
             label="Minimum (inclusive)"
             value={value.min}
             onChange={(next) => patch("min", next)}
+            onBlur={() => validate("min", "max")}
             type={
               value.type === "date"
                 ? "date"
@@ -295,9 +261,11 @@ function FieldForm({
             }
           />
           <Field
+            error={errors.max}
             label="Maximum (inclusive)"
             value={value.max}
             onChange={(next) => patch("max", next)}
+            onBlur={() => validate("min", "max")}
             type={
               value.type === "date"
                 ? "date"
@@ -310,6 +278,7 @@ function FieldForm({
         </div>
       )}
       <Choice
+        error={errors.defaultMode}
         label="Default for new rows"
         value={value.defaultMode}
         onChange={(next) => patch("defaultMode", next)}
@@ -331,6 +300,7 @@ function FieldForm({
             label="Default value"
             value={value.defaultValue}
             onChange={(next) => patch("defaultValue", next)}
+            onBlur={() => validate("defaultValue")}
             type={
               ["integer", "float"].includes(value.type)
                 ? "number"
@@ -349,10 +319,15 @@ function FieldForm({
                     ? "Enter a valid JSON value."
                     : undefined
             }
-            error={error}
+            error={errors.defaultValue}
           />
         ))}
-      {error && value.defaultMode !== "value" && (
+      {errors.defaultValue && value.type === "boolean" && (
+        <p role="alert" className="settings-feedback-error">
+          {errors.defaultValue}
+        </p>
+      )}
+      {error && (
         <p role="alert" className="settings-feedback-error">
           {error}
         </p>
@@ -391,7 +366,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
       return;
     }
     const changes = { ...input };
-    delete changes.apiKey;
     const change = {
       kind: "update_field",
       fieldId: editing.id,
@@ -452,7 +426,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
       <Loading {...schema} retry={schema.reload} />
       <Feedback {...mutation} />
       <Section
-        title={editing ? `Edit ${editing.label}` : "Create field"}
+        title={editing ? `Edit ${editing.name}` : "Create field"}
         description="Every cell has a declared type. Constraints, defaults, row size, and existing values are checked before a schema change activates."
       >
         <FieldForm
@@ -502,11 +476,10 @@ export function FieldsSettings(props: SettingsPanelProps) {
           {schema.data.fields.map((field, position) => (
             <Record
               key={field.id}
-              title={field.label}
+              title={field.name}
               description={
                 <>
-                  {field.apiKey} · {field.type} ·{" "}
-                  {field.required ? "required" : "nullable"}
+                  {field.type} · {field.required ? "required" : "nullable"}
                   {field.charLimit && <> · {field.charLimit} characters</>}
                   {field.min !== undefined && <> · min {field.min}</>}
                   {field.max !== undefined && <> · max {field.max}</>}
@@ -515,7 +488,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
             >
               <Button
                 variant="ghost"
-                size="sm"
+
                 isDisabled={mutation.busy || position === 0}
                 onPress={() => move(field, -1)}
               >
@@ -523,7 +496,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
+
                 isDisabled={
                   mutation.busy || position === schema.data.fields.length - 1
                 }
@@ -533,7 +506,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
               </Button>
               <Button
                 variant="secondary"
-                size="sm"
+
                 onPress={() => {
                   setEditing(field);
                   setPreview(undefined);
@@ -543,7 +516,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
               </Button>
               <Button
                 variant="danger-soft"
-                size="sm"
+
                 isDisabled={mutation.busy}
                 onPress={async () => {
                   const dependencies = [
@@ -555,7 +528,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                   if (
                     await confirmation.confirm(
                       "Remove this field?",
-                      `${field.label} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its retained history remains interpretable.`,
+                      `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its retained history remains interpretable.`,
                       "Remove field",
                     )
                   )
@@ -653,7 +626,7 @@ export function RulesIndexesSettings(
               .filter((field) => !fieldIds.includes(field.id))
               .map((field) => ({
                 value: field.id,
-                label: `${field.label} (${field.type})`,
+                label: `${field.name} (${field.type})`,
               }))}
           />
           <Button
@@ -671,12 +644,11 @@ export function RulesIndexesSettings(
               <Record
                 key={id}
                 title={
-                  schema.data.fields.find((field) => field.id === id)?.label ??
+                  schema.data.fields.find((field) => field.id === id)?.name ??
                   id
                 }
               >
                 <Button
-                  size="sm"
                   variant="ghost"
                   onPress={() =>
                     setFieldIds((previous) =>
@@ -704,8 +676,8 @@ export function RulesIndexesSettings(
               title={(entry.fieldIds ?? entry.fields ?? [])
                 .map(
                   (id) =>
-                    schema.data.fields.find((field) => field.id === id)
-                      ?.label ?? id,
+                    schema.data.fields.find((field) => field.id === id)?.name ??
+                    id,
                 )
                 .join(" + ")}
               description={
@@ -714,7 +686,7 @@ export function RulesIndexesSettings(
             >
               <Button
                 variant="danger-soft"
-                size="sm"
+
                 isDisabled={mutation.busy}
                 onPress={async () => {
                   if (

@@ -6,17 +6,22 @@ import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const sourceName = "rootset-v1-postgres";
+const sourceName = process.env.ROOTSET_RECOVERY_SOURCE_NAME;
+if (!sourceName || !/^rootset-[a-z0-9-]+$/.test(sourceName))
+  throw new Error(
+    "Set the explicit fresh-baseline Rootset recovery source container name",
+  );
+const sourcePort = process.env.ROOTSET_RECOVERY_SOURCE_PORT ?? "55468";
 const restoredName =
   process.env.ROOTSET_RECOVERY_TARGET_NAME ??
   "rootset-delivery-physical-recovery";
-const restoredPort = Number(process.env.ROOTSET_RECOVERY_TARGET_PORT ?? 55460);
+const restoredPort = Number(process.env.ROOTSET_RECOVERY_TARGET_PORT ?? 55469);
 if (
   !/^rootset-delivery-physical-recovery(?:-[a-z0-9-]+)?$/.test(restoredName) ||
   !Number.isInteger(restoredPort) ||
   restoredPort < 55000 ||
   restoredPort > 55999 ||
-  restoredPort === 55448
+  restoredPort === Number(sourcePort)
 )
   throw new Error(
     "Choose a distinct Rootset recovery container and loopback test port",
@@ -37,17 +42,17 @@ process.loadEnvFile(join(root, ".env.test"));
 const sourceURL = new URL(process.env.ROOTSET_TEST_DATABASE_URL ?? "");
 if (
   !["localhost", "127.0.0.1"].includes(sourceURL.hostname) ||
-  sourceURL.port !== "55448"
+  sourceURL.port !== sourcePort
 )
   throw new Error(
     "Recovery rehearsal is restricted to the authorized loopback fixture",
   );
 const directory = resolve(
   root,
-  "verification/delivery/physical-recovery-" +
+  "verification/v1-recovery/physical-recovery-" +
     new Date().toISOString().replaceAll(/[:.]/g, "-"),
 );
-await mkdir(directory, { mode: 0o700 });
+await mkdir(directory, { recursive: true, mode: 0o700 });
 const clusterDirectory = join(directory, "cluster");
 await mkdir(clusterDirectory, { mode: 0o700 });
 const space = await statfs(directory);
@@ -78,6 +83,8 @@ await writeFile(
 );
 const record = {
   startedAt: new Date().toISOString(),
+  baseline: "0001_baseline.sql",
+  acceptance: false,
   directory,
   sourceContainerId: source.Id,
   sourceImage: source.Image,
@@ -89,7 +96,7 @@ const record = {
     : [process.env.ROOTSET_ENCRYPTION_KEY_ID ?? "primary"],
   status: "prepared",
   limitations: [
-    "Candidate remains a development tree until source/image sign-off",
+    "This recovery result does not complete the current V1 checklist",
     "Logical artifact recovery requires the matching object-copy rehearsal",
   ],
 };
@@ -124,6 +131,15 @@ const sourcePool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 async function inventory(pool) {
+  const migrations = (
+    await pool.query(
+      "SELECT name FROM rootset_control.migrations ORDER BY name",
+    )
+  ).rows;
+  if (migrations.length !== 1 || migrations[0].name !== "0001_baseline.sql")
+    throw new Error(
+      "Recovery requires a fresh installation using only 0001_baseline.sql",
+    );
   const metadata = (
     await pool.query(
       "SELECT d.id AS database_id,d.schema_name,t.id AS table_id,t.physical_name,t.row_count,t.schema_version,t.state FROM rootset_control.databases d JOIN rootset_control.tables t ON t.database_id=d.id ORDER BY d.id,t.id",
@@ -371,7 +387,7 @@ try {
       };
   const protectedRows = (
     await restoredPool.query(
-      "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE payload_encrypted<>'' UNION ALL SELECT payload_encrypted FROM rootset_control.account_actions WHERE payload_encrypted<>'' UNION ALL SELECT protected_configuration AS payload_encrypted FROM rootset_control.installation_settings WHERE protected_configuration<>''",
+      "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE payload_encrypted<>'' UNION ALL SELECT payload_encrypted FROM rootset_control.account_actions WHERE payload_encrypted<>''",
     )
   ).rows;
   let readable = 0,

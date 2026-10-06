@@ -24,7 +24,7 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
       "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Core operation fixture')",
       [orgId],
     );
-    const makeActor = async (role: "owner" | "viewer"): Promise<Actor> => {
+    const makeActor = async (role: "admin" | "viewer"): Promise<Actor> => {
       const userId = newId(),
         sessionId = newId();
       await db.owner.query(
@@ -36,8 +36,8 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
         [newId(), orgId, userId, role],
       );
       await db.owner.query(
-        "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,active_organization_id,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',$4,now())",
-        [sessionId, userId, newId(), orgId],
+        "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',now())",
+        [sessionId, userId, newId()],
       );
       return {
         kind: "session",
@@ -46,12 +46,10 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
         orgId,
         role,
         scopes: [...scopeNames],
-        targets: [],
-        unrestricted: true,
         authenticatedAt: Date.now(),
       };
     };
-    const owner = await makeActor("owner"),
+    const owner = await makeActor("admin"),
       viewer = await makeActor("viewer");
     const call = async (
       id: string,
@@ -74,18 +72,18 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
       databaseId: database.id,
       name: "Codes",
       fields: [
-        { type: "text", apiKey: "CODE", label: "Code", charLimit: 20 },
-        { type: "integer", apiKey: "COUNT", label: "Count" },
+        { type: "text", name: "CODE", charLimit: 20 },
+        { type: "integer", name: "COUNT" },
       ],
     });
     const tableId = (schema.table as { id: string }).id;
     const target = { orgId, databaseId: database.id, tableId };
     const fields = (await call("listFields", target, viewer)).data as Array<{
       id: string;
-      apiKey: string;
+      name: string;
     }>;
     assert.deepEqual(
-      fields.map((field) => field.apiKey),
+      fields.map((field) => field.name),
       ["CODE", "COUNT"],
     );
     const created = await call("createRow", {
@@ -129,9 +127,7 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
       fieldIds: [fields[1]!.id, fields[0]!.id],
     });
     assert.deepEqual(
-      (reordered.fields as Array<{ apiKey: string }>).map(
-        (field) => field.apiKey,
-      ),
+      (reordered.fields as Array<{ name: string }>).map((field) => field.name),
       ["COUNT", "CODE"],
     );
     const persisted = await call(
@@ -208,7 +204,7 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
         ),
     );
     await db.owner.query(
-      "UPDATE rootset_control.memberships SET state='disabled',version=version+1 WHERE org_id=$1 AND user_id=$2",
+      "DELETE FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
       [orgId, owner.userId],
     );
     await assert.rejects(

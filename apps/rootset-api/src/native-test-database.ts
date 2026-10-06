@@ -9,7 +9,7 @@ export function nativeTestDatabaseURLs(
     ["ROOTSET_TEST_DDL_DATABASE_URL", "rootset_ddl"],
     ["ROOTSET_TEST_IDENTITY_DATABASE_URL", "rootset_identity"],
   ] as const;
-  const port = environment.CI === "true" ? "5432" : "55467";
+  const port = environment.CI === "true" ? "5432" : "55468";
   const urls = prerequisites.map(([key, role]) => {
     assert(environment[key], `Missing disposable prerequisite ${key}`);
     const url = new URL(environment[key]!);

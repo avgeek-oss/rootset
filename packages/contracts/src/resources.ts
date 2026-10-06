@@ -1,12 +1,11 @@
 import { z } from "zod";
 import {
   IdSchema,
-  ApiKeySchema,
+  FieldNameSchema,
   FieldTypeSchema,
   JobAcceptedSchema,
   JsonValueSchema,
   PreferencesSchema,
-  ResourceTargetSchema,
   RoleSchema,
   SchemaVersionSchema,
   VersionSchema,
@@ -22,135 +21,6 @@ import {
 import { QuerySpecSchema } from "./query";
 
 const timestamps = { createdAt: DateTimeSchema, updatedAt: DateTimeSchema };
-const byteString = z
-  .string()
-  .regex(/^(0|[1-9][0-9]{0,18})$/)
-  .refine(
-    (value) =>
-      /^(0|[1-9][0-9]{0,18})$/.test(value) &&
-      BigInt(value) <= 9223372036854775807n,
-    "Byte limit exceeds PostgreSQL bigint",
-  );
-const capacityBase = z.strictObject({
-  installationQuotaBytes: byteString.nullable(),
-  defaultOrganisationQuotaBytes: byteString.nullable(),
-  minimumFreeBytes: byteString.nullable(),
-  reportMaxAgeSeconds: z.number().int().min(5).max(3600),
-  organisationOverrides: z
-    .array(
-      z.strictObject({
-        orgId: IdSchema,
-        quotaBytes: byteString.nullable(),
-      }),
-    )
-    .max(10000),
-});
-function uniqueOrganisationOverrides(
-  value: { organisationOverrides?: { orgId: string }[] },
-  context: z.RefinementCtx,
-): void {
-  const overrides = value.organisationOverrides;
-  if (
-    overrides &&
-    new Set(overrides.map((item) => item.orgId)).size !== overrides.length
-  )
-    context.addIssue({
-      code: "custom",
-      message: "Organisation quota overrides must be unique",
-      path: ["organisationOverrides"],
-    });
-}
-export const CapacityConfigurationSchema = capacityBase
-  .extend({
-    installationQuotaBytes:
-      capacityBase.shape.installationQuotaBytes.default(null),
-    defaultOrganisationQuotaBytes:
-      capacityBase.shape.defaultOrganisationQuotaBytes.default(null),
-    minimumFreeBytes: capacityBase.shape.minimumFreeBytes.default(null),
-    reportMaxAgeSeconds: capacityBase.shape.reportMaxAgeSeconds.default(30),
-    organisationOverrides: capacityBase.shape.organisationOverrides.default([]),
-  })
-  .superRefine(uniqueOrganisationOverrides);
-export const CapacityConfigurationPatchSchema = capacityBase
-  .partial()
-  .superRefine(uniqueOrganisationOverrides);
-export type CapacityConfiguration = z.infer<typeof CapacityConfigurationSchema>;
-export type CapacityConfigurationPatch = z.infer<
-  typeof CapacityConfigurationPatchSchema
->;
-
-const deletionRetentionBase = z.strictObject({
-  organisationDays: z.number().int().min(1).max(36500).nullable(),
-  accountAuditDays: z.number().int().min(1).max(36500).nullable(),
-});
-export const DeletionRetentionSchema = deletionRetentionBase.extend({
-  organisationDays: deletionRetentionBase.shape.organisationDays.default(null),
-  accountAuditDays: deletionRetentionBase.shape.accountAuditDays.default(null),
-});
-export const DeletionRetentionPatchSchema = deletionRetentionBase.partial();
-export type DeletionRetention = z.infer<typeof DeletionRetentionSchema>;
-export type DeletionRetentionPatch = z.infer<
-  typeof DeletionRetentionPatchSchema
->;
-const measuredBytes = z.string().regex(/^(0|[1-9][0-9]*)$/);
-export const StorageAdmissionSchema = z.strictObject({
-  state: z.enum([
-    "available",
-    "quota_exceeded",
-    "disk_pressure",
-    "report_stale",
-    "unavailable",
-  ]),
-  reason: z.string().nullable(),
-});
-export const CapacityStatusSchema = z.strictObject({
-  installation: z.strictObject({
-    usedBytes: measuredBytes,
-    quotaBytes: measuredBytes.nullable(),
-    availableQuotaBytes: measuredBytes.nullable(),
-    metric: z.literal("postgresql_database_bytes"),
-  }),
-  organisation: z
-    .strictObject({
-      orgId: IdSchema,
-      nativeRelationBytes: measuredBytes,
-      retainedControlTupleBytes: measuredBytes,
-      usedBytes: measuredBytes,
-      quotaBytes: measuredBytes.nullable(),
-      availableQuotaBytes: measuredBytes.nullable(),
-      metric: z.literal("native_relation_and_retained_control_tuple_bytes"),
-    })
-    .nullable(),
-  disk: z.strictObject({
-    minimumFreeBytes: measuredBytes.nullable(),
-    reportedAvailableBytes: measuredBytes.nullable(),
-    reportedTotalBytes: measuredBytes.nullable(),
-    headroomClaimsBytes: measuredBytes,
-    effectiveAvailableBytes: measuredBytes.nullable(),
-    reportedAt: DateTimeSchema.nullable(),
-    reportMaxAgeSeconds: z.number().int().min(5).max(3600),
-    fresh: z.boolean(),
-    volumes: z.array(
-      z.strictObject({
-        name: z.string(),
-        availableBytes: measuredBytes,
-        totalBytes: measuredBytes,
-      }),
-    ),
-  }),
-  admission: z.strictObject({
-    enabled: z.boolean(),
-    state: z.enum([
-      "available",
-      "quota_exceeded",
-      "disk_pressure",
-      "report_stale",
-    ]),
-    reason: z.string().nullable(),
-  }),
-});
-export type CapacityStatus = z.infer<typeof CapacityStatusSchema>;
-export type StorageAdmission = z.infer<typeof StorageAdmissionSchema>;
 export const LifecycleSchema = z.enum([
   "active",
   "creating",
@@ -214,14 +84,11 @@ export const ProfileSchema = z.strictObject({
   name: z.string().min(1).max(255),
   email: z.email(),
   emailVerified: z.boolean(),
-  disabled: z.boolean(),
   ...timestamps,
 });
 export const OrganisationSchema = z.strictObject({
   id: IdSchema,
   name: z.string().min(1).max(255),
-  description: z.string().max(4096).nullable(),
-  state: LifecycleSchema,
   ...timestamps,
 });
 export const MemberSchema = z.strictObject({
@@ -231,7 +98,6 @@ export const MemberSchema = z.strictObject({
   name: z.string(),
   email: z.email(),
   role: RoleSchema,
-  state: z.enum(["active", "disabled"]),
   version: VersionSchema,
   verified: z.boolean(),
 });
@@ -248,12 +114,8 @@ export const KeyMetadataSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
   name: z.string().min(1).max(255),
-  ownerKind: z.enum(["personal", "team"]),
-  userId: IdSchema.optional(),
+  userId: IdSchema,
   prefix: z.string(),
-  scopes: z.array(z.string()),
-  targets: z.array(ResourceTargetSchema),
-  unrestricted: z.boolean().optional(),
   createdAt: DateTimeSchema,
   expiresAt: DateTimeSchema.nullable(),
   revokedAt: DateTimeSchema.nullable(),
@@ -264,14 +126,8 @@ export const KeyCreatedSchema = z.strictObject({
   secret: z.string().optional(),
   replayed: z.boolean().optional(),
 });
-export const DeleteAccountInputSchema = z.strictObject({
-  orgId: IdSchema.optional(),
-  confirmation: z.literal("DELETE"),
-  approvalId: IdSchema.optional(),
-});
-export type DeleteAccountInput = z.infer<typeof DeleteAccountInputSchema>;
 export const RowValuesInputSchema = preservingRecordSchema(
-  z.string().min(1).max(64),
+  FieldNameSchema,
   JsonValueSchema,
 );
 export const OperatorRepairReasonSchema = z.string().trim().min(1).max(512);
@@ -290,6 +146,8 @@ export const OperatorRepairIntentSchema = z.strictObject({
 });
 export type OperatorRepairIntent = z.infer<typeof OperatorRepairIntentSchema>;
 export const AccountActionTypeSchema = z.enum([
+  "update_member",
+  "remove_member",
   "change_password",
   "change_email",
   "register_passkey",
@@ -297,16 +155,13 @@ export const AccountActionTypeSchema = z.enum([
   "enable_totp",
   "disable_totp",
   "rotate_recovery_codes",
-  "delete_account",
   "sign_out_everywhere",
-  "transfer_ownership",
   "create_key",
   "rotate_key",
   "set_backup_policy",
   "set_history_retention_policy",
   "archive_history",
   "restore_backup",
-  "delete_organisation",
   "delete_database",
   "delete_table",
   "update_installation_configuration",
@@ -398,11 +253,9 @@ export const ContextSchema = z.strictObject({
     kind: z.string(),
     userId: IdSchema.optional(),
     role: RoleSchema,
-    operator: z.boolean(),
   }),
   organisation: OrganisationSchema.nullable(),
   scopes: z.array(z.string()),
-  targets: z.array(ResourceTargetSchema),
   profile: ProfileSchema.nullable(),
   preferences: PreferencesSchema.nullable(),
   onboarding: z.strictObject({
@@ -425,7 +278,6 @@ export const ConnectionSchema = z.strictObject({
   orgId: IdSchema,
   audience: z.string(),
   scopes: z.array(z.string()),
-  targets: z.array(ResourceTargetSchema),
   createdAt: DateTimeSchema,
   expiresAt: DateTimeSchema,
   revokedAt: DateTimeSchema.nullable(),
@@ -518,30 +370,6 @@ export const HistoryArchiveSchema = z.strictObject({
   manifest: JsonValueSchema.optional(),
   error: z.string().optional(),
 });
-export const BackupPolicySchema = z.strictObject({
-  enabled: z.boolean(),
-  cron: z
-    .string()
-    .min(9)
-    .max(128)
-    .refine(
-      (value) => value.trim().split(/\s+/).length === 5,
-      "Expected a five-field cron",
-    ),
-  timezone: PreferencesSchema.shape.timezone,
-  destination: z.literal("installation"),
-  retentionDays: z.number().int().min(1).max(3650),
-  retentionCount: z.number().int().min(1).max(1000),
-  encryption: z.literal(true),
-  maxRuntimeSeconds: z.number().int().min(30).max(86400),
-  notifications: z.boolean(),
-  suspension: z
-    .strictObject({
-      code: z.string(),
-      at: DateTimeSchema,
-    })
-    .optional(),
-});
 export const BackupSchema = z.strictObject({
   id: IdSchema,
   databaseId: IdSchema,
@@ -588,7 +416,7 @@ export const ArtifactUploadResultSchema = z.strictObject({
 });
 export const ImportMappingSchema = preservingRecordSchema(
   z.string().min(1).max(255),
-  z.string().min(1).max(64),
+  FieldNameSchema,
 );
 export const SchemaChangeSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -612,8 +440,7 @@ export const SchemaChangeSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export const FieldChangesSchema = z.strictObject({
-  apiKey: ApiKeySchema.optional(),
-  label: z.string().min(1).max(255).optional(),
+  name: FieldNameSchema.optional(),
   type: FieldTypeSchema.optional(),
   required: z.boolean().optional(),
   default: JsonValueSchema.optional(),

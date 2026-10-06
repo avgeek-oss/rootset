@@ -100,15 +100,13 @@ export async function benchmarkScaleFixture(
     kind: "scale-benchmark",
     sourceCommit: provenance.sourceCommit,
     dirty: provenance.dirty,
-    sourceTreeDigestAtStart: provenance.sourceTreeDigest,
-    coherentCandidate: false,
     startedAt: new Date().toISOString(),
     fixture: resolve(filename),
     environment: hardware(),
     seedEnvironment: fixture.environment,
     scope:
       "Actual PostgreSQL API-role shared storage service. HTTP/OAuth/browser/network/cold-cache/profile/reviewer evidence is separate and remains required.",
-    gateSignOffs: [],
+    acceptance: false,
     results: [] as Measurement[],
   };
   const results = report.results as Measurement[];
@@ -143,13 +141,13 @@ export async function benchmarkScaleFixture(
       schemaVersion: table.schemaVersion,
     };
     const indexed: QuerySpec = {
-      where: { field: "INTEGER_1", op: "gte", value: 2500000 },
-      orderBy: [{ field: "INTEGER_1", direction: "asc" }],
+      where: { field: "INTEGER_A", op: "gte", value: 2500000 },
+      orderBy: [{ field: "INTEGER_A", direction: "asc" }],
       limit: 200,
     };
     const plan = await withOrg(pools.app, actor.orgId, (client) =>
       client.query(
-        `EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) SELECT * FROM ${quote(table.schemaName)}.${quote(table.physicalName)} WHERE ${quote(fieldColumn(table.fields.find((field) => field.apiKey === "INTEGER_1")!))} >= $1 ORDER BY ${quote(fieldColumn(table.fields.find((field) => field.apiKey === "INTEGER_1")!))},row_id LIMIT 200`,
+        `EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) SELECT * FROM ${quote(table.schemaName)}.${quote(table.physicalName)} WHERE ${quote(fieldColumn(table.fields.find((field) => field.name === "INTEGER_A")!))} >= $1 ORDER BY ${quote(fieldColumn(table.fields.find((field) => field.name === "INTEGER_A")!))},row_id LIMIT 200`,
         [2500000],
       ),
     );
@@ -170,7 +168,7 @@ export async function benchmarkScaleFixture(
             const page = await storage.queryRows(actor, table.id, {
               ...indexed,
               where: {
-                field: "INTEGER_1",
+                field: "INTEGER_A",
                 op: "gte",
                 value: 2500000 + index * 10,
               },
@@ -190,7 +188,7 @@ export async function benchmarkScaleFixture(
             const page = await storage.queryRows(actor, table.id, {
               ...indexed,
               where: {
-                field: "INTEGER_1",
+                field: "INTEGER_A",
                 op: "gte",
                 value: 2500000 + index * 10,
               },
@@ -211,7 +209,7 @@ export async function benchmarkScaleFixture(
             const page = await storage.queryRows(actor, table.id, {
               ...indexed,
               where: {
-                field: "INTEGER_1",
+                field: "INTEGER_A",
                 op: "gte",
                 value: 2500000 + index * 10,
               },
@@ -238,7 +236,7 @@ export async function benchmarkScaleFixture(
               actor,
               table.id,
               rowId,
-              table.fields.find((field) => field.apiKey === "INTEGER_1")!.id,
+              table.fields.find((field) => field.name === "INTEGER_A")!.id,
             );
             assert.equal(history.data.length, 200);
             assert.equal(history.hasMore, true);
@@ -252,7 +250,7 @@ export async function benchmarkScaleFixture(
           async () =>
             storage.queryRows(actor, table.id, {
               where: {
-                field: "TEXT_1",
+                field: "TEXT_A",
                 op: "contains",
                 value: "missing-needle",
               },
@@ -266,7 +264,7 @@ export async function benchmarkScaleFixture(
           async () =>
             storage.queryRows(actor, table.id, {
               where: {
-                field: "JSON_1",
+                field: "JSON_A",
                 op: "jsonContains",
                 value: { g: 99999 },
               },
@@ -276,10 +274,10 @@ export async function benchmarkScaleFixture(
       scanRange: () =>
         measure(
           "SCALE-SCAN-RANGE",
-          "Unindexed range scan on INTEGER_2 with no matches, actual five million live rows",
+          "Unindexed range scan on INTEGER_B with no matches, actual five million live rows",
           async () =>
             storage.queryRows(actor, table.id, {
-              where: { field: "INTEGER_2", op: "lt", value: -1 },
+              where: { field: "INTEGER_B", op: "lt", value: -1 },
               limit: 200,
             }),
         ),
@@ -347,11 +345,7 @@ export async function benchmarkScaleFixture(
     throw error;
   } finally {
     const final = await sourceProvenance();
-    report.sourceTreeDigestAtEnd = final.sourceTreeDigest;
-    report.coherentCandidate =
-      !provenance.dirty &&
-      !final.dirty &&
-      provenance.sourceTreeDigest === final.sourceTreeDigest;
+    report.sourceAtEnd = final;
     report.finishedAt ??= new Date().toISOString();
     await save();
     await closePools(pools);
@@ -370,13 +364,13 @@ async function verifyCapacity(
     storage.createRow(
       actor,
       t.id,
-      { INTEGER_1: 1 },
+      { INTEGER_A: 1 },
       { idempotencyKey: newId() },
     ),
     (error) => code(error) === "ROW_LIMIT_REACHED",
   );
   const last = await storage.queryRows(actor, t.id, {
-    orderBy: [{ field: "INTEGER_1", direction: "desc" }],
+    orderBy: [{ field: "INTEGER_A", direction: "desc" }],
     limit: 1,
   });
   const before = last.data[0]!;
@@ -419,7 +413,7 @@ async function verifyCapacity(
   assert.equal(triggers.rows[0]?.tgenabled, "O");
   return {
     id: "SCALE-CAPACITY-BOUNDARY",
-    gates: ["ROW-04", "ROW-05", "PERF-07"],
+    gates: ["V1-16", "V1-34"],
     result: "passed",
     actualLiveRows: 5000000,
     concurrentAttempts: 10,
@@ -447,7 +441,7 @@ async function verifyConcurrentEdits(
         actor,
         fixture.tableId,
         row.id,
-        fixture.fields.find((field) => field.apiKey === "INTEGER_1")!.id,
+        fixture.fields.find((field) => field.name === "INTEGER_A")!.id,
         { limit: 25000 },
       ),
     ),
@@ -462,7 +456,7 @@ async function verifyConcurrentEdits(
           { ...actor, id: `${actor.id}:client-${client}` },
           fixture.tableId,
           row.id,
-          { INTEGER_1: Number(row.values.INTEGER_1) + 1 },
+          { INTEGER_A: Number(row.values.INTEGER_A) + 1 },
           {
             expectedVersion: row.version,
             idempotencyKey: newId(),
@@ -480,7 +474,7 @@ async function verifyConcurrentEdits(
       actor,
       fixture.tableId,
       row.id,
-      fixture.fields.find((field) => field.apiKey === "INTEGER_1")!.id,
+      fixture.fields.find((field) => field.name === "INTEGER_A")!.id,
       { limit: 25000 },
     );
     assert.equal(
@@ -568,7 +562,7 @@ async function verifyTimeout(
     );
     const foreground = performance.now();
     const other = await storage.queryRows(actor, fixture.wideTableId, {
-      select: ["FIELD_1"],
+      select: ["FIELD_A"],
       limit: 1,
     });
     assert.equal(other.data.length, 1);

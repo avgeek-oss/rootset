@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "./ui/button";
 import { lazy, Suspense, useId, useState } from "react";
 import type { OperatorRepairIntent } from "@rootset/contracts";
 import styles from "./repair-intent-review.module.css";
@@ -29,7 +29,7 @@ function RequestedFields({ update }: { update: Update }) {
       <div className={styles.pager}>
         <Button
           type="button"
-          size="sm"
+
           variant="secondary"
           isDisabled={selected === 0}
           onPress={() => navigate(selected - 1)}
@@ -43,7 +43,7 @@ function RequestedFields({ update }: { update: Update }) {
         </p>
         <Button
           type="button"
-          size="sm"
+
           variant="secondary"
           isDisabled={selected === count - 1}
           onPress={() => navigate(selected + 1)}
@@ -63,7 +63,7 @@ function RequestedFields({ update }: { update: Update }) {
                   <code>{key}</code>
                   <Button
                     type="button"
-                    size="sm"
+
                     variant="secondary"
                     aria-expanded={expanded}
                     aria-controls={expanded ? regionId : undefined}
@@ -161,7 +161,7 @@ export function RepairIntentReview({
       <div className={styles.pager}>
         <Button
           type="button"
-          size="sm"
+
           variant="secondary"
           isDisabled={current === 0}
           onPress={() => navigate(current - 1)}
@@ -173,7 +173,7 @@ export function RepairIntentReview({
         </p>
         <Button
           type="button"
-          size="sm"
+
           variant="secondary"
           isDisabled={current === intent.updates.length - 1}
           onPress={() => navigate(current + 1)}
@@ -198,7 +198,7 @@ export function RepairIntentReview({
             }
           }}
         />
-        <Button type="button" size="sm" variant="secondary" onPress={go}>
+        <Button type="button" variant="secondary" onPress={go}>
           Go to requested row
         </Button>
       </div>

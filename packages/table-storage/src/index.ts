@@ -1,11 +1,5 @@
 import { createHash } from "node:crypto";
 import {
-  CapacityService,
-  acquireCapacitySessionLock,
-  mapCapacityError,
-  type CapacityAdmission,
-} from "@rootset/capacity";
-import {
   Pool,
   type PoolClient,
   withOrg,
@@ -32,6 +26,7 @@ import {
   validateCell,
   validateValues,
   assertRowBytes,
+  assertFieldNames,
 } from "@rootset/contracts";
 import {
   compileQuery,
@@ -40,6 +35,19 @@ import {
   buildPage,
   fieldColumn,
 } from "./query.js";
+
+function renamedValues(
+  values: Record<string, JsonValue>,
+  before: FieldDefinition,
+  after: FieldDefinition,
+): Record<string, JsonValue> {
+  if (before.name === after.name) return values;
+  const renamed = Object.fromEntries(
+    Object.entries(values).filter(([key]) => key !== before.name),
+  );
+  renamed[after.name] = values[before.name] ?? null;
+  return renamed;
+}
 
 export type FieldInput = Omit<FieldDefinition, "id">;
 export interface DatabaseRecord {
@@ -199,8 +207,6 @@ function storageError(error: unknown): never {
       503,
       { retryAfter: 1 },
     );
-  const mapped = mapCapacityError(error);
-  if (mapped) throw mapped;
   const e = error as { code?: string; message?: string; detail?: string };
   if (e.code === "23505")
     fail("UNIQUE_CONFLICT", "A declared unique tuple already exists", 409);
@@ -282,7 +288,7 @@ function rowFrom(raw: Raw, fields: readonly FieldDefinition[]): Row {
       const m = /^(\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/.exec(String(v));
       v = m ? `${m[1]}.${(m[2] ?? "").padEnd(3, "0")}Z` : String(v);
     }
-    values[field.apiKey] = v as JsonValue;
+    values[field.name] = v as JsonValue;
   }
   return {
     id: String(raw.row_id),
@@ -317,7 +323,7 @@ function field(input: FieldInput, fieldId = newId()): FieldDefinition {
 }
 function fieldFor(table: TableRecord, key: string): FieldDefinition {
   return (
-    table.fields.find((f) => f.id === key.toUpperCase() || f.apiKey === key) ??
+    table.fields.find((f) => f.id === key.toUpperCase() || f.name === key) ??
     fail("VALIDATION_FAILED", "Unknown field")
   );
 }
@@ -374,17 +380,10 @@ export class TableStorage {
   readonly pool: Pool;
   readonly ddlPool: Pool;
   readonly cursor: CursorCodec;
-  readonly capacity: CapacityAdmission;
-  constructor(options: {
-    pool: Pool;
-    ddlPool: Pool;
-    cursorSecret: string;
-    capacity?: CapacityAdmission;
-  }) {
+  constructor(options: { pool: Pool; ddlPool: Pool; cursorSecret: string }) {
     this.pool = options.pool;
     this.ddlPool = options.ddlPool;
     this.cursor = new CursorCodec(options.cursorSecret);
-    this.capacity = options.capacity ?? new CapacityService(options.ddlPool);
   }
   private async read<T>(
     actor: Actor,
@@ -404,47 +403,23 @@ export class TableStorage {
     work: (c: PoolClient) => Promise<T>,
     ddl = false,
   ): Promise<T> {
-    const admittedWork = async (c: PoolClient): Promise<T> => {
-      const reservation = ddl
-        ? await this.capacity.begin(c, actor.orgId, {
-            reserveBytes: 1048576n,
-            operation: "storage.metadata",
-          })
-        : undefined;
-      const result = await work(c);
-      if (reservation) await this.capacity.finish(c, reservation);
-      return result;
-    };
     let pendingDatabaseId: string | undefined;
     const deadline = Date.now() + limits.queryTimeoutMs;
     for (;;) {
       let connection: PoolClient | undefined;
       let heldDatabaseId: string | undefined;
-      let capacityMode: "shared" | "exclusive" | undefined;
       try {
         if (!pendingDatabaseId)
           return await withOrg(
             ddl ? this.ddlPool : this.pool,
             id(actor.orgId),
-            admittedWork,
+            work,
           );
         connection = await (ddl ? this.ddlPool : this.pool).connect();
         await connection.query("SELECT set_config('rootset.org_id',$1,false)", [
           id(actor.orgId),
         ]);
         for (;;) {
-          const enabled = (
-            await connection.query<{ enabled: boolean }>(
-              "SELECT rootset_control.capacity_admission_enabled($1) AS enabled",
-              [actor.orgId],
-            )
-          ).rows[0]!.enabled;
-          capacityMode = enabled ? "exclusive" : "shared";
-          await acquireCapacitySessionLock(
-            connection,
-            capacityMode,
-            Math.max(1, deadline - Date.now()),
-          );
           const acquired = (
             await connection.query<{ acquired: boolean }>(
               "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired",
@@ -455,10 +430,6 @@ export class TableStorage {
             heldDatabaseId = pendingDatabaseId;
             break;
           }
-          await connection.query(
-            `SELECT ${capacityMode === "shared" ? "pg_advisory_unlock_shared" : "pg_advisory_unlock"}(hashtextextended('rootset:storage-capacity',0))`,
-          );
-          capacityMode = undefined;
           if (Date.now() >= deadline)
             fail(
               "QUERY_TIMEOUT",
@@ -471,7 +442,7 @@ export class TableStorage {
           await c.query("SELECT set_config('rootset.org_id',$1,true)", [
             id(actor.orgId),
           ]);
-          return admittedWork(c);
+          return work(c);
         });
       } catch (error) {
         if (error instanceof SchemaLockBusy) {
@@ -490,12 +461,6 @@ export class TableStorage {
               .query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [
                 heldDatabaseId,
               ])
-              .catch(() => undefined);
-          if (capacityMode)
-            await connection
-              .query(
-                `SELECT ${capacityMode === "shared" ? "pg_advisory_unlock_shared" : "pg_advisory_unlock"}(hashtextextended('rootset:storage-capacity',0))`,
-              )
               .catch(() => undefined);
           await connection.query("RESET rootset.org_id").catch(() => undefined);
           connection.release();
@@ -525,27 +490,6 @@ export class TableStorage {
         "The schema worker no longer owns a current uncancelled lease",
         409,
       );
-  }
-  private async reserveRelation(
-    c: PoolClient,
-    a: Actor,
-    t: TableRecord,
-    operation: string,
-    history = false,
-  ): Promise<void> {
-    const size = BigInt(
-      (
-        await c.query<{ bytes: string }>(
-          "SELECT pg_total_relation_size($1::regclass)::text AS bytes",
-          [tablePath(t)],
-        )
-      ).rows[0]!.bytes,
-    );
-    await this.capacity.begin(c, a.orgId, {
-      reserveBytes:
-        size * 6n + (history ? BigInt(t.rowCount) * 4096n : 0n) + 1048576n,
-      operation,
-    });
   }
   private async database(
     c: PoolClient,
@@ -879,9 +823,6 @@ export class TableStorage {
     await c.query(
       `GRANT SELECT,INSERT,UPDATE,DELETE ON ${tablePath(t)} TO rootset_app`,
     );
-    await c.query(
-      `CREATE TRIGGER rootset_capacity_guard BEFORE INSERT OR UPDATE OR DELETE ON ${tablePath(t)} FOR EACH STATEMENT EXECUTE FUNCTION rootset_control.enforce_capacity_admission(${literal(t.orgId)})`,
-    );
     if (withTrigger) await this.installTrigger(c, t);
   }
   private async installTrigger(c: PoolClient, t: TableRecord): Promise<void> {
@@ -1090,11 +1031,10 @@ export class TableStorage {
         );
         if (fields.length > limits.maxFields)
           fail("VALIDATION_FAILED", "Field limit exceeded");
-        if (new Set(fields.map((f) => f.apiKey)).size !== fields.length)
-          fail("VALIDATION_FAILED", "Field API keys must be unique");
+        assertFieldNames(fields);
         assertRowBytes(
           fields,
-          Object.fromEntries(fields.map((f) => [f.apiKey, null])),
+          Object.fromEntries(fields.map((f) => [f.name, null])),
         );
         const t: TableRecord = {
           id: newId(),
@@ -1171,13 +1111,12 @@ export class TableStorage {
     state = "active",
   ): Promise<void> {
     await c.query(
-      "INSERT INTO rootset_control.fields(id,table_id,org_id,api_key,label,definition,position,state) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8)",
+      "INSERT INTO rootset_control.fields(id,table_id,org_id,name,definition,position,state) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)",
       [
         f.id,
         t.id,
         t.orgId,
-        f.apiKey,
-        f.label,
+        f.name,
         JSON.stringify(f),
         f.order ?? t.fields.length,
         state,
@@ -1260,8 +1199,7 @@ export class TableStorage {
       async (c) => {
         let t = await this.table(c, a, tableId, false, true);
         if (kind === "field.create" || kind === "rule.create")
-          await this.reserveRelation(c, a, t, kind, kind === "field.create");
-        await this.barrier(c, t.databaseId);
+          await this.barrier(c, t.databaseId);
         t = await this.table(c, a, tableId, true, true);
         const j = await this.journal(c, a, t, t.databaseId, kind, input, input);
         if (j.replay) {
@@ -1312,20 +1250,18 @@ export class TableStorage {
           fail("VALIDATION_FAILED", "Field limit exceeded");
         const f = field({
           ...fieldPatch(input),
-          apiKey: input.apiKey,
-          label: input.label,
+          name: input.name,
           type: input.type,
           order: t.fields.length,
         });
-        if (t.fields.some((x) => x.apiKey === f.apiKey))
-          fail("VALIDATION_FAILED", "Field API key already exists");
         const future = [...t.fields, f];
+        assertFieldNames(future);
         const value = Object.hasOwn(f, "default") ? f.default! : null;
         if (t.rowCount > 0 || value !== null || Object.hasOwn(f, "default"))
           validateCell(f, value);
         await this.validateRows(c, t, future, (row) => ({
           ...row.values,
-          [f.apiKey]: value,
+          [f.name]: value,
         }));
         await c.query(
           `ALTER TABLE ${tablePath(t)} ADD COLUMN ${q(fieldColumn(f))} ${physicalType(f)}`,
@@ -1417,15 +1353,16 @@ export class TableStorage {
       { ...input, fieldId: fieldIdentity },
       async (c, t) => {
         const before = fieldFor(t, fieldId);
-        if (input.apiKey && input.apiKey !== before.apiKey)
-          fail("VALIDATION_FAILED", "Field API key is immutable");
         const patch = fieldPatch(input);
         const f = field({ ...before, ...patch }, before.id);
         const fields = t.fields.map((x) => (x.id === f.id ? f : x));
-        await this.validateRows(c, t, fields, (r) => r.values);
+        assertFieldNames(fields);
+        await this.validateRows(c, t, fields, (r) =>
+          renamedValues(r.values, before, f),
+        );
         await c.query(
-          "UPDATE rootset_control.fields SET label=$2,definition=$3::jsonb,position=$4 WHERE id=$1",
-          [f.id, f.label, JSON.stringify(f), f.order ?? before.order ?? 0],
+          "UPDATE rootset_control.fields SET name=$2,definition=$3::jsonb,position=$4 WHERE id=$1",
+          [f.id, f.name, JSON.stringify(f), f.order ?? before.order ?? 0],
         );
       },
     );
@@ -1602,7 +1539,7 @@ export class TableStorage {
       };
       let repair = input.context?.repair;
       if (repair) {
-        if (!a.operator || !a.userId || a.kind === "team_key")
+        if (a.role !== "admin" || !a.userId)
           fail("OPERATOR_REQUIRED", "Repair requires a personal operator", 403);
         if (
           input.context?.source !== "operator" ||
@@ -1690,35 +1627,6 @@ export class TableStorage {
       const requestBytes = Buffer.byteLength(JSON.stringify(input));
       if (requestBytes > limits.requestBytes)
         fail("PAYLOAD_TOO_LARGE", "Mutation request exceeds 8 MiB", 413);
-      const existingIds = input.operations.flatMap((op) =>
-        op.kind === "create" ? [] : [id(op.rowId)],
-      );
-      const previous = existingIds.length
-        ? (
-            await c.query<{ bytes: string }>(
-              `SELECT coalesce(sum(pg_column_size(r)),0)::text AS bytes FROM ${tablePath(t)} r WHERE row_id=ANY($1::varchar[])`,
-              [existingIds],
-            )
-          ).rows[0]!.bytes
-        : "0";
-      const affectedFields = input.operations.reduce(
-        (count, op) =>
-          count +
-          (op.kind === "delete"
-            ? t.fields.length
-            : Object.keys(op.values).length),
-        0,
-      );
-      const reservation = await this.capacity.begin(c, a.orgId, {
-        reserveBytes:
-          1048576n +
-          8n *
-            (BigInt(requestBytes) +
-              BigInt(previous) +
-              BigInt(affectedFields) *
-                (BigInt(Buffer.byteLength(JSON.stringify(a))) + 2048n)),
-        operation: "rows.mutate",
-      });
       await c.query(
         "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
         [t.databaseId],
@@ -1753,7 +1661,6 @@ export class TableStorage {
           await this.assertPublication(c, a, input.context);
           await input.onCommit(c, m.replay);
         }
-        await this.capacity.finish(c, reservation);
         return m.replay;
       }
       const rows: Row[] = [];
@@ -1764,7 +1671,7 @@ export class TableStorage {
           const values = validateValues(t.fields, op.values);
           assertRowBytes(t.fields, values);
           const keys = t.fields.map((f) => q(fieldColumn(f)));
-          const params = t.fields.map((f) => parameter(f, values[f.apiKey]!));
+          const params = t.fields.map((f) => parameter(f, values[f.name]!));
           const r = await c.query<Raw>(
             `INSERT INTO ${tablePath(t)}(row_id,org_id${keys.length ? "," + keys.join(",") : ""}) VALUES($1,$2${params.map((_, i) => `,$${i + 3}`).join("")}) RETURNING *`,
             [newId(), a.orgId, ...params],
@@ -1789,14 +1696,14 @@ export class TableStorage {
           const patch = validateValues(t.fields, op.values, "patch");
           const old = rowFrom(found.rows[0], t.fields);
           assertRowBytes(t.fields, { ...old.values, ...patch });
-          const fields = t.fields.filter((f) => Object.hasOwn(patch, f.apiKey));
+          const fields = t.fields.filter((f) => Object.hasOwn(patch, f.name));
           if (!fields.length) {
             if (returnRows) rows.push(old);
             continue;
           }
           const r = await c.query<Raw>(
             `UPDATE ${tablePath(t)} SET ${fields.map((f, i) => `${q(fieldColumn(f))}=$${i + 2}`).join(",")} WHERE row_id=$1 RETURNING *`,
-            [rowId, ...fields.map((f) => parameter(f, patch[f.apiKey]!))],
+            [rowId, ...fields.map((f) => parameter(f, patch[f.name]!))],
           );
           if (returnRows) rows.push(rowFrom(r.rows[0]!, t.fields));
         } else if (op.kind === "delete") {
@@ -1837,7 +1744,6 @@ export class TableStorage {
           [a.orgId, repair.jobId, input.context!.jobFence!.leaseToken, m.id],
         );
       await input.onCommit?.(c, outcome);
-      await this.capacity.finish(c, reservation);
       return outcome;
     };
     if (client) {
@@ -1951,7 +1857,7 @@ export class TableStorage {
           orgId: a.orgId,
           tableId: t.id,
           schemaVersion: t.schemaVersion,
-          grantVersion: a.grantVersion ?? 0,
+          membershipVersion: a.membershipVersion ?? 0,
           actorId: a.id,
           queryHash: compiled.queryHash,
         };
@@ -2024,7 +1930,7 @@ export class TableStorage {
             const cursor = this.cursor.encode(
               binding,
               compiled.sorts.map((s) =>
-                s.fieldId ? (full.values[s.apiKey!] ?? null) : row.id,
+                s.fieldId ? (full.values[s.name!] ?? null) : row.id,
               ),
             );
             const rowSize = Buffer.byteLength(JSON.stringify(row));
@@ -2107,7 +2013,7 @@ export class TableStorage {
     const fid = await this.run(a, async (c) => {
       const t = await this.table(c, a, tableId, false, true);
       const fields = await c.query<Raw>(
-        "SELECT id FROM rootset_control.fields WHERE table_id=$1 AND (id=$2 OR api_key=$2) ORDER BY state LIMIT 1",
+        "SELECT id FROM rootset_control.fields WHERE table_id=$1 AND (id=$2 OR name=$2) ORDER BY state LIMIT 1",
         [t.id, fieldId],
       );
       const fid = String(
@@ -2150,8 +2056,7 @@ export class TableStorage {
         fail("VALIDATION_FAILED", "Invalid history byte budget");
       const timestamp: FieldDefinition = {
         id: t.id,
-        apiKey: "timestamp",
-        label: "Timestamp",
+        name: "timestamp",
         type: "date-time",
       };
       const from =
@@ -2194,7 +2099,7 @@ export class TableStorage {
         orgId: a.orgId,
         tableId: t.id,
         schemaVersion: t.schemaVersion,
-        grantVersion: a.grantVersion ?? 0,
+        membershipVersion: a.membershipVersion ?? 0,
         actorId: a.id,
         queryHash: hash(filters),
       };
@@ -2605,8 +2510,7 @@ export class TableStorage {
     );
     const timestamp: FieldDefinition = {
       id: t.id,
-      apiKey: "timestamp",
-      label: "Timestamp",
+      name: "timestamp",
       type: "date-time",
     };
     const from = String(
@@ -3034,7 +2938,7 @@ export class TableStorage {
         const r: UniqueRule = {
           id: ruleId,
           tableId: t.id,
-          name: input.name ?? fields.map((f) => f.apiKey).join(" + "),
+          name: input.name ?? fields.map((f) => f.name).join(" + "),
           fieldIds: fields.map((f) => f.id),
           strategy,
           state: "building",
@@ -3267,204 +3171,147 @@ export class TableStorage {
     let buildAttempted = false;
     let operationLocked = false;
     try {
-      const relationBytes = BigInt(
-        (
-          await connection.query<{ bytes: string }>(
-            "SELECT pg_total_relation_size($1::regclass)::text AS bytes",
-            [tablePath(table)],
-          )
-        ).rows[0]!.bytes,
-      );
-      await this.capacity.withSessionAdmission(
-        connection,
-        a.orgId,
-        {
-          reserveBytes: relationBytes * 6n + 2097152n,
-          operation: "index.build",
-        },
-        async (validate) => {
-          try {
-            await connection.query(
-              "SELECT set_config('rootset.org_id',$1,false)",
-              [a.orgId],
+      {
+        try {
+          await connection.query(
+            "SELECT set_config('rootset.org_id',$1,false)",
+            [a.orgId],
+          );
+          await connection.query(
+            "SELECT pg_advisory_lock_shared(hashtextextended($1,0))",
+            [table.databaseId],
+          );
+          await connection.query("SET statement_timeout='0'");
+          await this.assertDatabaseWritable(connection, table.databaseId);
+          const lockDeadline = Date.now() + limits.queryTimeoutMs;
+          while (!operationLocked) {
+            const acquired = await connection.query<{ acquired: boolean }>(
+              "SELECT pg_try_advisory_lock(hashtextextended($1,4)) AS acquired",
+              [op.operationId],
             );
-            await connection.query(
-              "SELECT pg_advisory_lock_shared(hashtextextended($1,0))",
-              [table.databaseId],
-            );
-            await connection.query("SET statement_timeout='0'");
-            await this.assertDatabaseWritable(connection, table.databaseId);
-            const lockDeadline = Date.now() + limits.queryTimeoutMs;
-            while (!operationLocked) {
-              const acquired = await connection.query<{ acquired: boolean }>(
-                "SELECT pg_try_advisory_lock(hashtextextended($1,4)) AS acquired",
-                [op.operationId],
-              );
-              operationLocked = acquired.rows[0]!.acquired;
-              if (!operationLocked) {
-                if (Date.now() >= lockDeadline)
-                  fail(
-                    "QUERY_TIMEOUT",
-                    "Index operation lock exceeded its ten-second wait budget",
-                    408,
-                  );
-                await new Promise((resolve) => setTimeout(resolve, 20));
-              }
-            }
-            const using = kind === "btree" ? "btree" : "gin";
-            const opclass = kind === "trigram" ? " gin_trgm_ops" : "";
-            const present = await connection.query<{ indisvalid: boolean }>(
-              "SELECT indisvalid FROM pg_index WHERE indexrelid=to_regclass($1)",
-              [`${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`],
-            );
-            if (!present.rows[0]?.indisvalid) {
-              buildAttempted = true;
-              if (present.rows[0])
-                await connection.query(
-                  `DROP INDEX CONCURRENTLY ${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`,
+            operationLocked = acquired.rows[0]!.acquired;
+            if (!operationLocked) {
+              if (Date.now() >= lockDeadline)
+                fail(
+                  "QUERY_TIMEOUT",
+                  "Index operation lock exceeded its ten-second wait budget",
+                  408,
                 );
+              await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+          }
+          const using = kind === "btree" ? "btree" : "gin";
+          const opclass = kind === "trigram" ? " gin_trgm_ops" : "";
+          const present = await connection.query<{ indisvalid: boolean }>(
+            "SELECT indisvalid FROM pg_index WHERE indexrelid=to_regclass($1)",
+            [`${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`],
+          );
+          if (!present.rows[0]?.indisvalid) {
+            buildAttempted = true;
+            if (present.rows[0])
               await connection.query(
-                `CREATE INDEX CONCURRENTLY ${q(`rsi_${indexId.toLowerCase()}`)} ON ${tablePath(table)} USING ${using}(${q(fieldColumn(f))}${opclass})`,
+                `DROP INDEX CONCURRENTLY ${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`,
               );
-            }
-            await validate();
-            await clientTransaction(connection, async (c) => {
-              const publicationReservation = await this.capacity.begin(
-                c,
-                a.orgId,
-                { reserveBytes: 1048576n, operation: "index.publish" },
-              );
-              await this.assertPublication(c, a, input.context);
-              await c.query(
-                "SELECT id FROM rootset_control.tables WHERE id=$1 FOR UPDATE",
-                [table.id],
-              );
-              const journal = await c.query<{ state: string }>(
-                "SELECT state FROM rootset_control.schema_operations WHERE id=$1 FOR UPDATE",
-                [op.operationId],
-              );
-              if (journal.rows[0]?.state === "committed") {
-                await this.capacity.finish(c, publicationReservation);
-                return;
-              }
-              const r = await c.query<{ indisvalid: boolean }>(
-                "SELECT indisvalid FROM pg_index WHERE indexrelid=$1::regclass",
-                [`${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`],
-              );
-              if (!r.rows[0]?.indisvalid)
-                fail("JOB_FAILED", "PostgreSQL did not validate the index");
-              await c.query(
-                "UPDATE rootset_control.indexes SET state='active' WHERE id=$1",
-                [indexId],
-              );
-              await this.finish(c, op.operationId, table.id);
-              await this.audit(
-                c,
-                a,
-                table.databaseId,
-                table.id,
-                indexId,
-                "index.create",
-                null,
-                { fieldId: f.id, kind },
-                input.context,
-              );
-              await this.capacity.finish(c, publicationReservation);
-            });
-          } catch (error) {
-            if (!operationLocked) storageError(error);
-            if (input.context?.jobFence) {
-              const fence = input.context.jobFence;
-              const owner = await connection.query(
-                "SELECT id FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND lease_token=$3 AND (state<>'running' OR lease_until>clock_timestamp())",
-                [fence.jobId, a.orgId, fence.leaseToken],
-              );
-              if (!owner.rowCount) storageError(error);
-            }
-            let cleanupCode: string | undefined;
-            if (buildAttempted) {
-              try {
-                await connection.query(
-                  `DROP INDEX CONCURRENTLY IF EXISTS ${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`,
-                );
-              } catch (cleanupError) {
-                cleanupCode = String(
-                  (cleanupError as { code?: string }).code ?? "UNKNOWN",
-                );
-              }
-            }
-            await clientTransaction(connection, async (c) => {
-              await c.query(
-                "SELECT id FROM rootset_control.tables WHERE id=$1 FOR UPDATE",
-                [table.id],
-              );
-              await c.query(
-                "SELECT id FROM rootset_control.schema_operations WHERE id=$1 FOR UPDATE",
-                [op.operationId],
-              );
-              await c.query(
-                "UPDATE rootset_control.indexes SET state='failed',error=NULL WHERE id=$1",
-                [indexId],
-              );
-              await c.query(
-                "UPDATE rootset_control.schema_operations SET state='failed',plan=jsonb_build_object('indexId',$3::text,'cleanupRequired',$4::boolean),error=$2::jsonb WHERE id=$1",
-                [
-                  op.operationId,
-                  JSON.stringify({
-                    code: cleanupCode
-                      ? "INDEX_CLEANUP_FAILED"
-                      : "INDEX_BUILD_FAILED",
-                  }),
-                  indexId,
-                  Boolean(cleanupCode),
-                ],
-              );
-            });
-            if (cleanupCode)
-              fail(
-                "INDEX_CLEANUP_FAILED",
-                "Index build failed and its allocated index needs operator cleanup",
-                503,
-                { indexId, cleanupRequired: true, postgresCode: cleanupCode },
-              );
-            storageError(error);
-          }
-        },
-      );
-    } catch (error) {
-      if (!operationLocked && mapCapacityError(error)) {
-        await connection.query("SELECT set_config('rootset.org_id',$1,false)", [
-          a.orgId,
-        ]);
-        await clientTransaction(connection, async (c) => {
-          if (input.context?.jobFence) {
-            const fence = input.context.jobFence;
-            const owner = await c.query(
-              "SELECT id FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND lease_token=$3 AND (state<>'running' OR lease_until>clock_timestamp()) FOR UPDATE",
-              [fence.jobId, a.orgId, fence.leaseToken],
+            await connection.query(
+              `CREATE INDEX CONCURRENTLY ${q(`rsi_${indexId.toLowerCase()}`)} ON ${tablePath(table)} USING ${using}(${q(fieldColumn(f))}${opclass})`,
             );
-            if (!owner.rowCount) return;
           }
-          const journal = (
-            await c.query<{ state: string }>(
+          await clientTransaction(connection, async (c) => {
+            await this.assertPublication(c, a, input.context);
+            await c.query(
+              "SELECT id FROM rootset_control.tables WHERE id=$1 FOR UPDATE",
+              [table.id],
+            );
+            const journal = await c.query<{ state: string }>(
               "SELECT state FROM rootset_control.schema_operations WHERE id=$1 FOR UPDATE",
               [op.operationId],
-            )
-          ).rows[0];
-          if (journal?.state === "committed") return;
-          const detail = JSON.stringify({
-            code: mapCapacityError(error)!.code,
+            );
+            if (journal.rows[0]?.state === "committed") {
+              return;
+            }
+            const r = await c.query<{ indisvalid: boolean }>(
+              "SELECT indisvalid FROM pg_index WHERE indexrelid=$1::regclass",
+              [`${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`],
+            );
+            if (!r.rows[0]?.indisvalid)
+              fail("JOB_FAILED", "PostgreSQL did not validate the index");
+            await c.query(
+              "UPDATE rootset_control.indexes SET state='active' WHERE id=$1",
+              [indexId],
+            );
+            await this.finish(c, op.operationId, table.id);
+            await this.audit(
+              c,
+              a,
+              table.databaseId,
+              table.id,
+              indexId,
+              "index.create",
+              null,
+              { fieldId: f.id, kind },
+              input.context,
+            );
           });
-          await c.query(
-            "UPDATE rootset_control.indexes SET state='failed',error=NULL WHERE id=$1",
-            [indexId],
-          );
-          await c.query(
-            "UPDATE rootset_control.schema_operations SET state='failed',plan=jsonb_build_object('indexId',$3::text),error=$2::jsonb WHERE id=$1",
-            [op.operationId, detail, indexId],
-          );
-        });
+        } catch (error) {
+          if (!operationLocked) storageError(error);
+          if (input.context?.jobFence) {
+            const fence = input.context.jobFence;
+            const owner = await connection.query(
+              "SELECT id FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND lease_token=$3 AND (state<>'running' OR lease_until>clock_timestamp())",
+              [fence.jobId, a.orgId, fence.leaseToken],
+            );
+            if (!owner.rowCount) storageError(error);
+          }
+          let cleanupCode: string | undefined;
+          if (buildAttempted) {
+            try {
+              await connection.query(
+                `DROP INDEX CONCURRENTLY IF EXISTS ${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`,
+              );
+            } catch (cleanupError) {
+              cleanupCode = String(
+                (cleanupError as { code?: string }).code ?? "UNKNOWN",
+              );
+            }
+          }
+          await clientTransaction(connection, async (c) => {
+            await c.query(
+              "SELECT id FROM rootset_control.tables WHERE id=$1 FOR UPDATE",
+              [table.id],
+            );
+            await c.query(
+              "SELECT id FROM rootset_control.schema_operations WHERE id=$1 FOR UPDATE",
+              [op.operationId],
+            );
+            await c.query(
+              "UPDATE rootset_control.indexes SET state='failed',error=NULL WHERE id=$1",
+              [indexId],
+            );
+            await c.query(
+              "UPDATE rootset_control.schema_operations SET state='failed',plan=jsonb_build_object('indexId',$3::text,'cleanupRequired',$4::boolean),error=$2::jsonb WHERE id=$1",
+              [
+                op.operationId,
+                JSON.stringify({
+                  code: cleanupCode
+                    ? "INDEX_CLEANUP_FAILED"
+                    : "INDEX_BUILD_FAILED",
+                }),
+                indexId,
+                Boolean(cleanupCode),
+              ],
+            );
+          });
+          if (cleanupCode)
+            fail(
+              "INDEX_CLEANUP_FAILED",
+              "Index build failed and its allocated index needs operator cleanup",
+              503,
+              { indexId, cleanupRequired: true, postgresCode: cleanupCode },
+            );
+          storageError(error);
+        }
       }
+    } catch (error) {
       storageError(error);
     } finally {
       if (operationLocked)
@@ -3556,8 +3403,6 @@ export class TableStorage {
             "VALIDATION_FAILED",
             "Remove affected rules/indexes before conversion",
           );
-        if (input.apiKey && input.apiKey !== previous.apiKey)
-          fail("VALIDATION_FAILED", "Field API key is immutable");
         const changes = fieldPatch(input);
         const next = changedField(previous, changes);
         fresh = {
@@ -3566,6 +3411,7 @@ export class TableStorage {
           generation: old.generation + 1,
           fields: old.fields.map((f) => (f.id === next.id ? next : f)),
         };
+        assertFieldNames(fresh.fields);
         const j = await this.journal(
           c,
           a,
@@ -3603,7 +3449,6 @@ export class TableStorage {
       await this.run(
         a,
         async (c) => {
-          await this.reserveRelation(c, a, old, "field.convert", true);
           await c.query("SET LOCAL statement_timeout='0'");
           await this.barrier(c, old.databaseId);
           const before = fieldFor(old, fieldId),
@@ -3611,14 +3456,14 @@ export class TableStorage {
           for await (const rows of this.iterateRows(c, old)) {
             await this.assertPublication(c, a, input.context, false);
             for (const row of rows) {
-              const value = row.values[before.apiKey]!;
+              const value = row.values[before.name]!;
               const values = {
-                ...row.values,
-                [after.apiKey]: convertedCell(before, after, strategy, value),
+                ...renamedValues(row.values, before, after),
+                [after.name]: convertedCell(before, after, strategy, value),
               };
               assertRowBytes(fresh.fields, values);
               const changed =
-                canonicalJson(value) !== canonicalJson(values[after.apiKey]);
+                canonicalJson(value) !== canonicalJson(values[after.name]);
               const columns = fresh.fields.map((f) => q(fieldColumn(f)));
               await c.query(
                 `INSERT INTO ${tablePath(fresh)}(row_id,org_id,row_version,created_at,updated_at${columns.length ? "," + columns.join(",") : ""}) VALUES($1,$2,$3,$4,$5${fresh.fields.map((_, i) => `,$${i + 6}`).join("")})`,
@@ -3628,7 +3473,7 @@ export class TableStorage {
                   changed ? (BigInt(row.version) + 1n).toString() : row.version,
                   row.createdAt,
                   changed ? new Date().toISOString() : row.updatedAt,
-                  ...fresh.fields.map((f) => parameter(f, values[f.apiKey]!)),
+                  ...fresh.fields.map((f) => parameter(f, values[f.name]!)),
                 ],
               );
             }
@@ -3643,7 +3488,6 @@ export class TableStorage {
       await this.run(
         a,
         async (c) => {
-          await this.reserveRelation(c, a, old, "field.convert", true);
           await c.query("SET LOCAL statement_timeout='0'");
           await this.barrier(c, old.databaseId);
           await this.assertPublication(c, a, input.context, false);
@@ -3706,8 +3550,8 @@ export class TableStorage {
             ],
           );
           await c.query(
-            "UPDATE rootset_control.fields SET definition=$2::jsonb,label=$3 WHERE id=$1",
-            [after.id, JSON.stringify(after), after.label],
+            "UPDATE rootset_control.fields SET definition=$2::jsonb,name=$3 WHERE id=$1",
+            [after.id, JSON.stringify(after), after.name],
           );
           await this.installTrigger(c, fresh);
           await this.assertPublication(c, a, input.context);
@@ -3803,21 +3647,18 @@ export class TableStorage {
         if (t.fields.length >= limits.maxFields)
           fail("VALIDATION_FAILED", "Field limit exceeded");
         const f = field(change.field as FieldInput);
-        if (t.fields.some((old) => old.apiKey === f.apiKey))
-          fail("VALIDATION_FAILED", "Field API key already exists");
         fields.push(f);
         fieldId = f.id;
         transform = (r) => ({
           ...r.values,
-          [f.apiKey]: Object.hasOwn(f, "default") ? f.default! : null,
+          [f.name]: Object.hasOwn(f, "default") ? f.default! : null,
         });
       } else if (change.kind === "update_field") {
         const before = fieldFor(t, String(change.fieldId));
         const patch = change.changes as Partial<FieldInput>;
-        if (patch.apiKey && patch.apiKey !== before.apiKey)
-          fail("VALIDATION_FAILED", "Field API key is immutable");
         const after = changedField(before, patch);
         fields = fields.map((f) => (f.id === before.id ? after : f));
+        transform = (r) => renamedValues(r.values, before, after);
         fieldId = before.id;
         converts = after.type !== before.type;
         if (converts) {
@@ -3833,12 +3674,12 @@ export class TableStorage {
                 ? "stringify"
                 : "parse";
           transform = (r) => ({
-            ...r.values,
-            [before.apiKey]: convertedCell(
+            ...renamedValues(r.values, before, after),
+            [after.name]: convertedCell(
               before,
               after,
               strategy,
-              r.values[before.apiKey]!,
+              r.values[before.name]!,
             ),
           });
         }
@@ -3857,7 +3698,7 @@ export class TableStorage {
         fields = fields.filter((f) => f.id !== before.id);
         transform = (r) =>
           Object.fromEntries(
-            Object.entries(r.values).filter(([key]) => key !== before.apiKey),
+            Object.entries(r.values).filter(([key]) => key !== before.name),
           );
       } else if (change.kind === "reorder_fields") {
         const ids = change.fieldIds as string[];
@@ -3869,6 +3710,7 @@ export class TableStorage {
         )
           fail("VALIDATION_FAILED", "Every active field must be provided once");
       } else fail("VALIDATION_FAILED", "Unsupported schema change");
+      assertFieldNames(fields);
       const conflicts: {
         rowId: string;
         fieldId?: string;
@@ -4051,7 +3893,7 @@ export class TableStorage {
         yield r.rows.map((raw) => rowFrom(raw, compiled.projection));
         const tail = full.at(-1)!;
         tuple = compiled.sorts.map((s) =>
-          s.fieldId ? (tail.values[s.apiKey!] ?? null) : tail.id,
+          s.fieldId ? (tail.values[s.name!] ?? null) : tail.id,
         );
       }
     }
@@ -4135,19 +3977,6 @@ export class TableStorage {
       a,
       async (c) => {
         const schemaName = `rsd_${dbId.toLowerCase()}`;
-        await this.capacity.begin(c, a.orgId, {
-          reserveBytes:
-            BigInt(
-              metadata.tables.reduce(
-                (total, t) =>
-                  total +
-                  65536 +
-                  (t.allFields?.length ?? t.fields.length) * 8192,
-                0,
-              ),
-            ) + 1048576n,
-          operation: "restore.namespace",
-        });
         await c.query(
           "INSERT INTO rootset_control.databases(id,org_id,name,description,schema_name,state) VALUES($1,$2,$3,$4,$5,$6)",
           [
@@ -4266,12 +4095,6 @@ export class TableStorage {
           await restoreRun(
             a,
             async (c) => {
-              await this.capacity.begin(c, a.orgId, {
-                reserveBytes:
-                  BigInt(Buffer.byteLength(JSON.stringify(batch))) * 8n +
-                  1048576n,
-                operation: "restore.rows",
-              });
               for (const row of batch) {
                 id(row.id);
                 VersionSchema.parse(row.version);
@@ -4286,7 +4109,7 @@ export class TableStorage {
                     row.version,
                     row.createdAt,
                     row.updatedAt,
-                    ...t.fields.map((f) => parameter(f, values[f.apiKey]!)),
+                    ...t.fields.map((f) => parameter(f, values[f.name]!)),
                   ],
                 );
               }
@@ -4306,7 +4129,6 @@ export class TableStorage {
         await restoreRun(
           a,
           async (c) => {
-            await this.reserveRelation(c, a, t, "restore.constraints");
             const actual = await c.query<{ count: string }>(
               `SELECT count(*)::text AS count FROM ${tablePath(t)}`,
             );
@@ -4425,12 +4247,6 @@ export class TableStorage {
         await restoreRun(
           a,
           async (c) => {
-            await this.capacity.begin(c, a.orgId, {
-              reserveBytes:
-                BigInt(Buffer.byteLength(JSON.stringify(batch))) * 8n +
-                1048576n,
-              operation: "restore.history",
-            });
             const mutationIds = [
               ...new Set(
                 batch.flatMap((record) => {
@@ -5111,8 +4927,8 @@ export class TableStorage {
         const compiled = compileQuery(t.fields, query);
         const grantHash = hash({
           actor: a.id,
-          grantVersion: a.grantVersion ?? 0,
-          targets: a.targets,
+          membershipVersion: a.membershipVersion ?? 0,
+          role: a.role,
         });
         const anchorHash = hash({
           where: compiled.where,
@@ -5187,9 +5003,7 @@ export class TableStorage {
           for (const raw of r.rows) {
             const whole = rowFrom(raw, t.fields);
             anchors[String(raw.rank)] = compiled.sorts.map((s) =>
-              s.fieldId
-                ? (whole.values[s.apiKey!] ?? null)
-                : String(raw.row_id),
+              s.fieldId ? (whole.values[s.name!] ?? null) : String(raw.row_id),
             );
           }
           anchors.__count = [
@@ -5241,7 +5055,7 @@ export class TableStorage {
           orgId: a.orgId,
           tableId: t.id,
           schemaVersion: t.schemaVersion,
-          grantVersion: a.grantVersion ?? 0,
+          membershipVersion: a.membershipVersion ?? 0,
           actorId: a.id,
           queryHash: compiled.queryHash,
         };
@@ -5261,9 +5075,7 @@ export class TableStorage {
               this.cursor.encode(
                 binding,
                 compiled.sorts.map((s) =>
-                  s.fieldId
-                    ? (full.get(r.id)!.values[s.apiKey!] ?? null)
-                    : r.id,
+                  s.fieldId ? (full.get(r.id)!.values[s.name!] ?? null) : r.id,
                 ),
               ),
           },

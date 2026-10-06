@@ -16,7 +16,6 @@
   "dependencies": {
     "@rootset/contracts": "workspace:*",
     "@rootset/database": "workspace:*",
-    "@rootset/capacity": "workspace:*",
     "@rootset/observability": "workspace:*",
     "@rootset/idempotency": "workspace:*",
     "@rootset/access": "workspace:*",

@@ -95,13 +95,13 @@ async function findMailLink(
     );
 }
 
-async function selectOrganisation(context: APIRequestContext): Promise<void> {
-  const response = await context.post(`${baseURL}/v1/auth/organisation`, {
-    data: { orgId: fixture.orgId },
-  });
+async function assertInstallationContext(
+  context: APIRequestContext,
+): Promise<void> {
+  const response = await context.get(`${baseURL}/api/internal/v1/context`);
   if (!response.ok())
     throw new ProvisionError(
-      `The isolated account could not select the fixture organisation (${response.status()}).`,
+      `The isolated account could not enter the fixture installation (${response.status()}).`,
     );
 }
 
@@ -129,7 +129,7 @@ async function main() {
       };
       chmodSync(credentialsPath, 0o600);
       if (await authenticate(own, credentials)) {
-        await selectOrganisation(own);
+        await assertInstallationContext(own);
         console.log("The separate verified browser account is ready.");
         return;
       }
@@ -163,7 +163,7 @@ async function main() {
         !stored.ROOTSET_TEST_OWNER_PASSWORD
       )
         throw new ProvisionError(
-          "Verified fixture owner credentials are required to invite the isolated account.",
+          "Verified fixture admin credentials are required to invite the isolated account.",
         );
       if (
         !(await authenticate(inviter, {
@@ -172,9 +172,9 @@ async function main() {
         }))
       )
         throw new ProvisionError(
-          "The verified fixture owner could not sign in.",
+          "The verified fixture admin could not sign in.",
         );
-      await selectOrganisation(inviter);
+      await assertInstallationContext(inviter);
       const pending = await inviter.get(
         `${baseURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
       );
@@ -250,7 +250,7 @@ async function main() {
       throw new ProvisionError(
         `The verified invitation acceptance endpoint returned ${confirmed.status()}.`,
       );
-    await selectOrganisation(own);
+    await assertInstallationContext(own);
     console.log(
       "The separate browser account was invited, email verified, and accepted through the real application endpoints.",
     );

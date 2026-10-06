@@ -68,7 +68,6 @@ export class OperationalObserver {
   private errors = 0;
   private timeouts = 0;
   private rowLimitRejections = 0;
-  private storageAdmissionRejections = 0;
   private rateLimitRejections = 0;
   private loggingFailures = 0;
   constructor(readonly options: ObserverOptions) {
@@ -127,16 +126,6 @@ export class OperationalObserver {
       counter.timeouts++;
     }
     if (errorCode === "ROW_LIMIT_REACHED") this.rowLimitRejections++;
-    if (
-      errorCode?.startsWith("STORAGE_") &&
-      [
-        "STORAGE_QUOTA_EXCEEDED",
-        "STORAGE_DISK_PRESSURE",
-        "STORAGE_REPORT_STALE",
-        "STORAGE_RESERVATION_EXCEEDED",
-      ].includes(errorCode)
-    )
-      this.storageAdmissionRejections++;
     if (event.status === 429) this.rateLimitRejections++;
     counter.durationSumMs += event.durationMs;
     counter.durationMaxMs = Math.max(counter.durationMaxMs, event.durationMs);
@@ -321,7 +310,6 @@ export class OperationalObserver {
         errors: this.errors,
         timeouts: this.timeouts,
         rowLimitRejections: this.rowLimitRejections,
-        storageAdmissionRejections: this.storageAdmissionRejections,
         rateLimitRejections: this.rateLimitRejections,
         loggingFailures: this.loggingFailures,
         operations: [...this.operations.values()]

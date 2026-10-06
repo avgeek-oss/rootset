@@ -86,15 +86,13 @@ function api(page: Page): RootsetClient {
   });
 }
 
-async function selectOrganisation(page: Page) {
-  const response = await page.request.post(`${baseURL}/v1/auth/organisation`, {
-    headers: { Origin: new URL(baseURL).origin },
-    data: { orgId: fixture.orgId },
-  });
+async function assertInstallationContext(page: Page) {
+  const response = await page.request.get(`${baseURL}/api/internal/v1/context`);
   if (!response.ok())
     throw new Error(
-      `The real organisation selection endpoint returned ${response.status()}.`,
+      `The automatic installation context endpoint returned ${response.status()}.`,
     );
+  expect((await response.json()).organisation.id).toBe(fixture.orgId);
 }
 
 async function awaitJob(page: Page, id: string): Promise<void> {
@@ -127,7 +125,7 @@ function target() {
   };
 }
 function field(key: string): FieldDefinition {
-  const found = schema.fields.find((candidate) => candidate.apiKey === key);
+  const found = schema.fields.find((candidate) => candidate.name === key);
   if (!found) throw new Error(`Browser fixture field ${key} was not created.`);
   return found;
 }
@@ -183,7 +181,7 @@ async function cell(
 async function openEditor(page: Page, key: string): Promise<Locator> {
   await (await cell(page, key)).click();
   const dialog = page.getByRole("dialog", {
-    name: `Edit ${field(key).label}`,
+    name: `Edit ${field(key).name}`,
     exact: true,
   });
   await expect(dialog).toBeVisible();
@@ -214,7 +212,7 @@ async function fillAndSave(
   keyboard = false,
 ) {
   const dialog = await openEditor(page, key);
-  const input = dialog.getByLabel(field(key).label, { exact: true });
+  const input = dialog.getByLabel(field(key).name, { exact: true });
   await input.fill(value);
   if (keyboard)
     await input.press(key === "NAME" ? "ControlOrMeta+Enter" : "Enter");
@@ -293,7 +291,7 @@ test.beforeAll(async ({ browser }) => {
           "This fixture account requires second-factor verification; prepare a separate verified account for browser interaction tests.",
         );
     }
-    await selectOrganisation(page);
+    await assertInstallationContext(page);
     await context.storageState({ path: isolatedStatePath });
     chmodSync(isolatedStatePath, 0o600);
     await page.waitForTimeout(60_000 - (Date.now() % 60_000) + 100);
@@ -355,7 +353,7 @@ test.beforeEach(async ({ page }) => {
   const pause = previousTestStart + 20_000 - Date.now();
   if (pause > 0) await page.waitForTimeout(pause);
   previousTestStart = Date.now();
-  await selectOrganisation(page);
+  await assertInstallationContext(page);
   const client = api(page);
   const current = await readRow(page);
   await client.operation("updateRow", {
@@ -394,7 +392,7 @@ test.afterAll(async ({ browser }) => {
   });
   const page = await context.newPage();
   try {
-    await selectOrganisation(page);
+    await assertInstallationContext(page);
     await setPreferences(page, originalPreferences);
   } finally {
     await context.close();
@@ -410,7 +408,7 @@ test("eight single-tap editors commit actual typed canonical values", async ({
   await fillAndSave(page, "INTEGER", "17", true);
   await fillAndSave(page, "FLOAT", "-1.25");
   const booleanDialog = await openEditor(page, "BOOLEAN");
-  await setCheckbox(booleanDialog, /^Boolean:/, true);
+  await setCheckbox(booleanDialog, /^BOOLEAN:/, true);
   await booleanDialog.getByRole("button", { name: "Save value" }).click();
   await expect(booleanDialog).not.toBeVisible();
   await fillAndSave(page, "DATE", "2024-02-29");
@@ -453,7 +451,7 @@ test("required fields and bounds keep invalid drafts without committing", async 
   await expect(
     integerDialog.getByRole("checkbox", { name: "Clear cell (null)" }),
   ).toHaveCount(0);
-  const integerInput = integerDialog.getByLabel("Integer", { exact: true });
+  const integerInput = integerDialog.getByLabel("INTEGER", { exact: true });
   await integerInput.fill("");
   await integerDialog.getByRole("button", { name: "Save value" }).click();
   await expect(integerDialog.getByRole("alert")).toContainText("whole number");
@@ -464,10 +462,10 @@ test("required fields and bounds keep invalid drafts without committing", async 
   await expect(integerInput).toHaveValue("1000001");
   await integerInput.press("Escape");
   const textDialog = await openEditor(page, "NAME");
-  await textDialog.getByLabel("Name", { exact: true }).fill("😀".repeat(25));
+  await textDialog.getByLabel("NAME", { exact: true }).fill("😀".repeat(25));
   await textDialog.getByRole("button", { name: "Save value" }).click();
   await expect(textDialog.getByRole("alert")).toContainText("character limit");
-  await expect(textDialog.getByLabel("Name", { exact: true })).toHaveValue(
+  await expect(textDialog.getByLabel("NAME", { exact: true })).toHaveValue(
     "😀".repeat(25),
   );
   await textDialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -497,7 +495,7 @@ test("server uniqueness rejection retains the typed draft and leaves history unc
     });
   const priorHistory = await history();
   const dialog = await openEditor(page, "NAME");
-  const input = dialog.getByLabel("Name", { exact: true });
+  const input = dialog.getByLabel("NAME", { exact: true });
   await input.fill(String(duplicateRow.values.NAME));
   const response = await saveResponse(page, () =>
     dialog.getByRole("button", { name: "Save value" }).click(),
@@ -526,7 +524,7 @@ test("real concurrent row changes require explicit conflict review before retry"
   annotate("UI-06", "ROW-06");
   const before = await readRow(page);
   const dialog = await openEditor(page, "NAME");
-  const input = dialog.getByLabel("Name", { exact: true });
+  const input = dialog.getByLabel("NAME", { exact: true });
   await input.fill("My draft");
   await api(page).operation("updateRow", {
     ...target(),
@@ -605,7 +603,7 @@ test("pending real database work disables repeated save and cancel", async ({
     );
     expect(locked.rowCount).toBe(1);
     const dialog = await openEditor(page, "NAME");
-    const input = dialog.getByLabel("Name", { exact: true });
+    const input = dialog.getByLabel("NAME", { exact: true });
     await input.fill("After wait");
     await dialog.getByRole("button", { name: "Save value" }).click();
     await expect(dialog.locator("button[type=submit]")).toBeDisabled();
@@ -644,7 +642,7 @@ test("keyboard cancel returns grid focus and Tab/Enter navigate and commit", asy
   annotate("UI-04", "UI-05");
   const before = await readRow(page);
   const dialog = await openEditor(page, "NAME");
-  const input = dialog.getByLabel("Name", { exact: true });
+  const input = dialog.getByLabel("NAME", { exact: true });
   await input.fill("Discard me");
   await input.press("Escape");
   await expect(dialog).not.toBeVisible();
@@ -658,11 +656,11 @@ test("keyboard cancel returns grid focus and Tab/Enter navigate and commit", asy
   );
   await page.keyboard.press("Enter");
   const integerDialog = page.getByRole("dialog", {
-    name: "Edit Integer",
+    name: "Edit INTEGER",
     exact: true,
   });
   await expect(integerDialog).toBeVisible();
-  const integerInput = integerDialog.getByLabel("Integer", { exact: true });
+  const integerInput = integerDialog.getByLabel("INTEGER", { exact: true });
   await integerInput.fill("29");
   await integerInput.press("Tab");
   await expect(
@@ -686,7 +684,7 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   });
   await showTable(page);
   const dialog = await openEditor(page, "DATETIME");
-  const input = dialog.getByLabel("Date-time", { exact: true });
+  const input = dialog.getByLabel("DATETIME", { exact: true });
   await expect(input).toHaveValue("2026-10-02T18:00:00.123");
   await input.fill("2026-10-03T01:30:00.25");
   await dialog.getByRole("button", { name: "Save value" }).click();
@@ -703,7 +701,7 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   });
   await showTable(page);
   const dstDialog = await openEditor(page, "DATETIME");
-  const dstInput = dstDialog.getByLabel("Date-time", { exact: true });
+  const dstInput = dstDialog.getByLabel("DATETIME", { exact: true });
   await dstInput.fill("2026-03-08T02:30");
   await dstDialog.getByRole("button", { name: "Save value" }).click();
   await expect(dstDialog.getByRole("alert")).toContainText("does not exist");
@@ -761,7 +759,7 @@ test("nullable boolean false and top-level JSON null remain distinct", async ({
   const populatedDialog = await openEditor(page, "BOOLEAN");
   await setCheckbox(populatedDialog, "Clear cell (null)", false);
   await expect(
-    populatedDialog.getByRole("checkbox", { name: /^Boolean:/ }),
+    populatedDialog.getByRole("checkbox", { name: /^BOOLEAN:/ }),
   ).not.toBeChecked();
   await populatedDialog.getByRole("button", { name: "Save value" }).click();
   await expect(populatedDialog).not.toBeVisible();

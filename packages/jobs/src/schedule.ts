@@ -23,7 +23,7 @@ export function validateSchedule(cron: string, timezone: string): void {
   if (cron.trim().split(/\s+/).length !== 5)
     throw new RootsetError(
       "VALIDATION_FAILED",
-      "A backup schedule requires exactly five cron fields",
+      "A history archive schedule requires exactly five cron fields",
     );
   try {
     new Intl.DateTimeFormat("en", { timeZone: timezone });

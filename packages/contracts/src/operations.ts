@@ -8,11 +8,9 @@ import {
   JsonValueSchema,
   PreferencesSchema,
   QueryResultSchema,
-  ResourceTargetSchema,
   RoleSchema,
   RowSchema,
   SchemaVersionSchema,
-  StorageErrorCodeSchema,
   VersionSchema,
   ViewPreferencesSchema,
   limits,
@@ -28,7 +26,6 @@ import {
   AccountActionSchema,
   AccountActionTypeSchema,
   ArtifactSchema,
-  BackupPolicySchema,
   BackupSchema,
   ConnectionSchema,
   ContextSchema,
@@ -36,12 +33,6 @@ import {
   HistoryPageSchema,
   HistoryRetentionPolicySchema,
   HistoryArchiveSchema,
-  CapacityConfigurationSchema,
-  CapacityStatusSchema,
-  CapacityConfigurationPatchSchema,
-  DeletionRetentionSchema,
-  DeletionRetentionPatchSchema,
-  StorageAdmissionSchema,
   ImportMappingSchema,
   IndexSchema,
   InvitationSchema,
@@ -75,7 +66,6 @@ export interface OperationDefinition {
   stepUp: "never" | "conditional" | "required";
   job: boolean;
   personal: boolean;
-  operator: boolean;
   minimumRole: Role;
   resource: "none" | "organisation" | "database" | "table";
   inputSchema: z.ZodType;
@@ -136,7 +126,6 @@ type Settings = Partial<
     | "stepUp"
     | "job"
     | "personal"
-    | "operator"
     | "minimumRole"
     | "resource"
     | "successStatus"
@@ -158,7 +147,7 @@ function operation(
   const readOnly = settings.readOnly ?? method === "GET";
   const group = path.includes("/installation")
     ? "installation"
-    : path.includes("/backups") || path.includes("/backup-policy")
+    : path.includes("/backups")
       ? "backups"
       : path.includes("/imports") ||
           path.includes("/exports") ||
@@ -193,9 +182,18 @@ function operation(
     stepUp: "never",
     job: false,
     personal: false,
-    operator: false,
-    minimumRole:
-      readOnly || settings.personal || settings.operator ? "viewer" : "editor",
+    minimumRole: settings.personal
+      ? "viewer"
+      : scopes.some(
+            (scope) =>
+              scope.endsWith(":manage") ||
+              scope === "members:read" ||
+              scope.startsWith("installation:"),
+          )
+        ? "admin"
+        : readOnly
+          ? "viewer"
+          : "editor",
     resource: path.includes("{tableId}")
       ? "table"
       : path.includes("{databaseId}")
@@ -212,28 +210,15 @@ function operation(
       "FORBIDDEN",
       "INSUFFICIENT_SCOPE",
       ...(settings.personal ? ["PERSONAL_IDENTITY_REQUIRED"] : []),
-      ...(settings.operator ? ["OPERATOR_REQUIRED"] : []),
-      ...(id === "mutateRows"
-        ? ["PERSONAL_IDENTITY_REQUIRED", "OPERATOR_REQUIRED"]
-        : []),
+      ...(id === "mutateRows" ? ["PERSONAL_IDENTITY_REQUIRED"] : []),
       ...(settings.stepUp && settings.stepUp !== "never"
         ? ["STEP_UP_REQUIRED"]
         : []),
-      ...([
-        "createPersonalKey",
-        "rotatePersonalKey",
-        "createTeamKey",
-        "rotateTeamKey",
-        "updateGrants",
-      ].includes(id)
-        ? ["DELEGATION_EXCEEDS_AUTHORITY"]
-        : []),
+      ...(["updateMember", "removeMember"].includes(id) ? ["LAST_ADMIN"] : []),
       "RESOURCE_NOT_FOUND",
       "DEPENDENCY_UNAVAILABLE",
       "REQUEST_TIMEOUT",
-      ...(!readOnly
-        ? ["IDEMPOTENCY_CONFLICT", ...StorageErrorCodeSchema.options]
-        : []),
+      ...(!readOnly ? ["IDEMPOTENCY_CONFLICT"] : []),
     ],
     successStatus: method === "POST" && !readOnly ? 201 : 200,
     example: {},
@@ -249,7 +234,7 @@ operation(
   [],
   empty,
   ContextSchema,
-  "Get the caller, selected organisation, current permissions and preferences.",
+  "Get the caller, installation organisation, current role capabilities and preferences.",
 );
 operation(
   "getProfile",
@@ -409,16 +394,6 @@ operation(
   { personal: true, stepUp: "required", destructive: true },
 );
 operation(
-  "listOrganisations",
-  "list_organisations",
-  "GET",
-  "/v1/orgs",
-  [],
-  empty,
-  list(OrganisationSchema),
-  "List organisations currently accessible to the caller.",
-);
-operation(
   "getOrganisation",
   "get_organisation",
   "GET",
@@ -434,38 +409,10 @@ operation(
   "PATCH",
   O,
   ["org:manage"],
-  z.strictObject({ ...org, ...names }),
+  z.strictObject({ ...org, name: names.name }),
   OrganisationSchema,
-  "Update organisation name and description.",
+  "Update the installation organisation name.",
   { minimumRole: "admin" },
-);
-operation(
-  "transferOwnership",
-  "transfer_ownership",
-  "POST",
-  `${O}/ownership-transfer`,
-  ["ownership:manage"],
-  z.strictObject({ ...org, userId: IdSchema, ...approval }),
-  OrganisationSchema,
-  "Transfer ownership to an enabled verified member.",
-  { minimumRole: "owner", personal: true, stepUp: "required" },
-);
-operation(
-  "deleteOrganisation",
-  "delete_organisation",
-  "DELETE",
-  O,
-  ["ownership:manage"],
-  z.strictObject({ ...org, ...approval }),
-  JobAcceptedSchema,
-  "Start approved organisation deletion with retention handling.",
-  {
-    minimumRole: "owner",
-    personal: true,
-    stepUp: "required",
-    job: true,
-    successStatus: 202,
-  },
 );
 operation(
   "listMembers",
@@ -488,12 +435,11 @@ operation(
     ...org,
     id: IdSchema,
     role: RoleSchema.optional(),
-    state: z.enum(["active", "disabled"]).optional(),
     expectedVersion: VersionSchema,
     ...approval,
   }),
   MemberSchema,
-  "Change membership authority while preserving the verified-owner invariant.",
+  "Change a member role while preserving at least one admin.",
   { minimumRole: "admin", stepUp: "conditional" },
 );
 operation(
@@ -535,7 +481,7 @@ operation(
     role: z.enum(["admin", "editor", "viewer"]),
   }),
   InvitationSchema,
-  "Invite a member as a personal Owner or Admin with email proof; invitations cannot create owners.",
+  "Invite a member as an admin with email proof.",
   { minimumRole: "admin", personal: true },
 );
 operation(
@@ -549,79 +495,8 @@ operation(
   "Cancel an invitation before acceptance.",
   { minimumRole: "admin" },
 );
-const grantSchema = z.strictObject({
-  membershipId: IdSchema,
-  unrestricted: z.boolean(),
-  targets: z.array(ResourceTargetSchema),
-  version: SchemaVersionSchema,
-});
-operation(
-  "getGrants",
-  "get_grants",
-  "GET",
-  `${O}/grants`,
-  ["grants:manage"],
-  z.strictObject(org),
-  list(grantSchema),
-  "Read current organisation resource grants.",
-  { minimumRole: "admin" },
-);
-operation(
-  "updateGrants",
-  "update_grants",
-  "PATCH",
-  `${O}/grants`,
-  ["grants:manage"],
-  z.strictObject({ ...org, grants: z.array(grantSchema).max(1000) }),
-  list(grantSchema),
-  "Replace bounded member grants without raising organisation role ceilings.",
-  { minimumRole: "admin" },
-);
-operation(
-  "queryOrganisationAudit",
-  "query_organisation_audit",
-  "POST",
-  `${O}/audit/query`,
-  ["audit:read"],
-  z.strictObject({
-    ...org,
-    ...paging,
-    from: DateTimeSchema.optional(),
-    to: DateTimeSchema.optional(),
-    operationId: z.string().optional(),
-    actorId: z.string().optional(),
-    databaseId: IdSchema.optional(),
-    tableId: IdSchema.optional(),
-  }),
-  list(
-    z.strictObject({
-      id: IdSchema,
-      operationId: z.string(),
-      actorId: z.string(),
-      timestamp: DateTimeSchema,
-      target: JsonValueSchema,
-      outcome: JsonValueSchema,
-    }),
-  ),
-  "Query redacted organisation audit within current target grants.",
-  { readOnly: true, idempotencyRequired: false },
-);
 const keyInput = {
   name: names.name,
-  scopes: z
-    .array(z.string().min(1).max(64))
-    .min(1)
-    .max(64)
-    .refine(
-      (value) => value.every((scope) => scopeNames.includes(scope)),
-      "Unknown operation scope",
-    )
-    .refine(
-      (value) => new Set(value).size === value.length,
-      "Scopes must be distinct",
-    ),
-  targets: z.array(ResourceTargetSchema).max(200),
-  unrestricted: z.boolean().optional(),
   expiresAt: DateTimeSchema.nullable().optional(),
   ...approval,
 };
@@ -644,7 +519,7 @@ operation(
   ["keys:manage"],
   z.strictObject({ ...org, ...keyInput }),
   KeyCreatedSchema,
-  "Create a personal key within effective authority; secret appears once.",
+  "Create a personal key that inherits your live role; secret appears once.",
   { personal: true, stepUp: "conditional" },
 );
 operation(
@@ -656,10 +531,12 @@ operation(
   z.strictObject({
     id: IdSchema,
     overlapSeconds: z.number().int().min(0).max(86400).optional(),
+    name: names.name.optional(),
+    expiresAt: DateTimeSchema.nullable().optional(),
     ...approval,
   }),
   KeyCreatedSchema,
-  "Rotate a personal key with bounded overlap and one-time secret display.",
+  "Rotate a personal key with bounded overlap and one-time secret display; preserve name and expiry unless explicitly changed.",
   { personal: true, stepUp: "conditional" },
 );
 operation(
@@ -672,55 +549,6 @@ operation(
   deleted,
   "Revoke an owned personal key.",
   { personal: true },
-);
-operation(
-  "listTeamKeys",
-  "list_team_keys",
-  "GET",
-  `${O}/keys`,
-  ["keys:manage"],
-  z.strictObject(org),
-  list(KeyMetadataSchema),
-  "List organisation service-principal keys.",
-  { minimumRole: "admin" },
-);
-operation(
-  "createTeamKey",
-  "create_team_key",
-  "POST",
-  `${O}/keys`,
-  ["keys:manage"],
-  z.strictObject({ ...org, ...keyInput }),
-  KeyCreatedSchema,
-  "Create a team key independent of its creator membership.",
-  { minimumRole: "admin", stepUp: "required" },
-);
-operation(
-  "rotateTeamKey",
-  "rotate_team_key",
-  "POST",
-  `${O}/keys/{id}/rotate`,
-  ["keys:manage"],
-  z.strictObject({
-    ...org,
-    id: IdSchema,
-    overlapSeconds: z.number().int().min(0).max(86400).optional(),
-    ...approval,
-  }),
-  KeyCreatedSchema,
-  "Rotate an organisation service key with approved bounded overlap.",
-  { minimumRole: "admin", stepUp: "required" },
-);
-operation(
-  "revokeTeamKey",
-  "revoke_team_key",
-  "DELETE",
-  `${O}/keys/{id}`,
-  ["keys:manage"],
-  z.strictObject({ ...org, id: IdSchema }),
-  deleted,
-  "Revoke a team key.",
-  { minimumRole: "admin" },
 );
 operation(
   "getSecurityStatus",
@@ -764,7 +592,7 @@ operation(
   z.strictObject({ ...org, ...names }),
   DatabaseSchema,
   "Create a logical database with a managed PostgreSQL namespace.",
-  { minimumRole: "editor" },
+  { minimumRole: "admin" },
 );
 operation(
   "getDatabase",
@@ -871,7 +699,7 @@ operation(
   ["tables:read"],
   z.strictObject(table),
   list(FieldDefinitionSchema),
-  "List active fields with immutable API keys.",
+  "List active fields by property name and stable identifier.",
 );
 operation(
   "createField",
@@ -957,7 +785,7 @@ operation(
   z.strictObject(schemaInput),
   previewSchema,
   "Dry run a proposed schema change over existing values.",
-  { readOnly: true, idempotencyRequired: false, minimumRole: "editor" },
+  { readOnly: true, idempotencyRequired: false, minimumRole: "admin" },
 );
 operation(
   "applySchemaChange",
@@ -1211,7 +1039,7 @@ operation(
         .max(limits.mutationBatch),
     }),
   ),
-  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal installation operator with installation:manage, rows:write and current edit access, plus an explicit approval bound to the exact target, schema, revisions, values and reason, even for a recent session. Ordinary batches return the synchronous result.",
+  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, plus an explicit approval bound to the exact target, schema, revisions, values and reason, even for a recent session. Ordinary batches return the synchronous result.",
   { destructive: true, job: true, stepUp: "conditional" },
 );
 operation(
@@ -1458,54 +1286,6 @@ operation(
   "Read one retained history archive manifest without exposing storage credentials.",
 );
 operation(
-  "getBackupPolicy",
-  "get_backup_policy",
-  "GET",
-  `${D}/backup-policy`,
-  ["backups:read"],
-  z.strictObject(database),
-  z.strictObject({ policy: BackupPolicySchema.nullable() }),
-  "Read the backup policy without destination credentials.",
-  { minimumRole: "admin" },
-);
-operation(
-  "setBackupPolicy",
-  "set_backup_policy",
-  "PUT",
-  `${D}/backup-policy`,
-  ["backups:manage"],
-  z.strictObject({
-    ...database,
-    ...BackupPolicySchema.omit({ suspension: true }).shape,
-    ...approval,
-  }),
-  BackupPolicySchema,
-  "Configure cron, timezone, encrypted destination and verified-recovery retention.",
-  { minimumRole: "admin", stepUp: "conditional" },
-);
-operation(
-  "previewBackupSchedule",
-  "preview_backup_schedule",
-  "POST",
-  `${D}/backup-policy/preview`,
-  ["backups:read"],
-  z.strictObject({
-    ...database,
-    cron: BackupPolicySchema.shape.cron.optional(),
-    timezone: PreferencesSchema.shape.timezone.optional(),
-    count: z.number().int().min(1).max(20).optional(),
-    from: DateTimeSchema.optional(),
-  }),
-  z.strictObject({
-    occurrences: z.array(DateTimeSchema).max(20),
-    timezone: z.string(),
-    repeatedTimePolicy: z.literal("earlier"),
-    nonexistentTimePolicy: z.literal("skip"),
-  }),
-  "Preview UTC cron occurrences with documented daylight-saving behavior.",
-  { readOnly: true, idempotencyRequired: false, minimumRole: "admin" },
-);
-operation(
   "listBackups",
   "list_backups",
   "GET",
@@ -1655,10 +1435,6 @@ operation(
     indexBytes: z.number().nonnegative(),
     historyBytes: z.number().nonnegative(),
     artifactBytes: z.number().nonnegative(),
-    storageQuotaBytes:
-      CapacityConfigurationSchema.shape.defaultOrganisationQuotaBytes.removeDefault(),
-    storageAdmission: StorageAdmissionSchema,
-    admissionAvailable: z.boolean(),
   }),
   "Read appropriately redacted organisation usage and capacity.",
 );
@@ -1695,52 +1471,6 @@ const installationStatus = z.strictObject({
   ),
   workerHeartbeatAt: DateTimeSchema.nullable(),
   metrics: OperationalMetricsSchema,
-  storage: CapacityStatusSchema.nullable(),
-});
-const installationConfig = z.strictObject({
-  baseUrl: z.url(),
-  signupEnabled: z.literal(false),
-  smtpConfigured: z.boolean(),
-  objectStorageConfigured: z.boolean(),
-  limits: z.record(z.string(), z.number()),
-  operatorRecoveryEnabled: z.boolean(),
-  restartRequired: z.boolean().optional(),
-  storage: CapacityConfigurationSchema,
-  deletionRetention: DeletionRetentionSchema,
-});
-export const SmtpConfigurationInputSchema = z.strictObject({
-  host: z.string().min(1).max(255),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  from: z.email(),
-  user: z.string().max(512).optional(),
-  password: z
-    .string()
-    .max(4096)
-    .meta({
-      writeOnly: true,
-      description: "Encrypted at rest and never returned.",
-    })
-    .optional(),
-});
-export const ObjectStorageConfigurationInputSchema = z.strictObject({
-  endpoint: z
-    .url()
-    .refine(
-      (value) => ["http:", "https:"].includes(new URL(value).protocol),
-      "Expected an HTTP(S) endpoint",
-    ),
-  region: z.string().min(1).max(255),
-  bucket: z.string().min(1).max(255),
-  accessKeyId: z.string().max(512).meta({ writeOnly: true }).optional(),
-  secretAccessKey: z
-    .string()
-    .max(4096)
-    .meta({
-      writeOnly: true,
-      description: "Encrypted at rest and never returned.",
-    })
-    .optional(),
 });
 operation(
   "getInstallationStatus",
@@ -1750,48 +1480,8 @@ operation(
   ["installation:read"],
   empty,
   installationStatus,
-  "Read operator-authorised installation dependency state.",
-  { operator: true },
-);
-operation(
-  "getInstallationConfiguration",
-  "get_installation_configuration",
-  "GET",
-  "/v1/installation/configuration",
-  ["installation:read"],
-  empty,
-  installationConfig,
-  "Read redacted installation configuration without credential material.",
-  { operator: true },
-);
-operation(
-  "updateInstallationConfiguration",
-  "update_installation_configuration",
-  "PATCH",
-  "/v1/installation/configuration",
-  ["installation:manage"],
-  z.strictObject({
-    limits: z.record(z.string(), z.number().int().safe().positive()).optional(),
-    storage: CapacityConfigurationPatchSchema.optional(),
-    deletionRetention: DeletionRetentionPatchSchema.optional(),
-    smtp: SmtpConfigurationInputSchema.optional(),
-    objectStorage: ObjectStorageConfigurationInputSchema.optional(),
-    ...approval,
-  }),
-  installationConfig,
-  "Apply approved operator ceilings and configuration.",
-  { operator: true, stepUp: "required" },
-);
-operation(
-  "testEmail",
-  "test_email",
-  "POST",
-  "/v1/installation/email-test",
-  ["installation:manage"],
-  z.strictObject({ recipient: z.email(), ...approval }),
-  JobAcceptedSchema,
-  "Queue a redacted operator-authorised test email.",
-  { operator: true, stepUp: "required", job: true, successStatus: 202 },
+  "Read installation dependency state as an admin.",
+  { minimumRole: "admin" },
 );
 
 export const operations: readonly OperationDefinition[] =
@@ -1898,7 +1588,7 @@ export const ProtocolAdapterInventory = Object.freeze([
     methods: ["GET", "POST"],
     kind: "identity",
     reason:
-      "Identity/factor proof is browser-mediated. Personal account deletion is admitted by the existing bound account-action/auth adapters with exact DELETE confirmation, account:security, explicit approval and the current last-Owner check. Its internal deleteAccount execution descriptor returns a queued job and is not a public catalog operation or separate MCP tool.",
+      "Identity/factor proof is browser-mediated. Personal account deletion, organisation lifecycle and team credentials are not supported.",
   },
   {
     path: "/oauth/*",

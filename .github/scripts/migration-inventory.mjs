@@ -8,10 +8,14 @@ export async function candidateMigrationInventory(root, sourceManifest) {
   const names = (await readdir(directory))
     .filter((name) => name.endsWith(".sql"))
     .sort();
-  assert.ok(names.length > 0, "Candidate migration inventory is empty");
+  assert.deepEqual(
+    names,
+    ["0001_baseline.sql"],
+    "Prelaunch V1 has exactly one baseline SQL file",
+  );
   const entries = await Promise.all(
     names.map(async (name) => {
-      assert.match(name, /^\d{3}_[a-z0-9_]+\.sql$/);
+      assert.equal(name, "0001_baseline.sql");
       const path = resolve(directory, name);
       assert.ok(
         (await lstat(path)).isFile(),

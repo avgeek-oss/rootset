@@ -5,13 +5,15 @@ import https from "node:https";
 import type { Pool, PoolClient } from "pg";
 import {
   newId,
+  ActorSchema,
   decodeJsonBytes,
   parseStrictJson,
   RootsetError,
   limits,
   type Actor,
-  type ResourceTarget,
 } from "@rootset/contracts";
+
+import { roleAllows } from "@rootset/access";
 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
@@ -57,7 +59,7 @@ export interface OAuthConfig {
   baseURL: string;
   scopes: readonly string[];
   resolveSession: (request: Request) => Promise<Actor | null>;
-  refreshActor?: (actor: Actor) => Promise<Actor | null>;
+  refreshActor: (actor: Actor) => Promise<Actor | null>;
   clients?: Metadata[];
   allowDynamicRegistration?: boolean;
   metadataCacheMilliseconds?: number;
@@ -448,63 +450,20 @@ export class OAuthService {
     if (request.headers.get("origin") !== this.origin)
       throw new OAuthError("access_denied", "Browser origin is required.", 403);
   }
-  private grantActor(
-    actor: Actor,
-    orgId: string,
-    scopes: string[],
-    targets: ResourceTarget[],
-    unrestricted?: boolean,
-  ): Actor {
+  private grantActor(actor: Actor, orgId: string, scopes: string[]): Actor {
     if (!actor.userId || actor.kind !== "session" || actor.orgId !== orgId)
       throw new OAuthError(
         "access_denied",
-        "Choose the requested organisation in your browser.",
+        "Sign in to the installation organisation to approve this request.",
         403,
       );
-    if (
-      !actor.scopes.includes("*") &&
-      scopes.some((scope) => !actor.scopes.includes(scope))
-    )
+    if (scopes.some((scope) => !roleAllows(actor.role, scope)))
       throw new OAuthError(
         "invalid_scope",
-        "Requested scopes exceed your current authority.",
+        "Requested operations exceed your current role.",
         403,
       );
-    const ranks = { read: 0, edit: 1, manage: 2 };
-    if (unrestricted && !actor.unrestricted)
-      throw new OAuthError(
-        "access_denied",
-        "Requested organisation-wide access exceeds your current grants.",
-        403,
-      );
-    if (
-      !actor.unrestricted &&
-      targets.some(
-        (t) =>
-          !actor.targets.some(
-            (a) =>
-              (!a.databaseId || a.databaseId === t.databaseId) &&
-              (!a.tableId || a.tableId === t.tableId) &&
-              ranks[a.level] >= ranks[t.level],
-          ),
-      )
-    )
-      throw new OAuthError(
-        "access_denied",
-        "Requested targets exceed your current resource grants.",
-        403,
-      );
-    return {
-      ...actor,
-      scopes,
-      targets: targets.length
-        ? targets
-        : unrestricted === undefined
-          ? actor.targets
-          : [],
-      unrestricted:
-        unrestricted ?? (!!actor.unrestricted && targets.length === 0),
-    };
+    return { ...actor, kind: "oauth", scopes };
   }
   async resolveActor(
     request: Request,
@@ -514,7 +473,7 @@ export class OAuthService {
     if (!authorization?.startsWith("Bearer rs_oauth_")) return null;
     const value = authorization.slice(7);
     const result = await this.pool.query(
-      `SELECT g.actor,g.id AS grant_id,g.scopes,g.targets,g.resource,g.user_id,g.org_id FROM rootset_control.oauth_tokens t
+      `SELECT g.actor,g.id AS grant_id,g.scopes,g.resource,g.user_id,g.org_id,g.client_id FROM rootset_control.oauth_tokens t
       JOIN rootset_control.oauth_families f ON f.id=t.family_id JOIN rootset_control.oauth_grants g ON g.id=f.grant_id
       WHERE t.digest=$1 AND t.kind='access' AND t.expires_at>now() AND f.revoked_at IS NULL AND g.revoked_at IS NULL
       AND f.absolute_expires_at>now() AND f.inactivity_expires_at>now() AND g.resource=$2 AND rootset_control.oauth_grant_active(g.id)`,
@@ -522,17 +481,32 @@ export class OAuthService {
     );
     const row = result.rows[0];
     if (!row) return null;
-    const actor = {
-      ...row.actor,
+    const actor: Actor = {
       id: `oauth:${row.grant_id}`,
       kind: "oauth",
       credentialId: row.grant_id,
       userId: row.user_id,
       orgId: row.org_id,
+      role: row.actor.role,
       scopes: row.scopes,
-      targets: row.targets,
-    } as Actor;
-    return this.config.refreshActor ? this.config.refreshActor(actor) : actor;
+      clientId: row.client_id,
+    };
+    const current = await this.config.refreshActor(actor);
+    if (
+      !current ||
+      current.userId !== row.user_id ||
+      current.orgId !== row.org_id
+    )
+      return null;
+    const parsed = ActorSchema.safeParse({
+      ...actor,
+      role: current.role,
+      membershipVersion: current.membershipVersion,
+      scopes: row.scopes.filter((scope: string) =>
+        roleAllows(current.role, scope),
+      ),
+    });
+    return parsed.success ? parsed.data : null;
   }
   async handler(request: Request): Promise<Response | null> {
     const url = new URL(request.url),
@@ -616,11 +590,8 @@ export class OAuthService {
       "code_challenge",
       "code_challenge_method",
       "resource",
-      "organization_id",
       "scope",
       "state",
-      "database_ids",
-      "table_ids",
     ];
     if (
       [...p.keys()].some((k) => !allowed.includes(k)) ||
@@ -656,7 +627,7 @@ export class OAuthService {
       );
     const actor = await this.config.resolveSession(request);
     const resource = p.get("resource") ?? "",
-      orgId = p.get("organization_id") ?? actor?.orgId ?? "";
+      orgId = actor?.orgId ?? "";
     if (
       ![this.resource("api"), this.resource("mcp")].includes(resource) ||
       (orgId && !/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/i.test(orgId))
@@ -679,69 +650,16 @@ export class OAuthService {
         "invalid_scope",
         "Select explicit supported scopes.",
       );
-    const databases = (p.get("database_ids") ?? "").split(",").filter(Boolean),
-      tables = (p.get("table_ids") ?? "").split(",").filter(Boolean);
-    if (!orgId && (databases.length || tables.length))
-      throw new OAuthError(
-        "invalid_target",
-        "An organisation must accompany explicit resource targets.",
-      );
-    if (
-      databases.length + tables.length > 100 ||
-      [...databases, ...tables].some(
-        (v) => !/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/i.test(v),
-      )
-    )
-      throw new OAuthError("invalid_target", "Invalid target identifiers.");
-    const level: ResourceTarget["level"] = scopes.some((s) =>
-      s.endsWith(":manage"),
-    )
-      ? "manage"
-      : scopes.some((s) => s.endsWith(":write"))
-        ? "edit"
-        : "read";
-    const targets: ResourceTarget[] = databases.map((databaseId) => ({
-      databaseId,
-      level,
-    }));
-    for (const tableId of tables) {
-      const table = (
-        await this.pool.query(
-          "SELECT rootset_control.oauth_table_database($1,$2) AS database_id",
-          [tableId, orgId],
-        )
-      ).rows[0];
-      if (!table?.database_id)
-        throw new OAuthError(
-          "invalid_target",
-          "A requested resource is unavailable.",
-        );
-      targets.push({ databaseId: table.database_id, tableId, level });
-    }
-    for (const databaseId of databases)
-      if (
-        !(
-          await this.pool.query(
-            "SELECT rootset_control.oauth_database_exists($1,$2) AS present",
-            [databaseId, orgId],
-          )
-        ).rows[0]?.present
-      )
-        throw new OAuthError(
-          "invalid_target",
-          "A requested resource is unavailable.",
-        );
     const requestId = id();
     await this.pool.query(
-      "INSERT INTO rootset_control.oauth_requests(id,client_id,redirect_uri,resource,scopes,targets,org_id,user_id,state,challenge,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+      "INSERT INTO rootset_control.oauth_requests(id,client_id,redirect_uri,resource,scopes,org_id,user_id,state,challenge,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
       [
         requestId,
         clientId,
         redirect,
         resource,
         scopes,
-        JSON.stringify(targets),
-        orgId,
+        orgId || null,
         (actor as { userId?: string } | null)?.userId ?? null,
         p.get("state"),
         p.get("code_challenge"),
@@ -770,33 +688,14 @@ export class OAuthService {
             "Authorization request is unavailable.",
           );
         const orgId = bound.org_id || actor.orgId;
-        const existing = Array.isArray(bound.targets)
-          ? { targets: bound.targets, unrestricted: undefined }
-          : bound.targets;
-        const planned = this.grantActor(
-          actor,
-          orgId,
-          bound.scopes,
-          existing.targets,
-          existing.unrestricted,
-        );
-        const targets = {
-          targets: planned.targets,
-          unrestricted: !!planned.unrestricted,
-        };
+        this.grantActor(actor, orgId, bound.scopes);
         await db.query(
-          "UPDATE rootset_control.oauth_requests SET org_id=$2,user_id=$3,targets=$4 WHERE id=$1",
-          [requestId, orgId, actor.userId, targets],
+          "UPDATE rootset_control.oauth_requests SET org_id=$2,user_id=$3,reviewed_at=now() WHERE id=$1",
+          [requestId, orgId, actor.userId],
         );
-        return { ...bound, org_id: orgId, user_id: actor.userId, targets };
+        return { ...bound, org_id: orgId, user_id: actor.userId };
       });
-    this.grantActor(
-      actor,
-      row.org_id,
-      row.scopes,
-      row.targets.targets,
-      row.targets.unrestricted,
-    );
+    this.grantActor(actor, row.org_id, row.scopes);
     const client = await this.client(row.client_id);
     return response({
       id: row.id,
@@ -812,8 +711,6 @@ export class OAuthService {
       organizationId: row.org_id,
       resource: row.resource,
       scopes: row.scopes,
-      targets: row.targets.targets,
-      unrestricted: row.targets.unrestricted,
       expiresAt: row.expires_at,
     });
   }
@@ -854,7 +751,7 @@ export class OAuthService {
           "invalid_request",
           "Authorization request is unavailable.",
         );
-      if (Array.isArray(row.targets))
+      if (!row.reviewed_at)
         throw new OAuthError(
           "invalid_request",
           "Review the bound request before deciding consent.",
@@ -876,19 +773,13 @@ export class OAuthService {
         return response({ redirectUri: redirect.toString() });
       }
       const granted = {
-        ...this.grantActor(
-          actor,
-          row.org_id,
-          row.scopes,
-          row.targets.targets,
-          row.targets.unrestricted,
-        ),
+        ...this.grantActor(actor, row.org_id, row.scopes),
         clientId: row.client_id,
       };
       const grantId = id(),
         code = token();
       await db.query(
-        "INSERT INTO rootset_control.oauth_grants(id,client_id,user_id,org_id,resource,scopes,targets,actor) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        "INSERT INTO rootset_control.oauth_grants(id,client_id,user_id,org_id,resource,scopes,actor) VALUES($1,$2,$3,$4,$5,$6,$7)",
         [
           grantId,
           row.client_id,
@@ -896,7 +787,6 @@ export class OAuthService {
           row.org_id,
           row.resource,
           row.scopes,
-          JSON.stringify(granted.targets),
           granted,
         ],
       );
@@ -984,18 +874,25 @@ export class OAuthService {
       )
     ).rows[0]?.active;
     if (!active) return null;
+    const current = await this.config.refreshActor({
+      ...grant.actor,
+      kind: "oauth",
+      credentialId: grant.id,
+      userId: grant.user_id,
+      orgId: grant.org_id,
+      scopes: grant.scopes,
+    } as Actor);
     if (
-      this.config.refreshActor &&
-      !(await this.config.refreshActor({
-        ...grant.actor,
-        kind: "oauth",
-        credentialId: grant.id,
-        scopes: grant.scopes,
-        targets: grant.targets,
-      } as Actor))
+      !current ||
+      current.userId !== grant.user_id ||
+      current.orgId !== grant.org_id
     )
       return null;
-    return grant;
+    const effectiveScopes = grant.scopes.filter((scope: string) =>
+      roleAllows(current.role, scope),
+    );
+    if (!effectiveScopes.length) return null;
+    return { ...grant, scopes: effectiveScopes, actor: current };
   }
   private async exchange(request: Request) {
     const f = await this.form(request),

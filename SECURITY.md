@@ -1,20 +1,27 @@
 # Security reports
 
-Use a private GitHub vulnerability report for this repository when that feature
-is enabled, or contact a repository administrator through an established private
-channel. Do not put credentials, customer rows, backups, session tokens or working
-exploit credentials in a public issue.
+Use a private GitHub vulnerability report when enabled, or an established private
+channel to a repository administrator. Keep credentials, customer rows, backups,
+session tokens and usable exploit credentials out of public issues.
 
-Include the candidate commit, installation version, affected operation and role,
-reproduction steps using synthetic data, and the observed impact. The maintainer
-will confirm the report privately and arrange a fix and verification evidence.
+Include the source version, affected operation and role, synthetic reproduction
+steps, and observed impact. V1 is under implementation and verification; no
+released version is currently designated production-supported.
 
-Rootset v1 is under implementation and verification. No released version is
-currently designated production-supported. The architecture checklist defines
-the required isolation, authentication, recovery and dependency checks; a pending
-gate is not an assurance that the corresponding control has passed.
+## Current security boundary
 
-Keep PostgreSQL owner credentials restricted to migrations and operator recovery.
-Application, identity and DDL roles have distinct credentials. Preserve encryption
-keys with protected recovery copies; deleting a retired key can make retained
-artifacts or credentials unrecoverable. Follow the [operations runbooks](docs/operations/README.md).
+An installation has one SQL-enforced organisation and three membership roles:
+Admin, Editor and Viewer. Admin includes installation management. Personal API
+keys use live membership authority; demotion removes former permissions and
+member removal or credential revocation must reject subsequent use. OAuth adds
+operation consent, PKCE and token/client/audience validation. It has no database
+or table selection grants.
+
+Keep runtime PostgreSQL application, identity and DDL credentials separate from
+the migration/database-owner credential. Protect sessions, factors, credential
+hashing secrets and encryption keys. A retained encrypted artifact is recoverable
+only with its matching key. Follow the [recovery runbooks](docs/operations/README.md).
+
+The [current checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) requires
+real denial, recovery and dependency checks. Earlier source reviews and runtime
+receipts describe historical candidates; they do not certify the revised model.

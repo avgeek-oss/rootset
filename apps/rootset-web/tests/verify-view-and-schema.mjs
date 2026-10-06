@@ -74,10 +74,7 @@ try {
       password: c.ROOTSET_TEST_OWNER_PASSWORD,
     },
   });
-  await x.request.post("/v1/auth/organisation", {
-    headers: { Origin: new URL(baseURL).origin },
-    data: { orgId: f.orgId },
-  });
+  await x.request.get("/api/internal/v1/context");
   await call("PUT", `/view-preferences/${f.tableId}`, {
     preferences: {
       columnOrder: [],
@@ -94,55 +91,51 @@ try {
   await expect(grid.getByRole("gridcell").first()).not.toHaveText("Loading…");
   const schema = await call("GET", `${path}/schema`);
   originalField = schema.fields.find((v) => v.type === "text");
-  const integer = schema.fields.find((v) => v.type === "integer"),
-    json = schema.fields.find((v) => v.type === "json");
-  let view = await saveView(async () => {
+  const json = schema.fields.find((v) => v.type === "json");
+  const view = await saveView(async () => {
     await p
       .getByRole("separator", {
-        name: `Resize ${originalField.label}`,
+        name: `Resize ${originalField.name}`,
         exact: true,
       })
       .focus();
     await p.keyboard.press("ArrowRight");
   });
   expect(view.preferences.columnWidths[originalField.id]).toBe(200);
-  view = await saveView(() =>
-    p
-      .getByRole("button", { name: `Move ${integer.label} left`, exact: true })
-      .click(),
-  );
-  expect(view.preferences.columnOrder[0]).toBe(integer.id);
-  await p.locator(".column-menu summary").click();
-  view = await saveView(() =>
-    p.locator(".column-menu").getByLabel(json.label, { exact: true }).uncheck(),
-  );
-  expect(view.preferences.hiddenColumns).toContain(json.id);
-  view = await saveView(() =>
-    p.getByLabel("Frozen columns", { exact: true }).fill("1"),
-  );
-  expect(view.preferences.frozenColumns).toBe(1);
+  await expect(p.locator(".column-reorder")).toHaveCount(0);
+  // Fields control the grid order; API preferences can still freeze columns.
+  await call("PUT", `/view-preferences/${f.tableId}`, {
+    preferences: {
+      ...view.preferences,
+      columnOrder: [...schema.fields].reverse().map((field) => field.id),
+      hiddenColumns: [json.id],
+      frozenColumns: 1,
+    },
+  });
   await p.reload();
   await expect(p.locator(".column-header").first()).toContainText(
-    integer.label,
+    schema.fields[0].name,
   );
   await expect(p.locator(".column-header").first()).toHaveClass(/frozen/);
   await expect(
     p.getByRole("separator", {
-      name: `Resize ${originalField.label}`,
+      name: `Resize ${originalField.name}`,
       exact: true,
     }),
   ).toHaveAttribute("aria-valuenow", "200");
-  await p.locator(".column-menu summary").click();
+  await expect(p.getByRole("columnheader")).toHaveCount(schema.fields.length);
   await expect(
-    p.locator(".column-menu").getByLabel(json.label, { exact: true }),
-  ).not.toBeChecked();
-  await p.locator(".column-menu summary").click();
+    p.getByRole("columnheader").filter({ hasText: json.name }),
+  ).toBeVisible();
+  await expect(
+    p.getByRole("button", { name: "Columns", exact: true }),
+  ).toHaveCount(0);
   await mkdir(output, { recursive: true });
   await p.screenshot({
     path: new URL("chromium-view-preferences.png", output).pathname,
   });
   report.checks.push({
-    name: "Keyboard column resize, reorder, hidden projection and freezing persist through actual server preferences and reload",
+    name: "Keyboard column resize persists through reload; field order controls the grid while API freezing is honoured and hidden-column preferences cannot conceal fields in the UI",
     status: "passed",
   });
   await call("PUT", `/view-preferences/${f.tableId}`, {
@@ -159,11 +152,11 @@ try {
   originalRow = rows.data[0];
   await grid.getByRole("gridcell").first().click();
   let dialog = p.getByRole("dialog", {
-    name: `Edit ${originalField.label}`,
+    name: `Edit ${originalField.name}`,
     exact: true,
   });
   const editor = dialog.getByRole("textbox", {
-    name: new RegExp(`^${originalField.label}`),
+    name: new RegExp(`^${originalField.name}`),
   });
   await editor.fill("UI schema draft");
   for (let index = 0; index < 12; index++) {
@@ -178,14 +171,14 @@ try {
   }
   await expect(editor).toHaveValue("UI schema draft");
   report.checks.push({
-    name: "Uncommitted cell draft survives keyboard traversal; modal focus prevents a filter, sort or projection switch until an explicit save or cancel",
+    name: "Uncommitted cell draft survives keyboard traversal; modal focus prevents navigation or a filter change until an explicit save or cancel",
     status: "passed",
   });
   const before = schema.table.schemaVersion;
   const change = await call("PATCH", `${path}/fields/${originalField.id}`, {
     field: {
       ...input(originalField),
-      label: `${originalField.label} reviewed`,
+      name: `${originalField.name}_reviewed`,
     },
     expectedSchemaVersion: before,
     conversion: "explicit",
@@ -206,12 +199,12 @@ try {
     })
     .click();
   dialog = p.getByRole("dialog", {
-    name: `Edit ${originalField.label} reviewed`,
+    name: `Edit ${originalField.name}_reviewed`,
     exact: true,
   });
   await expect(
     dialog.getByRole("textbox", {
-      name: new RegExp(`^${originalField.label} reviewed`),
+      name: new RegExp(`^${originalField.name}_reviewed`),
     }),
   ).toHaveValue("UI schema draft");
   await expect(
@@ -224,7 +217,7 @@ try {
   await expect(dialog).not.toBeVisible();
   expect(
     (await call("GET", `${path}/rows/${originalRow.id}`)).values[
-      originalField.apiKey
+      `${originalField.name}_reviewed`
     ],
   ).toBe("UI schema draft");
   report.checks.push({
@@ -242,7 +235,7 @@ try {
     if (originalField) {
       const s = await call("GET", `${path}/schema`);
       const current = s.fields.find((field) => field.id === originalField.id);
-      if (current && current.label !== originalField.label)
+      if (current && current.name !== originalField.name)
         await settle(
           await call("PATCH", `${path}/fields/${originalField.id}`, {
             field: input(originalField),
@@ -255,12 +248,12 @@ try {
       const row = await call("GET", `${path}/rows/${originalRow.id}`),
         s = await call("GET", `${path}/schema`);
       if (
-        row.values[originalField.apiKey] !==
-        originalRow.values[originalField.apiKey]
+        row.values[originalField.name] !==
+        originalRow.values[originalField.name]
       )
         await call("PATCH", `${path}/rows/${originalRow.id}`, {
           values: {
-            [originalField.apiKey]: originalRow.values[originalField.apiKey],
+            [originalField.name]: originalRow.values[originalField.name],
           },
           expectedVersion: row.version,
           expectedSchemaVersion: s.table.schemaVersion,

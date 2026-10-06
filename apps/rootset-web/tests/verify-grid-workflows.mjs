@@ -81,8 +81,8 @@ async function addRow(name) {
     .first()
     .click();
   const dialog = page.getByRole("dialog", { name: "Add row", exact: true });
-  await dialog.locator(".add-row-field").filter({ hasText: "Name" }).click();
-  await dialog.getByRole("textbox", { name: /^Name/ }).fill(name);
+  await dialog.locator(".add-row-field").filter({ hasText: "NAME" }).click();
+  await dialog.getByRole("textbox", { name: /^NAME/ }).fill(name);
   await dialog.getByRole("button", { name: "Save value", exact: true }).click();
   await responseTo("/rows", () =>
     dialog.getByRole("button", { name: "Add row", exact: true }).click(),
@@ -101,10 +101,7 @@ try {
     headers: { Origin: new URL(baseURL).origin },
   });
   if (!signed.ok()) throw new Error(`QA sign-in failed (${signed.status()}).`);
-  await context.request.post("/v1/auth/organisation", {
-    data: { orgId: fixture.orgId },
-    headers: { Origin: new URL(baseURL).origin },
-  });
+  await context.request.get("/api/internal/v1/context");
   await page.goto(baseURL);
   const suffix = randomUUID().slice(0, 8);
   await page
@@ -143,12 +140,11 @@ try {
     path = `/orgs/${fixture.orgId}/databases/${database.id}/tables/${tableId}`;
   await page.getByRole("button", { name: "Add a field", exact: true }).click();
   for (const field of [
-    { label: "Name", apiKey: "NAME", type: "text" },
-    { label: "Count", apiKey: "COUNT", type: "integer" },
+    { name: "NAME", type: "text" },
+    { name: "COUNT", type: "integer" },
   ]) {
     const form = page.locator(".settings-form").first();
-    await form.getByRole("textbox", { name: /^Label/ }).fill(field.label);
-    await form.getByRole("textbox", { name: /^API key/ }).fill(field.apiKey);
+    await form.getByRole("textbox", { name: /^Name/ }).fill(field.name);
     await form
       .locator(".settings-field")
       .filter({ has: page.getByText("Field type", { exact: true }) })
@@ -170,7 +166,7 @@ try {
     await expect(
       page
         .locator(".settings-record strong")
-        .filter({ hasText: new RegExp(`^${field.label}$`) }),
+        .filter({ hasText: new RegExp(`^${field.name}$`) }),
     ).toBeVisible();
   }
   await page
@@ -215,7 +211,7 @@ try {
     .filter({ hasText: /^Alpha$/ })
     .click({ button: "right" });
   const history = page.getByRole("dialog", {
-    name: "Name history",
+    name: "NAME history",
     exact: true,
   });
   await expect(history).toContainText("First");
@@ -230,14 +226,16 @@ try {
   });
 
   await page.getByRole("button", { name: "Filter", exact: true }).click();
-  const filters = page.locator(".filter-bar");
-  const schema = await request("GET", `${path}/schema`);
-  await filters.getByLabel(/^Column/).selectOption(schema.fields[0].id);
-  await filters.getByLabel(/^Condition/).selectOption("contains");
-  await filters.getByLabel("Value", { exact: true }).fill("Alpha");
+  const filters = page.getByRole("dialog", { name: "Filters", exact: true });
+  await filters.getByRole("button", { name: /Field 1$/ }).click();
+  await page.getByRole("option", { name: "NAME", exact: true }).click();
+  await filters.getByRole("button", { name: /Match 1$/ }).click();
+  await page.getByRole("option", { name: "contains", exact: true }).click();
   await filters
-    .getByRole("button", { name: "Apply filter", exact: true })
-    .click();
+    .getByRole("textbox", { name: "Value 1", exact: true })
+    .fill("Alpha");
+  await filters.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(filters).not.toBeVisible();
   await expect(
     page.getByRole("gridcell").filter({ hasText: /^Beta$/ }),
   ).toHaveCount(0);
@@ -247,20 +245,37 @@ try {
   await page
     .getByRole("button", { name: "Filter · active", exact: true })
     .click();
+  await filters
+    .getByRole("textbox", { name: "Value 1", exact: true })
+    .fill("Beta");
+  await filters.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("gridcell").filter({ hasText: /^Alpha$/ }),
+  ).toBeVisible();
   await page
-    .getByRole("button", { name: "Clear filters", exact: true })
+    .getByRole("button", { name: "Filter · active", exact: true })
     .click();
-  await page.getByLabel(/^Sort/).selectOption(schema.fields[1].apiKey);
-  await page
-    .getByRole("button", { name: "Reverse sort direction", exact: true })
+  await expect(
+    filters.getByRole("textbox", { name: "Value 1", exact: true }),
+  ).toHaveValue("Alpha");
+  await filters
+    .getByRole("button", { name: "Clear all filters", exact: true })
     .click();
-  await expect(page.getByRole("gridcell").first()).toHaveText("Beta");
+  await expect(
+    page.getByRole("gridcell").filter({ hasText: /^Beta$/ }),
+  ).toBeVisible();
+  const toolbar = page.getByRole("toolbar", { name: "Table actions" });
+  await expect(toolbar.getByRole("button")).toHaveCount(2);
+  await expect(
+    toolbar.getByRole("button", { name: "Filter", exact: true }),
+  ).toBeVisible();
+  await expect(
+    toolbar.getByRole("button", { name: "Add row", exact: true }),
+  ).toBeVisible();
   report.checks.push({
-    name: "typed column filter and descending sort",
+    name: "Typed modal filter, cancelled draft isolation, clear filters and Filter/Add row header actions",
     status: "passed",
   });
-  await page.getByLabel(/^Sort/).selectOption("");
-  await expect(page.getByRole("gridcell").first()).toHaveText("Alpha");
   await expect(page.locator(".grid-footer")).toContainText("Live view");
 
   await paste(

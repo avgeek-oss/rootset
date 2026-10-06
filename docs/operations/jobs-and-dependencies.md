@@ -1,69 +1,65 @@
 # Jobs and dependencies
 
-Use the shared job API/MCP and browser job views to inspect target, requester,
-attempt, progress, checkpoint, state and redacted failure code. Preserve request
-and job IDs when reporting a failure; omit raw payloads or credentials.
+Long-running actions expose progress in their own browser workflow and via the
+job API/MCP status operation. There is no standalone Background Jobs screen.
+Inspect target, requester, attempt,
+progress, checkpoint, state and redacted failure code. Preserve request/job IDs
+when reporting a failure; omit raw payloads, SQL, authentication material and
+credentials.
 
-## Lease expiry, cancellation and retry
+## Cancellation, restart and schema work
 
-Only the worker holding the lease token commits a job checkpoint. Each worker
-publishes a heartbeat under its own ID. A stale process heartbeat and an expired
-job lease are different signals. Restart a failed worker using the same durable
-PostgreSQL/object state; a new process ID must not create another copy of an
+Only a worker with the current lease token may commit a checkpoint. Its process
+heartbeat and a persisted job lease are different signals. Restart with the same
+durable PostgreSQL/object state; a new worker process must not duplicate an
 already committed effect.
 
-Request cancellation through the job operation and wait for a terminal state.
-A cancellation response describes committed work; partial import commits remain
-visible at a safe checkpoint. Do not delete job records, edit lease tokens or
-rewind checkpoints manually. Retry only when the persisted failure is retryable
-and current requester/resource authority remains valid. A revoked actor must not
-gain authority from an old queued specification.
+Request cancellation through the supported operation and wait for a terminal
+state. Partial import commits stay visible and keep their history. Do not delete
+job records, edit leases or rewind checkpoints by hand. Retry only a retryable
+failure while the person's live role, credential and any OAuth consent still
+permit it. An old queued request cannot preserve revoked access.
 
-For a schema job, inspect its durable journal, staging objects and cutover state.
-Resume through the executor's reconciliation path. Verify the live schema,
-dependent rules/indexes, values and history before cleaning retained staging
-objects. A rollback or cancellation must leave the original source usable.
+For schema work, inspect its journal, staging generation and cutover state.
+Resume through reconciliation against actual catalog state. Verify values,
+revisions, rules/indexes and history before removing staging data. Failure or
+cancellation before publication must preserve the original source.
 
-## SMTP outage
+## SMTP and object storage
 
-Inspect outbox attempts, next retry and redacted failure status. Fix the configured
-endpoint, TLS/authentication or provider availability and resume normal delivery.
-Persistent outbox events must survive a worker restart; retry must not duplicate
-an already delivered logical event. An accepted email-test job is not proof that
-the message arrived. Verify the terminal test result and captured/provider
-delivery record. Data reads remain available when SMTP alone is degraded.
+For SMTP failure, inspect outbox attempts, next retry and redacted status. Fix the
+endpoint, TLS/authentication or provider availability and resume delivery. Outbox
+state survives restart. Verify actual account-email delivery through local capture or provider records.
+Change SMTP and S3 settings in `.env` and restart API/worker; the UI has no
+configuration overrides or test-email action. SMTP-only failure
+should leave data reads available.
 
-## Object storage outage or corruption
+For object failure, inspect artifact/backup state, storage errors, endpoint,
+bucket permissions and retained key IDs. Upload/readback/restore failure cannot
+produce verified backup success. Retry follows persisted run/object identity.
+If checksum or authentication-tag verification fails, preserve the object for
+diagnosis; never replace it with empty content. Failed staged restore must not
+damage live data, and retention must preserve the last verified recovery point.
 
-Inspect artifact and backup states plus storage error codes. Verify endpoint,
-bucket, credential permissions and retained encryption key IDs. A failed upload,
-read-back or isolated restore must not produce a successful backup record. Retry
-uses the persisted run/object identity; do not create a second backup blindly.
+## Resources and foreground health
 
-If a checksum or authentication tag fails, preserve the artifact and investigate
-the source/key/object history. Do not overwrite it with empty content. Restore
-creates isolated staging data and validates it before publication; failure must
-not damage the existing live database. Check retention does not remove a pinned
-or sole last successful recovery point.
+Observe filesystem headroom, WAL/temp growth, pool occupancy, query timeouts,
+history/index size, queue age, expired leases and verified backup age. Bound worker
+concurrency so imports/scans/backups keep foreground requests usable. An expensive
+query must return an actionable timeout within 10 seconds and cancel/join owned
+work in bounded cleanup; retry cannot silently expand its budget.
 
-## Capacity and foreground health
+Keep the existing PostgreSQL/API/worker/web allocation at 4/1/2/1 GiB with no added
+swap for performance verification. Local object/mail dependencies are separate
+fixtures. Report actual contention and capacity failures instead of changing the
+accepted target. There is no storage admission policy or reporter. Fixed row/field/payload limits
+remain enforced, and native disk failures must be reported without false success.
 
-Monitor PostgreSQL disk, WAL, connection pools, query timeouts, history growth,
-index size/build progress, queue delay, stale leases and backup verification age.
-Keep worker concurrency bounded so scans/imports/backups do not consume all API
-capacity. Unindexed queries time out; a retry cannot silently increase their
-budget or bypass byte/row limits. Stop admission when storage pressure threatens
-durability and inspect the measured cause before changing operating budgets.
+Do not use broad Docker pruning or volume removal as incident response. Identify
+the exact project and distinguish temporary fixture data from durable rows,
+history, objects and recovery copies. Cleanup must not touch other products.
 
-Avoid broad Docker pruning or volume removal as incident response. Identify the
-exact installation/project and distinguish temporary artifacts from durable
-rows, history, objects and recovery copies. A fixture cleanup must never touch
-another product's containers or a customer's installation.
-
-## Recovery rehearsal record
-
-For each scenario record the exact injected failure, source/image/configuration
-digests, job/checkpoint before and after, terminal result, data/history comparison,
-dependency health and reviewer. The checklist requires disk pressure, connection
-saturation, dependency outages, stale leases and failed schema jobs to produce
-actionable operator signals. A runbook is not evidence until those steps run.
+Record the injected failure, relevant version/environment, job/checkpoint before
+and after, terminal result and native data/history comparison. Outages, process
+termination and disk/connection pressure need real rehearsals; this runbook is
+not a test result.

@@ -13,8 +13,7 @@ const field = (
   configuration: Partial<FieldDefinition> = {},
 ): FieldDefinition => ({
   id: "01J00000000000000000000000",
-  apiKey: "VALUE",
-  label: "Value",
+  name: "VALUE",
   type,
   ...configuration,
 });

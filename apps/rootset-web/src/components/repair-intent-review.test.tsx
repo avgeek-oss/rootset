@@ -42,7 +42,7 @@ describe("immutable operator repair review", () => {
     const parsed = OperatorRepairIntentSchema.parse(
       intent(
         JSON.parse(
-          '{"password":"business password","token":"business token","secret":"business secret","__proto__":{"secret":"own business key"}}',
+          '{"password":"business password","token":"business token","secret":"business secret","META":{"__proto__":{"secret":"own business key"}}}',
         ),
       ),
     );
@@ -61,7 +61,7 @@ describe("immutable operator repair review", () => {
       "password",
       "token",
       "secret",
-      "__proto__",
+      "META",
     ])
       expect(html).toContain(expected);
     expect(html).toContain('aria-expanded="false"');
@@ -71,15 +71,50 @@ describe("immutable operator repair review", () => {
     expect(html).not.toContain("business secret");
   });
 
+  it.each([
+    "id",
+    "version",
+    "createdAt",
+    "updatedAt",
+    "__proto__",
+    "prototype",
+    "constructor",
+  ])(
+    "rejects reserved top-level field %s while preserving nested JSON keys",
+    (name) => {
+      const values = Object.defineProperty({}, name, {
+        enumerable: true,
+        value: "business value",
+      });
+      expect(OperatorRepairIntentSchema.safeParse(intent(values)).success).toBe(
+        false,
+      );
+      const nested = OperatorRepairIntentSchema.parse(
+        intent({
+          META: JSON.parse(
+            '{"__proto__":{"token":"retained"},"constructor":"business"}',
+          ),
+        }),
+      );
+      expect(
+        Object.hasOwn(nested.updates[0]!.values.META as object, "__proto__"),
+      ).toBe(true);
+    },
+  );
+
   it("renders only the first requested row and ten field names, without accessing or serializing collapsed or offscreen data", () => {
     const values: Record<string, string> = {};
     for (let i = 0; i < 200; i++)
-      Object.defineProperty(values, `FIELD_${i}`, {
-        enumerable: true,
-        get() {
-          throw new Error("Collapsed value was read");
+      Object.defineProperty(
+        values,
+        `FIELD_${String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26))}`,
+        {
+          enumerable: true,
+          get() {
+            throw new Error("Collapsed value was read");
+          },
         },
-      });
+      );
     const request = intent(values);
     request.updates = Array.from({ length: 1000 }, (_, index) =>
       index === 0
@@ -112,8 +147,8 @@ describe("immutable operator repair review", () => {
     expect(
       html.match(/aria-label="View requested value for FIELD_/g),
     ).toHaveLength(10);
-    expect(html).toContain("FIELD_9");
-    expect(html).not.toContain("FIELD_10");
+    expect(html).toContain("FIELD_AJ");
+    expect(html).not.toContain("FIELD_AK");
     expect(html).not.toContain("Requested JSON value");
     expect(html).not.toContain("Opening requested value");
   });

@@ -1,79 +1,67 @@
 .rootset-settings {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  width: 100%;
+  min-width: 0;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 0 24px 40px;
   color: var(--foreground);
-  background: var(--background);
 }
 .settings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.2rem 1.75rem;
-  border-bottom: 1px solid var(--separator);
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px 0;
 }
 .settings-header h1 {
-  font-size: 1.35rem;
+  font-size: 20px;
   line-height: 1.4;
-  font-weight: 600;
+  font-weight: 500;
   margin: 0;
 }
-.settings-eyebrow {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
 .settings-content {
-  overflow: auto;
-  min-height: 0;
-  flex: 1;
-  padding: 1.5rem 1.75rem 4rem;
-}
-.settings-layout {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-.settings-navigation {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  width: 205px;
-  flex-shrink: 0;
-  overflow: auto;
-  border-right: 1px solid var(--separator);
-  padding: 1rem 0.6rem;
-}
-.settings-navigation button {
-  justify-content: flex-start;
-  font-size: 0.82rem;
-  flex-shrink: 0;
-}
-.settings-content > * {
-  max-width: 960px;
+  display: grid;
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
 }
 .settings-section {
-  padding: 1.5rem 0;
-  border-bottom: 1px solid var(--separator);
+  min-width: 0;
+  margin: 0;
 }
-.settings-section:first-child {
-  padding-top: 0;
+.settings-section .widget__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
 }
-.settings-section-heading {
-  margin-bottom: 1.25rem;
+.settings-section-description {
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
 }
-.settings-section h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 0.35rem;
-}
-.settings-section-heading p,
 .settings-muted {
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: 14px;
   line-height: 1.6;
+}
+.settings-feedback a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+@media (min-width: 1400px) {
+  .settings-content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .settings-content > :not(.settings-section) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 640px) {
+  .rootset-settings {
+    padding: 0 16px 32px;
+  }
 }
 .settings-form,
 .settings-form > fieldset {
@@ -94,7 +82,6 @@
 }
 .settings-field input,
 .settings-field textarea {
-  font-size: 16px;
   width: 100%;
 }
 .settings-inline,
@@ -119,7 +106,8 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
   padding: 1rem 0;
   border-bottom: 1px solid var(--separator);
 }
@@ -128,7 +116,7 @@
 }
 .settings-record-content {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 220px;
   overflow-wrap: anywhere;
 }
 .settings-record-content strong {
@@ -140,7 +128,7 @@
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
-  max-width: 55%;
+  max-width: 100%;
 }
 .settings-record-actions .settings-field {
   width: 140px;
@@ -250,18 +238,6 @@
 .settings-recovery-codes code {
   user-select: all;
 }
-@media (max-width: 800px) {
-  .settings-layout {
-    flex-direction: column;
-  }
-  .settings-navigation {
-    flex-direction: row;
-    width: 100%;
-    border-right: 0;
-    border-bottom: 1px solid var(--separator);
-    padding: 0.5rem;
-  }
-}
 @media (max-width: 640px) {
   .settings-header {
     padding: 1rem;
@@ -285,4 +261,11 @@
   .rootset-settings * {
     scroll-behavior: auto;
   }
+}
+
+.rootset-account-settings {
+  max-width: 1280px;
+}
+.rootset-account-settings > .settings-content {
+  display: block;
 }

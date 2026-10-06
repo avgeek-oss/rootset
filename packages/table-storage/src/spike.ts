@@ -40,11 +40,8 @@ const actor: Actor = {
   id: newId(),
   orgId,
   kind: "operator",
-  operator: true,
-  role: "owner",
+  role: "admin",
   scopes: ["*"],
-  targets: [],
-  unrestricted: true,
 };
 try {
   await migrate(owner);
@@ -56,14 +53,14 @@ try {
   const table = await storage.createTable(actor, database.id, {
     name: "Native cells",
     fields: [
-      { apiKey: "code", label: "Code", type: "text", charLimit: 200 },
-      { apiKey: "count", label: "Count", type: "integer", min: -100, max: 100 },
-      { apiKey: "rate", label: "Rate", type: "float" },
-      { apiKey: "live", label: "Live", type: "boolean" },
-      { apiKey: "day", label: "Day", type: "date" },
-      { apiKey: "clock", label: "Clock UTC", type: "time" },
-      { apiKey: "instant", label: "Instant", type: "date-time" },
-      { apiKey: "payload", label: "Payload", type: "json" },
+      { name: "code", type: "text", charLimit: 200 },
+      { name: "count", type: "integer", min: -100, max: 100 },
+      { name: "rate", type: "float" },
+      { name: "live", type: "boolean" },
+      { name: "day", type: "date" },
+      { name: "clock", type: "time" },
+      { name: "instant", type: "date-time" },
+      { name: "payload", type: "json" },
     ],
   });
   const row = await storage.createRow(
@@ -120,7 +117,7 @@ try {
     actor,
     table.id,
     row.id,
-    table.fields.find((f) => f.apiKey === "count")!.id,
+    table.fields.find((f) => f.name === "count")!.id,
   );
   assert.equal(history.data.length, 2);
   const narrow = await storage.createUniqueRule(actor, table.id, {

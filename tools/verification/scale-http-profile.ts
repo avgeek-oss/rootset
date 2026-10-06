@@ -14,7 +14,6 @@ import {
   type QueryResult,
   type Row,
   type Actor,
-  scopeNames,
 } from "@rootset/contracts";
 import { withOrg } from "@rootset/database";
 import { fieldColumn } from "../../packages/table-storage/src/query.js";
@@ -84,7 +83,7 @@ export async function runHttpProfile(
     port,
     baseURL: base.origin,
     scenario,
-    gateSignOffs: [],
+    acceptance: false,
     scope:
       "Actual shipped HTTP API with actual scoped key/current membership and PostgreSQL5M fixture. PostgreSQL-buffer coldness is measured separately from unproven OS-cache coldness. Original55448/55460 are unchanged.",
     results: [],
@@ -262,7 +261,7 @@ export async function runHttpProfile(
         "SELECT rootset_control.operator_metrics() AS metrics",
       )
     ).rows[0]?.metrics;
-    const integer = table.fields.find((field) => field.apiKey === "INTEGER_1")!;
+    const integer = table.fields.find((field) => field.name === "INTEGER_A")!;
     report.indexedPlan = (
       await withOrg(target.pools.api, target.actor.orgId, (client) =>
         client.query(
@@ -275,8 +274,8 @@ export async function runHttpProfile(
       const response = await call("queryRows", {
         ...ids,
         query: {
-          where: { field: "INTEGER_1", op: "gte", value: 2500000 + index * 10 },
-          orderBy: [{ field: "INTEGER_1", direction: "asc" }],
+          where: { field: "INTEGER_A", op: "gte", value: 2500000 + index * 10 },
+          orderBy: [{ field: "INTEGER_A", direction: "asc" }],
           limit: count,
         },
       });
@@ -367,19 +366,19 @@ export async function runHttpProfile(
       }[] = [
         {
           name: "TEXT",
-          field: "TEXT_1",
+          field: "TEXT_A",
           op: "contains",
           hit: "C",
           miss: "missing-needle",
         },
         {
           name: "JSON",
-          field: "JSON_1",
+          field: "JSON_A",
           op: "jsonContains",
           hit: { g: 0 },
           miss: { g: 99999 },
         },
-        { name: "RANGE", field: "INTEGER_2", op: "lt", hit: 1000, miss: -1 },
+        { name: "RANGE", field: "INTEGER_B", op: "lt", hit: 1000, miss: -1 },
       ];
       report.scanDistribution = {
         requestsPerType: 1000,
@@ -393,7 +392,7 @@ export async function runHttpProfile(
         const foreground: number[] = [],
           failures: Record<string, number> = {},
           timeouts: number[] = [];
-        const field = table.fields.find((item) => item.apiKey === scan.field)!;
+        const field = table.fields.find((item) => item.name === scan.field)!;
         const clause =
           scan.op === "contains"
             ? `${q(fieldColumn(field))} LIKE $1`
@@ -496,7 +495,7 @@ export async function runHttpProfile(
                 rowId: current.id,
                 expectedVersion: current.version,
                 expectedSchemaVersion: table.schemaVersion,
-                values: { INTEGER_1: Number(current.values.INTEGER_1) + 1 },
+                values: { INTEGER_A: Number(current.values.INTEGER_A) + 1 },
               });
               const result = response.value as { row: Row; mutationId: string };
               current = result.row;
@@ -541,34 +540,28 @@ export async function runHttpProfile(
         measuredTargetMet: (stats.p95Ms ?? Infinity) <= 500,
       });
     } else if (scenario === "background") {
-      const qaOrgId = newId(),
+      const qaOrgId = ids.orgId,
         userId = newId(),
         sessionId = newId();
-      await target.pools.owner.query(
-        "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Dedicated background performance fixture')",
-        [qaOrgId],
-      );
       await target.pools.owner.query(
         "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,'Background performance fixture',$2,true)",
         [userId, `${userId.toLowerCase()}@rootset.example.test`],
       );
       await target.pools.owner.query(
-        "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'owner')",
+        "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin')",
         [newId(), qaOrgId, userId],
       );
       await target.pools.owner.query(
-        "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,active_organization_id,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',$4,now())",
-        [sessionId, userId, newId(), qaOrgId],
+        "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',now())",
+        [sessionId, userId, newId()],
       );
       const qaActor: Actor = {
         kind: "session",
         id: sessionId,
         userId,
         orgId: qaOrgId,
-        role: "owner",
-        scopes: [...scopeNames],
-        targets: [],
-        unrestricted: true,
+        role: "admin",
+        scopes: [],
         authenticatedAt: Date.now(),
       };
       report.backgroundSetup = {
@@ -597,11 +590,6 @@ export async function runHttpProfile(
             {
               orgId: qaOrgId,
               name: "Background performance fixture",
-              scopes: [...scopeNames].filter(
-                (scope) => !scope.startsWith("installation:"),
-              ),
-              targets: [],
-              unrestricted: true,
             },
             { surface: "browser", idempotencyKey: newId(), requestId: newId() },
           ),
@@ -626,19 +614,19 @@ export async function runHttpProfile(
             databaseId: database.id,
             name: "Eight typed fields",
             fields: [
-              { apiKey: "CODE", label: "Code", type: "text", charLimit: 64 },
-              { apiKey: "AMOUNT", label: "Amount", type: "integer" },
-              { apiKey: "FLOAT", label: "Float", type: "float" },
-              { apiKey: "FLAG", label: "Flag", type: "boolean" },
-              { apiKey: "DATE", label: "Date", type: "date" },
-              { apiKey: "TIME", label: "Time", type: "time" },
-              { apiKey: "STAMP", label: "Stamp", type: "date-time" },
-              { apiKey: "JSON", label: "JSON", type: "json" },
+              { name: "CODE", type: "text", charLimit: 64 },
+              { name: "AMOUNT", type: "integer" },
+              { name: "FLOAT", type: "float" },
+              { name: "FLAG", type: "boolean" },
+              { name: "DATE", type: "date" },
+              { name: "TIME", type: "time" },
+              { name: "STAMP", type: "date-time" },
+              { name: "JSON", type: "json" },
             ],
           })
         ).value as {
           table: { id: string; schemaVersion: number };
-          fields: { id: string; apiKey: string }[];
+          fields: { id: string; name: string }[];
         };
         const bg = {
           orgId: qaOrgId,
@@ -806,7 +794,7 @@ export async function runHttpProfile(
           artifactId: upload.artifactId,
           format: "jsonl",
           mapping: Object.fromEntries(
-            created.fields.map((field) => [field.apiKey, field.apiKey]),
+            created.fields.map((field) => [field.name, field.name]),
           ),
           mode: "create",
           batchSize: 100,
@@ -814,9 +802,7 @@ export async function runHttpProfile(
         const readSchema = async () =>
           (await adminCall("getTableSchema", bg)).value as typeof created;
         let current = await readSchema();
-        const amount = current.fields.find(
-          (field) => field.apiKey === "AMOUNT",
-        )!;
+        const amount = current.fields.find((field) => field.name === "AMOUNT")!;
         await phase("INDEX", "createIndex", {
           ...bg,
           expectedSchemaVersion: current.table.schemaVersion,
@@ -824,14 +810,14 @@ export async function runHttpProfile(
           kind: "btree",
         });
         current = await readSchema();
-        const code = current.fields.find((field) => field.apiKey === "CODE")!;
+        const code = current.fields.find((field) => field.name === "CODE")!;
         await phase("RULE", "createUniqueRule", {
           ...bg,
           expectedSchemaVersion: current.table.schemaVersion,
           fieldIds: [code.id],
         });
         current = await readSchema();
-        const float = current.fields.find((field) => field.apiKey === "FLOAT")!;
+        const float = current.fields.find((field) => field.name === "FLOAT")!;
         await phase("CONVERSION", "applySchemaChange", {
           ...bg,
           expectedSchemaVersion: current.table.schemaVersion,
@@ -870,31 +856,23 @@ export async function runHttpProfile(
       assert.ok(principalId);
       const subject = (
         await target.pools.owner.query(
-          "SELECT k.owner_user_id,m.role,m.state,u.email_verified,u.disabled FROM rootset_control.api_keys k JOIN rootset_control.memberships m ON m.user_id=k.owner_user_id AND m.org_id=k.org_id JOIN rootset_control.users u ON u.id=k.owner_user_id WHERE k.id=$1 AND k.org_id=$2 AND k.revoked_at IS NULL",
+          "SELECT k.user_id,m.role,u.email_verified FROM rootset_control.api_keys k JOIN rootset_control.memberships m ON m.user_id=k.user_id AND m.org_id=k.org_id JOIN rootset_control.users u ON u.id=k.user_id WHERE k.id=$1 AND k.org_id=$2 AND k.revoked_at IS NULL",
           [principalId, ids.orgId],
         )
       ).rows[0]!;
-      assert.ok(
-        subject &&
-          subject.role === "owner" &&
-          subject.state === "active" &&
-          subject.email_verified &&
-          !subject.disabled,
-      );
+      assert.ok(subject && subject.role === "admin" && subject.email_verified);
       const sessionId = newId();
       await target.pools.owner.query(
-        "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,active_organization_id,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',$4,now())",
-        [sessionId, subject.owner_user_id, newId(), ids.orgId],
+        "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',now())",
+        [sessionId, subject.user_id, newId()],
       );
       const qaActor: Actor = {
         kind: "session",
         id: sessionId,
-        userId: subject.owner_user_id,
+        userId: subject.user_id,
         orgId: ids.orgId,
-        role: "owner",
-        scopes: [...scopeNames],
-        targets: [],
-        unrestricted: true,
+        role: "admin",
+        scopes: [],
         authenticatedAt: Date.now(),
       };
       report.fullScaleSetup = {
@@ -906,7 +884,7 @@ export async function runHttpProfile(
           )
         ).rows[0]?.count,
         credentialSetup:
-          "Explicit trusted local QA session for existing verified current Owner, issuing database-manage key through actual Core service. Excluded from authentication issuance/step-up/browser proof.",
+          "Explicit trusted local QA session for existing verified current Admin, issuing personal key inheriting Admin authority through actual Core service. Excluded from authentication issuance/step-up/browser proof.",
         targetOnly: true,
       };
       const setupRuntime = await createRuntime({
@@ -925,11 +903,6 @@ export async function runHttpProfile(
             {
               orgId: ids.orgId,
               name: "Full-scale background performance fixture",
-              scopes: [...scopeNames].filter(
-                (scope) => !scope.startsWith("installation:"),
-              ),
-              targets: [{ databaseId: ids.databaseId, level: "manage" }],
-              unrestricted: false,
             },
             { surface: "browser", idempotencyKey: newId(), requestId: newId() },
           ),
@@ -1095,10 +1068,10 @@ export async function runHttpProfile(
       try {
         let current = (await adminCall("getTableSchema", ids)).value as {
           table: { schemaVersion: number };
-          fields: { id: string; apiKey: string }[];
+          fields: { id: string; name: string }[];
         };
         const secondInteger = current.fields.find(
-          (field) => field.apiKey === "INTEGER_2",
+          (field) => field.name === "INTEGER_B",
         )!;
         await phase("INDEX", "createIndex", {
           ...ids,
@@ -1109,11 +1082,9 @@ export async function runHttpProfile(
         current = (await adminCall("getTableSchema", ids))
           .value as typeof current;
         const integerField = current.fields.find(
-            (field) => field.apiKey === "INTEGER_1",
+            (field) => field.name === "INTEGER_A",
           )!,
-          textField = current.fields.find(
-            (field) => field.apiKey === "TEXT_1",
-          )!;
+          textField = current.fields.find((field) => field.name === "TEXT_A")!;
         await phase("RULE", "createUniqueRule", {
           ...ids,
           expectedSchemaVersion: current.table.schemaVersion,
@@ -1121,9 +1092,7 @@ export async function runHttpProfile(
         });
         current = (await adminCall("getTableSchema", ids))
           .value as typeof current;
-        const float = current.fields.find(
-          (field) => field.apiKey === "FLOAT_3",
-        )!;
+        const float = current.fields.find((field) => field.name === "FLOAT_C")!;
         await phase("CONVERSION", "applySchemaChange", {
           ...ids,
           expectedSchemaVersion: current.table.schemaVersion,
@@ -1252,7 +1221,7 @@ export async function runHttpProfile(
         .value as QueryResult;
       const previous = page.data[0]!;
       const idempotencyKey = newId(),
-        values = { INTEGER_1: Number(previous.values.INTEGER_1) + 1 };
+        values = { INTEGER_A: Number(previous.values.INTEGER_A) + 1 };
       const input = {
         ...ids,
         rowId: previous.id,
@@ -1298,7 +1267,7 @@ export async function runHttpProfile(
         BigInt(reconciled.row.version),
         BigInt(previous.version) + 1n,
       );
-      assert.equal(reconciled.row.values.INTEGER_1, values.INTEGER_1);
+      assert.equal(reconciled.row.values.INTEGER_A, values.INTEGER_A);
       assert.equal(
         (
           await target.pools.owner.query(

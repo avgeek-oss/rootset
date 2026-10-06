@@ -58,7 +58,7 @@ export function createBackupNotifications(
           `SELECT b.state,b.verified_at,d.name database_name,o.name organisation_name,j.actor
          FROM rootset_control.backups b JOIN rootset_control.jobs j ON j.id=b.job_id AND j.org_id=b.org_id
          JOIN rootset_control.databases d ON d.id=b.database_id AND d.org_id=b.org_id
-         JOIN rootset_control.organisations o ON o.id=b.org_id AND o.state='active'
+         JOIN rootset_control.organisations o ON o.id=b.org_id AND o.singleton
          WHERE b.id=$1 AND b.org_id=$2 AND b.database_id=$3`,
           [backupId, orgId, databaseId],
         )
@@ -99,27 +99,17 @@ export function createBackupNotifications(
               : ("pending" as const),
           deliveryId: existing.id,
         };
-      const requester =
-        backup.actor.kind === "team_key"
-          ? undefined
-          : IdSchema.safeParse(backup.actor.userId);
+      const requester = IdSchema.safeParse(backup.actor.userId);
       const recipient = (
         await client.query<{ email: string; name: string }>(
-          `SELECT u.email,u.name FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id
-         WHERE m.org_id=$1 AND m.state='active' AND u.email_verified AND NOT u.disabled AND
-          CASE WHEN $2::boolean THEN m.role='owner' ELSE u.id=$3 END
-         ORDER BY m.created_at,m.id LIMIT 1`,
-          [
-            orgId,
-            backup.actor.kind === "team_key",
-            requester?.success ? requester.data : null,
-          ],
+          `SELECT u.email,u.name FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND u.email_verified AND u.id=$2 LIMIT 1`,
+          [orgId, requester.success ? requester.data : null],
         )
       ).rows[0];
       if (!recipient)
         throw new RootsetError(
           "BACKUP_NOTIFICATION_RECIPIENT_UNAVAILABLE",
-          "No active verified backup requester or eligible team-key Owner can receive this notification",
+          "No verified backup requester can receive this notification",
           503,
         );
       const details = [
@@ -134,7 +124,6 @@ export function createBackupNotifications(
         .filter(Boolean)
         .join("\n");
       const actionUrl = new URL("/settings/backups", base);
-      actionUrl.searchParams.set("organisationId", orgId);
       actionUrl.searchParams.set("databaseId", databaseId);
       const deliveryId = await outbox.enqueue(client, {
         template:

@@ -20,7 +20,7 @@ export class JobCancelled extends Error {
   }
 }
 
-function durableInput(input: Record<string, unknown>, policyRuntime = false) {
+function durableInput(input: Record<string, unknown>, manualRuntime = false) {
   const result = { ...input };
   const correlation = input.operationContext;
   if (
@@ -34,7 +34,7 @@ function durableInput(input: Record<string, unknown>, policyRuntime = false) {
       result.operationContext = retained;
     else delete result.operationContext;
   }
-  if (policyRuntime) delete result.maxRuntimeSeconds;
+  if (manualRuntime) delete result.maxRuntimeSeconds;
   return result;
 }
 
@@ -74,15 +74,15 @@ export class DurableQueue {
           }),
         )
         .digest("hex");
-    const policyRuntime =
+    const manualRuntime =
       job.operation_id === "createBackup" &&
       job.kind === "backup" &&
       job.target_type === "database" &&
-      job.input.backupRuntimeSource === "policy";
+      job.input.backupRuntimeSource === "installation";
     return [
       job.input,
       durableInput(job.input),
-      ...(policyRuntime ? [durableInput(job.input, true)] : []),
+      ...(manualRuntime ? [durableInput(job.input, true)] : []),
     ].some((input) => digest(input) === job.input_digest);
   }
 
@@ -94,7 +94,7 @@ export class DurableQueue {
     input: Record<string, unknown>,
     idempotencyKey: string,
     client?: PoolClient,
-    options?: { manualBackupPolicyRuntime?: true },
+    options?: { manualBackupRuntime?: true },
   ): Promise<JobRecord> {
     if (
       !OperationContextSchema.shape.idempotencyKey.safeParse(idempotencyKey)
@@ -105,10 +105,10 @@ export class DurableQueue {
         "VALIDATION_FAILED",
         "A bounded idempotency key is required",
       );
-    const policyRuntime = options?.manualBackupPolicyRuntime === true;
+    const manualRuntime = options?.manualBackupRuntime === true;
     if (
       Object.hasOwn(input, "backupRuntimeSource") ||
-      (policyRuntime &&
+      (manualRuntime &&
         (operationId !== "createBackup" ||
           kind !== "backup" ||
           target.type !== "database" ||
@@ -164,7 +164,7 @@ export class DurableQueue {
       );
     const persistedInput: Record<string, unknown> = {
       ...input,
-      ...(policyRuntime ? { backupRuntimeSource: "policy" } : {}),
+      ...(manualRuntime ? { backupRuntimeSource: "installation" } : {}),
       ...(provenance
         ? {
             operationContext: {
@@ -201,7 +201,7 @@ export class DurableQueue {
           }),
         )
         .digest("hex");
-    const digest = digestInput(durableInput(persistedInput, policyRuntime));
+    const digest = digestInput(durableInput(persistedInput, manualRuntime));
     const run = async (connection: PoolClient) => {
       const inserted = await connection.query<JobRecord>(
         `INSERT INTO rootset_control.jobs
@@ -243,22 +243,22 @@ export class DurableQueue {
           existing.input_digest ===
             digestInput(durableInput(existing.input), existingTarget));
       const markedPolicyRuntime =
-        policyRuntime &&
+        manualRuntime &&
         existing?.kind === "backup" &&
-        existing.input.backupRuntimeSource === "policy";
+        existing.input.backupRuntimeSource === "installation";
       const legacyIncoming = { ...persistedInput };
       delete legacyIncoming.backupRuntimeSource;
       const matches =
         existing &&
         existingTarget &&
-        (!policyRuntime || existing.kind === "backup") &&
+        (!manualRuntime || existing.kind === "backup") &&
         (existing.input_digest === digest ||
           (legacyAuthentic &&
             (digestInput(
               durableInput(existing.input, markedPolicyRuntime),
               existingTarget,
             ) === digest ||
-              (policyRuntime &&
+              (manualRuntime &&
                 !Object.hasOwn(existing.input, "backupRuntimeSource") &&
                 digestInput(durableInput(existing.input), existingTarget) ===
                   digestInput(durableInput(legacyIncoming))))));

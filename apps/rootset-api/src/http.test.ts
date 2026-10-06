@@ -7,7 +7,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { Pool } from "pg";
+import { assertAccess } from "@rootset/access";
+import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { OAuthService } from "@rootset/oauth";
 import {
   newId,
@@ -20,9 +21,7 @@ import { createApp, MCP_PROTOCOL_VERSION } from "./app.js";
 import { readJson } from "./json.js";
 import { httpServerOptions } from "./http-server.js";
 
-const databaseURL = process.env.ROOTSET_TEST_DATABASE_URL,
-  identityURL = process.env.ROOTSET_TEST_IDENTITY_DATABASE_URL,
-  appURL = process.env.ROOTSET_TEST_APP_DATABASE_URL;
+const databaseURL = process.env.ROOTSET_TEST_DATABASE_URL;
 
 test("strict HTTP decoding rejects duplicate keys, malformed UTF-8 and oversized streamed bodies", async () => {
   await assert.rejects(
@@ -111,9 +110,10 @@ test(
   "real HTTP and MCP SDK client negotiate, discover every tool and enforce OAuth audience/typed error transport",
   { skip: !databaseURL },
   async () => {
-    const owner = new Pool({ connectionString: databaseURL }),
-      issuer = new Pool({ connectionString: identityURL ?? databaseURL }),
-      pool = new Pool({ connectionString: appURL ?? databaseURL });
+    const fixture = await isolatedDatabase();
+    const owner = fixture.owner,
+      issuer = fixture.identity,
+      pool = fixture.app;
     const userId = newId(),
       orgId = newId(),
       databaseId = newId(),
@@ -124,10 +124,8 @@ test(
       id: `user:${userId}`,
       userId,
       orgId,
-      role: "owner",
+      role: "admin",
       scopes: ["rows:read"],
-      targets: [],
-      unrestricted: true,
     };
     await owner.query(
       "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
@@ -142,7 +140,7 @@ test(
       [orgId, "HTTP verification"],
     );
     await owner.query(
-      "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'owner')",
+      "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin')",
       [newId(), orgId, userId],
     );
     let baseURL = "http://127.0.0.1:4310";
@@ -164,8 +162,8 @@ test(
       execute: async (operationId: string, caller: Actor, input: unknown) => {
         if (transportFailure) throw transportFailure;
         const operation = operations.find((op) => op.id === operationId)!;
-        if (operation.scopes.some((scope) => !caller.scopes.includes(scope)))
-          throw new RootsetError("ACCESS_DENIED", "Scope unavailable.", 403);
+        for (const scope of operation.scopes)
+          assertAccess(caller, { scope, orgId: caller.orgId });
         if (operationId !== "queryRows")
           throw new RootsetError(
             "RESOURCE_NOT_FOUND",
@@ -224,6 +222,17 @@ test(
         },
       ],
       resolveSession: session,
+      refreshActor: async (stored) => {
+        const current = (
+          await owner.query(
+            `SELECT m.role,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.user_id=$2`,
+            [stored.orgId, stored.userId],
+          )
+        ).rows[0];
+        return current?.email_verified
+          ? { ...stored, role: current.role }
+          : null;
+      },
     });
     let readiness: "healthy" | "failed" | "throws" = "healthy";
     const observed: {
@@ -255,7 +264,6 @@ test(
             worker: readiness === "healthy" ? "healthy" : "stale",
             objectStorage: readiness === "healthy" ? "healthy" : "unavailable",
             smtp: "healthy",
-            storageAdmission: readiness === "healthy" ? "healthy" : "degraded",
             password: "private connection details",
           },
         };
@@ -273,7 +281,6 @@ test(
         worker: "stale",
         objectStorage: "unavailable",
         smtp: "healthy",
-        storageAdmission: "degraded",
       },
     });
     assert.equal((await fetch(`${baseURL}/health/live`)).status, 200);
@@ -296,7 +303,6 @@ test(
         code_challenge: challenge,
         code_challenge_method: "S256",
         resource,
-        organization_id: orgId,
         scope: "rows:read",
       }).toString();
       const authorization = await fetch(url, {
@@ -745,13 +751,7 @@ test(
       await client.close();
       await oauthClient.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      await owner.query(
-        "UPDATE rootset_control.users SET disabled=true WHERE id=$1",
-        [userId],
-      );
-      await pool.end();
-      await issuer.end();
-      await owner.end();
+      await fixture.close();
     }
   },
 );

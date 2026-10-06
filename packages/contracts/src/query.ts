@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   JsonValueSchema,
   IdSchema,
+  assertFieldNames,
   RootsetError,
   limits,
   type FieldDefinition,
@@ -187,7 +188,7 @@ export function assertQueryLexemes(
     fields.flatMap(
       (field) =>
         [
-          [field.apiKey, field],
+          [field.name, field],
           [field.id, field],
         ] as const,
     ),
@@ -237,9 +238,9 @@ export function assertQueryLexemes(
     )
       throw new RootsetError(
         "VALIDATION_FAILED",
-        `Query field ${field.apiKey} requires a lossless safe integer`,
+        `Query field ${field.name} requires a lossless safe integer`,
         422,
-        { fieldId: field.id, field: field.apiKey },
+        { fieldId: field.id, field: field.name },
       );
     if (
       field.type === "json" &&
@@ -248,9 +249,9 @@ export function assertQueryLexemes(
     )
       throw new RootsetError(
         "VALIDATION_FAILED",
-        `Query JSON field ${field.apiKey} contains an unsafe integral number`,
+        `Query JSON field ${field.name} contains an unsafe integral number`,
         422,
-        { fieldId: field.id, field: field.apiKey },
+        { fieldId: field.id, field: field.name },
       );
   }
 }
@@ -334,6 +335,7 @@ export function validateQuery(
   input: unknown,
   fields: readonly FieldDefinition[],
 ): QuerySpec {
+  assertFieldNames(fields);
   const parsed = QuerySpecSchema.safeParse(input);
   if (!parsed.success)
     throw new RootsetError("VALIDATION_FAILED", "Invalid query", 422, {
@@ -348,7 +350,7 @@ export function validateQuery(
       (field) =>
         [
           [field.id, field],
-          [field.apiKey, field],
+          [field.name, field],
         ] as const,
     ),
   );
@@ -399,7 +401,7 @@ export function validateQuery(
           "VALIDATION_FAILED",
           "Null tests do not accept a value/path",
         );
-      return { ...node, field: field.apiKey };
+      return { ...node, field: field.name };
     }
     if (node.op === "pathExists" || node.op === "pathEq") {
       if (!node.path?.length)
@@ -414,7 +416,7 @@ export function validateQuery(
             "VALIDATION_FAILED",
             "Path-exists does not accept a value",
           );
-        return { ...node, field: field.apiKey };
+        return { ...node, field: field.name };
       }
       if (!Object.hasOwn(node, "value"))
         throw new RootsetError(
@@ -422,7 +424,7 @@ export function validateQuery(
           "Path equality requires a value",
         );
       canonicalValue(node.value);
-      return { ...node, field: field.apiKey };
+      return { ...node, field: field.name };
     }
     if (node.path)
       throw new RootsetError(
@@ -433,12 +435,11 @@ export function validateQuery(
       throw new RootsetError("VALIDATION_FAILED", "Predicate requires a value");
     if (node.op === "jsonContains") {
       canonicalValue(node.value);
-      return { ...node, field: field.apiKey };
+      return { ...node, field: field.name };
     }
     const unbounded = {
       id: field.id,
-      apiKey: field.apiKey,
-      label: field.label,
+      name: field.name,
       type: field.type,
       ...(field.charLimit !== undefined ? { charLimit: field.charLimit } : {}),
     };
@@ -471,24 +472,24 @@ export function validateQuery(
           "VALIDATION_FAILED",
           "Range minimum exceeds maximum",
         );
-      return { ...node, field: field.apiKey, value: values };
+      return { ...node, field: field.name, value: values };
     }
     return {
       ...node,
-      field: field.apiKey,
+      field: field.name,
       value: validateCell(unbounded, node.value),
     };
   }
   return {
     ...query,
     ...(query.select
-      ? { select: query.select.map((name) => fieldFor(name).apiKey) }
+      ? { select: query.select.map((name) => fieldFor(name).name) }
       : {}),
     ...(query.orderBy
       ? {
           orderBy: query.orderBy.map((sort) => ({
             ...sort,
-            field: fieldFor(sort.field).apiKey,
+            field: fieldFor(sort.field).name,
           })),
         }
       : {}),

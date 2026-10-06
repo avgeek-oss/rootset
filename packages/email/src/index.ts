@@ -142,11 +142,6 @@ export const emailTemplates = {
     title: "Account recovery performed",
     body: "Your installation operator performed account recovery. Existing sessions and delegated access were revoked. Check your security settings before reconnecting integrations.",
   },
-  "installation-test": {
-    subject: "Rootset email delivery test",
-    title: "Email delivery test",
-    body: "Your Rootset installation operator requested this test to verify outgoing email delivery.",
-  },
   "backup-verified": {
     subject: "Your Rootset backup was verified",
     title: "Backup verified",

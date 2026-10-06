@@ -9,29 +9,12 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@heroui/react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Filter,
-  Plus,
-  Settings,
-  Columns3,
-  History,
-  ArrowDownToLine,
-  Trash2,
-  RefreshCw,
-} from "lucide-react";
+import { Button } from "./ui/button";
+import { NumberField, Label } from "@heroui/react";
+import { Filter, Plus, Columns3, History, Trash2 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
-  validateCell,
-  parseStrictJson,
-  operatorsByType,
-  QuerySpecSchema,
   limits,
-  type QueryOperator,
   type FilterNode,
   type FieldDefinition,
   type Row,
@@ -44,7 +27,7 @@ import {
 } from "@rootset/contracts";
 import {
   RowWindowCache,
-  visibleColumns,
+  columnLayout,
   visibleRange,
 } from "../lib/window-cache";
 import { parseTsvCells, type TsvCell } from "../lib/clipboard";
@@ -57,6 +40,8 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { CellEditor, formatCellValue } from "./cells";
 import { Dialog } from "./dialog";
 import { PasteImport } from "./paste-import";
+import { TableFilterDialog } from "./table-filter-dialog";
+import type { FilterCombination, FilterCondition } from "../lib/table-filters";
 
 interface WindowResult extends QueryResult {
   window?: {
@@ -104,6 +89,7 @@ export function Spreadsheet({
   table,
   preferences,
   canEdit,
+  canManage,
   onSettings,
   onChanged,
 }: {
@@ -112,6 +98,7 @@ export function Spreadsheet({
   table: Table;
   preferences: Preferences;
   canEdit: boolean;
+  canManage: boolean;
   onSettings: (section: string) => void;
   onChanged: () => void;
 }) {
@@ -142,7 +129,6 @@ export function Spreadsheet({
   const [announcement, setAnnouncement] = useState("");
   const [viewport, setViewport] = useState({
     top: 0,
-    left: 0,
     height: 600,
     width: 1000,
   });
@@ -169,14 +155,12 @@ export function Spreadsheet({
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
   const [addRow, setAddRow] = useState(false);
-  const [filterField, setFilterField] = useState("");
-  const [filterOp, setFilterOp] = useState("eq");
-  const [filterValue, setFilterValue] = useState("");
-  const [filterPath, setFilterPath] = useState("");
-  const [filterCombination, setFilterCombination] = useState<"and" | "or">(
-    "and",
+  const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
+    [],
   );
-  const [jump, setJump] = useState("1");
+  const [filterCombination, setFilterCombination] =
+    useState<FilterCombination>("and");
+  const [jump, setJump] = useState(1);
   const [draftExit, setDraftExit] = useState<(() => void) | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new RowWindowCache());
@@ -197,23 +181,13 @@ export function Spreadsheet({
   const currentRows = useRef<Row[]>([]);
   const currentSelection = useRef<CellSelection | null>(null);
   const queryDigest = JSON.stringify(query);
-  const copyContext = `${tablePath}:${schema.data?.table.schemaVersion}:${queryDigest}:${JSON.stringify(selection)}:${rows.map((row) => `${row.id}:${row.version}`).join("|")}:${viewPrefs.columnOrder.join("|")}:${viewPrefs.hiddenColumns.join("|")}`;
+  const copyContext = `${tablePath}:${schema.data?.table.schemaVersion}:${queryDigest}:${JSON.stringify(selection)}:${rows.map((row) => `${row.id}:${row.version}`).join("|")}`;
   const navigationDigest = JSON.stringify({
     where: query.where,
     orderBy: query.orderBy,
   });
   const staleResults = !!windowInfo && displayedNavigation !== navigationDigest;
-  const fields = useMemo(() => {
-    const all = schema.data?.fields ?? [];
-    const order = viewPrefs.columnOrder;
-    return all
-      .filter((field) => !viewPrefs.hiddenColumns.includes(field.id))
-      .sort((a, b) => {
-        const ai = order.indexOf(a.id);
-        const bi = order.indexOf(b.id);
-        return (ai < 0 ? all.indexOf(a) : ai) - (bi < 0 ? all.indexOf(b) : bi);
-      });
-  }, [schema.data, viewPrefs]);
+  const fields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
   const widths = useMemo(
     () =>
       fields.map(
@@ -229,18 +203,17 @@ export function Spreadsheet({
     rowHeight,
     rows.length,
   );
-  const columns = visibleColumns(
-    widths,
-    Math.max(0, viewport.left - 52),
-    viewport.width,
-    viewPrefs.frozenColumns,
+  const columns = useMemo(
+    () => columnLayout(widths, viewPrefs.frozenColumns),
+    [widths, viewPrefs.frozenColumns],
   );
-  const projectedKeys = columns
-    .map(({ index }) => fields[index]!.apiKey)
-    .join("|");
   const gridWidth = widths.reduce((total, width) => total + width, 52);
   const currentTotal =
     windowInfo?.window?.total ?? (!query.where ? table.rowCount : undefined);
+  const canJump =
+    Number.isSafeInteger(jump) &&
+    jump >= 1 &&
+    (currentTotal === undefined || jump <= currentTotal);
   const writable =
     canEdit &&
     !accessRevoked &&
@@ -381,7 +354,7 @@ export function Spreadsheet({
         sessionId.current = response.window?.sessionId;
         setRows(response.data);
         setWindowStart(start);
-        setJump(String(start + 1));
+        setJump(start + 1);
         setWindowInfo(response);
         if (response.schemaVersion !== schema.data?.table.schemaVersion)
           void schema.refetch();
@@ -482,18 +455,6 @@ export function Spreadsheet({
     currentSelection.current = selection;
   }, [rows, selection]);
   useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
-  useEffect(() => {
-    if (!schema.data || !projectedKeys) return;
-    const timer = setTimeout(() => {
-      const select = projectedKeys.split("|");
-      setQuery((previous) =>
-        previous.select?.join("|") === projectedKeys
-          ? previous
-          : { ...previous, select, cursor: null },
-      );
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [projectedKeys, schema.data?.table.schemaVersion]);
   useEffect(
     () => () => {
       if (scrollFrame.current !== null)
@@ -549,7 +510,7 @@ export function Spreadsheet({
     );
     const field = fields[nextColumn]!;
     setAnnouncement(
-      `Row ${windowStart + nextRow + 1}, ${field.label}, ${formatCellValue(field, rows[nextRow]!.values[field.apiKey] ?? null, { timeZone: preferences.timezone, locale: preferences.locale, dateFormat: preferences.dateFormat, timeFormat: preferences.timeFormat })}`,
+      `Row ${windowStart + nextRow + 1}, ${field.name}, ${formatCellValue(field, rows[nextRow]!.values[field.name] ?? null, { timeZone: preferences.timezone, locale: preferences.locale, dateFormat: preferences.dateFormat, timeFormat: preferences.timeFormat })}`,
     );
     const element = gridRef.current;
     if (element) {
@@ -561,7 +522,11 @@ export function Spreadsheet({
       else if (top + rowHeight > element.scrollTop + element.clientHeight - 38)
         element.scrollTop = top + rowHeight - element.clientHeight + 38;
       if (nextColumn >= viewPrefs.frozenColumns) {
-        if (left < element.scrollLeft + 52) element.scrollLeft = left - 52;
+        const pinnedWidth = widths
+          .slice(0, viewPrefs.frozenColumns)
+          .reduce((sum, width) => sum + width, 52);
+        if (left < element.scrollLeft + pinnedWidth)
+          element.scrollLeft = left - pinnedWidth;
         else if (
           left + widths[nextColumn]! >
           element.scrollLeft + element.clientWidth
@@ -576,7 +541,7 @@ export function Spreadsheet({
     const selectedRow = rows[row],
       field = fields[column];
     if (!selectedRow || !field || !writable) return;
-    if (!Object.hasOwn(selectedRow.values, field.apiKey)) {
+    if (!Object.hasOwn(selectedRow.values, field.name)) {
       setError(
         "This column is loading. Wait for the current window, then edit the cell.",
       );
@@ -612,7 +577,7 @@ export function Spreadsheet({
         databaseId,
         tableId: table.id,
         rowId: draft.row.id,
-        values: { [draft.field.apiKey]: value },
+        values: { [draft.field.name]: value },
         expectedVersion: draft.row.version,
         expectedSchemaVersion: schema.data!.table.schemaVersion,
       };
@@ -626,14 +591,14 @@ export function Spreadsheet({
       cache.current.clear();
       setDraft(null);
       cellAttempt.current.clear();
-      setAnnouncement(`${draft.field.label} saved.`);
+      setAnnouncement(`${draft.field.name} saved.`);
       gridRef.current?.focus();
       onChanged();
       if (
         query.where ||
         query.orderBy?.some(
           (sort) =>
-            sort.field === draft.field.apiKey || sort.field === draft.field.id,
+            sort.field === draft.field.name || sort.field === draft.field.id,
         )
       )
         void loadWindow(windowStart);
@@ -690,7 +655,7 @@ export function Spreadsheet({
                 ? {
                     conflict: formatCellValue(
                       previous.field,
-                      current.values[previous.field.apiKey] ?? null,
+                      current.values[previous.field.name] ?? null,
                       {
                         timeZone: preferences.timezone,
                         locale: preferences.locale,
@@ -791,13 +756,11 @@ export function Spreadsheet({
       );
       const querySnapshot: QuerySpec = {
         ...query,
-        select: selectedFields.map((field) => field.apiKey),
+        select: selectedFields.map((field) => field.name),
         cursor: null,
       };
       const needsRead = selectedRows.some((row) =>
-        selectedFields.some(
-          (field) => !Object.hasOwn(row.values, field.apiKey),
-        ),
+        selectedFields.some((field) => !Object.hasOwn(row.values, field.name)),
       );
       const preparedRows = needsRead
         ? readSelectedWindow(
@@ -937,7 +900,7 @@ export function Spreadsheet({
           return;
         }
         try {
-          values[field.apiKey] = parsePastedCell(
+          values[field.name] = parsePastedCell(
             field,
             value,
             parsedCells[index]![column]!.quoted,
@@ -1044,82 +1007,33 @@ export function Spreadsheet({
     }
   }
 
-  function applyFilter() {
-    const field = fields.find((entry) => entry.id === filterField);
-    if (!field) return;
-    try {
-      let value: JsonValue | undefined;
-      if (["isNull", "isNotNull", "pathExists"].includes(filterOp))
-        value = undefined;
-      else if (filterOp === "in" || filterOp === "between") {
-        const list = parseStrictJson(filterValue);
-        if (
-          !Array.isArray(list) ||
-          (filterOp === "between" && list.length !== 2)
-        )
-          throw new Error(
-            filterOp === "between"
-              ? "Enter a JSON array with the lower and upper bounds."
-              : "Enter a JSON array of accepted values.",
-          );
-        value = list.map((entry) => validateCell(field, entry));
-      } else value = parsePastedCell(field, filterValue);
-      const path = filterOp.startsWith("path")
-        ? parseStrictJson(filterPath)
-        : undefined;
-      if (
-        path !== undefined &&
-        (!Array.isArray(path) ||
-          path.some(
-            (part) =>
-              typeof part !== "string" &&
-              (!Number.isInteger(part) || typeof part !== "number"),
-          ))
-      )
-        throw new Error(
-          'Enter a JSON path as an array of segments, for example ["address", "city"].',
-        );
-      const predicate: FilterNode = {
-        field: field.apiKey,
-        op: filterOp as QueryOperator,
-        ...(value !== undefined ? { value } : {}),
-        ...(path !== undefined ? { path: path as (string | number)[] } : {}),
-      };
-      const next = QuerySpecSchema.parse({
-        ...query,
-        cursor: null,
-        where: query.where
-          ? { [filterCombination]: [query.where, predicate] }
-          : predicate,
-      });
-      preserveDraft(() => setQuery(next));
+  function applyFilters(
+    conditions: FilterCondition[],
+    combination: FilterCombination,
+    where: FilterNode | undefined,
+  ) {
+    preserveDraft(() => {
+      setQuery({ limit: windowLimit, ...(where ? { where } : {}) });
+      setFilterConditions(conditions);
+      setFilterCombination(combination);
       setFilterVisible(false);
-    } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "The filter value is invalid",
-      );
-    }
+    });
   }
 
   return (
     <section className="spreadsheet-pane" aria-labelledby="table-title">
       <header className="table-header">
         <div>
-          <div className="breadcrumb">
-            {databaseId ? "Database" : ""} / Table
-          </div>
           <h1 id="table-title">{table.name}</h1>
         </div>
-        <div className="action-row">
+        <div className="action-row" role="toolbar" aria-label="Table actions">
           <Button
             variant="secondary"
-            onPress={() => onSettings("table")}
-            aria-label="Table settings"
+            isDisabled={!fields.length}
+            onPress={() => preserveDraft(() => setFilterVisible(true))}
           >
-            <Settings size={17} />
-            Settings
+            <Filter size={15} />
+            Filter{query.where ? " · active" : ""}
           </Button>
           {writable && (
             <Button onPress={() => setAddRow(true)}>
@@ -1129,205 +1043,15 @@ export function Spreadsheet({
           )}
         </div>
       </header>
-      <div className="table-toolbar">
-        <Button
-          variant="secondary"
-          onPress={() => setFilterVisible(!filterVisible)}
-        >
-          <Filter size={15} />
-          Filter{query.where ? " · active" : ""}
-        </Button>
-        <label className="compact-control">
-          Sort
-          <select
-            value={query.orderBy?.[0]?.field ?? ""}
-            onChange={(event) =>
-              preserveDraft(() =>
-                setQuery((previous) => ({
-                  ...previous,
-                  cursor: null,
-                  orderBy: event.target.value
-                    ? [
-                        {
-                          field: event.target.value,
-                          direction: previous.orderBy?.[0]?.direction ?? "asc",
-                        },
-                      ]
-                    : [],
-                })),
-              )
-            }
-          >
-            <option value="">Creation order</option>
-            {fields.map((field) => (
-              <option value={field.apiKey} key={field.id}>
-                {field.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="toolbar-button"
-          onClick={() =>
-            preserveDraft(() =>
-              setQuery((previous) => ({
-                ...previous,
-                cursor: null,
-                orderBy: previous.orderBy?.map((sort) => ({
-                  ...sort,
-                  direction: sort.direction === "asc" ? "desc" : "asc",
-                })),
-              })),
-            )
-          }
-          aria-label="Reverse sort direction"
-        >
-          {query.orderBy?.[0]?.direction === "desc"
-            ? "Descending"
-            : "Ascending"}
-        </button>
-        <details className="column-menu">
-          <summary>
-            <Columns3 size={15} />
-            Columns
-          </summary>
-          <div>
-            {schema.data?.fields.map((field) => (
-              <label key={field.id}>
-                <input
-                  type="checkbox"
-                  checked={!viewPrefs.hiddenColumns.includes(field.id)}
-                  onChange={(event) =>
-                    void saveView({
-                      ...viewPrefs,
-                      hiddenColumns: event.target.checked
-                        ? viewPrefs.hiddenColumns.filter(
-                            (id) => id !== field.id,
-                          )
-                        : [...viewPrefs.hiddenColumns, field.id],
-                    })
-                  }
-                />
-                {field.label}
-              </label>
-            ))}
-            <label>
-              Frozen columns
-              <input
-                type="number"
-                min={0}
-                max={fields.length}
-                value={viewPrefs.frozenColumns}
-                onChange={(event) =>
-                  void saveView({
-                    ...viewPrefs,
-                    frozenColumns: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-          </div>
-        </details>
-        <Button variant="secondary" onPress={() => onSettings("exports")}>
-          <ArrowDownToLine size={15} />
-          Export
-        </Button>
-        <button
-          className="icon-button"
-          aria-label="Refresh rows"
-          onClick={() =>
-            preserveDraft(() => {
-              cache.current.clear();
-              void loadWindow(windowStart);
-            })
-          }
-        >
-          <RefreshCw size={16} />
-        </button>
-      </div>
       {filterVisible && (
-        <div className="filter-bar">
-          <label>
-            Column
-            <select
-              value={filterField}
-              onChange={(event) => setFilterField(event.target.value)}
-            >
-              <option value="">Choose column</option>
-              {fields.map((field) => (
-                <option key={field.id} value={field.id}>
-                  {field.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Condition
-            <select
-              value={filterOp}
-              onChange={(event) => setFilterOp(event.target.value)}
-            >
-              {(
-                schema.data?.operators[filterField] ??
-                schema.data?.operators[
-                  fields.find((field) => field.id === filterField)?.apiKey ?? ""
-                ] ??
-                operatorsByType[
-                  fields.find((field) => field.id === filterField)?.type ??
-                    "text"
-                ]
-              ).map((operator) => (
-                <option value={operator} key={operator}>
-                  {operator.replaceAll("_", " ")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Value
-            <input
-              value={filterValue}
-              onChange={(event) => setFilterValue(event.target.value)}
-              disabled={["isNull", "isNotNull", "pathExists"].includes(
-                filterOp,
-              )}
-            />
-          </label>
-          {filterOp.startsWith("path") && (
-            <label>
-              JSON path segments
-              <input
-                value={filterPath}
-                onChange={(event) => setFilterPath(event.target.value)}
-                placeholder='["address", "city"]'
-              />
-            </label>
-          )}
-          {query.where && (
-            <label>
-              Combine with existing filters
-              <select
-                value={filterCombination}
-                onChange={(event) =>
-                  setFilterCombination(event.target.value as "and" | "or")
-                }
-              >
-                <option value="and">All conditions (AND)</option>
-                <option value="or">Any condition (OR)</option>
-              </select>
-            </label>
-          )}
-          <Button onPress={applyFilter}>Apply filter</Button>
-          <Button
-            variant="secondary"
-            onPress={() => {
-              preserveDraft(() => setQuery({ limit: windowLimit }));
-              setFilterVisible(false);
-            }}
-          >
-            Clear filters
-          </Button>
-        </div>
+        <TableFilterDialog
+          fields={fields}
+          value={filterConditions}
+          combination={filterCombination}
+          onApply={applyFilters}
+          onClear={() => applyFilters([], "and", undefined)}
+          onClose={() => setFilterVisible(false)}
+        />
       )}
       {schema.isError && (
         <p className="error-banner" role="alert">
@@ -1343,8 +1067,8 @@ export function Spreadsheet({
       )}
       {staleResults && (
         <p className="notice" role="status">
-          These are previous results. Editing resumes when the current filter or
-          sort loads.
+          These are previous results. Editing resumes when the current filter
+          loads.
         </p>
       )}
       {(schema.data?.table.state ?? table.state) !== "active" && canEdit && (
@@ -1376,15 +1100,19 @@ export function Spreadsheet({
       ) : !fields.length ? (
         <div className="empty-state">
           <Columns3 size={30} />
-          <h2>Define this table’s fields</h2>
-          <p>Choose typed columns and validation before entering data.</p>
-          {canEdit && (
+          <h2>{canManage ? "Define this table’s fields" : "No fields yet"}</h2>
+          <p>
+            {canManage
+              ? "Choose typed columns and validation before entering data."
+              : "An admin can define this table’s fields before you enter data."}
+          </p>
+          {canManage && (
             <Button onPress={() => onSettings("fields")}>Add a field</Button>
           )}
         </div>
       ) : (
         <>
-          <div className="grid-description" id="grid-instructions">
+          <div className="sr-only" id="grid-instructions">
             Tap a cell to edit. Arrow keys navigate; Enter or F2 edits; Tab
             moves across columns; Escape cancels. Hold Shift to select a
             rectangle. Times are UTC. Date-times display in{" "}
@@ -1419,15 +1147,17 @@ export function Spreadsheet({
             }}
             onScroll={(event) => {
               const element = event.currentTarget;
-              if (scrollFrame.current !== null) return;
+              if (
+                element.scrollTop === viewport.top ||
+                scrollFrame.current !== null
+              )
+                return;
               scrollFrame.current = requestAnimationFrame(() => {
                 scrollFrame.current = null;
-                setViewport({
+                setViewport((previous) => ({
+                  ...previous,
                   top: element.scrollTop,
-                  left: element.scrollLeft,
-                  height: element.clientHeight,
-                  width: element.clientWidth,
-                });
+                }));
               });
             }}
           >
@@ -1444,11 +1174,7 @@ export function Spreadsheet({
                 aria-rowindex={1}
                 style={{ width: Math.max(gridWidth, viewport.width) }}
               >
-                <div
-                  className="row-header column-number"
-                  aria-hidden="true"
-                  style={{ left: viewport.left }}
-                >
+                <div className="row-header column-number" aria-hidden="true">
                   #
                 </div>
                 {columns.map(({ index, left, width, frozen }) => {
@@ -1460,35 +1186,20 @@ export function Spreadsheet({
                       role="columnheader"
                       aria-colindex={index + 1}
                       style={{
-                        left: 52 + left + (frozen ? viewport.left : 0),
+                        left: frozen ? 52 + left : undefined,
                         width,
                       }}
                     >
-                      <span title={`${field.label} · ${field.type}`}>
-                        {field.label}
+                      <span title={`${field.name} · ${field.type}`}>
+                        {field.name}
                         <small>
                           {field.type === "time" ? "UTC time" : field.type}
                         </small>
                       </span>
-                      <button
-                        className="column-reorder"
-                        aria-label={`Move ${field.label} left`}
-                        disabled={index === 0}
-                        onClick={() => {
-                          const order = fields.map((entry) => entry.id);
-                          [order[index - 1], order[index]] = [
-                            order[index]!,
-                            order[index - 1]!,
-                          ];
-                          void saveView({ ...viewPrefs, columnOrder: order });
-                        }}
-                      >
-                        ‹
-                      </button>
                       <span
                         className="column-resizer"
                         role="separator"
-                        aria-label={`Resize ${field.label}`}
+                        aria-label={`Resize ${field.name}`}
                         aria-orientation="vertical"
                         aria-valuenow={width}
                         tabIndex={0}
@@ -1570,11 +1281,7 @@ export function Spreadsheet({
                       height: rowHeight,
                     }}
                   >
-                    <div
-                      className="row-header"
-                      role="rowheader"
-                      style={{ left: viewport.left }}
-                    >
+                    <div className="row-header" role="rowheader">
                       {windowStart + rowIndex + 1}
                     </div>
                     {columns.map(
@@ -1590,7 +1297,7 @@ export function Spreadsheet({
                             Math.min(selection.column, selection.endColumn) &&
                           columnIndex <=
                             Math.max(selection.column, selection.endColumn);
-                        const value = row.values[field.apiKey] ?? null;
+                        const value = row.values[field.name] ?? null;
                         return (
                           <div
                             id={`cell-${row.id}-${field.id}`}
@@ -1599,13 +1306,13 @@ export function Spreadsheet({
                             role="gridcell"
                             data-cell-loaded={Object.hasOwn(
                               row.values,
-                              field.apiKey,
+                              field.name,
                             )}
                             aria-colindex={columnIndex + 1}
                             aria-selected={!!selected}
                             aria-readonly={!writable}
                             style={{
-                              left: 52 + left + (frozen ? viewport.left : 0),
+                              left: frozen ? 52 + left : undefined,
                               width,
                               height: rowHeight,
                             }}
@@ -1622,7 +1329,7 @@ export function Spreadsheet({
                               setHistory({ row, field });
                             }}
                           >
-                            {!Object.hasOwn(row.values, field.apiKey)
+                            {!Object.hasOwn(row.values, field.name)
                               ? "Loading…"
                               : formatCellValue(field, value, {
                                   timeZone: preferences.timezone,
@@ -1652,88 +1359,41 @@ export function Spreadsheet({
             )}
           </div>
           <footer className="grid-footer">
-            <div className="row-navigation">
-              <button
-                className="icon-button"
-                aria-label="First row window"
-                onClick={() => preserveDraft(() => void loadWindow("first"))}
-                disabled={loading}
-              >
-                <ChevronsLeft size={16} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Previous row window"
-                onClick={() =>
-                  preserveDraft(
-                    () =>
-                      void loadWindow(Math.max(0, windowStart - windowLimit)),
-                  )
-                }
-                disabled={loading || windowStart === 0}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span>
-                {rows.length
-                  ? `${windowStart + 1}–${windowStart + rows.length}`
-                  : "0"}
-                {currentTotal !== undefined
-                  ? ` of ${currentTotal.toLocaleString(preferences.locale)}`
-                  : " matching rows"}
-              </span>
-              <button
-                className="icon-button"
-                aria-label="Next row window"
-                onClick={() =>
-                  preserveDraft(
-                    () =>
-                      void loadWindow(
-                        windowStart + rows.length,
-                        windowInfo?.page.nextCursor,
-                      ),
-                  )
-                }
-                disabled={loading || !windowInfo?.page.hasMore}
-              >
-                <ChevronRight size={16} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Last row window"
-                onClick={() => preserveDraft(() => void loadWindow("last"))}
-                disabled={loading}
-              >
-                <ChevronsRight size={16} />
-              </button>
-              <button
-                className="toolbar-button"
-                aria-label="Middle row window"
-                onClick={() => preserveDraft(() => void loadWindow("middle"))}
-                disabled={loading}
-              >
-                Middle
-              </button>
-            </div>
             <form
               className="jump-control"
               onSubmit={(event) => {
                 event.preventDefault();
-                preserveDraft(
-                  () => void loadWindow(Math.max(0, Number(jump) - 1)),
-                );
+                if (!canJump || loading) return;
+                preserveDraft(() => void loadWindow(jump - 1));
               }}
             >
-              <label htmlFor="jump-row">Go to row</label>
-              <input
-                id="jump-row"
-                type="number"
+              <NumberField
+                className="jump-field"
+                variant="secondary"
                 value={jump}
-                min={1}
-                max={currentTotal}
-                onChange={(event) => setJump(event.target.value)}
-              />
-              <button type="submit">Go</button>
+                onChange={setJump}
+                minValue={1}
+                maxValue={
+                  currentTotal === undefined
+                    ? undefined
+                    : Math.max(1, currentTotal)
+                }
+                step={1}
+                formatOptions={{ useGrouping: false }}
+                isDisabled={loading || currentTotal === 0}
+              >
+                <Label>Go to row</Label>
+                <NumberField.Group>
+                  <NumberField.Input autoComplete="off" />
+                </NumberField.Group>
+              </NumberField>
+              <Button
+                type="submit"
+                variant="secondary"
+                isDisabled={loading || !canJump}
+              >
+                Go
+              </Button>
             </form>
             <span className="live-status" role="status">
               {loading
@@ -1776,7 +1436,7 @@ export function Spreadsheet({
       </div>
       {draft && (
         <Dialog
-          title={`Edit ${draft.field.label}`}
+          title={`Edit ${draft.field.name}`}
           closeDisabled={saving}
           onClose={() => {
             if (!saving) {
@@ -1788,7 +1448,7 @@ export function Spreadsheet({
         >
           <CellEditor
             field={draft.field}
-            value={draft.row.values[draft.field.apiKey] ?? null}
+            value={draft.row.values[draft.field.name] ?? null}
             initialInput={draft.initialInput}
             timeZone={preferences.timezone}
             locale={preferences.locale}
@@ -2013,7 +1673,7 @@ function CellHistory({
       ),
   });
   return (
-    <Dialog title={`${field.label} history`} onClose={onClose} wide>
+    <Dialog title={`${field.name} history`} onClose={onClose} wide>
       {history.isPending ? (
         <p role="status">Loading cell history…</p>
       ) : history.isError ? (
@@ -2147,11 +1807,11 @@ function AddRowDialog({
       {editing ? (
         <CellEditor
           field={editing}
-          value={values[editing.apiKey] ?? editing.default ?? null}
+          value={values[editing.name] ?? editing.default ?? null}
           timeZone={preferences.timezone}
           locale={preferences.locale}
           onCommit={(value) => {
-            setValues((previous) => ({ ...previous, [editing.apiKey]: value }));
+            setValues((previous) => ({ ...previous, [editing.name]: value }));
             setEditing(null);
           }}
           onCancel={() => setEditing(null)}
@@ -2170,13 +1830,13 @@ function AddRowDialog({
                 onClick={() => setEditing(field)}
               >
                 <span>
-                  {field.label}
+                  {field.name}
                   {field.required ? " *" : ""}
                   <small>{field.type}</small>
                 </span>
                 <strong>
-                  {field.apiKey in values
-                    ? formatCellValue(field, values[field.apiKey] ?? null, {
+                  {field.name in values
+                    ? formatCellValue(field, values[field.name] ?? null, {
                         timeZone: preferences.timezone,
                         locale: preferences.locale,
                       })

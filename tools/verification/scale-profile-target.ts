@@ -6,10 +6,6 @@ import { dirname, join, resolve } from "node:path";
 import { Pool, createPool, migrate } from "@rootset/database";
 import { TableStorage } from "../../packages/table-storage/src/index.js";
 import { loadConfig } from "../../packages/core/src/config.js";
-import {
-  decryptProtected,
-  encryptProtected,
-} from "../../packages/email/src/index.js";
 import { loadScaleFixture, fixtureActor } from "./scale-fixture.js";
 import { fixtureSecret, root } from "./environment.js";
 import { sourceProvenance } from "./source-provenance.js";
@@ -21,7 +17,10 @@ export async function openScaleTarget(
   container: string,
 ) {
   assert.ok(
-    Number.isInteger(port) && port >= 55000 && port < 56000 && port !== 55448,
+    Number.isInteger(port) &&
+      port >= 55000 &&
+      port < 56000 &&
+      port !== Number(new URL(fixtureSecret("ROOTSET_TEST_DATABASE_URL")).port),
   );
   assert.match(container, /^rootset-delivery-physical-recovery-[a-z0-9-]+$/);
   const inspected = JSON.parse(
@@ -96,8 +95,8 @@ export async function prepareScaleTarget(
     profile:
       "Approved server cgroup budget: PostgreSQL4GiB/API1GiB/worker2GiB/web1GiB; unchanged performance thresholds.",
     scope:
-      "Target-only QA adaptation of retained physical copy. Original55448 and retained55460 are unchanged. This setup is not credential-issuance or disaster-recovery sign-off.",
-    gateSignOffs: [],
+      "Target-only QA adaptation of retained physical copy. The source remains unchanged. This setup is not credential-issuance or disaster-recovery sign-off.",
+    acceptance: false,
   };
   try {
     report.migrationsApplied = await migrate(target.pools.owner);
@@ -115,67 +114,14 @@ export async function prepareScaleTarget(
     const quarantined = await target.pools.owner.query(
       "UPDATE rootset_control.jobs SET state='cancelled',stage='qa_quarantined',lease_token=NULL,lease_until=NULL,completed_at=now(),updated_at=now() WHERE state IN ('queued','running') RETURNING id",
     );
-    const policies = await target.pools.owner.query(
-      "UPDATE rootset_control.backup_policies SET enabled=false WHERE enabled RETURNING id",
-    );
     const historyPolicies = await target.pools.owner.query(
       "UPDATE rootset_control.history_retention_policies SET enabled=false WHERE enabled RETURNING id",
     );
     report.copiedWorkQuarantine = {
       jobs: quarantined.rowCount,
-      backupPolicies: policies.rowCount,
       historyPolicies: historyPolicies.rowCount,
       reason:
         "Do not replay copied user jobs or scheduled maintenance during benchmark setup.",
-    };
-    const settings = (
-      await target.pools.owner.query(
-        "SELECT protected_configuration FROM rootset_control.installation_settings WHERE singleton",
-      )
-    ).rows[0];
-    const previous = settings
-      ? decryptProtected<Record<string, unknown>>(
-          settings.protected_configuration,
-          target.config,
-        )
-      : {};
-    const previousObjects =
-      previous.objectStorage && typeof previous.objectStorage === "object"
-        ? previous.objectStorage
-        : {};
-    const patch = {
-      ...previous,
-      objectStorage: {
-        ...previousObjects,
-        endpoint: "http://rootset-performance-objects:9000",
-        bucket: "rootset-performance",
-      },
-      smtp: {
-        host: "rootset-performance-mail",
-        port: 1025,
-        secure: false,
-        from: target.config.smtp.from,
-      },
-      deletionRetention: { organisationDays: null, accountAuditDays: null },
-    };
-    const limits = {
-      principalRequestsPerMinute: 12000,
-      organisationRequestsPerMinute: 100000,
-      concurrentReads: 20,
-      concurrentMutations: 20,
-    };
-    await target.pools.owner.query(
-      "INSERT INTO rootset_control.installation_settings(singleton,revision,protected_configuration,limits,runtime_revision,updated_by) VALUES(true,1,$1,$2::jsonb,1,'qa:scale-profile-target') ON CONFLICT(singleton) DO UPDATE SET revision=rootset_control.installation_settings.revision+1,protected_configuration=EXCLUDED.protected_configuration,limits=EXCLUDED.limits,runtime_revision=rootset_control.installation_settings.runtime_revision+1,updated_by=EXCLUDED.updated_by,updated_at=now()",
-      [encryptProtected(patch, target.config), JSON.stringify(limits)],
-    );
-    report.targetConfiguration = {
-      objectEndpoint: patch.objectStorage.endpoint,
-      bucket: patch.objectStorage.bucket,
-      smtpHost: patch.smtp.host,
-      limits,
-      deletionRetention: patch.deletionRetention,
-      reason:
-        "Dedicated dependency aliases prevent copied object metadata from modifying the source bucket. Elevated QA admission measures storage/HTTP work rather than deliberate rate rejection.",
     };
     const keyPath = join(
       root,
@@ -212,17 +158,13 @@ export async function prepareScaleTarget(
       );
       const subject = (
         await target.pools.owner.query(
-          "SELECT m.role,m.state,u.disabled,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.user_id=$1 AND m.org_id=$2",
-          [record.owner_user_id, target.fixture.orgId],
+          "SELECT m.role,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.user_id=$1 AND m.org_id=$2",
+          [record.user_id, target.fixture.orgId],
         )
       ).rows[0];
       assert.ok(
-        subject &&
-          subject.state === "active" &&
-          !subject.disabled &&
-          subject.email_verified &&
-          ["owner", "admin"].includes(subject.role),
-        "Restored subject must retain its actual active verified membership.",
+        subject && subject.email_verified && subject.role === "admin",
+        "Restored subject must retain its actual verified Admin membership.",
       );
       await target.pools.owner.query(
         "INSERT INTO rootset_control.api_keys SELECT (json_populate_record(NULL::rootset_control.api_keys,$1::json)).* ON CONFLICT(id) DO NOTHING",
@@ -238,8 +180,8 @@ export async function prepareScaleTarget(
       report.benchmarkCredential = {
         id: keyId,
         expiresAt: copied.expires_at,
-        scopes: record.scopes,
-        unrestricted: record.unrestricted,
+        userId: record.user_id,
+        inheritedRole: subject.role,
         source:
           "Actual rendered recent-auth approval issuance; one credential record copied to original restored subject for QA performance, outside auth/recovery evidence.",
       };

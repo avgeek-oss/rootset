@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RowWindowCache, visibleColumns, visibleRange } from "./window-cache";
+import { RowWindowCache, columnLayout, visibleRange } from "./window-cache";
 import type { Row } from "@rootset/contracts";
 
 const row: Row = {
@@ -32,13 +32,17 @@ describe("bounded viewport storage", () => {
       start: 277773,
       end: 277802,
     });
-    const columns = visibleColumns(
+    const columns = columnLayout(
       Array.from({ length: 200 }, () => 180),
-      10_000,
-      1000,
       1,
     );
-    expect(columns.length).toBeLessThan(10);
-    expect(columns[0]?.index).toBe(0);
+    expect(columns).toHaveLength(200);
+    expect(columns[0]).toEqual({ index: 0, left: 0, width: 180, frozen: true });
+    expect(columns.at(-1)).toEqual({
+      index: 199,
+      left: 35_820,
+      width: 180,
+      frozen: false,
+    });
   });
 });

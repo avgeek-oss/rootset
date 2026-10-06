@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Button,
   Description,
   FieldError,
   Input,
@@ -13,6 +12,7 @@ import {
   TextArea,
   TextField,
 } from "@heroui/react";
+import { Button } from "../ui/button";
 import {
   useEffect,
   useRef,
@@ -32,12 +32,16 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="settings-section">
-      <div className="settings-section-heading">
-        <h2>{title}</h2>
-        {description && <p>{description}</p>}
+    <section className="settings-section widget">
+      <header className="widget__header">
+        <h2 className="widget__title">{title}</h2>
+      </header>
+      <div className="widget__content">
+        {description && (
+          <p className="settings-section-description">{description}</p>
+        )}
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -46,6 +50,7 @@ export function Field({
   label,
   value,
   onChange,
+  onBlur,
   type = "text",
   description,
   required,
@@ -63,6 +68,7 @@ export function Field({
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   type?: string;
   description?: string;
   required?: boolean;
@@ -83,15 +89,21 @@ export function Field({
       type={type}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
       isRequired={required}
       isInvalid={Boolean(error)}
       isReadOnly={readOnly}
     >
       <Label>{label}</Label>
       {multiline ? (
-        <TextArea rows={3} autoComplete={autoComplete ?? "off"} />
+        <TextArea
+          variant="secondary"
+          rows={3}
+          autoComplete={autoComplete ?? "off"}
+        />
       ) : (
         <Input
+          variant="secondary"
           min={min}
           max={max}
           step={step}
@@ -118,6 +130,8 @@ export function Choice({
   options,
   description,
   required,
+  error,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -125,13 +139,18 @@ export function Choice({
   options: readonly (string | { value: string; label: string })[];
   description?: string;
   required?: boolean;
+  error?: string;
+  disabled?: boolean;
 }) {
   return (
     <Select
+      variant="secondary"
       className="settings-field"
       value={value || null}
       onChange={(key) => onChange(String(key ?? ""))}
       isRequired={required}
+      isInvalid={Boolean(error)}
+      isDisabled={disabled}
     >
       <Label>{label}</Label>
       <Select.Trigger>
@@ -158,7 +177,11 @@ export function Choice({
           })}
         </ListBox>
       </Select.Popover>
-      {description && <Description>{description}</Description>}
+      {error ? (
+        <FieldError>{error}</FieldError>
+      ) : (
+        description && <Description>{description}</Description>
+      )}
     </Select>
   );
 }

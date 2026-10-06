@@ -42,11 +42,8 @@ const actor: Actor = {
   id: newId(),
   orgId: newId(),
   kind: "operator",
-  operator: true,
-  role: "owner",
+  role: "admin",
   scopes: ["*"],
-  targets: [],
-  unrestricted: true,
 };
 let databaseId: string;
 let schemaName: string;
@@ -132,8 +129,8 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Float byte boundary",
       fields: [
-        { apiKey: "text", label: "Text", type: "text", charLimit: 65536 },
-        { apiKey: "float", label: "Float", type: "float" },
+        { name: "text", type: "text", charLimit: 65536 },
+        { name: "float", type: "float" },
       ],
     });
     const text = "x".repeat(
@@ -165,8 +162,8 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Wide batch",
       fields: [
-        { apiKey: "text", label: "Text", type: "text", charLimit: 64000 },
-        { apiKey: "flag", label: "Flag", type: "boolean" },
+        { name: "text", type: "text", charLimit: 64000 },
+        { name: "flag", type: "boolean" },
       ],
     });
     const rows = [];
@@ -242,7 +239,7 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Index replay",
-      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 20 }],
+      fields: [{ name: "code", type: "text", charLimit: 20 }],
     });
     const input = {
       fieldId: table.fields[0]!.id,
@@ -286,7 +283,7 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Zero window",
-      fields: [{ apiKey: "code", label: "Code", type: "text" }],
+      fields: [{ name: "code", type: "text" }],
     });
     await storage!.createRow(actor, table.id, { code: "match" });
     const result = await storage!.queryWindow(actor, table.id, {
@@ -307,8 +304,8 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Projection session",
       fields: [
-        { apiKey: "code", label: "Code", type: "text" },
-        { apiKey: "flag", label: "Flag", type: "boolean" },
+        { name: "code", type: "text" },
+        { name: "flag", type: "boolean" },
       ],
     });
     await storage!.mutateRows(actor, table.id, {
@@ -354,16 +351,15 @@ test(
       name: "Native anchor boundaries",
       fields: [
         {
-          apiKey: "ordinal",
-          label: "Ordinal",
+          name: "ordinal",
           type: "integer",
           required: true,
         },
-        { apiKey: "bucket", label: "Nullable bucket", type: "integer" },
+        { name: "bucket", type: "integer" },
       ],
     });
-    const ordinal = table.fields.find((field) => field.apiKey === "ordinal")!;
-    const bucket = table.fields.find((field) => field.apiKey === "bucket")!;
+    const ordinal = table.fields.find((field) => field.name === "ordinal")!;
+    const bucket = table.fields.find((field) => field.name === "bucket")!;
     assert.match(table.schemaName, /^rsd_[0-7][0-9a-hjkmnp-tv-z]{25}$/);
     assert.match(table.physicalName, /^rst_[0-7][0-9a-hjkmnp-tv-z]{25}$/);
     assert.match(ordinal.id, /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
@@ -573,7 +569,7 @@ test(
         }
         await assert.rejects(
           storage!.queryWindow(
-            { ...actor, grantVersion: (actor.grantVersion ?? 0) + 1 },
+            { ...actor, membershipVersion: (actor.membershipVersion ?? 0) + 1 },
             table.id,
             {
               sessionId: first.sessionId,
@@ -781,7 +777,6 @@ test(
           table.id,
           ordinal.id,
           {
-            label: "Renamed ordinal",
             expectedSchemaVersion: table.schemaVersion,
           },
         );
@@ -833,12 +828,12 @@ test(
       const table = await storage!.createTable(actor, databaseId, {
         name: "Field identity",
         fields: [
-          { apiKey: "first", label: "First", type: "text" },
-          { apiKey: "second", label: "Second", type: "text" },
+          { name: "first", type: "text" },
+          { name: "second", type: "text" },
         ],
       });
       const patch = {
-        label: "Updated",
+        name: "Updated",
         expectedSchemaVersion: 1,
         idempotencyKey: newId(),
       };
@@ -876,8 +871,7 @@ test(
         1,
       );
       const appended = await storage!.createField(actor, table.id, {
-        apiKey: "third",
-        label: "Third",
+        name: "third",
         type: "text",
         expectedSchemaVersion: 3,
       });
@@ -902,7 +896,7 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Depth and durable replay",
-      fields: [{ apiKey: "data", label: "Data", type: "json" }],
+      fields: [{ name: "data", type: "json" }],
     });
     let nested: import("@rootset/contracts").JsonValue = "leaf";
     for (let i = 0; i < 32; i++) nested = [nested];
@@ -923,8 +917,7 @@ test(
     });
     assert.deepEqual(page.data[0]!.values.data, nested);
     const advanced = await storage!.createField(actor, table.id, {
-      apiKey: "flag",
-      label: "Flag",
+      name: "flag",
       type: "boolean",
       expectedSchemaVersion: table.schemaVersion,
     });
@@ -957,8 +950,8 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Retained cold history",
       fields: [
-        { apiKey: "value", label: "Value", type: "text", charLimit: 100 },
-        { apiKey: "payload", label: "Payload", type: "json" },
+        { name: "value", type: "text", charLimit: 100 },
+        { name: "payload", type: "json" },
       ],
     });
     const row = await storage!.createRow(
@@ -1207,236 +1200,6 @@ test(
   },
 );
 
-test(
-  "Configured quotas cover actual TableStorage schema, rows, history, and concurrent native index publication without SQL reservation forgery",
-  { skip: !configured },
-  async () => {
-    const { CapacityService } = await import("@rootset/capacity");
-    const capacity = new CapacityService(owner!);
-    const status = () =>
-      withOrg(owner!, actor.orgId, (c) => capacity.status(c, actor.orgId));
-    const configure = (quota: string | null) =>
-      withOrg(owner!, actor.orgId, (c) =>
-        capacity.configure(c, {
-          organisationOverrides: [{ orgId: actor.orgId, quotaBytes: quota }],
-        }),
-      );
-    try {
-      const used = BigInt((await status()).organisation!.usedBytes);
-      await configure((used + 33554432n).toString());
-      const table = await storage!.createTable(actor, databaseId, {
-        name: "Admitted schema and native mutations",
-        fields: [
-          { apiKey: "code", label: "Code", type: "text", charLimit: 100 },
-        ],
-      });
-      const row = await storage!.createRow(
-        actor,
-        table.id,
-        { code: "first" },
-        { idempotencyKey: "capacity-original" },
-      );
-      const index = await storage!.createIndex(actor, table.id, {
-        fieldId: table.fields[0]!.id,
-        kind: "btree",
-        expectedSchemaVersion: table.schemaVersion,
-        idempotencyKey: "capacity-index",
-      });
-      assert.equal(index.state, "active");
-      const schema = await storage!.getTable(actor, table.id);
-      const changed = await storage!.createField(actor, table.id, {
-        apiKey: "added",
-        label: "Added",
-        type: "boolean",
-        default: false,
-        expectedSchemaVersion: schema.schemaVersion,
-      });
-      assert.equal(changed.rowCount, 1);
-      const current = await storage!.getRow(actor, table.id, row.id);
-      assert.equal(current.values.added, false);
-      const historyBefore = await storage!.cellHistory(
-        actor,
-        table.id,
-        row.id,
-        table.fields[0]!.id,
-      );
-      await assert.rejects(
-        withOrg(app!, actor.orgId, async (c) => {
-          await c.query(
-            "SELECT set_config('rootset.capacity_reserved','true',true)",
-          );
-          await c.query(
-            `UPDATE "${schemaName}"."${table.physicalName}" SET "f_${table.fields[0]!.id.toLowerCase()}"='forged' WHERE row_id=$1`,
-            [row.id],
-          );
-        }),
-        (error) =>
-          (error as { message: string }).message ===
-          "ROOTSET_CAPACITY:STORAGE_RESERVATION_REQUIRED",
-      );
-      const pressure = BigInt((await status()).organisation!.usedBytes);
-      await configure((pressure + 16384n).toString());
-      await assert.rejects(
-        storage!.updateRow(
-          actor,
-          table.id,
-          row.id,
-          { code: "refused" },
-          { expectedVersion: current.version },
-        ),
-        { code: "STORAGE_QUOTA_EXCEEDED" },
-      );
-      assert.equal(
-        (await storage!.getRow(actor, table.id, row.id)).values.code,
-        "first",
-      );
-      assert.equal(
-        (
-          await storage!.cellHistory(
-            actor,
-            table.id,
-            row.id,
-            table.fields[0]!.id,
-          )
-        ).data.length,
-        historyBefore.data.length,
-      );
-      // Replay is an immutable read of the already committed mutation under pressure.
-      assert.equal(
-        (
-          await storage!.createRow(
-            actor,
-            table.id,
-            { code: "first" },
-            { idempotencyKey: "capacity-original" },
-          )
-        ).id,
-        row.id,
-      );
-      await configure((pressure + 33554432n).toString());
-      await storage!.deleteRow(actor, table.id, row.id, {
-        expectedVersion: current.version,
-      });
-      assert.equal((await storage!.getTable(actor, table.id)).rowCount, 0);
-      assert.equal(
-        (
-          await storage!.cellHistory(
-            actor,
-            table.id,
-            row.id,
-            table.fields[0]!.id,
-          )
-        ).data.at(-1)!.operation,
-        "delete",
-      );
-    } finally {
-      await configure(null);
-    }
-  },
-);
-
-test(
-  "Concurrent index creation never waits on an admission-blocked writer snapshot and preserves unconfigured online edits",
-  { skip: !configured },
-  async () => {
-    const { CapacityService } = await import("@rootset/capacity");
-    const capacity = new CapacityService(owner!);
-    for (const configuredQuota of [false, true]) {
-      const table = await storage!.createTable(actor, databaseId, {
-        name: `Live index writer ${configuredQuota}`,
-        fields: [
-          { apiKey: "code", label: "Code", type: "text", charLimit: 40 },
-        ],
-      });
-      await storage!.createRow(actor, table.id, { code: "initial" });
-      if (configuredQuota) {
-        const used = BigInt(
-          (
-            await withOrg(owner!, actor.orgId, (c) =>
-              capacity.status(c, actor.orgId),
-            )
-          ).organisation!.usedBytes,
-        );
-        await withOrg(owner!, actor.orgId, (c) =>
-          capacity.configure(c, {
-            organisationOverrides: [
-              { orgId: actor.orgId, quotaBytes: (used + 33554432n).toString() },
-            ],
-          }),
-        );
-      }
-      const blocker = await app!.connect();
-      let build:
-        Promise<Awaited<ReturnType<TableStorage["createIndex"]>>> | undefined;
-      try {
-        await blocker.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
-        await blocker.query("SELECT set_config('rootset.org_id',$1,true)", [
-          actor.orgId,
-        ]);
-        await blocker.query(
-          `SELECT row_id FROM "${schemaName}"."${table.physicalName}"`,
-        );
-        build = storage!.createIndex(actor, table.id, {
-          fieldId: table.fields[0]!.id,
-          kind: "btree",
-          expectedSchemaVersion: table.schemaVersion,
-          idempotencyKey: `live-index-${configuredQuota}`,
-        });
-        // Attach rejection handling while we observe the deliberately blocked build.
-        void build.catch(() => undefined);
-        const deadline = Date.now() + 5000;
-        let waiting = false;
-        while (Date.now() < deadline) {
-          const progress = (
-            await owner!.query<{ phase: string }>(
-              "SELECT phase FROM pg_stat_progress_create_index WHERE relid=$1::regclass",
-              [`"${schemaName}"."${table.physicalName}"`],
-            )
-          ).rows[0];
-          if (progress?.phase.includes("old snapshots")) {
-            waiting = true;
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        assert.equal(
-          waiting,
-          true,
-          "CIC reached its actual wait for the old reader snapshot",
-        );
-        const started = Date.now();
-        const write = () =>
-          storage!.createRow(
-            actor,
-            table.id,
-            { code: "online" },
-            { idempotencyKey: `online-write-${configuredQuota}` },
-          );
-        if (configuredQuota)
-          await assert.rejects(write(), { code: "STORAGE_ADMISSION_BUSY" });
-        else assert.equal((await write()).values.code, "online");
-        assert.ok(
-          Date.now() - started < 1000,
-          "Competing writer does not block inside a transaction snapshot",
-        );
-        await blocker.query("COMMIT");
-        assert.equal((await build).state, "active");
-        build = undefined;
-        if (configuredQuota)
-          assert.equal((await write()).values.code, "online");
-        assert.equal((await storage!.getTable(actor, table.id)).rowCount, 2);
-      } finally {
-        await blocker.query("ROLLBACK").catch(() => undefined);
-        blocker.release();
-        if (build) await build.catch(() => undefined);
-        await withOrg(owner!, actor.orgId, (c) =>
-          capacity.configure(c, { organisationOverrides: [] }),
-        );
-      }
-    }
-  },
-);
-
 async function runningJob(targetId: string, operationId = "createField") {
   const jobId = newId(),
     leaseToken = newId();
@@ -1469,7 +1232,7 @@ async function repairOptions(
     approvalId = newId(),
     originalKey = `approved-repair-${fence.jobId}`,
     requestId = `repair-request-${fence.jobId}`,
-    admittedActor = { ...suppliedRepairActor, grantVersion: 1 },
+    admittedActor = { ...suppliedRepairActor, membershipVersion: 1 },
     publicInput = {
       orgId: actor.orgId,
       databaseId: table.databaseId,
@@ -1798,8 +1561,8 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Native repair completion",
       fields: [
-        { apiKey: "value", label: "Value", type: "integer" },
-        { apiKey: "original", label: "Original", type: "json" },
+        { name: "value", type: "integer" },
+        { name: "original", type: "json" },
       ],
     });
     const original = { context: "literal original value", source: "original" };
@@ -1820,7 +1583,7 @@ test(
       operations,
     };
     input.context!.repair!.reason = `  ${"r".repeat(512)}  `;
-    const refreshedActor = { ...suppliedRepairActor, grantVersion: 2 };
+    const refreshedActor = { ...suppliedRepairActor, membershipVersion: 2 };
     const result = await storage!.mutateRows(refreshedActor, table.id, input);
     assert.equal(result.rows[0]!.version, "2");
     assert.deepEqual(result.rows[0]!.values, { value: 2, original });
@@ -1951,10 +1714,6 @@ test(
     assert(!persisted.includes("beforePublish"));
     assert(!persisted.includes("onCommit"));
     const peer = newId();
-    await owner!.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Repair audit peer')",
-      [peer],
-    );
     assert.equal(
       (
         await withOrg(app!, peer, (c) =>
@@ -1976,8 +1735,8 @@ test(
     let table = await storage!.createTable(actor, databaseId, {
       name: "Repair rollback",
       fields: [
-        { apiKey: "code", label: "Code", type: "text", charLimit: 20 },
-        { apiKey: "value", label: "Value", type: "integer" },
+        { name: "code", type: "text", charLimit: 20 },
+        { name: "value", type: "integer" },
       ],
     });
     await storage!.createUniqueRule(actor, table.id, {
@@ -2027,11 +1786,11 @@ test(
     );
     await refused({ ...invalidActor, operations }, "OPERATOR_REQUIRED", {
       ...suppliedRepairActor,
-      operator: false,
+      role: "viewer",
     });
     await refused({ ...invalidActor, operations }, "OPERATOR_REQUIRED", {
       ...suppliedRepairActor,
-      kind: "team_key",
+      role: "editor",
     });
     await refused(
       { ...invalidActor, operations, onCommit: undefined },
@@ -2184,8 +1943,8 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Repair response budget",
       fields: [
-        { apiKey: "text", label: "Text", type: "text", charLimit: 64000 },
-        { apiKey: "flag", label: "Flag", type: "boolean" },
+        { name: "text", type: "text", charLimit: 64000 },
+        { name: "flag", type: "boolean" },
       ],
     });
     const rows = [];
@@ -2333,7 +2092,7 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Concurrent repair receipt",
-      fields: [{ apiKey: "value", label: "Value", type: "integer" }],
+      fields: [{ name: "value", type: "integer" }],
     });
     const row = await storage!.createRow(actor, table.id, { value: 1 });
     const operations: RowOperation[] = [
@@ -2491,14 +2250,13 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Fenced schema worker",
-      fields: [{ apiKey: "value", label: "Value", type: "text" }],
+      fields: [{ name: "value", type: "text" }],
     });
     const fence = await runningJob(table.id);
     let checks = 0;
     await assert.rejects(
       storage!.createField(actor, table.id, {
-        apiKey: "cancelled",
-        label: "Cancelled",
+        name: "cancelled",
         type: "boolean",
         expectedSchemaVersion: 1,
         idempotencyKey: "cancel-at-publication",
@@ -2519,7 +2277,7 @@ test(
     assert.equal(checks, 2);
     assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 1);
     assert.deepEqual(
-      (await storage!.getTable(actor, table.id)).fields.map((f) => f.apiKey),
+      (await storage!.getTable(actor, table.id)).fields.map((f) => f.name),
       ["value"],
     );
     await owner!.query(
@@ -2528,8 +2286,7 @@ test(
     );
     await assert.rejects(
       storage!.createField(actor, table.id, {
-        apiKey: "forbidden",
-        label: "Forbidden",
+        name: "forbidden",
         type: "boolean",
         expectedSchemaVersion: 1,
         context: {
@@ -2544,8 +2301,7 @@ test(
       { code: "ACCESS_DENIED" },
     );
     const updated = await storage!.createField(actor, table.id, {
-      apiKey: "valid",
-      label: "Valid",
+      name: "valid",
       type: "boolean",
       expectedSchemaVersion: 1,
       context: {
@@ -2573,12 +2329,12 @@ test(
 );
 
 test(
-  "Populated default backfills preserve public worker correlation, native cell history, peer isolation and cancellation rollback",
+  "Populated default backfills preserve public worker correlation, native cell history, invalid-context isolation and cancellation rollback",
   { skip: !configured },
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Correlated default backfill",
-      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 30 }],
+      fields: [{ name: "code", type: "text", charLimit: 30 }],
     });
     const originals = await Promise.all(
       ["first", "second"].map((code) =>
@@ -2589,8 +2345,7 @@ test(
     const requestId = `default-backfill-${fence.jobId}`;
     let checks = 0;
     const changed = await storage!.createField(actor, table.id, {
-      apiKey: "defaulted",
-      label: "Defaulted integer",
+      name: "defaulted",
       type: "integer",
       required: true,
       default: 7,
@@ -2608,7 +2363,7 @@ test(
     assert.equal(checks, 2);
     assert.equal(changed.schemaVersion, 2);
     assert.equal(changed.rowCount, 2);
-    const added = changed.fields.find((field) => field.apiKey === "defaulted")!;
+    const added = changed.fields.find((field) => field.name === "defaulted")!;
     const events = await owner!.query<{
       row_id: string;
       mutation_id: string;
@@ -2661,10 +2416,6 @@ test(
       ),
     );
     const peerId = newId();
-    await owner!.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-      [peerId, "Default backfill peer"],
-    );
     assert.equal(
       (
         await withOrg(app!, peerId, (client) =>
@@ -2697,8 +2448,7 @@ test(
     checks = 0;
     await assert.rejects(
       storage!.createField(actor, table.id, {
-        apiKey: "cancelled_default",
-        label: "Cancelled default",
+        name: "cancelled_default",
         type: "boolean",
         default: true,
         expectedSchemaVersion: 2,
@@ -2725,7 +2475,7 @@ test(
     const after = await storage!.getTable(actor, table.id);
     assert.equal(after.schemaVersion, 2);
     assert.equal(
-      after.fields.some((field) => field.apiKey === "cancelled_default"),
+      after.fields.some((field) => field.name === "cancelled_default"),
       false,
     );
     const retained = await owner!.query<{ value: string }>(
@@ -2754,8 +2504,7 @@ test(
       name: "Private copied values",
       fields: [
         {
-          apiKey: "secret",
-          label: "Private label",
+          name: "secret",
           type: "text",
           charLimit: 80,
         },
@@ -2887,158 +2636,6 @@ test(
 );
 
 test(
-  "A quota-refused index and a live incomplete index survive backup restoration as inactive definitions with original source attribution",
-  { skip: !configured },
-  async () => {
-    const { CapacityService } = await import("@rootset/capacity");
-    const capacity = new CapacityService(owner!);
-    const database = await storage!.createDatabase(actor, {
-      name: "Incomplete schema source",
-    });
-    const table = await storage!.createTable(actor, database.id, {
-      name: "Index attribution",
-      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 40 }],
-    });
-    await storage!.createRow(actor, table.id, { code: "original" });
-    const configure = (quotaBytes: string | null) =>
-      withOrg(owner!, actor.orgId, (c) =>
-        capacity.configure(c, {
-          organisationOverrides: [{ orgId: actor.orgId, quotaBytes }],
-        }),
-      );
-    try {
-      const used = BigInt(
-        (
-          await withOrg(owner!, actor.orgId, (c) =>
-            capacity.status(c, actor.orgId),
-          )
-        ).organisation!.usedBytes,
-      );
-      await configure((used + 1572864n).toString());
-      await assert.rejects(
-        storage!.createIndex(actor, table.id, {
-          fieldId: table.fields[0]!.id,
-          kind: "btree",
-          expectedSchemaVersion: 1,
-          idempotencyKey: "refused-schema-backup",
-        }),
-        { code: "STORAGE_QUOTA_EXCEEDED" },
-      );
-    } finally {
-      await configure(null);
-    }
-    assert.equal(
-      (await storage!.listIndexes(actor, table.id))[0]!.state,
-      "failed",
-    );
-    const blocker = await app!.connect();
-    let build: Promise<import("./index.js").IndexRecord> | undefined;
-    let source: import("./index.js").SnapshotSource;
-    try {
-      await blocker.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
-      await blocker.query("SELECT set_config('rootset.org_id',$1,true)", [
-        actor.orgId,
-      ]);
-      await blocker.query(
-        `SELECT row_id FROM "${database.schemaName}"."${table.physicalName}"`,
-      );
-      build = storage!.createIndex(actor, table.id, {
-        fieldId: table.fields[0]!.id,
-        kind: "btree",
-        expectedSchemaVersion: 1,
-        idempotencyKey: "pending-schema-backup",
-      });
-      void build.catch(() => undefined);
-      const deadline = Date.now() + 5000;
-      let waiting = false;
-      while (Date.now() < deadline) {
-        const phase = (
-          await owner!.query<{ phase: string }>(
-            "SELECT phase FROM pg_stat_progress_create_index WHERE relid=$1::regclass",
-            [`"${database.schemaName}"."${table.physicalName}"`],
-          )
-        ).rows[0]?.phase;
-        if (phase?.includes("old snapshots")) {
-          waiting = true;
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-      assert.equal(waiting, true);
-      source = await frozenSnapshot(database.id);
-      assert.deepEqual(
-        source.metadata.tables[0]!.indexes.map((i) => i.state).sort(),
-        ["building", "failed"],
-      );
-    } finally {
-      await blocker.query("ROLLBACK");
-      blocker.release();
-      if (build) await build;
-    }
-    const restored = await storage!.restoreDatabase(actor, source!, {
-      name: "Restored inactive definitions",
-      jobId: newId(),
-      staged: true,
-      verification: true,
-    });
-    const restoredTableId = restored.tableMapping[table.id]!;
-    const indices = await storage!
-      .listIndexes(actor, restoredTableId)
-      .catch(async () =>
-        withOrg(ddl!, actor.orgId, async (c) => {
-          return (
-            await storage!.snapshotDatabase(actor, restored.databaseId, c, {
-              includeStaged: true,
-            })
-          ).metadata.tables[0]!.indexes;
-        }),
-      );
-    const actual = (
-      await owner!.query<{
-        state: string;
-        error: { code?: string };
-        physical_name: string;
-      }>(
-        "SELECT state,error,physical_name FROM rootset_control.indexes WHERE table_id=$1 ORDER BY id",
-        [restoredTableId],
-      )
-    ).rows;
-    assert.deepEqual(
-      actual.map((i) => i.state),
-      ["failed", "failed"],
-    );
-    assert.equal(
-      actual.some((i) => i.error?.code === "RESTORED_PENDING_INDEX"),
-      true,
-    );
-    for (const index of actual)
-      assert.equal(
-        (
-          await owner!.query<{ present: string | null }>(
-            "SELECT to_regclass($1)::text AS present",
-            [`rsd_${restored.databaseId.toLowerCase()}.${index.physical_name}`],
-          )
-        ).rows[0]!.present,
-        null,
-      );
-    assert.equal(indices.length, 2);
-    await withOrg(ddl!, actor.orgId, async (c) => {
-      const verified = await storage!.snapshotDatabase(
-        actor,
-        restored.databaseId,
-        c,
-        { includeStaged: true },
-      );
-      assert.deepEqual(
-        verified.metadata.tables[0]!.indexes.map((i) => i.state).sort(),
-        ["building", "failed"],
-      );
-    });
-    await storage!.discardRestore(actor, restored);
-  },
-);
-
-test(
   "Native unique rules use exact typed grouping and extend the SQL budget only for a current authorised queued worker",
   { skip: !configured },
   async () => {
@@ -3074,9 +2671,9 @@ test(
       const table = await observed.createTable(actor, databaseId, {
         name: label,
         fields: [
-          { apiKey: "code", label: "Code", type: "text", charLimit: 40 },
-          { apiKey: "count", label: "Count", type: "integer" },
-          { apiKey: "rate", label: "Rate", type: "float" },
+          { name: "code", type: "text", charLimit: 40 },
+          { name: "count", type: "integer" },
+          { name: "rate", type: "float" },
         ],
       });
       await observed.mutateRows(actor, table.id, {
@@ -3221,7 +2818,7 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Exact rule result",
-      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 20 }],
+      fields: [{ name: "code", type: "text", charLimit: 20 }],
     });
     const firstInput = {
       name: "First named rule",
@@ -3294,10 +2891,10 @@ test(
     const table = await storage!.createTable(actor, databaseId, {
       name: "Generation enforcement",
       fields: [
-        { apiKey: "code", label: "Code", type: "text", charLimit: 30 },
-        { apiKey: "wide", label: "Wide", type: "text", charLimit: 4000 },
-        { apiKey: "value", label: "Value", type: "float" },
-        { apiKey: "payload", label: "Payload", type: "json" },
+        { name: "code", type: "text", charLimit: 30 },
+        { name: "wide", type: "text", charLimit: 4000 },
+        { name: "value", type: "float" },
+        { name: "payload", type: "json" },
       ],
     });
     const native = await storage!.createUniqueRule(actor, table.id, {
@@ -3462,7 +3059,7 @@ test(
     const { spawn } = await import("node:child_process");
     const table = await storage!.createTable(actor, databaseId, {
       name: "Killed valid native build",
-      fields: [{ apiKey: "code", label: "Code", type: "text", charLimit: 30 }],
+      fields: [{ name: "code", type: "text", charLimit: 30 }],
     });
     await storage!.createRow(actor, table.id, { code: "kept" });
     const appUrl = new URL(process.env.ROOTSET_TEST_APP_DATABASE_URL!),
@@ -3562,9 +3159,7 @@ test(
     for (const interruption of ["cancelled", "expired"] as const) {
       const table = await storage!.createTable(actor, databaseId, {
         name: `Killed queued index ${interruption}`,
-        fields: [
-          { apiKey: "code", label: "Code", type: "text", charLimit: 30 },
-        ],
+        fields: [{ name: "code", type: "text", charLimit: 30 }],
       });
       await storage!.createRow(actor, table.id, { code: "kept" });
       const fence = await runningJob(table.id, "createIndex");
@@ -3706,7 +3301,7 @@ test(
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Index resource correlation",
-      fields: [{ apiKey: "CODE", label: "Code", type: "text", charLimit: 20 }],
+      fields: [{ name: "CODE", type: "text", charLimit: 20 }],
     });
     await storage!.createRow(actor, table.id, { CODE: "unchanged" });
     const fence = await runningJob(table.id, "createIndex");
@@ -3765,10 +3360,6 @@ test(
     ).rows[0]!;
     assert.deepEqual(facts, { cells: 1, rows: 1 });
     const peer = newId();
-    await owner!.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-      [peer, "Index audit peer"],
-    );
     assert.equal(
       (
         await withOrg(app!, peer, (client) =>
@@ -3795,9 +3386,7 @@ test(
     });
     const table = await storage!.createTable(actor, database.id, {
       name: "Original attributed cells",
-      fields: [
-        { apiKey: "CODE", label: "Original", type: "text", charLimit: 20 },
-      ],
+      fields: [{ name: "CODE", type: "text", charLimit: 20 }],
     });
     const row = await storage!.createRow(
       actor,
@@ -3863,7 +3452,7 @@ test(
     });
     const targetTable = await storage!.createTable(actor, target.id, {
       name: "Target rows",
-      fields: [{ apiKey: "CODE", label: "Code", type: "text", charLimit: 20 }],
+      fields: [{ name: "CODE", type: "text", charLimit: 20 }],
     });
     await storage!.createRow(actor, targetTable.id, { CODE: "target-before" });
     const replacementFence = await runningJob(table.id, "restoreDatabase");
@@ -3943,5 +3532,81 @@ test(
       replacementFence.leaseToken,
     ])
       assert.equal(body.includes(token), false);
+  },
+);
+
+test(
+  "field names rename existing values without changing native identity and reject invalid or colliding names",
+  { skip: !configured },
+  async () => {
+    let table = await storage!.createTable(actor, databaseId, {
+      name: "Field naming",
+      fields: [
+        { name: "Airline_Code", type: "text" },
+        { name: "Country", type: "text" },
+      ],
+    });
+    const original = table.fields[0]!;
+    const row = await storage!.createRow(actor, table.id, {
+      Airline_Code: "AI",
+      Country: "IN",
+    });
+    for (const name of [
+      "Airline Code",
+      "Airline.Code",
+      "Airline1",
+      "id",
+      "country",
+    ]) {
+      await assert.rejects(
+        storage!.updateField(actor, table.id, original.id, {
+          name,
+          expectedSchemaVersion: table.schemaVersion,
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+    }
+    const before = await storage!.cellHistory(
+      actor,
+      table.id,
+      row.id,
+      original.id,
+      { limit: 100 },
+    );
+    table = await storage!.updateField(actor, table.id, original.id, {
+      name: "Carrier_Code",
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(table.fields[0]!.id, original.id);
+    const renamed = await storage!.getRow(actor, table.id, row.id);
+    assert.deepEqual(renamed.values, { Carrier_Code: "AI", Country: "IN" });
+    assert.equal(renamed.version, row.version);
+    assert.deepEqual(
+      await storage!.cellHistory(actor, table.id, row.id, original.id, {
+        limit: 100,
+      }),
+      before,
+    );
+    await assert.rejects(
+      storage!.updateRow(
+        actor,
+        table.id,
+        row.id,
+        { Airline_Code: "XX" },
+        { expectedVersion: row.version },
+      ),
+      { code: "VALIDATION_FAILED" },
+    );
+    await storage!.updateRow(
+      actor,
+      table.id,
+      row.id,
+      { Carrier_Code: "XX" },
+      { expectedVersion: row.version },
+    );
+    assert.equal(
+      (await storage!.getRow(actor, table.id, row.id)).values.Carrier_Code,
+      "XX",
+    );
   },
 );

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
+import { resolve, dirname } from "node:path";
 import { newId } from "../packages/contracts/src/index.ts";
 import { createPool } from "../packages/database/src/index.ts";
 import { TableStorage } from "../packages/table-storage/src/index.ts";
@@ -8,7 +9,10 @@ import { encryptProtected } from "../packages/email/src/index.ts";
 import { loadConfig } from "../packages/core/src/config.ts";
 
 const url = new URL(process.env.ROOTSET_TEST_DATABASE_URL ?? "");
-if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== "55448")
+if (
+  !["localhost", "127.0.0.1"].includes(url.hostname) ||
+  url.port !== (process.env.ROOTSET_RECOVERY_SOURCE_PORT ?? "55468")
+)
   throw new Error(
     "The recovery fixture is restricted to the authorized Rootset test database",
   );
@@ -26,44 +30,60 @@ const store = new ArtifactStore(app, {
   encryptionKeys: config.encryptionKeys,
   activeKeyId: config.activeEncryptionKeyId,
 });
-const orgId = newId(),
-  userId = newId(),
+let orgId = newId();
+const userId = newId(),
   actionId = newId();
 const marker = randomBytes(32).toString("hex");
 try {
+  const migrations = (
+    await owner.query(
+      "SELECT name FROM rootset_control.migrations ORDER BY name",
+    )
+  ).rows;
+  if (migrations.length !== 1 || migrations[0].name !== "0001_baseline.sql")
+    throw new Error(
+      "Recovery fixture requires a fresh 0001_baseline.sql installation",
+    );
   await owner.query(
     "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
     [
       userId,
-      "Recovery fixture owner",
+      "Recovery fixture Admin",
       `recovery-${userId.toLowerCase()}@example.test`,
     ],
   );
+  const organisations = (
+    await owner.query("SELECT id FROM rootset_control.organisations")
+  ).rows;
+  if (organisations.length > 1)
+    throw new Error(
+      "Recovery fixture requires the current single-organisation baseline",
+    );
+  if (organisations.length === 1) orgId = organisations[0].id;
+  else
+    await owner.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
+      [orgId, `Rootset disaster recovery ${orgId}`],
+    );
   await owner.query(
-    "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
-    [orgId, `Rootset disaster recovery ${orgId}`],
-  );
-  await owner.query(
-    "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'owner')",
+    "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin')",
     [newId(), orgId, userId],
   );
   const actor = {
-    kind: "operator",
+    kind: "session",
     id: userId,
     userId,
     orgId,
-    role: "owner",
-    scopes: ["*"],
-    targets: [],
-    unrestricted: true,
-    operator: true,
+    role: "admin",
+    scopes: [],
+    membershipVersion: 1,
   };
   const database = await storage.createDatabase(actor, {
     name: "Recovery proof",
   });
   const table = await storage.createTable(actor, database.id, {
     name: "Persisted proof",
-    fields: [{ apiKey: "proof", label: "Proof", type: "json" }],
+    fields: [{ name: "proof", type: "json" }],
   });
   const row = await storage.createRow(
     actor,
@@ -119,14 +139,19 @@ try {
     source:
       "Dedicated synthetic recovery fixture; original scale rows unchanged",
   };
+  const destination = resolve(
+    `verification/v1-recovery/fixture-${newId()}/nonempty-recovery-fixture.json`,
+  );
+  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
   await writeFile(
-    "verification/delivery/nonempty-recovery-fixture.json",
-    JSON.stringify(report, null, 2) + "\n",
-    { mode: 0o600 },
+    destination,
+    JSON.stringify({ ...report, acceptance: false }, null, 2) + "\n",
+    { mode: 0o600, flag: "wx" },
   );
   console.log(
     JSON.stringify({
       event: "nonempty_recovery_fixture_created",
+      report: destination,
       orgId,
       artifactId: artifact.id,
       plaintextBytes: bytes.length,

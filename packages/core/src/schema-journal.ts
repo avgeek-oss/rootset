@@ -17,8 +17,7 @@ export interface SchemaJournalMappingOptions {
 }
 
 const fieldKeys = [
-  "apiKey",
-  "label",
+  "name",
   "type",
   "required",
   "default",

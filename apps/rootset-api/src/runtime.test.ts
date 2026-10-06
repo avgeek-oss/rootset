@@ -12,9 +12,9 @@ import { createRuntime } from "@rootset/core/runtime";
 import { loadConfig } from "@rootset/core/config";
 import {
   getOperation,
+  KeyCreatedSchema,
   newId,
   operations,
-  scopeNames,
   generateClientSource,
   limits,
   rowBytes,
@@ -24,7 +24,6 @@ import { decryptProtected } from "../../../packages/email/src/index.js";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { createRuntimeApp } from "./runtime-app.js";
 import { httpServerOptions } from "./http-server.js";
-import { MCP_PROTOCOL_VERSION } from "./app.js";
 
 test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP parity, history, concurrency and immediate revocation", async (t) => {
   const db = await isolatedDatabase();
@@ -110,7 +109,16 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         throw error;
       }
     };
-    app = createRuntimeApp(runtime);
+    const testRuntime = {
+      ...runtime,
+      getAdmissionLimits: () => ({
+        principalRequestsPerMinute: 100000,
+        organisationRequestsPerMinute: 1000000,
+        concurrentReads: 10,
+        concurrentMutations: 5,
+      }),
+    };
+    app = createRuntimeApp(testRuntime);
     const request = async (
       path: string,
       method = "GET",
@@ -189,7 +197,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(caller.status, 200);
     const context = await caller.json();
     assert.equal(context.principal.userId, provision.userId);
-    assert.equal(context.principal.operator, false);
     const call = async (
       operationId: string,
       input: Record<string, unknown>,
@@ -247,29 +254,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       );
       return value;
     };
-    await runtime.identity.bindOperator(provision.userId, {
-      reason:
-        "Isolated transport replay matrix requires higher admission ceilings",
-    });
-    const admissionConfiguration = await call(
-      "updateInstallationConfiguration",
-      {
-        limits: {
-          principalRequestsPerMinute: 1000,
-          organisationRequestsPerMinute: 10000,
-        },
-      },
-    );
-    assert.equal(
-      admissionConfiguration.limits.principalRequestsPerMinute,
-      1000,
-    );
     const keyRequest = {
       orgId: provision.orgId,
       name: "Runtime read and write",
-      scopes: scopeNames.filter((scope) => !scope.startsWith("installation:")),
-      targets: [],
-      unrestricted: true,
     };
     const key = await call("createPersonalKey", keyRequest, "browser");
     assert.equal(typeof key.secret, "string");
@@ -277,9 +264,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const readKey = await call("createPersonalKey", {
       orgId: provision.orgId,
       name: "Read only",
-      scopes: ["databases:read", "tables:read", "rows:read", "history:read"],
-      targets: [],
-      unrestricted: true,
     });
     const d = await call("createDatabase", {
         orgId: provision.orgId,
@@ -292,20 +276,19 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       databaseId,
       name: "Airlines",
       fields: [
-        { type: "text", apiKey: "NAME", label: "Name", charLimit: 120 },
+        { type: "text", name: "NAME", charLimit: 120 },
         {
           type: "integer",
-          apiKey: "COUNT",
-          label: "Count",
+          name: "COUNT",
           min: 0,
           max: 9007199254740991,
         },
-        { type: "float", apiKey: "SCORE", label: "Score" },
-        { type: "boolean", apiKey: "ACTIVE", label: "Active" },
-        { type: "date", apiKey: "DATE", label: "Date" },
-        { type: "time", apiKey: "TIME", label: "Time" },
-        { type: "date-time", apiKey: "UPDATED", label: "Updated" },
-        { type: "json", apiKey: "CONFIG", label: "Config" },
+        { type: "float", name: "SCORE" },
+        { type: "boolean", name: "ACTIVE" },
+        { type: "date", name: "DATE" },
+        { type: "time", name: "TIME" },
+        { type: "date-time", name: "UPDATED" },
+        { type: "json", name: "CONFIG" },
       ],
     });
     const tableId = schema.table.id,
@@ -346,14 +329,37 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         ).rows[0].row_count;
         const principal = `user:${provision.userId}`;
         const queryPath = `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/query`;
-        const peerKey = await call("createTeamKey", {
-          orgId,
-          name: "Independent saturated workload credential",
-          scopes: ["rows:read"],
-          targets: [],
-          unrestricted: true,
-        });
-        const peerPrincipal = `credential:${peerKey.key.id}`;
+        const peerUserId = newId(),
+          peerSessionId = newId();
+        await db.owner.query(
+          `INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,'Peer fixture',$2,true)`,
+          [peerUserId, `peer-${peerUserId.toLowerCase()}@example.test`],
+        );
+        await db.owner.query(
+          `INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'viewer')`,
+          [newId(), orgId, peerUserId],
+        );
+        await db.owner.query(
+          `INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 hour',now())`,
+          [peerSessionId, peerUserId, newId()],
+        );
+        const peerKey = KeyCreatedSchema.parse(
+          await runtime!.core.execute(
+            "createPersonalKey",
+            {
+              kind: "session",
+              id: peerSessionId,
+              userId: peerUserId,
+              orgId,
+              role: "viewer",
+              scopes: [],
+              authenticatedAt: Date.now(),
+            },
+            { orgId, name: "Independent saturated workload credential" },
+            { surface: "browser", idempotencyKey: newId() },
+          ),
+        );
+        const peerPrincipal = `user:${peerUserId}`;
         const blocker = await db.owner.connect();
         const pending: Promise<Response>[] = [];
         try {
@@ -679,13 +685,27 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(queried.status, 200);
     assert.equal((await queried.json()).data[0].id, rowId);
-    const deniedWrite = await request(
+    const inheritedWrite = await request(
       `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/rows`,
       "POST",
       { expectedSchemaVersion: 1, values: { NAME: "Denied" } },
       { token: readKey.secret, key: newId() },
     );
-    assert.equal(deniedWrite.status, 403);
+    assert.equal(inheritedWrite.status, 201);
+    const inheritedRow = (await inheritedWrite.json()).row;
+    await call(
+      "deleteRow",
+      {
+        ...ids,
+        rowId: inheritedRow.id,
+        expectedSchemaVersion: 1,
+        expectedVersion: inheritedRow.version,
+      },
+      "rest",
+      undefined,
+      newId(),
+      readKey.secret,
+    );
     const mismatch = await call(
       "getRow",
       { ...ids, databaseId: newId(), rowId },
@@ -711,7 +731,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       422,
     );
     assert.equal(invalidUTC.error.code, "VALIDATION_FAILED");
-    const issueMcpGrant = async (scopes: string[], tableIds: string[] = []) => {
+    const issueMcpGrant = async (scopes: string[]) => {
       const verifier = randomBytes(40).toString("base64url"),
         challenge = createHash("sha256").update(verifier).digest("base64url"),
         authorization = new URL(`${baseURL}/oauth/authorize`);
@@ -722,8 +742,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         code_challenge: challenge,
         code_challenge_method: "S256",
         resource: `${baseURL}/mcp`,
-        organization_id: orgId,
-        ...(tableIds.length ? { table_ids: tableIds.join(",") } : {}),
         scope: scopes.join(" "),
         state: "actual-runtime-state",
       }).toString();
@@ -890,15 +908,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const journalKey = await call("createPersonalKey", {
         orgId,
         name: "Control replay verification",
-        scopes: [
-          "members:manage",
-          "keys:manage",
-          "backups:manage",
-          "backups:read",
-          "databases:read",
-        ],
-        targets: [],
-        unrestricted: true,
       }),
       journalTokens = await issueMcpGrant([
         "members:manage",
@@ -966,23 +975,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         input: {
           orgId,
           name: "Replay-bound key approval",
-          scopes: ["rows:read"],
-          targets: [],
-          unrestricted: true,
         },
-      },
-      setBackupPolicy: {
-        orgId,
-        databaseId,
-        enabled: true,
-        cron: "0 4 * * *",
-        timezone: "UTC",
-        destination: "installation",
-        retentionDays: 30,
-        retentionCount: 10,
-        encryption: true,
-        maxRuntimeSeconds: 3600,
-        notifications: false,
       },
     };
     const journalResults: Record<string, Record<string, unknown>> = {};
@@ -990,91 +983,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       journalResults[mode] = {};
       for (const [operationId, input] of Object.entries(journalInputs)) {
         const idempotencyKey = `runtime-shared-journal-${operationId}`;
-        let executedInput: Record<string, unknown> = input;
-        if (operationId === "setBackupPolicy") {
-          const boundApproval = (await journalCall(
-            mode,
-            "beginAccountAction",
-            {
-              orgId,
-              type: "set_backup_policy",
-              operationId,
-              input,
-            },
-            "runtime-shared-journal-policy-approval",
-          )) as { id: string; state: string };
-          assert.equal(boundApproval.state, "pending");
-          const boundRequest = {
-              orgId,
-              type: "set_backup_policy",
-              operationId,
-              input,
-            },
-            rawReplay = JSON.stringify(
-              mode === "rest"
-                ? boundRequest
-                : {
-                    jsonrpc: "2.0",
-                    id: 91,
-                    method: "tools/call",
-                    params: {
-                      name: "rootset_begin_account_action",
-                      arguments: {
-                        ...boundRequest,
-                        idempotencyKey:
-                          "runtime-shared-journal-policy-approval",
-                      },
-                    },
-                  },
-            ).replace(
-              '"retentionDays":30',
-              '"retentionDays":30.00000000000000001',
-            );
-          const malformedReplay = await fetch(
-            `${baseURL}${mode === "rest" ? "/v1/me/actions" : "/mcp"}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json, text/event-stream",
-                Authorization: `Bearer ${mode === "rest" ? journalKey.secret : journalTokens.access_token}`,
-                ...(mode === "rest"
-                  ? {
-                      "Idempotency-Key":
-                        "runtime-shared-journal-policy-approval",
-                    }
-                  : { "MCP-Protocol-Version": MCP_PROTOCOL_VERSION }),
-              },
-              body: rawReplay,
-            },
-          );
-          assert.equal(malformedReplay.status, mode === "rest" ? 422 : 200);
-          const malformedEnvelope = await malformedReplay.json();
-          assert.equal(
-            mode === "rest"
-              ? malformedEnvelope.error.code
-              : malformedEnvelope.result.structuredContent.error.code,
-            "VALIDATION_FAILED",
-          );
-          assert.equal(
-            (
-              await db.owner.query(
-                "SELECT count(*)::int count FROM rootset_control.account_actions WHERE id=$1",
-                [boundApproval.id],
-              )
-            ).rows[0].count,
-            1,
-          );
-          const approve = await request(
-            `/api/internal/v1/account-actions/${boundApproval.id}/approve`,
-            "POST",
-            {},
-            { browser: true },
-          );
-          assert.equal(approve.status, 200);
-          assert.equal((await approve.json()).state, "approved");
-          executedInput = { ...input, approvalId: boundApproval.id };
-        }
+        const executedInput: Record<string, unknown> = input;
         const [first, concurrent] = await Promise.all([
           journalCall(mode, operationId, executedInput, idempotencyKey),
           journalCall(mode, operationId, executedInput, idempotencyKey),
@@ -1084,15 +993,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           first,
           `${mode} ${operationId} concurrent publication`,
         );
-        const policyTimestamp =
-          operationId === "setBackupPolicy"
-            ? (
-                await db.owner.query(
-                  "SELECT updated_at::text FROM rootset_control.backup_policies WHERE database_id=$1",
-                  [databaseId],
-                )
-              ).rows[0].updated_at
-            : undefined;
         const replay = await journalCall(
           mode,
           operationId,
@@ -1104,17 +1004,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           first,
           `${mode} ${operationId} stable outcome`,
         );
-        if (policyTimestamp)
-          assert.equal(
-            (
-              await db.owner.query(
-                "SELECT updated_at::text FROM rootset_control.backup_policies WHERE database_id=$1",
-                [databaseId],
-              )
-            ).rows[0].updated_at,
-            policyTimestamp,
-            `${mode} policy replay has no SQL mutation`,
-          );
         journalResults[mode]![operationId] = first;
         const changed =
           operationId === "inviteMember"
@@ -1135,17 +1024,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           idempotencyKey,
           "IDEMPOTENCY_CONFLICT",
         );
-        if (operationId === "setBackupPolicy")
-          assert.equal(
-            (
-              await db.owner.query(
-                "SELECT cron FROM rootset_control.backup_policies WHERE database_id=$1",
-                [databaseId],
-              )
-            ).rows[0].cron,
-            journalInputs.setBackupPolicy.cron,
-            `${mode} conflict leaves native policy intact`,
-          );
       }
     }
     const restInvitation = journalResults.rest!.inviteMember as { id: string },
@@ -1195,7 +1073,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         [orgId, Object.keys(journalInputs)],
       )
     ).rows;
-    assert.equal(recorded.length, 8);
+    assert.equal(recorded.length, Object.keys(journalInputs).length * 2);
     for (const replay of recorded) {
       for (const column of ["principal_binding", "key_digest", "input_digest"])
         assert.match(replay[column], /^[a-f0-9]{64}$/);
@@ -1252,7 +1130,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           Authorization: `Bearer ${readKey.secret}`,
         })
       ).status,
-      403,
+      200,
     );
     assert.equal(
       (
@@ -1396,9 +1274,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const approvedKeyInput = {
       orgId,
       name: "Delegated approved read key",
-      scopes: ["rows:read"],
-      targets: [],
-      unrestricted: true,
     };
     const withoutApproval = await client.callTool({
       name: "rootset_create_personal_key",
@@ -1527,7 +1402,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       false,
     );
     const nameField = schema.fields.find(
-      (field: { apiKey: string }) => field.apiKey === "NAME",
+      (field: { name: string }) => field.name === "NAME",
     );
     const history = await call(
       "getCellHistory",
@@ -1778,19 +1653,20 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       ).status,
       401,
     );
-    const readExportGrant = await issueMcpGrant(
-      ["rows:read", "tables:read", "exports:read"],
-      [tableId],
-    );
+    const readExportGrant = await issueMcpGrant([
+      "rows:read",
+      "tables:read",
+      "exports:read",
+    ]);
     const readExportDownload = await request(artifactPath, "GET", undefined, {
       token: readExportGrant.access_token,
     });
     assert.equal(readExportDownload.status, 200);
     assert.equal(await readExportDownload.text(), exportText);
-    const missingExportGrant = await issueMcpGrant(
-      ["rows:read", "tables:read"],
-      [tableId],
-    );
+    const missingExportGrant = await issueMcpGrant([
+      "rows:read",
+      "tables:read",
+    ]);
     assert.equal(
       (
         await request(artifactPath, "GET", undefined, {
@@ -1816,17 +1692,14 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       ).status,
       401,
     );
-    assert.equal(
-      (
-        await request(
-          new URL(exportArtifact.downloadUrl).pathname,
-          "GET",
-          undefined,
-          { token: readKey.secret },
-        )
-      ).status,
-      403,
+    const personalDownload = await request(
+      new URL(exportArtifact.downloadUrl).pathname,
+      "GET",
+      undefined,
+      { token: readKey.secret },
     );
+    assert.equal(personalDownload.status, 200);
+    assert.equal(await personalDownload.text(), exportText);
     const fieldStarted = await client.callTool({
       name: "rootset_apply_schema_change",
       arguments: {
@@ -1836,8 +1709,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           kind: "add_field",
           field: {
             type: "text",
-            apiKey: "NOTES",
-            label: "Notes",
+            name: "NOTES",
             charLimit: 240,
           },
         },
@@ -1883,7 +1755,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(journal.id, fieldJob.result.schemaOperationId);
     assert.equal(journal.jobId, fieldAccepted.jobId);
     assert.equal(journal.phase, "committed");
-    assert.equal(journal.change.field.apiKey, "NOTES");
+    assert.equal(journal.change.field.name, "NOTES");
     assert.equal(journal.before.table.schemaVersion, 1);
     const journalById = await client.callTool({
       name: "rootset_get_schema_operation",
@@ -1896,7 +1768,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(latestSchema.fields.length, 9);
     assert.equal(
       latestSchema.fields.find(
-        (field: { apiKey: string }) => field.apiKey === "NOTES",
+        (field: { name: string }) => field.name === "NOTES",
       ).charLimit,
       240,
     );
@@ -1905,7 +1777,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       {
         ...ids,
         expectedSchemaVersion: 1,
-        field: { type: "text", apiKey: "STALE", label: "Stale" },
+        field: { type: "text", name: "STALE" },
       },
       "rest",
       409,
@@ -1941,7 +1813,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert(usage.indexBytes > 0);
     assert(usage.historyBytes > 0);
     assert(usage.artifactBytes > 0);
-    assert.equal(usage.storageQuotaBytes, null);
+    assert.equal(Object.hasOwn(usage, "storageQuotaBytes"), false);
     const activeFields = await call("listFields", ids, "rest");
     assert.equal(activeFields.data.length, schema.fields.length + 1);
     assert.deepEqual(await mcpOperation("listFields", ids), activeFields);
@@ -1952,8 +1824,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           kind: "add_field",
           field: {
             type: "text",
-            apiKey: "PREVIEW_ONLY",
-            label: "Preview only",
+            name: "PREVIEW_ONLY",
             charLimit: 128,
           },
         },
@@ -1965,7 +1836,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.deepEqual(mcpPreview, restPreview);
     assert.equal(
       (await call("getTableSchema", ids, "rest")).fields.some(
-        (field: { apiKey: string }) => field.apiKey === "PREVIEW_ONLY",
+        (field: { name: string }) => field.name === "PREVIEW_ONLY",
       ),
       false,
     );
@@ -1990,11 +1861,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         fields: [
           {
             type: "text",
-            apiKey: "SORT",
-            label: "Wide sort value",
+            name: "SORT",
             charLimit: 65536,
           },
-          { type: "integer", apiKey: "VALUE", label: "Value" },
+          { type: "integer", name: "VALUE" },
         ],
       }),
       wideIds = { orgId, databaseId, tableId: wideTable.table.id };
@@ -2049,10 +1919,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       (reordered.fields as { id: string }[]).map((field) => field.id),
       reverseFieldIds,
     );
-    const readGrant = await issueMcpGrant(
-      ["rows:read", "tables:read"],
-      [wideIds.tableId],
-    );
+    const readGrant = await issueMcpGrant(["rows:read", "tables:read"]);
     await readOnlyClient.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
         requestInit: {
@@ -2060,15 +1927,14 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       }),
     );
-    const hiddenMutation = await readOnlyClient.callTool({
+    const readMutation = await readOnlyClient.callTool({
       name: "rootset_get_mutation",
       arguments: { orgId, id: updated.mutationId },
     });
-    assert.equal(hiddenMutation.isError, true);
+    assert.notEqual(readMutation.isError, true);
     assert.equal(
-      (hiddenMutation.structuredContent as { error: { code: string } }).error
-        .code,
-      "RESOURCE_NOT_FOUND",
+      (readMutation.structuredContent as { mutationId: string }).mutationId,
+      updated.mutationId,
     );
     await assert.rejects(
       readOnlyClient.callTool({
@@ -2086,11 +1952,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       `/v1/orgs/${orgId}/databases/${databaseId}/tables/${wideIds.tableId}/field-order`,
       "PUT",
       { expectedSchemaVersion: 2, fieldIds: reverseFieldIds },
-      { token: readKey.secret, key: "runtime-read-only-reorder" },
+      { token: readGrant.access_token, key: "runtime-read-only-reorder" },
     );
-    assert.equal(reorderDenied.status, 403);
+    assert.equal(reorderDenied.status, 401);
     const valueField = wideTable.fields.find(
-        (field: { apiKey: string }) => field.apiKey === "VALUE",
+        (field: { name: string }) => field.name === "VALUE",
       ),
       uniqueStarted = await mcpOperation("createUniqueRule", {
         ...wideIds,
@@ -2115,19 +1981,20 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       orgId,
       databaseId,
       name: "Restricted peer",
-      fields: [{ type: "text", apiKey: "NAME", label: "Name" }],
+      fields: [{ type: "text", name: "NAME" }],
     });
-    const peerGrant = await issueMcpGrant(
-      ["rows:read", "tables:read", "exports:read"],
-      [secondTable.table.id],
-    );
+    const peerGrant = await issueMcpGrant([
+      "rows:read",
+      "tables:read",
+      "exports:read",
+    ]);
     assert.equal(
       (
         await request(artifactPath, "GET", undefined, {
           token: peerGrant.access_token,
         })
       ).status,
-      404,
+      200,
     );
     const hiddenJournal = await call(
       "getSchemaOperation",
@@ -2138,10 +2005,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(hiddenJournal.error.code, "RESOURCE_NOT_FOUND");
     const scoped = await call("createPersonalKey", {
       orgId,
-      name: "One table only",
-      scopes: ["databases:read", "tables:read", "rows:read"],
-      targets: [{ databaseId, tableId, level: "read" }],
-      unrestricted: false,
+      name: "Installation role access",
     });
     assert.equal(
       (
@@ -2163,7 +2027,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           { token: scoped.secret },
         )
       ).status,
-      404,
+      200,
     );
     const scopedTables = await request(
       `/v1/orgs/${orgId}/databases/${databaseId}/tables`,
@@ -2173,8 +2037,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(scopedTables.status, 200);
     assert.deepEqual(
-      (await scopedTables.json()).data.map((table: { id: string }) => table.id),
-      [tableId],
+      (await scopedTables.json()).data
+        .map((table: { id: string }) => table.id)
+        .sort(),
+      [tableId, wideTable.table.id, secondTable.table.id].sort(),
     );
     const ownerCookie = cookie,
       invitedEmail = `viewer-${newId().toLowerCase()}@rootset.example`;
@@ -2258,9 +2124,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const viewerKey = await call("createPersonalKey", {
       orgId,
       name: "Viewer read key",
-      scopes: ["rows:read", "tables:read", "databases:read"],
-      targets: [],
-      unrestricted: true,
     });
     assert(viewerKey.secret);
     await call(
@@ -2269,11 +2132,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         orgId,
         name: "Forbidden viewer write key",
         scopes: ["rows:write"],
-        targets: [],
-        unrestricted: true,
       },
       "browser",
-      403,
+      422,
     );
     const viewerCookie = cookie;
     cookie = ownerCookie;
@@ -2283,35 +2144,18 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         [orgId, viewerContext.principal.userId],
       )
     ).rows[0];
-    const editorMember = await call("updateMember", {
+    await call("updateMember", {
       orgId,
       id: viewerMember.id,
-      role: "editor",
+      role: "admin",
       expectedVersion: String(viewerMember.version),
-    });
-    await call("updateGrants", {
-      orgId,
-      grants: [
-        {
-          membershipId: editorMember.id,
-          version: Number(editorMember.version),
-          unrestricted: false,
-          targets: [{ databaseId, tableId, level: "manage" }],
-        },
-      ],
     });
     cookie = viewerCookie;
     const scopeKey = await call("createPersonalKey", {
         orgId,
         name: "Current target authority replay verification",
-        scopes: ["tables:read", "tables:manage"],
-        targets: [{ databaseId, tableId, level: "manage" }],
-        unrestricted: false,
       }),
-      scopeTokens = await issueMcpGrant(
-        ["tables:read", "tables:manage"],
-        [tableId],
-      ),
+      scopeTokens = await issueMcpGrant(["tables:read", "tables:manage"]),
       currentSchema = await call("getTableSchema", ids),
       targetActionInput = {
         orgId,
@@ -2361,16 +2205,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         [viewerMember.id],
       )
     ).rows[0];
-    await call("updateGrants", {
+    await call("updateMember", {
       orgId,
-      grants: [
-        {
-          membershipId: viewerMember.id,
-          version: Number(viewerMember.version),
-          unrestricted: false,
-          targets: [{ databaseId, tableId, level: "read" }],
-        },
-      ],
+      id: viewerMember.id,
+      role: "viewer",
+      expectedVersion: String(viewerMember.version),
     });
     await call("listFields", ids, "rest", undefined, newId(), scopeKey.secret);
     assert.equal(
@@ -2437,11 +2276,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         }),
       },
     );
-    assert.equal(restrictedWindow.status, 404);
-    assert.equal(
-      (await restrictedWindow.json()).error.code,
-      "RESOURCE_NOT_FOUND",
-    );
+    assert.equal(restrictedWindow.status, 200);
     assert.equal(
       (
         await request(
@@ -2462,7 +2297,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           { token: viewerKey.secret },
         )
       ).status,
-      404,
+      200,
     );
     const currentViewerMember = (
       await db.owner.query(
@@ -2470,10 +2305,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         [viewerMember.id],
       )
     ).rows[0];
-    await call("updateMember", {
+    await call("removeMember", {
       orgId,
       id: viewerMember.id,
-      state: "disabled",
       expectedVersion: currentViewerMember.version,
     });
     assert.equal(
@@ -2566,7 +2400,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         }),
       );
     await db.owner.query(
-      "UPDATE rootset_control.memberships SET state='disabled',version=version+1 WHERE org_id=$1 AND user_id=$2",
+      "DELETE FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
       [orgId, provision.userId],
     );
     assert.equal(

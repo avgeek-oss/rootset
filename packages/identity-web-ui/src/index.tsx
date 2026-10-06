@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button, Input, Label, TextField } from "@heroui/react";
 
 // Adapted from Towbar identity-web-ui at bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2.
@@ -57,10 +57,13 @@ export function IdentityCredentialsForm({
   emailReadOnly?: boolean;
 }) {
   const id = useId();
+  const submitting = useRef(false);
   const [pending, setPending] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     const form = new FormData(event.currentTarget);
     setPending(true);
     setLocalError(null);
@@ -77,11 +80,12 @@ export function IdentityCredentialsForm({
           : "The request could not be completed",
       );
     } finally {
+      submitting.current = false;
       setPending(false);
     }
   }
   return (
-    <form className="identity-form" onSubmit={submit}>
+    <form className="identity-form" onSubmit={submit} aria-busy={pending}>
       {nameRequired && (
         <TextField isRequired name="name">
           <Label>Name</Label>
@@ -116,6 +120,7 @@ export function IdentityCredentialsForm({
       <Button
         type="submit"
         isDisabled={pending}
+        isPending={pending}
         className="primary-action"
         aria-describedby={error || localError ? `${id}-error` : undefined}
       >

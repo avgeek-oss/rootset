@@ -12,21 +12,26 @@ export {
 export type { PoolClient, QueryResultRow };
 export type Queryable = Pool | PoolClient;
 
+const baselineName = "0001_baseline.sql";
+async function baseline(directory: string) {
+  const files = (await readdir(directory)).filter((name) =>
+    name.endsWith(".sql"),
+  );
+  if (files.length !== 1 || files[0] !== baselineName)
+    throw new Error(`Rootset V1 requires only ${baselineName}`);
+  const source = await readFile(`${directory}/${baselineName}`, "utf8");
+  return {
+    name: baselineName,
+    source,
+    digest: createHash("sha256").update(source).digest("hex"),
+  };
+}
+
 export async function migrationStatus(
   connection: Queryable,
   directory = fileURLToPath(new URL("../migrations/", import.meta.url)),
 ): Promise<{ complete: boolean; version: string }> {
-  const expected = await Promise.all(
-    (await readdir(directory))
-      .filter((name) => name.endsWith(".sql"))
-      .sort()
-      .map(async (name) => ({
-        name,
-        digest: createHash("sha256")
-          .update(await readFile(`${directory}/${name}`))
-          .digest("hex"),
-      })),
-  );
+  const expected = [await baseline(directory)];
   const applied = (
     await connection.query<{ name: string; digest: string }>(
       "SELECT name,digest FROM rootset_control.migrations ORDER BY name",
@@ -144,6 +149,7 @@ export async function migrate(
   pool: Pool,
   directory = fileURLToPath(new URL("../migrations/", import.meta.url)),
 ): Promise<string[]> {
+  const definition = await baseline(directory);
   const client = await pool.connect();
   const applied: string[] = [];
   try {
@@ -154,11 +160,14 @@ export async function migrate(
     await client.query(
       "CREATE TABLE IF NOT EXISTS rootset_control.migrations (name text PRIMARY KEY, digest text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())",
     );
-    for (const name of (await readdir(directory))
-      .filter((name) => name.endsWith(".sql"))
-      .sort()) {
-      const source = await readFile(`${directory}/${name}`, "utf8");
-      const digest = createHash("sha256").update(source).digest("hex");
+    const existing = await client.query<{ name: string }>(
+      "SELECT name FROM rootset_control.migrations",
+    );
+    if (existing.rows.some((row) => row.name !== baselineName))
+      throw new Error(
+        "This database uses an earlier prelaunch schema. Preserve it and use a fresh database for the V1 baseline.",
+      );
+    for (const { name, source, digest } of [definition]) {
       const previous = await client.query<{ digest: string }>(
         "SELECT digest FROM rootset_control.migrations WHERE name=$1",
         [name],

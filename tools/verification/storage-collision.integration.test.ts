@@ -9,25 +9,23 @@ import { verificationCase } from "./evidence.js";
 verificationCase(
   {
     id: "STORAGE-COLLISION-01",
-    gates: ["DEV-05", "UNI-05", "UNI-08"],
+    gates: ["V1-01", "V1-18", "V1-38"],
     scope:
       "Fresh real PostgreSQL database migrates once; forced constant digest permits distinct wide tuples and serializes genuine concurrent duplicates with exact comparison",
   },
   async () => {
     const fixture = await isolatedDatabase();
     try {
-      assert.ok(fixture.appliedMigrations.length >= 5);
+      assert.deepEqual(fixture.appliedMigrations, ["0001_baseline.sql"]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();
       const actor: Actor = {
         kind: "session",
         id: `collision-fixture:${newId()}`,
         orgId,
-        role: "owner",
+        role: "admin",
         userId: newId(),
         scopes: [],
-        targets: [],
-        unrestricted: true,
       };
       await fixture.owner.query(
         "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
@@ -44,8 +42,8 @@ verificationCase(
       const table = await storage.createTable(actor, database.id, {
         name: "Wide tuples",
         fields: [
-          { apiKey: "A", label: "A", type: "text", charLimit: 20000 },
-          { apiKey: "B", label: "B", type: "text", charLimit: 20000 },
+          { name: "A", type: "text", charLimit: 20000 },
+          { name: "B", type: "text", charLimit: 20000 },
         ],
       });
       await fixture.owner.query(

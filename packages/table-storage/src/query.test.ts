@@ -21,21 +21,20 @@ import {
 
 const id = (value: number): string => `0${value.toString().padStart(25, "0")}`;
 const fields: FieldDefinition[] = [
-  { id: id(1), apiKey: "name", label: "Name", type: "text", charLimit: 100 },
+  { id: id(1), name: "name", type: "text", charLimit: 100 },
   {
     id: id(2),
-    apiKey: "number",
-    label: "Number",
+    name: "number",
     type: "integer",
     min: 10,
     max: 100,
   },
-  { id: id(3), apiKey: "ratio", label: "Ratio", type: "float" },
-  { id: id(4), apiKey: "active", label: "Active", type: "boolean" },
-  { id: id(5), apiKey: "date", label: "Date", type: "date" },
-  { id: id(6), apiKey: "time", label: "Time", type: "time" },
-  { id: id(7), apiKey: "timestamp", label: "Timestamp", type: "date-time" },
-  { id: id(8), apiKey: "document", label: "Document", type: "json" },
+  { id: id(3), name: "ratio", type: "float" },
+  { id: id(4), name: "active", type: "boolean" },
+  { id: id(5), name: "date", type: "date" },
+  { id: id(6), name: "time", type: "time" },
+  { id: id(7), name: "timestamp", type: "date-time" },
+  { id: id(8), name: "document", type: "json" },
 ];
 const row = (value: number, text = "x"): Row => ({
   id: id(value),
@@ -49,7 +48,7 @@ const binding: CursorBinding = {
   orgId: id(10),
   tableId: id(11),
   schemaVersion: 1,
-  grantVersion: 3,
+  membershipVersion: 3,
   actorId: id(12),
   queryHash: "a".repeat(64),
 };
@@ -99,10 +98,11 @@ test("values, field references, and JSON paths cannot inject SQL", () => {
   fails(() => compileQuery(fields, { select: ['name";DROP TABLE rows'] }));
   fails(() => fieldColumn({ id: 'name";DROP TABLE rows' }));
   const unusualKey = 'column"; DROP TABLE rows;--';
-  const keyQuery = compileQuery([{ ...fields[0]!, apiKey: unusualKey }], {
-    where: { field: unusualKey, op: "eq", value: "safe" },
-  });
-  assert.ok(!keyQuery.where.includes(unusualKey));
+  fails(() =>
+    compileQuery([{ ...fields[0]!, name: unusualKey }], {
+      where: { field: unusualKey, op: "eq", value: "safe" },
+    }),
+  );
 });
 
 test("LIKE predicates escape wildcard and escape characters", () => {
@@ -205,12 +205,12 @@ test("JSON predicate values retain their full 32 levels inside query envelopes",
 test("null tests are separate from equality and apply to every field type", () => {
   for (const field of fields) {
     assert.match(
-      compileQuery(fields, { where: { field: field.apiKey, op: "isNull" } })
+      compileQuery(fields, { where: { field: field.name, op: "isNull" } })
         .where,
       / IS NULL$/,
     );
     assert.match(
-      compileQuery(fields, { where: { field: field.apiKey, op: "isNotNull" } })
+      compileQuery(fields, { where: { field: field.name, op: "isNotNull" } })
         .where,
       / IS NOT NULL$/,
     );
@@ -367,7 +367,7 @@ test("signed cursors round-trip and bind every authority/query attribute", () =>
     { ...binding, orgId: id(30) },
     { ...binding, tableId: id(31) },
     { ...binding, schemaVersion: 2 },
-    { ...binding, grantVersion: 4 },
+    { ...binding, membershipVersion: 4 },
     { ...binding, actorId: id(32) },
     { ...binding, queryHash: "b".repeat(64) },
   ];

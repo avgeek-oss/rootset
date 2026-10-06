@@ -16,23 +16,18 @@ import { z } from "zod";
 import {
   ALL_SCOPES,
   assertAccess,
-  assertDelegation,
-  intersectTargets,
   roleAllows,
   type Actor,
   type Role,
-  type TargetGrant,
 } from "@rootset/access";
 import {
   IdSchema,
   KeyCreatedSchema,
   PreferencesSchema,
-  ResourceTargetSchema,
   RootsetError,
   ViewPreferencesSchema,
   OperatorRepairIntentSchema,
   OperatorRepairReasonSchema,
-  getRuntimeOperation,
   operationMap,
   assertSchemaNumberLexemes,
   newId,
@@ -72,12 +67,6 @@ export interface IdentityConfig extends EmailConfig {
   authoriseRepair?: (
     actor: Actor,
     input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  enqueueDeletion?: (
-    actor: Actor,
-    kind: "account" | "organisation",
-    input: Record<string, unknown>,
-    context: ExecutionContext,
   ) => Promise<unknown>;
 }
 export interface ExecutionContext {
@@ -151,9 +140,7 @@ const businessInput = (
   );
 const keyIssuanceOperations = new Set([
   "createPersonalKey",
-  "createTeamKey",
   "rotatePersonalKey",
-  "rotateTeamKey",
 ]);
 const safeEqual = (a: string, b: string): boolean => {
   const x = Buffer.from(a),
@@ -163,17 +150,13 @@ const safeEqual = (a: string, b: string): boolean => {
 const notFound = (): never => {
   throw new RootsetError("RESOURCE_NOT_FOUND", "Resource was not found", 404);
 };
-const keyFields = `id,name,owner_kind,owner_user_id,creator_user_id,prefix,scopes,targets,unrestricted,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
+const keyFields = `id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
 const mapKey = (r: Record<string, unknown>, orgId: string) => ({
   id: r.id,
   orgId,
   name: r.name,
-  ownerKind: r.owner_kind,
-  ...(r.owner_user_id ? { userId: r.owner_user_id } : {}),
+  userId: r.user_id,
   prefix: r.prefix,
-  scopes: r.scopes,
-  targets: r.targets,
-  unrestricted: r.unrestricted,
   expiresAt: r.expires_at,
   revokedAt: r.revoked_at,
   lastUsedAt: r.last_used_at,
@@ -215,21 +198,13 @@ const sensitiveOperations = new Set([
   "disableTwoFactor",
   "rotateRecoveryCodes",
   "signOutEverywhere",
-  "deleteAccount",
-  "transferOwnership",
-  "deleteOrganisation",
-  "createTeamKey",
-  "rotateTeamKey",
   "createPersonalKey",
   "rotatePersonalKey",
   "deleteDatabase",
   "deleteTable",
   "restoreBackup",
-  "setBackupPolicy",
   "setHistoryRetentionPolicy",
   "archiveHistory",
-  "updateInstallationConfiguration",
-  "testEmail",
   "updateMember",
   "removeMember",
   "mutateRows",
@@ -251,24 +226,16 @@ const actionTypes: Record<string, string> = {
   enableTwoFactor: "enable_totp",
   disableTwoFactor: "disable_totp",
   rotateRecoveryCodes: "rotate_recovery_codes",
-  deleteAccount: "delete_account",
   signOutEverywhere: "sign_out_everywhere",
-  transferOwnership: "transfer_ownership",
-  updateMember: "transfer_ownership",
-  removeMember: "transfer_ownership",
+  updateMember: "update_member",
+  removeMember: "remove_member",
   createPersonalKey: "create_key",
-  createTeamKey: "create_key",
   rotatePersonalKey: "rotate_key",
-  rotateTeamKey: "rotate_key",
-  setBackupPolicy: "set_backup_policy",
   setHistoryRetentionPolicy: "set_history_retention_policy",
   archiveHistory: "archive_history",
   restoreBackup: "restore_backup",
-  deleteOrganisation: "delete_organisation",
   deleteDatabase: "delete_database",
   deleteTable: "delete_table",
-  updateInstallationConfiguration: "update_installation_configuration",
-  testEmail: "test_email",
   mutateRows: "operator_repair",
 };
 const requiresOperationApproval = (
@@ -343,14 +310,6 @@ export class IdentityService {
       }),
       user: {
         modelName: "users",
-        additionalFields: {
-          disabled: {
-            type: "boolean",
-            input: false,
-            returned: false,
-            defaultValue: false,
-          },
-        },
         changeEmail: { enabled: false },
       },
       account: {
@@ -365,11 +324,6 @@ export class IdentityService {
         freshAge: 0,
         cookieCache: { enabled: false },
         additionalFields: {
-          activeOrganizationId: {
-            type: "string",
-            required: false,
-            input: false,
-          },
           authenticatedAt: {
             type: "date",
             input: false,
@@ -459,10 +413,10 @@ export class IdentityService {
           create: {
             before: async (session) => {
               const result = await config.pool.query(
-                `SELECT email_verified,disabled FROM rootset_control.users WHERE id=$1`,
+                `SELECT email_verified FROM rootset_control.users WHERE id=$1`,
                 [session.userId],
               );
-              if (!result.rows[0]?.email_verified || result.rows[0].disabled)
+              if (!result.rows[0]?.email_verified)
                 throw new APIError("UNAUTHORIZED", {
                   message: "Account is unavailable",
                 });
@@ -623,7 +577,7 @@ export class IdentityService {
     if (row.rows[0])
       await withOrg(this.config.pool, row.rows[0].org_id, async (client) => {
         await client.query(
-          `UPDATE rootset_control.memberships SET state='active',version=version+1 WHERE org_id=$1 AND user_id=$2`,
+          `UPDATE rootset_control.memberships SET version=version+1 WHERE org_id=$1 AND user_id=$2`,
           [row.rows[0].org_id, userId],
         );
         await client.query(
@@ -702,7 +656,7 @@ export class IdentityService {
         [orgId, input.organisationName],
       );
       await client.query(
-        `INSERT INTO rootset_control.memberships(id,org_id,user_id,role,state) VALUES($1,$2,$3,'owner','disabled')`,
+        `INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin')`,
         [newId(), orgId, userId],
       );
       await client.query(
@@ -725,56 +679,16 @@ export class IdentityService {
   private async hydrateActor(
     actor: Actor,
     requireSession: boolean,
+    transactionClient?: PoolClient,
   ): Promise<Actor> {
-    return withOrg(this.config.pool, actor.orgId, async (client) => {
-      const org = await client.query(
-        `SELECT state FROM rootset_control.organisations WHERE id=$1`,
-        [actor.orgId],
-      );
-      if (org.rows[0]?.state !== "active")
-        throw new RootsetError(
-          "UNAUTHENTICATED",
-          "Organisation is unavailable",
-          401,
-        );
-      if (actor.kind === "team_key") {
-        const key = await client.query(
-          `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND owner_kind='team' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
-          [actor.credentialId ?? actor.id, actor.orgId],
-        );
-        if (!key.rows[0])
-          throw new RootsetError(
-            "UNAUTHENTICATED",
-            "Credential is unavailable",
-            401,
-          );
-        return {
-          ...actor,
-          role: "admin",
-          userId: undefined,
-          operator: false,
-          scopes: key.rows[0].scopes,
-          targets: key.rows[0].targets,
-          unrestricted: key.rows[0].unrestricted,
-        };
-      }
-      if (!actor.userId)
-        throw new RootsetError(
-          "UNAUTHENTICATED",
-          "User identity is required",
-          401,
-        );
-      const result = await client.query(
-        `SELECT m.*,u.disabled,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.user_id=$2`,
-        [actor.orgId, actor.userId],
-      );
-      const membership = result.rows[0];
-      if (
-        !membership ||
-        membership.state !== "active" ||
-        membership.disabled ||
-        !membership.email_verified
-      )
+    const hydrate = async (client: PoolClient): Promise<Actor> => {
+      const membership = (
+        await client.query(
+          `SELECT m.role,m.version,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id JOIN rootset_control.organisations o ON o.id=m.org_id AND o.singleton WHERE m.org_id=$1 AND m.user_id=$2`,
+          [actor.orgId, actor.userId],
+        )
+      ).rows[0];
+      if (!actor.userId || !membership?.email_verified)
         throw new RootsetError(
           "UNAUTHENTICATED",
           "Membership is unavailable",
@@ -798,98 +712,58 @@ export class IdentityService {
           authenticatedAt: new Date(session.authenticated_at).getTime(),
         };
       }
-      if (actor.kind === "personal_key") {
-        const key = await client.query(
-          `SELECT scopes,targets,unrestricted FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND owner_user_id=$3 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
-          [actor.credentialId ?? actor.id, actor.orgId, actor.userId],
+      if (
+        actor.kind === "personal_key" &&
+        !(
+          await client.query(
+            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
+            [actor.credentialId ?? actor.id, actor.orgId, actor.userId],
+          )
+        ).rowCount
+      )
+        throw new RootsetError(
+          "UNAUTHENTICATED",
+          "Credential is unavailable",
+          401,
         );
-        if (!key.rows[0])
-          throw new RootsetError(
-            "UNAUTHENTICATED",
-            "Credential is unavailable",
-            401,
-          );
-        actor = {
-          ...actor,
-          scopes: key.rows[0].scopes,
-          targets: key.rows[0].targets,
-          unrestricted: key.rows[0].unrestricted,
-        };
-      }
+      let grantedScopes: string[] = [...ALL_SCOPES];
       if (actor.kind === "oauth") {
-        if (!actor.credentialId)
+        const grant = (
+          await client.query(
+            `SELECT scopes FROM rootset_control.oauth_grants WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL AND created_at>now()-interval '30 days'`,
+            [actor.credentialId, actor.orgId, actor.userId],
+          )
+        ).rows[0];
+        if (!actor.credentialId || !grant)
           throw new RootsetError(
             "UNAUTHENTICATED",
             "OAuth grant is unavailable",
             401,
           );
-        const grant = await client.query(
-          `SELECT scopes,targets,actor FROM rootset_control.oauth_grants WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL AND created_at>now()-interval '30 days'`,
-          [actor.credentialId, actor.orgId, actor.userId],
+        grantedScopes = actor.scopes.filter((scope) =>
+          (grant.scopes as string[]).includes(scope),
         );
-        if (!grant.rows[0])
-          throw new RootsetError(
-            "UNAUTHENTICATED",
-            "OAuth grant is unavailable",
-            401,
-          );
-        actor = {
-          ...actor,
-          scopes: actor.scopes.filter((scope) =>
-            (grant.rows[0].scopes as string[]).includes(scope),
-          ),
-          targets: grant.rows[0].targets,
-          unrestricted: !!grant.rows[0].actor?.unrestricted,
-        };
       }
-      const grants = await client.query(
-        `SELECT database_id,table_id,level FROM rootset_control.resource_grants WHERE org_id=$1 AND user_id=$2`,
-        [actor.orgId, actor.userId],
-      );
-      const targets: TargetGrant[] = grants.rows.map((r) => ({
-        ...(r.database_id ? { databaseId: r.database_id } : {}),
-        ...(r.table_id ? { tableId: r.table_id } : {}),
-        level: r.level,
-      }));
-      const unrestricted =
-        ["owner", "admin"].includes(membership.role) || !membership.restricted;
-      const operator = !!(
-        await client.query(
-          `SELECT 1 FROM rootset_control.operator_bindings WHERE user_id=$1 AND revoked_at IS NULL`,
-          [actor.userId],
-        )
-      ).rowCount;
-      const scopes = (
-        actor.kind === "session" ? [...ALL_SCOPES] : actor.scopes
-      ).filter((s) =>
-        s.startsWith("installation:")
-          ? operator
-          : roleAllows(
-              membership.role,
-              s,
-              targets.some((t) => t.level === "manage"),
-            ),
-      );
       return {
-        ...actor,
+        kind: actor.kind,
+        id: actor.id,
+        orgId: actor.orgId,
+        userId: actor.userId,
+        ...(actor.credentialId ? { credentialId: actor.credentialId } : {}),
+        ...(actor.clientId ? { clientId: actor.clientId } : {}),
+        ...(actor.authenticatedAt !== undefined
+          ? { authenticatedAt: actor.authenticatedAt }
+          : {}),
         role: membership.role,
-        scopes,
-        targets:
-          actor.kind === "session" || actor.kind === "operator"
-            ? targets
-            : unrestricted
-              ? actor.targets
-              : actor.unrestricted
-                ? targets
-                : intersectTargets(actor.targets, targets),
-        unrestricted:
-          actor.kind === "session" || actor.kind === "operator"
-            ? unrestricted
-            : unrestricted && actor.unrestricted,
-        operator,
-        grantVersion: Number(membership.version),
+        scopes: grantedScopes.filter((scope) =>
+          roleAllows(membership.role, scope),
+        ),
+        membershipVersion: Number(membership.version),
       };
-    });
+    };
+    return transactionClient
+      ? hydrate(transactionClient)
+      : withOrg(this.config.pool, actor.orgId, hydrate);
   }
   async resolveActor(
     request: Request,
@@ -902,33 +776,20 @@ export class IdentityService {
         headers: request.headers,
       });
       if (!session) return null;
-      const memberships = await this.config.pool.query(
-        `SELECT * FROM rootset_control.memberships_for_user($1) WHERE state='active' AND organisation_state='active' ORDER BY org_id`,
-        [session.user.id],
-      );
-      const row = await this.config.pool.query(
-        `SELECT authenticated_at,active_organization_id FROM rootset_control.sessions WHERE id=$1 AND expires_at>now()`,
-        [session.session.id],
-      );
-      if (!row.rows[0]) return null;
-      const selected =
-        request.headers.get("x-rootset-organisation-id") ??
-        row.rows[0].active_organization_id ??
-        (memberships.rows.length === 1
-          ? memberships.rows[0]?.org_id
-          : undefined);
-      if (!selected || !memberships.rows.some((m) => m.org_id === selected))
-        return null;
+      const membership = (
+        await this.config.pool.query(
+          `SELECT org_id FROM rootset_control.memberships_for_user($1)`,
+          [session.user.id],
+        )
+      ).rows[0];
+      if (!membership) return null;
       return this.refreshActor({
         kind: "session",
         id: session.session.id,
-        orgId: selected,
+        orgId: membership.org_id,
         userId: session.user.id,
         role: "viewer",
-        scopes: [...ALL_SCOPES],
-        targets: [],
-        unrestricted: true,
-        authenticatedAt: new Date(row.rows[0].authenticated_at).getTime(),
+        scopes: [],
       });
     }
     if (!authorization?.startsWith("Bearer ")) return null;
@@ -936,44 +797,45 @@ export class IdentityService {
     const match =
       /^rst_([0-7][0-9A-HJKMNP-TV-Z]{25})_([A-Za-z0-9_-]{43})$/.exec(token);
     if (match) {
-      const locator = await this.config.pool.query(
-        `SELECT org_id FROM rootset_control.key_locator($1)`,
-        [match[1]],
-      );
-      if (!locator.rows[0]) return null;
+      const locator = (
+        await this.config.pool.query(
+          `SELECT org_id FROM rootset_control.key_locator($1)`,
+          [match[1]],
+        )
+      ).rows[0];
+      if (!locator) return null;
       const candidate = await withOrg(
         this.config.pool,
-        locator.rows[0].org_id,
-        async (client) => {
-          const r = await client.query(
-            `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
-            [match[1]],
-          );
-          return r.rows[0];
-        },
+        locator.org_id,
+        async (client) =>
+          (
+            await client.query(
+              `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
+              [match[1], locator.org_id],
+            )
+          ).rows[0],
       );
       if (
         !candidate ||
         !safeEqual(candidate.secret_hash, this.hashSecret(token))
       )
         return null;
-      await withOrg(this.config.pool, candidate.org_id, (client) =>
-        client.query(
-          `UPDATE rootset_control.api_keys SET last_used_at=now() WHERE id=$1`,
-          [candidate.id],
-        ),
-      );
-      return this.refreshActor({
-        kind: candidate.owner_kind === "team" ? "team_key" : "personal_key",
+      const actor = await this.refreshActor({
+        kind: "personal_key",
         id: candidate.id,
         credentialId: candidate.id,
         orgId: candidate.org_id,
-        userId: candidate.owner_user_id ?? undefined,
-        role: "admin",
-        scopes: candidate.scopes,
-        targets: candidate.targets,
-        unrestricted: candidate.unrestricted,
+        userId: candidate.user_id,
+        role: "viewer",
+        scopes: [],
       });
+      await withOrg(this.config.pool, actor.orgId, (client) =>
+        client.query(
+          `UPDATE rootset_control.api_keys SET last_used_at=now() WHERE id=$1 AND user_id=$2`,
+          [candidate.id, actor.userId],
+        ),
+      );
+      return actor;
     }
     const oauth = await this.config.oauthResolver?.(request, audience);
     return oauth ? this.refreshActor(oauth) : null;
@@ -1004,11 +866,13 @@ export class IdentityService {
           "The request origin is invalid",
           403,
         );
-      if (path === "/organisations" || path === "/organisation")
-        return await this.selectOrganisation(request, path);
+      if (["/organisations", "/organisation", "/delete-user"].includes(path))
+        notFound();
       if (path.startsWith("/invitations/"))
         return await this.handleInvitation(request, path);
       if (path === "/reauthenticate") return await this.reauthenticate(request);
+      if (path === "/email-change")
+        return await this.pendingEmailChange(request);
       if (path === "/email-change/confirm")
         return await this.confirmEmailChange(request);
       const actionId = request.headers.get("x-rootset-action-id");
@@ -1303,7 +1167,6 @@ export class IdentityService {
             )
           : undefined;
       if (intent) await this.authoriseRepair(actor, intent);
-      await this.audit(client, actor, "approveAccountAction", id, {}, {});
       return this.actionMetadata(
         row.rows[0],
         "approved",
@@ -1336,27 +1199,7 @@ export class IdentityService {
   ): Promise<void> {
     const operation = normaliseOperation(operationId);
     if (!requiresOperationApproval(operation, input)) return;
-    actor = await this.refreshActor(actor);
-    if (
-      (operation === "updateMember" || operation === "removeMember") &&
-      !context.actionId
-    ) {
-      const target = await withOrg(this.config.pool, actor.orgId, (client) =>
-        client.query(
-          `SELECT role FROM rootset_control.memberships WHERE id=$1 AND org_id=$2`,
-          [input.id, actor.orgId],
-        ),
-      );
-      if (
-        target.rows[0]?.role !== "owner" ||
-        (operation === "updateMember" &&
-          !(
-            (input.role !== undefined && input.role !== "owner") ||
-            input.state === "disabled"
-          ))
-      )
-        return;
-    }
+    actor = await this.hydrateActor(actor, true, context.approvalClient);
     if (
       actor.kind === "session" &&
       !context.actionId &&
@@ -1410,7 +1253,7 @@ export class IdentityService {
   ): Promise<T> {
     const operation = normaliseOperation(operationId);
     const sensitive = requiresOperationApproval(operation, input);
-    actor = await this.refreshActor(actor);
+    actor = await this.hydrateActor(actor, true, context.approvalClient);
     const approveAndRun = async (client: PoolClient) => {
       const approvedContext = { ...context, approvalClient: client };
       if (sensitive && context.actionId)
@@ -1486,7 +1329,7 @@ export class IdentityService {
       { limit: input.limit, cursor: input.cursor },
     );
     const request: IdentityPageRequest = {
-      resource: `identity:${operation}:${actor.orgId}:${actor.userId ?? "team"}`,
+      resource: `identity:${operation}:${actor.orgId}:${actor.userId ?? "installation"}`,
       filter: JSON.parse(
         JSON.stringify(
           Object.fromEntries(
@@ -1513,31 +1356,6 @@ export class IdentityService {
       request,
     );
   }
-  private async audit(
-    client: PoolClient,
-    actor: Actor,
-    operation: string,
-    targetId: string | undefined,
-    context: ExecutionContext,
-    outcome: Record<string, unknown>,
-  ): Promise<void> {
-    await client.query(
-      `INSERT INTO rootset_control.account_audit(id,org_id,actor_kind,actor_id,user_id,credential_id,client_id,operation,target_id,request_id,outcome) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [
-        newId(),
-        actor.orgId,
-        actor.kind,
-        actor.id,
-        actor.userId ?? null,
-        actor.credentialId ?? null,
-        actor.clientId ?? null,
-        operation,
-        targetId ?? null,
-        context.requestId ?? null,
-        JSON.stringify(outcome),
-      ],
-    );
-  }
   async revokeAllUserAccess(
     userId: string,
     exceptSessionId?: string,
@@ -1549,6 +1367,7 @@ export class IdentityService {
       );
       return;
     }
+    await this.lockUserAuthorities(client, [userId]);
     const originalContext =
       (
         await client.query(
@@ -1572,7 +1391,7 @@ export class IdentityService {
         m.org_id,
       ]);
       await client.query(
-        `UPDATE rootset_control.api_keys SET revoked_at=now() WHERE owner_user_id=$1 AND owner_kind='personal' AND revoked_at IS NULL`,
+        `UPDATE rootset_control.api_keys SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`,
         [userId],
       );
       const exists = await client.query(
@@ -1593,7 +1412,7 @@ export class IdentityService {
     input: Record<string, unknown>,
     context: ExecutionContext = {},
   ): { operationId: string; input: Record<string, unknown> } {
-    if (!actor.userId || actor.kind === "team_key")
+    if (!actor.userId)
       throw new RootsetError(
         "PERSONAL_IDENTITY_REQUIRED",
         "A user identity is required",
@@ -1625,10 +1444,7 @@ export class IdentityService {
     let boundInput = businessInput(data.input);
     this.checkActionAuthority(actor, target, boundInput);
     // Factor ceremonies belong to the authentication protocol adapter.
-    const targetOperation =
-      target === "deleteAccount"
-        ? getRuntimeOperation(target)
-        : operationMap[target];
+    const targetOperation = operationMap[target];
     if (targetOperation) {
       if (
         targetOperation.inputSchema instanceof z.ZodObject &&
@@ -1637,7 +1453,7 @@ export class IdentityService {
       )
         boundInput.orgId = actor.orgId;
       const parsedInput = parse(targetOperation.inputSchema, boundInput);
-      if (target === "mutateRows" || target === "deleteAccount")
+      if (target === "mutateRows")
         boundInput = parsedInput as Record<string, unknown>;
       assertSchemaNumberLexemes(
         targetOperation.inputSchema,
@@ -1675,7 +1491,11 @@ export class IdentityService {
     context: ExecutionContext = {},
   ): Promise<unknown> {
     const operation = normaliseOperation(operationId),
-      actor = await this.refreshActor(incomingActor),
+      actor = await this.hydrateActor(
+        incomingActor,
+        true,
+        context.approvalClient,
+      ),
       input = (value ?? {}) as Record<string, unknown>;
     if (
       (typeof input.actionId === "string" ||
@@ -1687,13 +1507,7 @@ export class IdentityService {
         actionId: (input.actionId ?? input.approvalId) as string,
       };
     const normalizedInput = businessInput(input);
-    const executionInput =
-      operation === "deleteAccount" || operation === "deleteOrganisation"
-        ? (parse(getRuntimeOperation(operation).inputSchema, input) as Record<
-            string,
-            unknown
-          >)
-        : normalizedInput;
+    const executionInput = normalizedInput;
     if (
       typeof normalizedInput.orgId === "string" &&
       normalizedInput.orgId !== actor.orgId
@@ -1710,14 +1524,14 @@ export class IdentityService {
         );
       const definition = operationMap[operation];
       if (definition) {
-        const ranks = { viewer: 1, editor: 2, admin: 3, owner: 4 };
+        const ranks = { viewer: 1, editor: 2, admin: 3 };
         if (ranks[actor.role] < ranks[definition.minimumRole])
           throw new RootsetError(
             "ACCESS_DENIED",
             "Your role does not allow this operation",
             403,
           );
-        if (definition.personal && (!actor.userId || actor.kind === "team_key"))
+        if (definition.personal && !actor.userId)
           throw new RootsetError(
             "PERSONAL_IDENTITY_REQUIRED",
             "A user identity is required",
@@ -1732,7 +1546,6 @@ export class IdentityService {
           assertAccess(actor, {
             scope,
             personal: definition.personal,
-            operator: definition.operator,
             orgId: actor.orgId,
             databaseId:
               typeof normalizedInput.databaseId === "string"
@@ -1826,16 +1639,14 @@ export class IdentityService {
             kind: actor.kind,
             ...(actor.userId ? { userId: actor.userId } : {}),
             role: actor.role,
-            operator: !!actor.operator,
           },
           organisation: (
             await client.query(
-              `SELECT id,name,description,state,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.organisations WHERE id=$1`,
+              `SELECT id,name,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.organisations WHERE id=$1`,
               [actor.orgId],
             )
           ).rows[0],
           scopes: actor.scopes,
-          targets: actor.targets,
           profile:
             actor.userId && actor.scopes.includes("profile:manage")
               ? await this.getProfile(client, actor.userId)
@@ -1859,7 +1670,6 @@ export class IdentityService {
           `UPDATE rootset_control.users SET name=$2,updated_at=now() WHERE id=$1`,
           [actor.userId, update.name],
         );
-        await this.audit(client, actor, operation, actor.userId, context, {});
         return this.getProfile(client, actor.userId!);
       }
       case "getPreferences":
@@ -1948,7 +1758,6 @@ export class IdentityService {
           [id, actor.userId],
         );
         if (!result.rowCount) notFound();
-        await this.audit(client, actor, operation, id, context, {});
         return { deleted: true };
       }
       case "listConnections":
@@ -1956,7 +1765,7 @@ export class IdentityService {
         return {
           data: (
             await client.query(
-              `SELECT id,client_id,resource,scopes,targets,created_at,revoked_at FROM rootset_control.oauth_grants WHERE user_id=$1 AND org_id=$2 ORDER BY created_at DESC`,
+              `SELECT id,client_id,resource,scopes,created_at,revoked_at FROM rootset_control.oauth_grants WHERE user_id=$1 AND org_id=$2 ORDER BY created_at DESC`,
               [actor.userId, actor.orgId],
             )
           ).rows.map((r) => ({
@@ -1966,7 +1775,6 @@ export class IdentityService {
             orgId: actor.orgId,
             audience: r.resource,
             scopes: r.scopes,
-            targets: r.targets,
             createdAt: r.created_at,
             expiresAt: new Date(
               new Date(r.created_at).getTime() + 30 * 86400000,
@@ -1982,7 +1790,6 @@ export class IdentityService {
           [id, actor.orgId, actor.userId],
         );
         if (!result.rowCount) notFound();
-        await this.audit(client, actor, operation, id, context, {});
         return { deleted: true };
       }
       case "beginAccountAction": {
@@ -2068,62 +1875,27 @@ export class IdentityService {
           repair ? repairIntent(repair) : undefined,
         );
       }
-      case "listOrganisations": {
-        const ids =
-          actor.userId &&
-          (actor.kind === "session" || actor.kind === "operator")
-            ? (
-                await client.query(
-                  `SELECT org_id FROM rootset_control.memberships_for_user($1) WHERE state='active' AND organisation_state='active'`,
-                  [actor.userId],
-                )
-              ).rows.map((r) => r.org_id)
-            : [actor.orgId];
-        const data = [];
-        for (const id of ids)
-          data.push(
-            await withOrg(
-              this.config.pool,
-              id,
-              async (c) =>
-                (
-                  await c.query(
-                    `SELECT id,name,description,state,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.organisations WHERE id=$1`,
-                    [id],
-                  )
-                ).rows[0],
-            ),
-          );
-        return { data };
-      }
       case "getOrganisation":
         org("org:read");
         return (
           await client.query(
-            `SELECT id,name,description,state,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.organisations WHERE id=$1`,
+            `SELECT id,name,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.organisations WHERE id=$1`,
             [actor.orgId],
           )
         ).rows[0];
       case "updateOrganisation": {
-        org("org:manage", ["owner", "admin"]);
+        org("org:manage", ["admin"]);
         const update = parse(
           z.strictObject({
             orgId: IdSchema.optional(),
             name: nameSchema.optional(),
-            description: z.string().max(4096).nullable().optional(),
           }),
           input,
         );
         await client.query(
-          `UPDATE rootset_control.organisations SET name=COALESCE($2,name),description=CASE WHEN $4 THEN COALESCE($3,'') ELSE description END,updated_at=now() WHERE id=$1`,
-          [
-            actor.orgId,
-            update.name ?? null,
-            update.description ?? null,
-            update.description !== undefined,
-          ],
+          `UPDATE rootset_control.organisations SET name=COALESCE($2,name),updated_at=now() WHERE id=$1`,
+          [actor.orgId, update.name ?? null],
         );
-        await this.audit(client, actor, operation, actor.orgId, context, {});
         return this.executeWithin(
           client,
           "getOrganisation",
@@ -2133,22 +1905,20 @@ export class IdentityService {
         );
       }
       case "listMembers":
-        org("members:read", ["owner", "admin"]);
+        org("members:read", ["admin"]);
         return this.page(
           client,
           actor,
           operation,
           input,
-          `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,m.role,m.state,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1`,
+          `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1`,
           [actor.orgId],
         );
       case "updateMember":
       case "removeMember":
         return this.mutateMember(client, operation, actor, input, context);
-      case "transferOwnership":
-        return this.transferOwnership(client, actor, input, context);
       case "listInvitations":
-        org("members:manage", ["owner", "admin"]);
+        org("members:manage", ["admin"]);
         return this.page(
           client,
           actor,
@@ -2158,106 +1928,34 @@ export class IdentityService {
           [actor.orgId],
         );
       case "inviteMember":
-        return this.inviteMember(client, actor, input, context);
+        return this.inviteMember(client, actor, input);
       case "cancelInvitation": {
-        org("members:manage", ["owner", "admin"]);
+        org("members:manage", ["admin"]);
         const id = parse(IdSchema, input.id);
         const result = await client.query(
           `UPDATE rootset_control.invitations SET state='cancelled' WHERE id=$1 AND org_id=$2 AND state='pending' RETURNING id`,
           [id, actor.orgId],
         );
         if (!result.rowCount) notFound();
-        await this.audit(client, actor, operation, id, context, {});
         return { deleted: true };
       }
-      case "getGrants":
-        org("grants:manage", ["owner", "admin"]);
-        return this.readGrants(client, actor.orgId);
-      case "updateGrants":
-        return this.updateGrants(client, actor, input, context);
-      case "queryOrganisationAudit": {
-        org("audit:read", ["owner", "admin"]);
-        const filter = parse(
-          z.strictObject({
-            orgId: IdSchema.optional(),
-            limit: z.number().int().min(1).max(25000).optional(),
-            cursor: z.string().nullable().optional(),
-            from: z.string().datetime().optional(),
-            to: z.string().datetime().optional(),
-            operationId: z.string().optional(),
-            actorId: z.string().optional(),
-            databaseId: IdSchema.optional(),
-            tableId: IdSchema.optional(),
-          }),
-          input,
-        );
-        if (!actor.unrestricted && !filter.databaseId && !filter.tableId)
-          throw new RootsetError(
-            "ACCESS_DENIED",
-            "Restricted audit queries require an authorised resource target",
-            403,
-          );
-        let databaseId = filter.databaseId;
-        if (filter.tableId) {
-          const table = (
-            await client.query(
-              `SELECT database_id FROM rootset_control.tables WHERE org_id=$1 AND id=$2`,
-              [actor.orgId, filter.tableId],
-            )
-          ).rows[0];
-          if (!table || (databaseId && databaseId !== table.database_id))
-            notFound();
-          databaseId = table.database_id;
-        }
-        if (databaseId)
-          assertAccess(actor, {
-            scope: "audit:read",
-            databaseId,
-            tableId: filter.tableId,
-          });
+      case "listPersonalKeys": {
+        assertAccess(actor, { scope: "keys:manage", personal: true });
         return this.page(
           client,
           actor,
           operation,
           input,
-          `SELECT id,operation "operationId",actor_id "actorId",created_at timestamp,jsonb_build_object('id',target_id,'actorKind',actor_kind,'credentialId',credential_id,'clientId',client_id,'requestId',request_id) target,outcome FROM rootset_control.account_audit WHERE org_id=$1 AND ($2::timestamptz IS NULL OR created_at>=$2) AND ($3::timestamptz IS NULL OR created_at<=$3) AND ($4::text IS NULL OR operation=$4) AND ($5::text IS NULL OR actor_id=$5) AND ($6::text IS NULL OR target_id=$6 OR outcome->>'databaseId'=$6 OR target_id IN(SELECT id FROM rootset_control.tables WHERE database_id=$6 AND org_id=$1)) AND ($7::text IS NULL OR target_id=$7 OR outcome->>'tableId'=$7)`,
-          [
-            actor.orgId,
-            filter.from ?? null,
-            filter.to ?? null,
-            filter.operationId ?? null,
-            filter.actorId ?? null,
-            databaseId ?? null,
-            filter.tableId ?? null,
-          ],
-        );
-      }
-      case "listPersonalKeys":
-      case "listTeamKeys": {
-        const team = operation.includes("Team");
-        assertAccess(actor, {
-          scope: "keys:manage",
-          personal: !team,
-          roles: team ? ["owner", "admin"] : undefined,
-        });
-        return this.page(
-          client,
-          actor,
-          operation,
-          input,
-          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND owner_kind=$2 AND ($3::text IS NULL OR owner_user_id=$3)`,
-          [actor.orgId, team ? "team" : "personal", team ? null : actor.userId],
+          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND user_id=$2`,
+          [actor.orgId, actor.userId],
           (row) => mapKey(row, actor.orgId),
         );
       }
       case "createPersonalKey":
-      case "createTeamKey":
       case "rotatePersonalKey":
-      case "rotateTeamKey":
         return this.createOrRotateKey(client, operation, actor, input, context);
       case "revokePersonalKey":
-      case "revokeTeamKey":
-        return this.revokeKey(client, operation, actor, input, context);
+        return this.revokeKey(client, actor, input);
       case "getSecurityStatus": {
         security();
         const factor = (
@@ -2368,9 +2066,6 @@ export class IdentityService {
         );
         if (delegated)
           await this.revokeAllUserAccess(actor.userId!, undefined, client);
-        await this.audit(client, actor, operation, actor.userId, context, {
-          delegated,
-        });
         return { revoked: true };
       }
       case "registerPasskey":
@@ -2385,31 +2080,6 @@ export class IdentityService {
           proofUrl: `${this.config.baseURL}/settings/security`,
           actionId: context.actionId ?? null,
         };
-      case "deleteAccount":
-      case "deleteOrganisation": {
-        if (operation === "deleteAccount") security();
-        else org("ownership:manage", ["owner"]);
-        if (operation === "deleteAccount" && input.confirmation !== "DELETE")
-          throw new RootsetError(
-            "VALIDATION_FAILED",
-            "Confirmation must be DELETE",
-          );
-        await this.assertSensitive(actor, operation, input, context, client);
-        if (operation === "deleteAccount")
-          await this.assertLastOwner(client, actor.orgId, actor.userId!, true);
-        if (!this.config.enqueueDeletion)
-          throw new RootsetError(
-            "CONFIGURATION_INVALID",
-            "The deletion worker is unavailable",
-            503,
-          );
-        return this.config.enqueueDeletion(
-          actor,
-          operation === "deleteAccount" ? "account" : "organisation",
-          input,
-          context,
-        );
-      }
       default:
         throw new RootsetError(
           "RESOURCE_NOT_FOUND",
@@ -2423,7 +2093,7 @@ export class IdentityService {
     userId: string,
   ): Promise<unknown> {
     const r = await client.query(
-      `SELECT id,name,email,email_verified "emailVerified",disabled,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.users WHERE id=$1`,
+      `SELECT id,name,email,email_verified "emailVerified",created_at "createdAt",updated_at "updatedAt" FROM rootset_control.users WHERE id=$1`,
       [userId],
     );
     if (!r.rows[0]) notFound();
@@ -2452,7 +2122,7 @@ export class IdentityService {
         );
       assertAccess(actor, {
         scope: "installation:manage",
-        operator: true,
+        roles: ["admin"],
         personal: true,
       });
       assertAccess(actor, {
@@ -2462,25 +2132,12 @@ export class IdentityService {
         tableId: input.tableId as string,
         level: "edit",
       });
-    } else if (["createTeamKey", "rotateTeamKey"].includes(operation))
-      assertAccess(actor, {
-        scope: "keys:manage",
-        roles: ["owner", "admin"],
-        personal: true,
-      });
-    else if (["createPersonalKey", "rotatePersonalKey"].includes(operation))
+    } else if (["createPersonalKey", "rotatePersonalKey"].includes(operation))
       assertAccess(actor, { scope: "keys:manage", personal: true });
-    else if (
-      [
-        "transferOwnership",
-        "deleteOrganisation",
-        "updateMember",
-        "removeMember",
-      ].includes(operation)
-    )
+    else if (["updateMember", "removeMember"].includes(operation))
       assertAccess(actor, {
-        scope: "ownership:manage",
-        roles: ["owner"],
+        scope: "members:manage",
+        roles: ["admin"],
         personal: true,
       });
     else if (operation === "deleteDatabase")
@@ -2504,18 +2161,14 @@ export class IdentityService {
         databaseId: input.databaseId as string,
         tableId: input.tableId as string,
         level: "manage",
-        roles: ["owner", "admin"],
+        roles: ["admin"],
       });
-    else if (["restoreBackup", "setBackupPolicy"].includes(operation))
+    else if (operation === "restoreBackup")
       assertAccess(actor, {
         scope: "backups:manage",
         databaseId: input.databaseId as string,
-        roles: ["owner", "admin"],
+        roles: ["admin"],
       });
-    else if (
-      ["updateInstallationConfiguration", "testEmail"].includes(operation)
-    )
-      assertAccess(actor, { scope: "installation:manage", operator: true });
     else assertAccess(actor, { scope: "account:security", personal: true });
   }
   private async authoriseRepair(
@@ -2571,7 +2224,10 @@ export class IdentityService {
         "Operator repair intent does not match its admitted job",
         403,
       );
-    await this.authoriseRepair(await this.refreshActor(actor), input!);
+    await this.authoriseRepair(
+      await this.hydrateActor(actor, true, client),
+      input!,
+    );
     const approval = (
       await client.query(
         "SELECT id FROM rootset_control.account_actions WHERE id=$1 AND org_id=$2 AND user_id=$3 AND actor_id=$4 AND client_id IS NOT DISTINCT FROM $5 AND operation='mutateRows' AND approved_at IS NOT NULL AND consumed_at IS NULL AND expires_at>now()",
@@ -2590,35 +2246,12 @@ export class IdentityService {
         "The approved operator repair is unavailable",
         403,
       );
-    const existing = (
-      await client.query(
-        "SELECT outcome FROM rootset_control.account_audit WHERE org_id=$1 AND operation='operatorRepairRequested' AND target_id=$2",
-        [actor.orgId, intent.jobId],
-      )
-    ).rows[0];
-    const outcome = {
-      reason,
-      actionId: intent.approvalId,
-      jobId: intent.jobId,
-      tableId: intent.tableId,
-    };
-    if (existing) {
-      if (canonical(existing.outcome) !== canonical(outcome))
-        throw new RootsetError(
-          "IDEMPOTENCY_CONFLICT",
-          "Operator repair intent belongs to a different admission",
-          409,
-        );
-      return;
-    }
-    await this.audit(
-      client,
-      actor,
-      "operatorRepairRequested",
-      intent.jobId,
-      { requestId: intent.requestId },
-      outcome,
-    );
+    if ((context?.requestId ?? job.id) !== intent.requestId)
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Repair intent belongs to a different request",
+        409,
+      );
   }
   private async completeAction(
     actor: Actor,
@@ -2651,16 +2284,11 @@ export class IdentityService {
     );
     this.checkActionAuthority(actor, action.operation, input);
     const external = [
-      "deleteAccount",
-      "deleteOrganisation",
       "deleteDatabase",
       "deleteTable",
       "restoreBackup",
-      "setBackupPolicy",
       "setHistoryRetentionPolicy",
       "archiveHistory",
-      "updateInstallationConfiguration",
-      "testEmail",
       "mutateRows",
     ].includes(action.operation);
     const result = await withOrg(
@@ -2761,34 +2389,26 @@ export class IdentityService {
         [`rootset:user-authority:${userId}`],
       );
   }
-  private async assertLastOwner(
+  private async assertLastAdmin(
     client: PoolClient,
     orgId: string,
     userId: string,
-    removing: boolean,
   ): Promise<void> {
-    await client.query(
-      `SELECT id FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
-      [orgId],
-    );
-    const current = await client.query(
-      `SELECT role,state FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2 FOR UPDATE`,
+    const current = (
+      await client.query(
+        `SELECT role FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2 FOR UPDATE`,
+        [orgId, userId],
+      )
+    ).rows[0];
+    if (current?.role !== "admin") return;
+    const other = await client.query(
+      `SELECT m.id FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.role='admin' AND u.email_verified AND m.user_id<>$2`,
       [orgId, userId],
     );
-    if (
-      !removing ||
-      current.rows[0]?.role !== "owner" ||
-      current.rows[0].state !== "active"
-    )
-      return;
-    const owners = await client.query(
-      `SELECT m.id FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.role='owner' AND m.state='active' AND u.email_verified AND NOT u.disabled AND m.user_id<>$2`,
-      [orgId, userId],
-    );
-    if (!owners.rowCount)
+    if (!other.rowCount)
       throw new RootsetError(
-        "LAST_OWNER",
-        "At least one enabled, verified Owner must remain",
+        "LAST_ADMIN",
+        "At least one verified Admin must remain",
         409,
       );
   }
@@ -2802,35 +2422,48 @@ export class IdentityService {
     assertAccess(actor, {
       scope: "members:manage",
       orgId: input.orgId as string | undefined,
-      roles: ["owner", "admin"],
+      roles: ["admin"],
     });
+    await this.assertSensitive(actor, operation, input, context, client);
     const update = parse(
       z.strictObject({
         id: IdSchema,
         orgId: IdSchema.optional(),
-        role: z.enum(["owner", "admin", "editor", "viewer"]).optional(),
-        state: z.enum(["active", "disabled"]).optional(),
+        role: z.enum(["admin", "editor", "viewer"]).optional(),
         expectedVersion: z.string().regex(/^[1-9][0-9]*$/),
       }),
       input,
     );
-    const targetUser = (
+    await client.query(
+      `SELECT id FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
+      [actor.orgId],
+    );
+    const currentAdmin = (
+      await client.query(
+        `SELECT m.role,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.user_id=$2`,
+        [actor.orgId, actor.userId],
+      )
+    ).rows[0];
+    if (currentAdmin?.role !== "admin" || !currentAdmin.email_verified)
+      throw new RootsetError(
+        "ACCESS_DENIED",
+        "Current Admin authority is required",
+        403,
+      );
+    const locator = (
       await client.query(
         `SELECT user_id FROM rootset_control.memberships WHERE id=$1 AND org_id=$2`,
         [update.id, actor.orgId],
       )
     ).rows[0];
-    if (!targetUser) notFound();
-    await this.lockUserAuthorities(client, [targetUser.user_id]);
-    await client.query(
-      `SELECT id FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
-      [actor.orgId],
-    );
-    const result = await client.query(
-      `SELECT * FROM rootset_control.memberships WHERE id=$1 AND org_id=$2 FOR UPDATE`,
-      [update.id, actor.orgId],
-    );
-    const target = result.rows[0];
+    if (!locator) notFound();
+    await this.lockUserAuthorities(client, [locator.user_id]);
+    const target = (
+      await client.query(
+        `SELECT * FROM rootset_control.memberships WHERE id=$1 AND org_id=$2 FOR UPDATE`,
+        [update.id, actor.orgId],
+      )
+    ).rows[0];
     if (!target) notFound();
     if (String(target.version) !== update.expectedVersion)
       throw new RootsetError(
@@ -2838,145 +2471,48 @@ export class IdentityService {
         "Membership changed; reload before editing",
         409,
       );
-    if (update.role === "owner" && target.role !== "owner")
-      throw new RootsetError(
-        "OWNERSHIP_TRANSFER_REQUIRED",
-        "Use ownership transfer to create an Owner",
-        403,
-      );
-    if (
-      target.role === "owner" &&
-      (operation === "removeMember" ||
-        (update.role && update.role !== "owner") ||
-        update.state === "disabled")
-    ) {
-      assertAccess(actor, { scope: "ownership:manage", roles: ["owner"] });
-      await this.assertSensitive(actor, operation, input, context, client);
-      await this.assertLastOwner(client, actor.orgId, target.user_id, true);
-    }
-    if (operation === "removeMember")
-      await client.query(
-        `DELETE FROM rootset_control.resource_grants WHERE org_id=$1 AND user_id=$2`,
-        [actor.orgId, target.user_id],
-      );
-    if (operation === "removeMember")
+    const removing = operation === "removeMember";
+    if (removing || (update.role && update.role !== "admin"))
+      await this.assertLastAdmin(client, actor.orgId, target.user_id);
+    if (removing) {
       await client.query(
         `DELETE FROM rootset_control.view_preferences WHERE org_id=$1 AND user_id=$2`,
         [actor.orgId, target.user_id],
       );
-    if (operation === "removeMember")
+      await this.revokeAllUserAccess(target.user_id, undefined, client);
       await client.query(
         `DELETE FROM rootset_control.memberships WHERE id=$1 AND org_id=$2`,
         [target.id, actor.orgId],
       );
-    else
-      await client.query(
-        `UPDATE rootset_control.memberships SET role=COALESCE($3,role),state=COALESCE($4,state),version=version+1 WHERE id=$1 AND org_id=$2`,
-        [target.id, actor.orgId, update.role ?? null, update.state ?? null],
-      );
-    if (operation === "removeMember" || update.state === "disabled") {
-      await client.query(
-        `UPDATE rootset_control.api_keys SET revoked_at=now() WHERE org_id=$1 AND owner_user_id=$2 AND revoked_at IS NULL`,
-        [actor.orgId, target.user_id],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.sessions WHERE user_id=$1 AND active_organization_id=$2`,
-        [target.user_id, actor.orgId],
-      );
-      const exists = await client.query(
-        `SELECT to_regclass('rootset_control.oauth_grants') present`,
-      );
-      if (exists.rows[0].present)
-        await client.query(
-          `UPDATE rootset_control.oauth_grants SET revoked_at=now() WHERE user_id=$1 AND org_id=$2 AND revoked_at IS NULL`,
-          [target.user_id, actor.orgId],
+    } else {
+      if (!update.role)
+        throw new RootsetError(
+          "VALIDATION_FAILED",
+          "A member role is required",
         );
+      await client.query(
+        `UPDATE rootset_control.memberships SET role=$3,version=version+1,updated_at=now() WHERE id=$1 AND org_id=$2`,
+        [target.id, actor.orgId, update.role],
+      );
     }
-    await this.audit(client, actor, operation, target.id, context, {
-      role: update.role ?? target.role,
-      state:
-        operation === "removeMember"
-          ? "removed"
-          : (update.state ?? target.state),
-    });
-    return operation === "removeMember"
+    return removing
       ? { deleted: true }
       : (
           await client.query(
-            `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,m.role,m.state,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.id=$1`,
-            [target.id],
+            `SELECT m.id,m.org_id "orgId",m.user_id "userId",u.name,u.email,u.email_verified verified,m.role,m.version::text FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.id=$1 AND m.org_id=$2`,
+            [target.id, actor.orgId],
           )
         ).rows[0];
-  }
-  private async transferOwnership(
-    client: PoolClient,
-    actor: Actor,
-    input: Record<string, unknown>,
-    context: ExecutionContext,
-  ): Promise<unknown> {
-    assertAccess(actor, {
-      scope: "ownership:manage",
-      orgId: input.orgId as string | undefined,
-      roles: ["owner"],
-      personal: true,
-    });
-    const data = parse(
-      z.strictObject({
-        orgId: IdSchema.optional(),
-        userId: IdSchema,
-      }),
-      input,
-    );
-    await this.lockUserAuthorities(client, [actor.userId!, data.userId]);
-    await client.query(
-      `SELECT id FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
-      [actor.orgId],
-    );
-    await this.assertSensitive(
-      actor,
-      "transferOwnership",
-      input,
-      context,
-      client,
-    );
-    const target = await client.query(
-      `SELECT m.id,u.email_verified,u.disabled,m.state FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.user_id=$2 FOR UPDATE OF m`,
-      [actor.orgId, data.userId],
-    );
-    if (
-      !target.rows[0] ||
-      !target.rows[0].email_verified ||
-      target.rows[0].disabled ||
-      target.rows[0].state !== "active"
-    )
-      throw new RootsetError(
-        "VALIDATION_FAILED",
-        "The new Owner must be an enabled, verified member",
-      );
-    await client.query(
-      `UPDATE rootset_control.memberships SET role='owner',version=version+1 WHERE org_id=$1 AND user_id=$2`,
-      [actor.orgId, data.userId],
-    );
-    if (data.userId !== actor.userId)
-      await client.query(
-        `UPDATE rootset_control.memberships SET role='admin',version=version+1 WHERE org_id=$1 AND user_id=$2`,
-        [actor.orgId, actor.userId],
-      );
-    await this.audit(client, actor, "transferOwnership", data.userId, context, {
-      demotedCurrent: data.userId !== actor.userId,
-    });
-    return this.executeWithin(client, "getOrganisation", actor, {}, context);
   }
   private async inviteMember(
     client: PoolClient,
     actor: Actor,
     input: Record<string, unknown>,
-    context: ExecutionContext,
   ): Promise<unknown> {
     assertAccess(actor, {
       scope: "members:manage",
       orgId: input.orgId as string | undefined,
-      roles: ["owner", "admin"],
+      roles: ["admin"],
       personal: true,
     });
     const data = parse(
@@ -3029,9 +2565,6 @@ export class IdentityService {
       dedupeKey: `invitation:${id}`,
       expiresAt,
     });
-    await this.audit(client, actor, "inviteMember", id, context, {
-      role: data.role,
-    });
     return {
       id,
       orgId: actor.orgId,
@@ -3063,7 +2596,7 @@ export class IdentityService {
       orgId,
       async (client) => {
         const r = await client.query(
-          `SELECT i.*,o.name organisation_name,o.state organisation_state,m.role inviter_role,m.state inviter_state FROM rootset_control.invitations i JOIN rootset_control.organisations o ON o.id=i.org_id LEFT JOIN rootset_control.memberships m ON m.org_id=i.org_id AND m.user_id=i.inviter_id WHERE i.token_hash=$1`,
+          `SELECT i.*,o.name organisation_name,m.role inviter_role,u.email_verified inviter_verified FROM rootset_control.invitations i JOIN rootset_control.organisations o ON o.id=i.org_id AND o.singleton LEFT JOIN rootset_control.memberships m ON m.org_id=i.org_id AND m.user_id=i.inviter_id LEFT JOIN rootset_control.users u ON u.id=m.user_id WHERE i.token_hash=$1`,
           [hash],
         );
         return r.rows[0];
@@ -3073,9 +2606,8 @@ export class IdentityService {
       !invitation ||
       invitation.state === "cancelled" ||
       new Date(invitation.expires_at) < new Date() ||
-      invitation.organisation_state !== "active" ||
-      invitation.inviter_state !== "active" ||
-      !["owner", "admin"].includes(invitation.inviter_role)
+      !invitation.inviter_verified ||
+      !["admin"].includes(invitation.inviter_role)
     )
       throw new RootsetError(
         "INVITATION_UNAVAILABLE",
@@ -3142,11 +2674,11 @@ export class IdentityService {
         403,
       );
     const result = await withOrg(this.config.pool, orgId, async (client) => {
-      await this.lockUserAuthorities(client, [session.user.id]);
       await client.query(
         `SELECT id FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
         [orgId],
       );
+      await this.lockUserAuthorities(client, [session.user.id]);
       const current = await client.query(
         `SELECT * FROM rootset_control.invitations WHERE id=$1 FOR UPDATE`,
         [invitation.id],
@@ -3163,30 +2695,24 @@ export class IdentityService {
       }
       const user = (
         await client.query(
-          `SELECT email,email_verified,disabled FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
+          `SELECT email,email_verified FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
           [session.user.id],
         )
       ).rows[0];
-      if (
-        !user ||
-        user.disabled ||
-        !user.email_verified ||
-        user.email !== item.email
-      )
+      if (!user || !user.email_verified || user.email !== item.email)
         throw new RootsetError(
           "ACCESS_DENIED",
           "The verified invited account is unavailable",
           403,
         );
       const inviter = await client.query(
-        `SELECT role,state FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2`,
+        `SELECT m.role FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id AND u.email_verified WHERE m.org_id=$1 AND m.user_id=$2`,
         [orgId, item.inviter_id],
       );
       if (
         item.state !== "pending" ||
         new Date(item.expires_at) < new Date() ||
-        inviter.rows[0]?.state !== "active" ||
-        !["owner", "admin"].includes(inviter.rows[0]?.role)
+        !["admin"].includes(inviter.rows[0]?.role)
       )
         throw new RootsetError(
           "INVITATION_UNAVAILABLE",
@@ -3201,157 +2727,9 @@ export class IdentityService {
         `UPDATE rootset_control.invitations SET state='accepted',accepted_by=$2 WHERE id=$1`,
         [item.id, session.user.id],
       );
-      await client.query(
-        `UPDATE rootset_control.sessions SET active_organization_id=$2 WHERE id=$1`,
-        [session.session.id, orgId],
-      );
-      await this.audit(
-        client,
-        {
-          kind: "session",
-          id: session.session.id,
-          orgId,
-          userId: session.user.id,
-          role: item.role,
-          scopes: [],
-          targets: [],
-        },
-        "acceptInvitation",
-        item.id,
-        {},
-        {},
-      );
       return { state: "accepted", orgId };
     });
     return Response.json(result);
-  }
-  private async readGrants(
-    client: PoolClient,
-    orgId: string,
-  ): Promise<unknown> {
-    const members = await client.query(
-      `SELECT id,user_id,restricted,version FROM rootset_control.memberships WHERE org_id=$1 ORDER BY id`,
-      [orgId],
-    );
-    const data = [];
-    for (const member of members.rows) {
-      const grants = await client.query(
-        `SELECT database_id,table_id,level FROM rootset_control.resource_grants WHERE org_id=$1 AND user_id=$2`,
-        [orgId, member.user_id],
-      );
-      data.push({
-        membershipId: member.id,
-        unrestricted: !member.restricted,
-        version: Number(member.version),
-        targets: grants.rows.map((r) => ({
-          ...(r.database_id ? { databaseId: r.database_id } : {}),
-          ...(r.table_id ? { tableId: r.table_id } : {}),
-          level: r.level,
-        })),
-      });
-    }
-    return { data };
-  }
-  private async updateGrants(
-    client: PoolClient,
-    actor: Actor,
-    input: Record<string, unknown>,
-    context: ExecutionContext,
-  ): Promise<unknown> {
-    assertAccess(actor, {
-      scope: "grants:manage",
-      orgId: input.orgId as string | undefined,
-      roles: ["owner", "admin"],
-    });
-    const data = parse(
-      z.strictObject({
-        orgId: IdSchema.optional(),
-        grants: z
-          .array(
-            z.strictObject({
-              membershipId: IdSchema,
-              unrestricted: z.boolean(),
-              targets: z.array(ResourceTargetSchema).max(200),
-              version: z.number().int().min(1),
-            }),
-          )
-          .max(1000),
-      }),
-      input,
-    );
-    const ids = new Set<string>();
-    for (const update of data.grants) {
-      if (ids.has(update.membershipId))
-        throw new RootsetError(
-          "VALIDATION_FAILED",
-          "Membership grants must be distinct",
-        );
-      ids.add(update.membershipId);
-      const target = await client.query(
-        `SELECT user_id,role,version FROM rootset_control.memberships WHERE org_id=$1 AND id=$2 FOR UPDATE`,
-        [actor.orgId, update.membershipId],
-      );
-      if (!target.rows[0]) notFound();
-      const member = target.rows[0];
-      if (Number(member.version) !== update.version)
-        throw new RootsetError(
-          "ROW_VERSION_CONFLICT",
-          "Membership grants changed; reload before editing",
-          409,
-        );
-      if (["owner", "admin"].includes(member.role) && !update.unrestricted)
-        throw new RootsetError(
-          "VALIDATION_FAILED",
-          "Owners and Admins retain organisation-wide access",
-        );
-      assertDelegation(actor, [], update.targets, update.unrestricted);
-      for (const grant of update.targets) {
-        if (grant.databaseId) {
-          const r = await client.query(
-            `SELECT id FROM rootset_control.databases WHERE id=$1 AND org_id=$2`,
-            [grant.databaseId, actor.orgId],
-          );
-          if (!r.rowCount) notFound();
-        }
-        if (grant.tableId) {
-          const r = await client.query(
-            `SELECT id FROM rootset_control.tables WHERE id=$1 AND database_id=$2 AND org_id=$3`,
-            [grant.tableId, grant.databaseId, actor.orgId],
-          );
-          if (!r.rowCount) notFound();
-        }
-        if (member.role === "viewer" && grant.level !== "read")
-          throw new RootsetError(
-            "VALIDATION_FAILED",
-            "Viewers can receive read grants only",
-          );
-      }
-      await client.query(
-        `DELETE FROM rootset_control.resource_grants WHERE org_id=$1 AND user_id=$2`,
-        [actor.orgId, member.user_id],
-      );
-      for (const grant of update.targets)
-        await client.query(
-          `INSERT INTO rootset_control.resource_grants(id,org_id,user_id,database_id,table_id,level) VALUES($1,$2,$3,$4,$5,$6)`,
-          [
-            newId(),
-            actor.orgId,
-            member.user_id,
-            grant.databaseId ?? null,
-            grant.tableId ?? null,
-            grant.level,
-          ],
-        );
-      await client.query(
-        `UPDATE rootset_control.memberships SET restricted=$3,version=version+1 WHERE org_id=$1 AND user_id=$2`,
-        [actor.orgId, member.user_id, !update.unrestricted],
-      );
-      await this.audit(client, actor, "updateGrants", member.user_id, context, {
-        restricted: !update.unrestricted,
-        targetCount: update.targets.length,
-      });
-    }
-    return this.readGrants(client, actor.orgId);
   }
   private async prepareKeyReceipt(
     client: PoolClient,
@@ -3360,6 +2738,8 @@ export class IdentityService {
     input: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<z.infer<typeof KeyCreatedSchema> | null> {
+    await this.lockUserAuthorities(client, [actor.userId!]);
+    actor = await this.hydrateActor(actor, true, client);
     this.checkActionAuthority(actor, operation, input);
     if (typeof input.orgId === "string" && input.orgId !== actor.orgId)
       notFound();
@@ -3397,73 +2777,22 @@ export class IdentityService {
         409,
       );
     if (!receipt.result) return null;
-    const replay = KeyCreatedSchema.parse(receipt.result),
-      team = operation.includes("Team");
-    const owns = async (id: string): Promise<void> => {
+    const replay = KeyCreatedSchema.parse(receipt.result);
+    for (const id of [
+      replay.key.id,
+      ...(operation.startsWith("rotate") ? [parse(IdSchema, input.id)] : []),
+    ]) {
       if (
         !(
           await client.query(
-            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND owner_kind=$3 AND ($4::text IS NULL OR owner_user_id=$4)`,
-            [
-              id,
-              actor.orgId,
-              team ? "team" : "personal",
-              team ? null : actor.userId,
-            ],
-          )
-        ).rowCount
-      )
-        notFound();
-    };
-    await owns(replay.key.id);
-    if (operation.startsWith("rotate")) await owns(parse(IdSchema, input.id));
-    assertDelegation(
-      actor,
-      replay.key.scopes,
-      replay.key.targets,
-      !!replay.key.unrestricted,
-    );
-    await this.validateKeyTargets(client, actor, replay.key.targets);
-    if (
-      actor.role === "viewer" &&
-      replay.key.scopes.some((scope) => !scope.endsWith(":read"))
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Viewers may create read-scoped keys only",
-        403,
-      );
-    return { key: replay.key, replayed: true };
-  }
-  private async validateKeyTargets(
-    client: PoolClient,
-    actor: Actor,
-    targets: TargetGrant[],
-  ): Promise<void> {
-    for (const target of targets) {
-      if (target.tableId) {
-        const table = (
-          await client.query(
-            `SELECT t.database_id FROM rootset_control.tables t JOIN rootset_control.databases d ON d.id=t.database_id AND d.org_id=t.org_id WHERE t.id=$1 AND t.org_id=$2 AND t.state='active' AND d.state='active'`,
-            [target.tableId, actor.orgId],
-          )
-        ).rows[0];
-        if (
-          !table ||
-          (target.databaseId && target.databaseId !== table.database_id)
-        )
-          notFound();
-      } else if (
-        target.databaseId &&
-        !(
-          await client.query(
-            `SELECT 1 FROM rootset_control.databases WHERE id=$1 AND org_id=$2 AND state='active'`,
-            [target.databaseId, actor.orgId],
+            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3`,
+            [id, actor.orgId, actor.userId],
           )
         ).rowCount
       )
         notFound();
     }
+    return { key: replay.key, replayed: true };
   }
   private async createOrRotateKey(
     client: PoolClient,
@@ -3472,13 +2801,7 @@ export class IdentityService {
     input: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<unknown> {
-    const team = operation.includes("Team"),
-      rotation = operation.startsWith("rotate");
-    assertAccess(actor, {
-      scope: "keys:manage",
-      personal: !team,
-      roles: team ? ["owner", "admin"] : undefined,
-    });
+    assertAccess(actor, { scope: "keys:manage", personal: true });
     if (!context.idempotencyKey)
       throw new RootsetError(
         "VALIDATION_FAILED",
@@ -3489,9 +2812,6 @@ export class IdentityService {
         orgId: IdSchema.optional(),
         id: IdSchema.optional(),
         name: nameSchema.optional(),
-        scopes: z.array(z.enum(ALL_SCOPES)).min(1).max(100).optional(),
-        targets: z.array(ResourceTargetSchema).max(200).optional(),
-        unrestricted: z.boolean().optional(),
         expiresAt: z.string().datetime().nullable().optional(),
         overlapSeconds: z.number().int().min(0).max(86400).default(0),
       }),
@@ -3506,87 +2826,44 @@ export class IdentityService {
     );
     if (replay) return replay;
     let old: Record<string, unknown> | undefined;
-    if (rotation) {
+    if (operation.startsWith("rotate")) {
       if (!data.id)
         throw new RootsetError("VALIDATION_FAILED", "Key id is required");
-      const result = await client.query(
-        `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND owner_kind=$3 AND ($4::text IS NULL OR owner_user_id=$4) AND revoked_at IS NULL FOR UPDATE`,
-        [
-          data.id,
-          actor.orgId,
-          team ? "team" : "personal",
-          team ? null : actor.userId,
-        ],
-      );
-      old = result.rows[0];
+      old = (
+        await client.query(
+          `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL FOR UPDATE`,
+          [data.id, actor.orgId, actor.userId],
+        )
+      ).rows[0];
       if (!old) notFound();
     }
-    const name = data.name ?? (old?.name as string | undefined),
-      scopes = data.scopes ?? (old?.scopes as string[] | undefined),
-      targets = data.targets ?? (old?.targets as TargetGrant[] | undefined),
-      unrestricted =
-        data.unrestricted ?? (old?.unrestricted as boolean | undefined);
-    if (!name || !scopes || !targets)
-      throw new RootsetError(
-        "VALIDATION_FAILED",
-        "Name, scopes and targets are required",
-      );
-    assertDelegation(actor, scopes, targets, !!unrestricted);
-    await this.validateKeyTargets(client, actor, targets);
-    if (actor.role === "viewer" && scopes.some((s) => !s.endsWith(":read")))
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Viewers may create read-scoped keys only",
-        403,
-      );
-    if (
-      team &&
-      scopes.some(
-        (s) =>
-          ["ownership:manage", "profile:manage", "account:security"].includes(
-            s,
-          ) || s.startsWith("installation:"),
-      )
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Team keys cannot act as a person or installation operator",
-        403,
-      );
-    const expiresAt =
-      data.expiresAt === null
-        ? null
-        : data.expiresAt
-          ? new Date(data.expiresAt)
+    const name = data.name ?? old?.name;
+    if (!name) throw new RootsetError("VALIDATION_FAILED", "Name is required");
+    const expiry =
+      data.expiresAt !== undefined
+        ? data.expiresAt
+        : old
+          ? old.expires_at
           : new Date(Date.now() + 90 * 86400000);
+    const expiresAt =
+      expiry === null ? null : new Date(expiry as string | Date);
     if (expiresAt && expiresAt <= new Date())
       throw new RootsetError(
         "VALIDATION_FAILED",
         "Expiry must be in the future",
       );
-    if (!expiresAt && !["owner", "admin"].includes(actor.role))
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Only Owners or Admins can approve non-expiring keys",
-        403,
-      );
     await this.assertSensitive(actor, operation, input, context, client);
     const id = newId(),
       secret = `rst_${id}_${randomBytes(32).toString("base64url")}`;
     const result = await client.query(
-      `INSERT INTO rootset_control.api_keys(id,org_id,owner_kind,owner_user_id,creator_user_id,name,secret_hash,prefix,scopes,targets,unrestricted,expires_at,rotated_from) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${keyFields}`,
+      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from) VALUES($1,$2,$3,$3,$4,$5,$6,$7,$8) RETURNING ${keyFields}`,
       [
         id,
         actor.orgId,
-        team ? "team" : "personal",
-        team ? null : actor.userId,
-        actor.userId ?? null,
+        actor.userId,
         name,
         this.hashSecret(secret),
         `rst_${id}`,
-        JSON.stringify(scopes),
-        JSON.stringify(targets),
-        !!unrestricted,
         expiresAt,
         old?.id ?? null,
       ],
@@ -3594,8 +2871,8 @@ export class IdentityService {
     const metadata = mapKey(result.rows[0]!, actor.orgId);
     if (old)
       await client.query(
-        `UPDATE rootset_control.api_keys SET revoked_at=CASE WHEN $2=0 THEN now() ELSE NULL END,expires_at=CASE WHEN $2>0 THEN LEAST(COALESCE(expires_at,'infinity'::timestamptz),now()+($2 * interval '1 second')) ELSE expires_at END WHERE id=$1`,
-        [old.id, data.overlapSeconds],
+        `UPDATE rootset_control.api_keys SET revoked_at=CASE WHEN $2=0 THEN now() ELSE NULL END,expires_at=CASE WHEN $2>0 THEN LEAST(COALESCE(expires_at,'infinity'::timestamptz),now()+($2 * interval '1 second')) ELSE expires_at END WHERE id=$1 AND user_id=$3`,
+        [old.id, data.overlapSeconds, actor.userId],
       );
     await client.query(
       `UPDATE rootset_control.key_requests SET result=$5 WHERE actor_id=$1 AND org_id=$2 AND operation=$3 AND key=$4`,
@@ -3607,56 +2884,25 @@ export class IdentityService {
         JSON.stringify({ key: metadata }),
       ],
     );
-    await this.audit(client, actor, operation, id, context, {
-      scopeCount: scopes.length,
-      targetCount: targets.length,
-      expiresAt: expiresAt?.toISOString() ?? null,
-    });
-    if (team)
-      await this.notifyOwners(client, actor.orgId, "team-key-created", id);
     return { key: metadata, secret };
   }
   private async revokeKey(
     client: PoolClient,
-    operation: string,
     actor: Actor,
     input: Record<string, unknown>,
-    context: ExecutionContext,
   ): Promise<unknown> {
-    const team = operation.includes("Team");
-    assertAccess(actor, {
-      scope: "keys:manage",
-      personal: !team,
-      roles: team ? ["owner", "admin"] : undefined,
-    });
+    assertAccess(actor, { scope: "keys:manage", personal: true });
     const id = parse(IdSchema, input.id);
-    const result = await client.query(
-      `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND org_id=$2 AND owner_kind=$3 AND ($4::text IS NULL OR owner_user_id=$4) RETURNING id`,
-      [id, actor.orgId, team ? "team" : "personal", team ? null : actor.userId],
-    );
-    if (!result.rowCount) notFound();
-    await this.audit(client, actor, operation, id, context, {});
-    if (team)
-      await this.notifyOwners(client, actor.orgId, "team-key-revoked", id);
+    if (
+      !(
+        await client.query(
+          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND org_id=$2 AND user_id=$3 RETURNING id`,
+          [id, actor.orgId, actor.userId],
+        )
+      ).rowCount
+    )
+      notFound();
     return { deleted: true };
-  }
-  private async notifyOwners(
-    client: PoolClient,
-    orgId: string,
-    template: EmailTemplate,
-    eventId: string,
-  ): Promise<void> {
-    const result = await client.query(
-      `SELECT u.email,u.name FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.role IN ('owner','admin') AND m.state='active' AND NOT u.disabled AND u.email_verified`,
-      [orgId],
-    );
-    for (const user of result.rows)
-      await this.emailOutbox.enqueue(client, {
-        template,
-        to: user.email,
-        payload: { name: user.name },
-        dedupeKey: `${template}:${eventId}:${user.email}`,
-      });
   }
   private async changePassword(
     client: PoolClient,
@@ -3708,14 +2954,6 @@ export class IdentityService {
       payload: { name: user.name },
       dedupeKey: `password-change:${actor.userId}:${newId()}`,
     });
-    await this.audit(
-      client,
-      actor,
-      "changePassword",
-      actor.userId,
-      context,
-      {},
-    );
     return { changed: true };
   }
   private async beginEmailChange(
@@ -3763,8 +3001,48 @@ export class IdentityService {
       dedupeKey: `email-change:${id}`,
       expiresAt,
     });
-    await this.audit(client, actor, "changeEmail", actor.userId, context, {});
     return { state: "verification_required", expiresAt };
+  }
+  private async pendingEmailChange(request: Request): Promise<Response> {
+    if (!["GET", "DELETE"].includes(request.method))
+      return Response.json(
+        { error: { code: "METHOD_NOT_ALLOWED", message: "Use GET or DELETE" } },
+        { status: 405, headers: { Allow: "GET, DELETE" } },
+      );
+    const actor = await this.resolveActor(request, "browser");
+    if (!actor?.userId)
+      throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
+    assertAccess(actor, { scope: "account:security", personal: true });
+    const result = await withOrg(
+      this.config.pool,
+      actor.orgId,
+      async (client) => {
+        if (request.method === "DELETE") {
+          const removed = await client.query(
+            `DELETE FROM rootset_control.email_changes WHERE user_id=$1 RETURNING id`,
+            [actor.userId],
+          );
+          if (removed.rows[0])
+            await client.query(
+              `UPDATE rootset_control.email_outbox SET state='failed',expires_at=now(),last_error='Email change cancelled' WHERE dedupe_key=$1 AND state IN ('pending','failed')`,
+              [`email-change:${removed.rows[0].id}`],
+            );
+          return { pending: null };
+        }
+        const pending = (
+          await client.query(
+            `SELECT new_email,expires_at FROM rootset_control.email_changes WHERE user_id=$1 AND expires_at>now()`,
+            [actor.userId],
+          )
+        ).rows[0];
+        return {
+          pending: pending
+            ? { email: pending.new_email, expiresAt: pending.expires_at }
+            : null,
+        };
+      },
+    );
+    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   }
   private async confirmEmailChange(request: Request): Promise<Response> {
     const token =
@@ -3787,7 +3065,7 @@ export class IdentityService {
         );
       const user = (
         await client.query(
-          `SELECT name,email FROM rootset_control.users WHERE id=$1 AND NOT disabled FOR UPDATE`,
+          `SELECT name,email FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
           [change.user_id],
         )
       ).rows[0];
@@ -3884,110 +3162,6 @@ export class IdentityService {
     );
     return Response.json({ authenticatedAt });
   }
-  private async selectOrganisation(
-    request: Request,
-    path: string,
-  ): Promise<Response> {
-    const session = await this.rawAuth.api.getSession({
-      headers: request.headers,
-    });
-    if (!session || !session.user.emailVerified)
-      throw new RootsetError(
-        "UNAUTHENTICATED",
-        "Sign in with a verified account",
-        401,
-      );
-    const user = await this.config.pool.query(
-      `SELECT disabled FROM rootset_control.users WHERE id=$1`,
-      [session.user.id],
-    );
-    if (!user.rows[0] || user.rows[0].disabled)
-      throw new RootsetError("UNAUTHENTICATED", "Account is unavailable", 401);
-    const memberships = await this.config.pool.query(
-      `SELECT org_id id,name,role FROM rootset_control.memberships_for_user($1) WHERE state='active' AND organisation_state='active' ORDER BY name,org_id`,
-      [session.user.id],
-    );
-    if (path === "/organisations" && request.method === "GET") {
-      const selected = (
-        await this.config.pool.query(
-          `SELECT active_organization_id FROM rootset_control.sessions WHERE id=$1`,
-          [session.session.id],
-        )
-      ).rows[0]?.active_organization_id;
-      return Response.json({
-        data: memberships.rows,
-        selectedOrgId: selected ?? null,
-      });
-    }
-    if (path !== "/organisation" || request.method !== "POST") notFound();
-    const input = parse(
-      z.strictObject({ orgId: IdSchema }),
-      await request.json(),
-    );
-    if (!memberships.rows.some((m) => m.id === input.orgId)) notFound();
-    await this.config.pool.query(
-      `UPDATE rootset_control.sessions SET active_organization_id=$2 WHERE id=$1 AND user_id=$3`,
-      [session.session.id, input.orgId, session.user.id],
-    );
-    return Response.json({ orgId: input.orgId });
-  }
-  async bindOperator(
-    userId: string,
-    options: { reason: string },
-  ): Promise<void> {
-    parse(IdSchema, userId);
-    if (!options.reason.trim())
-      throw new RootsetError(
-        "VALIDATION_FAILED",
-        "A recovery reason is required",
-      );
-    await transaction(this.config.pool, async (client) => {
-      const user = await client.query(
-        `SELECT email_verified,disabled,email,name FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
-        [userId],
-      );
-      if (!user.rows[0]?.email_verified || user.rows[0].disabled)
-        throw new RootsetError(
-          "VALIDATION_FAILED",
-          "Operator must be an enabled, verified user",
-        );
-      await client.query(
-        `INSERT INTO rootset_control.operator_bindings(user_id,reason) VALUES($1,$2) ON CONFLICT(user_id) DO UPDATE SET reason=$2,bound_at=now(),revoked_at=NULL`,
-        [userId, options.reason],
-      );
-      const memberships = await client.query(
-        `SELECT * FROM rootset_control.memberships_for_user($1) ORDER BY org_id`,
-        [userId],
-      );
-      for (const m of memberships.rows) {
-        await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-          m.org_id,
-        ]);
-        await this.audit(
-          client,
-          {
-            kind: "operator",
-            id: "installation-cli",
-            orgId: m.org_id,
-            role: "owner",
-            scopes: [],
-            targets: [],
-            operator: true,
-          },
-          "bindOperator",
-          userId,
-          { requestId: newId() },
-          { reason: options.reason },
-        );
-      }
-      await this.emailOutbox.enqueue(client, {
-        template: "operator-access-changed",
-        to: user.rows[0].email,
-        payload: { name: user.rows[0].name },
-        dedupeKey: `operator-bind:${userId}:${newId()}`,
-      });
-    });
-  }
   async recoverUser(
     userId: string,
     options: { reason: string },
@@ -3999,9 +3173,10 @@ export class IdentityService {
         "A recovery reason is required",
       );
     await transaction(this.config.pool, async (client) => {
+      await this.lockUserAuthorities(client, [userId]);
       const user = (
         await client.query(
-          `SELECT email,name FROM rootset_control.users WHERE id=$1 AND NOT disabled FOR UPDATE`,
+          `SELECT email,name FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
           [userId],
         )
       ).rows[0];
@@ -4025,279 +3200,9 @@ export class IdentityService {
         payload: { name: user.name },
         dedupeKey: `operator-recovery:${userId}:${newId()}`,
       });
-      const memberships = await client.query(
-        `SELECT * FROM rootset_control.memberships_for_user($1)`,
-        [userId],
-      );
-      for (const m of memberships.rows) {
-        await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-          m.org_id,
-        ]);
-        await this.audit(
-          client,
-          {
-            kind: "operator",
-            id: "installation-cli",
-            orgId: m.org_id,
-            role: "owner",
-            scopes: [],
-            targets: [],
-            operator: true,
-          },
-          "recoverUser",
-          userId,
-          { requestId: newId() },
-          { reason: options.reason },
-        );
-      }
     });
   }
-  async finishDeletion(
-    actor: Actor,
-    kind: "account" | "organisation",
-    input: Record<string, unknown>,
-    context: ExecutionContext,
-    onCommit?: (
-      client: PoolClient,
-      result: Record<string, unknown>,
-    ) => Promise<void>,
-  ): Promise<unknown> {
-    if (context.surface !== "worker" && actor.kind !== "operator")
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Deletion finalization is restricted to the durable worker",
-        403,
-      );
-    const finish = async (
-      client: PoolClient,
-      result: Record<string, unknown>,
-    ) => {
-      await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-        actor.orgId,
-      ]);
-      await onCommit?.(client, result);
-      return result;
-    };
-    if (kind === "organisation") {
-      if (
-        actor.role !== "owner" ||
-        (input.orgId && input.orgId !== actor.orgId)
-      )
-        throw new RootsetError(
-          "ACCESS_DENIED",
-          "Organisation deletion requires the original Owner authority",
-          403,
-        );
-      return withOrg(this.config.pool, actor.orgId, async (client) => {
-        const organisation = (
-          await client.query(
-            `SELECT state,name FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
-            [actor.orgId],
-          )
-        ).rows[0];
-        if (!organisation) notFound();
-        if (organisation.state === "deleted")
-          return finish(client, {
-            deleted: true,
-            orgId: actor.orgId,
-            retainedAudit: true,
-          });
-        const remaining = await client.query(
-          `SELECT count(*) count FROM rootset_control.databases WHERE org_id=$1 AND state<>'deleted'`,
-          [actor.orgId],
-        );
-        if (Number(remaining.rows[0].count) > 0)
-          throw new RootsetError(
-            "DELETION_INCOMPLETE",
-            "Database deletion and backup retention must complete before organisation finalization",
-            409,
-          );
-        await client.query(
-          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE org_id=$1`,
-          [actor.orgId],
-        );
-        const oauthPresent = (
-          await client.query(
-            `SELECT to_regclass('rootset_control.oauth_grants') present`,
-          )
-        ).rows[0].present;
-        if (oauthPresent)
-          await client.query(
-            `UPDATE rootset_control.oauth_grants SET revoked_at=COALESCE(revoked_at,now()) WHERE org_id=$1`,
-            [actor.orgId],
-          );
-        await client.query(
-          `UPDATE rootset_control.invitations SET state='cancelled' WHERE org_id=$1 AND state='pending'`,
-          [actor.orgId],
-        );
-        await client.query(
-          `DELETE FROM rootset_control.sessions WHERE active_organization_id=$1`,
-          [actor.orgId],
-        );
-        await client.query(
-          `DELETE FROM rootset_control.resource_grants WHERE org_id=$1`,
-          [actor.orgId],
-        );
-        await this.audit(
-          client,
-          actor,
-          "deleteOrganisation",
-          actor.orgId,
-          context,
-          {
-            state: "deleted",
-            auditRetention: "installation-policy",
-            backupRetention: "configured-policy",
-          },
-        );
-        await client.query(
-          `UPDATE rootset_control.memberships SET state='disabled',version=version+1 WHERE org_id=$1`,
-          [actor.orgId],
-        );
-        await client.query(
-          `UPDATE rootset_control.organisations SET state='deleted',updated_at=now() WHERE id=$1`,
-          [actor.orgId],
-        );
-        return finish(client, {
-          deleted: true,
-          orgId: actor.orgId,
-          retainedAudit: true,
-        });
-      });
-    }
-    if (!actor.userId || actor.kind === "team_key")
-      throw new RootsetError(
-        "PERSONAL_IDENTITY_REQUIRED",
-        "Account deletion requires the original user",
-        403,
-      );
-    const userId = actor.userId;
-    return transaction(this.config.pool, async (client) => {
-      await this.lockUserAuthorities(client, [userId]);
-      const memberships = (
-        await client.query(
-          `SELECT * FROM rootset_control.memberships_for_user($1) ORDER BY org_id`,
-          [userId],
-        )
-      ).rows;
-      for (const membership of memberships) {
-        await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-          membership.org_id,
-        ]);
-        await this.assertLastOwner(client, membership.org_id, userId, true);
-      }
-      const user = (
-        await client.query(
-          `SELECT email,name,disabled FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
-          [userId],
-        )
-      ).rows[0];
-      if (!user) notFound();
-      if (user.email === `${userId.toLowerCase()}@deleted.rootset.invalid`)
-        return finish(client, { deleted: true, userId, retainedAudit: true });
-      for (const membership of memberships) {
-        await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-          membership.org_id,
-        ]);
-        await client.query(
-          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE org_id=$1 AND owner_user_id=$2`,
-          [membership.org_id, userId],
-        );
-        const present = (
-          await client.query(
-            `SELECT to_regclass('rootset_control.oauth_grants') present`,
-          )
-        ).rows[0].present;
-        if (present)
-          await client.query(
-            `UPDATE rootset_control.oauth_grants SET revoked_at=COALESCE(revoked_at,now()) WHERE org_id=$1 AND user_id=$2`,
-            [membership.org_id, userId],
-          );
-        await client.query(
-          `UPDATE rootset_control.invitations SET state='cancelled' WHERE org_id=$1 AND inviter_id=$2 AND state='pending'`,
-          [membership.org_id, userId],
-        );
-        await client.query(
-          `DELETE FROM rootset_control.resource_grants WHERE org_id=$1 AND user_id=$2`,
-          [membership.org_id, userId],
-        );
-        if (
-          (
-            await client.query(
-              `SELECT to_regclass('rootset_control.view_preferences') present`,
-            )
-          ).rows[0].present
-        )
-          await client.query(
-            `DELETE FROM rootset_control.view_preferences WHERE org_id=$1 AND user_id=$2`,
-            [membership.org_id, userId],
-          );
-        await client.query(
-          `DELETE FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2`,
-          [membership.org_id, userId],
-        );
-        await this.audit(
-          client,
-          { ...actor, orgId: membership.org_id },
-          "deleteAccount",
-          userId,
-          context,
-          { state: "deleted", retainedActorIdentity: true },
-        );
-      }
-      if (!memberships.length) {
-        await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-          actor.orgId,
-        ]);
-        await this.audit(client, actor, "deleteAccount", userId, context, {
-          state: "deleted",
-          retainedActorIdentity: true,
-        });
-      }
-      await client.query(
-        `DELETE FROM rootset_control.sessions WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.auth_accounts WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.auth_passkeys WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.auth_two_factors WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.email_changes WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.user_preferences WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `DELETE FROM rootset_control.factor_proofs WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `UPDATE rootset_control.operator_bindings SET revoked_at=now() WHERE user_id=$1`,
-        [userId],
-      );
-      await client.query(
-        `UPDATE rootset_control.email_outbox SET state='failed',payload_encrypted='',lease_until=NULL,last_error='Account deleted' WHERE to_address=$1 AND state IN ('pending','sending')`,
-        [user.email],
-      );
-      await client.query(
-        `UPDATE rootset_control.users SET name='Deleted account',email=$2,email_verified=false,disabled=true,image=NULL,two_factor_enabled=false,authentication_version=authentication_version+1,updated_at=now() WHERE id=$1`,
-        [userId, `${userId.toLowerCase()}@deleted.rootset.invalid`],
-      );
-      return finish(client, { deleted: true, userId, retainedAudit: true });
-    });
-  }
-  async restoreOwner(
+  async restoreAdmin(
     orgId: string,
     userId: string,
     options: { reason: string },
@@ -4310,48 +3215,32 @@ export class IdentityService {
         "A recovery reason is required",
       );
     await withOrg(this.config.pool, orgId, async (client) => {
-      await this.lockUserAuthorities(client, [userId]);
       const organisation = (
         await client.query(
-          `SELECT state,name FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
+          `SELECT name FROM rootset_control.organisations WHERE id=$1 FOR UPDATE`,
           [orgId],
         )
       ).rows[0];
-      if (!organisation || organisation.state !== "active")
+      if (!organisation)
         throw new RootsetError(
           "VALIDATION_FAILED",
-          "Owner recovery requires an active organisation",
+          "Admin recovery requires the installation organisation",
         );
+      await this.lockUserAuthorities(client, [userId]);
       const user = (
         await client.query(
-          `SELECT email_verified,disabled,email,name FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
+          `SELECT email_verified,email,name FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
           [userId],
         )
       ).rows[0];
-      if (!user?.email_verified || user.disabled)
+      if (!user?.email_verified)
         throw new RootsetError(
           "VALIDATION_FAILED",
-          "Owner recovery requires an enabled, verified identity",
+          "Admin recovery requires a verified identity",
         );
       await client.query(
-        `INSERT INTO rootset_control.memberships(id,org_id,user_id,role,state) VALUES($1,$2,$3,'owner','active') ON CONFLICT(org_id,user_id) DO UPDATE SET role='owner',state='active',version=memberships.version+1`,
+        `INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin') ON CONFLICT(org_id,user_id) DO UPDATE SET role='admin',version=memberships.version+1,updated_at=now()`,
         [newId(), orgId, userId],
-      );
-      await this.audit(
-        client,
-        {
-          kind: "operator",
-          id: "installation-cli",
-          orgId,
-          role: "owner",
-          scopes: [],
-          targets: [],
-          operator: true,
-        },
-        "restoreOwner",
-        userId,
-        { requestId: newId() },
-        { reason: options.reason },
       );
       await this.emailOutbox.enqueue(client, {
         template: "account-recovery",
@@ -4359,10 +3248,9 @@ export class IdentityService {
         payload: {
           name: user.name,
           organisationName: organisation.name,
-          details:
-            "Organisation Owner membership was restored. Installation operator authority was not granted.",
+          details: "Installation Admin membership was restored.",
         },
-        dedupeKey: `owner-recovery:${orgId}:${userId}:${newId()}`,
+        dedupeKey: `admin-recovery:${orgId}:${userId}:${newId()}`,
       });
     });
   }

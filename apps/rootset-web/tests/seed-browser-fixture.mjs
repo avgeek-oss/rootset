@@ -35,25 +35,23 @@ try {
     }));
   const fields = [
     {
-      apiKey: "NAME",
-      label: "Name",
+      name: "NAME",
       type: "text",
       required: true,
       charLimit: 24,
     },
     {
-      apiKey: "INTEGER",
-      label: "Integer",
+      name: "INTEGER",
       type: "integer",
       min: 0,
       max: 1000000,
     },
-    { apiKey: "FLOAT", label: "Float", type: "float", min: -100, max: 100 },
-    { apiKey: "BOOLEAN", label: "Boolean", type: "boolean" },
-    { apiKey: "DATE", label: "Date", type: "date" },
-    { apiKey: "TIME", label: "Time", type: "time" },
-    { apiKey: "DATETIME", label: "Date-time", type: "date-time" },
-    { apiKey: "JSON", label: "JSON", type: "json" },
+    { name: "FLOAT", type: "float", min: -100, max: 100 },
+    { name: "BOOLEAN", type: "boolean" },
+    { name: "DATE", type: "date" },
+    { name: "TIME", type: "time" },
+    { name: "DATETIME", type: "date-time" },
+    { name: "JSON", type: "json" },
   ];
   const tables = await call(
     "GET",

@@ -68,9 +68,9 @@ function semanticSchema(metadata: SnapshotMetadata): string {
       tables: metadata.tables.map((table) => {
         const lookup = new Map([
           ...(table.allFields ?? []).map(
-            (item) => [item.definition.id, item.definition.apiKey] as const,
+            (item) => [item.definition.id, item.definition.name] as const,
           ),
-          ...table.fields.map((field) => [field.id, field.apiKey] as const),
+          ...table.fields.map((field) => [field.id, field.name] as const),
         ]);
         const rules = table.rules ?? [];
         const indexes = table.indexes ?? [];

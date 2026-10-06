@@ -8,16 +8,14 @@ const reasonIndex = args.indexOf("--reason");
 const reason = reasonIndex >= 0 ? args[reasonIndex + 1] : undefined;
 const ids = reasonIndex >= 0 ? args.slice(0, reasonIndex) : [];
 if (
-  !["bind", "recover", "restore-owner"].includes(command ?? "") ||
+  !["recover", "restore-admin"].includes(command ?? "") ||
   !reason?.trim() ||
-  ids.length !== (command === "restore-owner" ? 2 : 1) ||
+  ids.length !== (command === "restore-admin" ? 2 : 1) ||
   args.length !== reasonIndex + 2
 ) {
+  console.error('Usage: pnpm auth:operator recover USER_ID --reason "reason"');
   console.error(
-    'Usage: pnpm auth:operator bind|recover USER_ID --reason "reason"',
-  );
-  console.error(
-    '       pnpm auth:operator restore-owner ORG_ID USER_ID --reason "reason"',
+    '       pnpm auth:operator restore-admin ORG_ID USER_ID --reason "reason"',
   );
   process.exitCode = 2;
 } else {
@@ -38,18 +36,17 @@ if (
       },
     });
     const parsed = ids.map((id) => IdSchema.parse(id));
-    if (command === "bind") await identity.bindOperator(parsed[0]!, { reason });
-    else if (command === "recover")
+    if (command === "recover")
       await identity.recoverUser(parsed[0]!, { reason });
-    else await identity.restoreOwner(parsed[0]!, parsed[1]!, { reason });
+    else await identity.restoreAdmin(parsed[0]!, parsed[1]!, { reason });
     console.log(
-      `Rootset ${command} completed. Account audit and security notification were recorded.`,
+      `Rootset ${command} completed. Security notification was recorded.`,
     );
   } catch (error) {
     console.error(
       error instanceof RootsetError
         ? `${error.code}: ${error.message}`
-        : "Operator action failed. Check installation configuration and the audit record.",
+        : "Operator action failed. Check installation configuration and the recovery notification.",
     );
     process.exitCode = 1;
   } finally {

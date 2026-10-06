@@ -54,9 +54,7 @@ test(
     });
     try {
       assert.ok(
-        fixture.appliedMigrations.includes(
-          "038_operator_repair_completion.sql",
-        ),
+        fixture.appliedMigrations.includes("0001_baseline.sql"),
         "The isolated fixture must apply the fixed repair completion migration",
       );
       const permissions = (
@@ -136,13 +134,12 @@ test(
         name: "Repair cells",
         fields: [
           {
-            apiKey: "password",
-            label: "Business password label",
+            name: "password",
             type: "text",
             charLimit: 100,
           },
-          { apiKey: "token", label: "Business JSON", type: "json" },
-          { apiKey: "NUMBER", label: "Number", type: "integer" },
+          { name: "token", type: "json" },
+          { name: "NUMBER", type: "integer" },
         ],
       });
       let row: Row = await runtime.storage.createRow(
@@ -185,23 +182,8 @@ test(
         NUMBER: 2,
       };
       await t.test(
-        "Unbound Owner and missing/changed proof cannot admit repair; typed display and exact replay retain business password/token/secret keys",
+        "Admin repair and missing/changed proof cannot admit repair; typed display and exact replay retain business password/token/secret keys",
         async () => {
-          await assert.rejects(
-            () =>
-              execute("beginAccountAction", {
-                orgId: actor.orgId,
-                type: "operator_repair",
-                operationId: "mutateRows",
-                input: input(row, values),
-              }),
-            (error) =>
-              (error as { code: string }).code === "OPERATOR_REQUIRED" ||
-              (error as { code: string }).code === "ACCESS_DENIED",
-          );
-          await service.bindOperator(actor.userId!, {
-            reason: "Disposable operator repair verification",
-          });
           actor = await service.refreshActor(actor);
           const before = await counts();
           await assert.rejects(
@@ -300,7 +282,7 @@ test(
             "clientId",
           ] as const)
             assert.equal(pending.actor[field], actor[field]);
-          assert.equal(pending.actor.operator, true);
+          assert.equal(pending.actor.role, "admin");
           assert.equal(
             pending.input.repair.reason,
             "Correct approved source transcription",
@@ -390,7 +372,7 @@ test(
           assert.equal(consumed.repairIntent, undefined);
           const nativeIntent = (
             await fixture.owner.query(
-              "SELECT outcome FROM rootset_control.account_audit WHERE operation='operatorRepairRequested' AND target_id=$1",
+              "SELECT jsonb_build_object('actionId',input#>>'{operationContext,approvalId}','reason',input#>>'{repair,reason}') AS outcome FROM rootset_control.jobs WHERE id=$1 AND operation_id='mutateRows'",
               [admitted.jobId],
             )
           ).rows;
@@ -646,7 +628,7 @@ test(
         },
       );
       await t.test(
-        "Current operator revocation after admission blocks worker publication with no row/history/completion effects",
+        "Current Admin role revocation after admission blocks worker publication with no row/history/completion effects",
         async () => {
           const business = input(row, { NUMBER: 5 });
           const action = AccountActionSchema.parse(
@@ -663,7 +645,7 @@ test(
           );
           const before = await counts();
           await fixture.owner.query(
-            "UPDATE rootset_control.operator_bindings SET revoked_at=now() WHERE user_id=$1",
+            "UPDATE rootset_control.memberships SET role='viewer',version=version+1 WHERE user_id=$1",
             [actor.userId],
           );
           assert.equal(await runtime.jobs.runOnce(actor.orgId), true);

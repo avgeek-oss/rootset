@@ -66,10 +66,7 @@ try {
     headers: { Origin: new URL(baseURL).origin },
   });
   if (!login.ok()) throw new Error(`QA sign-in failed (${login.status()}).`);
-  const selected = await context.request.post("/v1/auth/organisation", {
-    data: { orgId: "01M3YBJF63FQKFPQSK568N7A1D" },
-    headers: { Origin: new URL(baseURL).origin },
-  });
+  const selected = await context.request.get("/api/internal/v1/context");
   if (!selected.ok())
     throw new Error(`QA org selection failed (${selected.status()}).`);
   const start = performance.now();
@@ -78,6 +75,9 @@ try {
     page.getByRole("grid", { name: "Five million typed rows spreadsheet" }),
   ).toBeVisible();
   await expect(page.getByRole("gridcell").first()).not.toHaveText("Loading…");
+  const totalRows =
+    Number(await page.getByRole("grid").getAttribute("aria-rowcount")) - 1;
+  expect(totalRows).toBe(5_000_000);
   report.firstUsableViewportMs = performance.now() - start;
   expect(report.firstUsableViewportMs).toBeLessThanOrEqual(2500);
   await page.waitForTimeout(5000);
@@ -115,10 +115,11 @@ try {
   });
   const scrollStarted = performance.now();
   for (let index = 0; performance.now() - scrollStarted < duration; index++) {
-    const mode = ["Middle row window", "Last row window", "First row window"][
+    const rowNumber = [Math.floor(totalRows / 2) + 1, totalRows - 199, 1][
       index % 3
     ];
-    await page.getByRole("button", { name: mode, exact: true }).click();
+    await page.getByLabel("Go to row", { exact: true }).fill(String(rowNumber));
+    await page.getByRole("button", { name: "Go", exact: true }).click();
     await page.waitForTimeout(10_000);
     const state = await page.locator(".grid-viewport").evaluate((grid) => ({
       rows: grid.querySelectorAll(".grid-row").length,
@@ -134,7 +135,9 @@ try {
       ...state,
     });
     expect(state.rows).toBeLessThan(32);
-    expect(state.columns).toBeLessThan(12);
+    expect(state.columns).toBe(
+      Number(await page.getByRole("grid").getAttribute("aria-colcount")),
+    );
     expect(state.cacheWindows).toBeLessThanOrEqual(5);
     expect(state.cacheBytes).toBeLessThanOrEqual(33554432);
     expect(state.height).toBeLessThan(10_000);

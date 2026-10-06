@@ -161,11 +161,9 @@ test(
       const actor: Actor = {
         id: newId(),
         orgId: newId(),
-        kind: "team_key",
-        role: "owner",
+        kind: "personal_key",
+        role: "admin",
         scopes: ["rows:read"],
-        targets: [],
-        unrestricted: true,
       };
       await owner.query(
         "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Native cancellation fixture')",
@@ -184,8 +182,7 @@ test(
         fields: [
           {
             type: "text",
-            apiKey: "CODE",
-            label: "Code",
+            name: "CODE",
             charLimit: 20,
             order: 0,
           },
@@ -963,6 +960,15 @@ test(
           ),
         );
         if (created) {
+          await until(
+            async () =>
+              (
+                await admin.query(
+                  "SELECT count(*) AS n FROM pg_stat_activity WHERE datname=$1",
+                  [name],
+                )
+              ).rows[0].n === "0",
+          );
           assert.equal(
             (
               await admin.query(

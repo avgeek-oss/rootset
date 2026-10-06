@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/react";
+import { Button } from "./ui/button";
 import { useEffect, useRef, useState } from "react";
 import { client } from "@rootset/web-client";
 import type { JsonValue, QueryResult, QuerySpec } from "@rootset/contracts";

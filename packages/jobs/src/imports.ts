@@ -124,21 +124,21 @@ function decodeCsv(
     if (value === "false") return false;
     throw new RootsetError(
       "VALIDATION_FAILED",
-      `CSV boolean ${field.apiKey} must be true or false`,
+      `CSV boolean ${field.name} must be true or false`,
     );
   }
   if (field.type === "json") return parseStrictJson(value, { maxBytes: 65536 });
   if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value))
     throw new RootsetError(
       "VALIDATION_FAILED",
-      `CSV numeric ${field.apiKey} has invalid JSON number syntax`,
+      `CSV numeric ${field.name} has invalid JSON number syntax`,
     );
   if (field.type === "integer") {
     const information = analyseNumberLexeme(value);
     if (!information.integer || !information.safeInteger)
       throw new RootsetError(
         "VALIDATION_FAILED",
-        `CSV integer ${field.apiKey} requires a lossless safe integer`,
+        `CSV integer ${field.name} requires a lossless safe integer`,
       );
     return information.value;
   }
@@ -334,7 +334,7 @@ export class ImportRunner {
       const values: Record<string, JsonValue> = {};
       for (const [column, fieldKey] of Object.entries(input.mapping)) {
         const field = table.fields.find(
-          (candidate) => candidate.apiKey === fieldKey,
+          (candidate) => candidate.name === fieldKey,
         );
         if (!field)
           throw new RootsetError(
@@ -448,17 +448,17 @@ export class ImportRunner {
       const field = table.fields.find((candidate) => candidate.id === fieldId);
       if (
         !field ||
-        !Object.hasOwn(values, field.apiKey) ||
-        values[field.apiKey] === null
+        !Object.hasOwn(values, field.name) ||
+        values[field.name] === null
       )
         throw new RootsetError(
           "VALIDATION_FAILED",
           "Every unique-rule field must be supplied and non-null for upsert",
         );
       return {
-        field: field.apiKey,
+        field: field.name,
         op: "eq" as const,
-        value: values[field.apiKey]!,
+        value: values[field.name]!,
       };
     });
     const found = await this.storage.queryRows(actor, table.id, {
@@ -877,12 +877,11 @@ export class ImportRunner {
               const fields = (rule.fieldIds as string[]).map((fieldId) =>
                 table.fields.find((field) => field.id === fieldId)!,
               );
-              if (fields.some((field) => values[field.apiKey] == null))
-                continue;
+              if (fields.some((field) => values[field.name] == null)) continue;
               const tuple = canonicalJson(
                 fields.map((field) => ({
                   type: field.type,
-                  value: values[field.apiKey],
+                  value: values[field.name],
                 })),
                 { maxDepth: 96 },
               );
@@ -900,9 +899,9 @@ export class ImportRunner {
               const existing = await this.storage.queryRows(actor, table.id, {
                 where: {
                   and: fields.map((field) => ({
-                    field: field.apiKey,
+                    field: field.name,
                     op: "eq" as const,
-                    value: values[field.apiKey]!,
+                    value: values[field.name]!,
                   })),
                 },
                 limit: 2,

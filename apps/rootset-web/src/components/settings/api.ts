@@ -21,7 +21,15 @@ export interface AccountActionTicket {
   expiresAt: string;
   approvalUrl: string;
 }
-type ApprovalHandler = (ticket: AccountActionTicket) => Promise<unknown>;
+export interface ApprovalOptions {
+  requirePassword?: boolean;
+  code?: string;
+  idempotencyKey?: string;
+}
+type ApprovalHandler = (
+  ticket: AccountActionTicket,
+  options?: ApprovalOptions,
+) => Promise<unknown>;
 let approvalHandler: ApprovalHandler | undefined;
 let approvalOrganisation: string | undefined;
 export function registerApprovalHandler(
@@ -41,6 +49,7 @@ export function registerApprovalHandler(
 export async function performAction<T = unknown>(
   operationId: string,
   input: Record<string, unknown>,
+  options?: ApprovalOptions,
 ): Promise<T> {
   const actionTypes: Record<string, string> = {
     changePassword: "change_password",
@@ -50,32 +59,32 @@ export async function performAction<T = unknown>(
     enableTwoFactor: "enable_totp",
     disableTwoFactor: "disable_totp",
     rotateRecoveryCodes: "rotate_recovery_codes",
-    deleteAccount: "delete_account",
     signOutEverywhere: "sign_out_everywhere",
-    transferOwnership: "transfer_ownership",
     createPersonalKey: "create_key",
-    createTeamKey: "create_key",
     rotatePersonalKey: "rotate_key",
-    rotateTeamKey: "rotate_key",
-    setBackupPolicy: "set_backup_policy",
     restoreBackup: "restore_backup",
-    deleteOrganisation: "delete_organisation",
     deleteDatabase: "delete_database",
     deleteTable: "delete_table",
-    updateInstallationConfiguration: "update_installation_configuration",
-    testEmail: "test_email",
     setHistoryRetentionPolicy: "set_history_retention_policy",
     archiveHistory: "archive_history",
   };
-  const ticket = await write<AccountActionTicket>("/me/actions", "POST", {
-    type: actionTypes[operationId],
-    operationId,
-    input,
-    orgId: typeof input.orgId === "string" ? input.orgId : approvalOrganisation,
-  });
+  const ticket = await write<AccountActionTicket>(
+    "/me/actions",
+    "POST",
+    {
+      type: actionTypes[operationId],
+      operationId,
+      input,
+      orgId:
+        typeof input.orgId === "string" ? input.orgId : approvalOrganisation,
+    },
+    options?.idempotencyKey
+      ? { "Idempotency-Key": options.idempotencyKey }
+      : undefined,
+  );
   if (!approvalHandler)
     throw new Error("Open settings to approve this account action.");
-  return (await approvalHandler(ticket)) as T;
+  return (await approvalHandler({ ...ticket, operationId }, options)) as T;
 }
 
 export interface SettingsError {
@@ -169,6 +178,10 @@ export function useResource<T>(path: string | undefined, initial: T) {
   const [revision, setRevision] = useState(0);
   const previousPath = useRef(path);
   const reload = useCallback(() => setRevision((value) => value + 1), []);
+  useEffect(() => {
+    window.addEventListener("rootset:account-refresh", reload);
+    return () => window.removeEventListener("rootset:account-refresh", reload);
+  }, [reload]);
   useEffect(() => {
     if (previousPath.current !== path) {
       setData(initial);

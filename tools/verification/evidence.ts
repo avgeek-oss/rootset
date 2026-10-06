@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test, after } from "node:test";
 import { root } from "./environment.js";
@@ -19,33 +18,19 @@ interface CaseResult extends CaseDefinition {
 }
 const results: CaseResult[] = [];
 const startedAt = new Date().toISOString();
-const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], {
-  cwd: root,
-  encoding: "utf8",
-}).trim();
-const dirty =
-  execFileSync("git", ["status", "--porcelain"], {
-    cwd: root,
-    encoding: "utf8",
-  }).trim().length > 0;
-
-async function sourceDigest(): Promise<string> {
-  const paths = execFileSync(
-    "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-    { cwd: root, encoding: "utf8" },
-  )
-    .split("\0")
-    .filter(Boolean)
-    .sort();
-  const digest = createHash("sha256");
-  for (const path of paths) {
-    digest.update(path).update("\0");
-    digest.update(await readFile(join(root, path))).update("\0");
-  }
-  return digest.digest("hex");
-}
-const beforeDigest = sourceDigest();
+const candidate = {
+  version:
+    process.env.ROOTSET_CANDIDATE_VERSION ??
+    execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim(),
+  workingTreeChanged:
+    execFileSync("git", ["status", "--porcelain"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim().length > 0,
+};
 
 /** This records a test result, never a completed gate or reviewer approval. */
 export function verificationCase(
@@ -76,35 +61,28 @@ export function verificationCase(
 }
 
 after(async () => {
-  const initial = await beforeDigest;
-  const final = await sourceDigest();
   const directory = join(
     root,
     "verification",
     process.env.ROOTSET_VERIFICATION_RUN ??
       `working-${startedAt.replaceAll(/[:.]/g, "-")}`,
   );
-  await mkdir(directory, { recursive: true });
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   const file = `${process.pid}-${process.env.ROOTSET_VERIFICATION_SUITE ?? "integration"}.json`;
   await writeFile(
     join(directory, file),
     JSON.stringify(
       {
         kind: "test-results",
-        sourceCommit,
-        dirty,
-        sourceTreeDigestAtStart: initial,
-        sourceTreeDigestAtEnd: final,
-        coherentCandidate: initial === final && !dirty,
+        candidate,
+        acceptance: false,
         startedAt,
         finishedAt: new Date().toISOString(),
-        reviewers: [],
-        gateSignOffs: [],
         cases: results,
       },
       null,
       2,
     ) + "\n",
-    { mode: 0o600 },
+    { mode: 0o600, flag: "wx" },
   );
 });

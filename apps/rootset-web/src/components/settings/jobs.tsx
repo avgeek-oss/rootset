@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, ProgressBar } from "@heroui/react";
+import { ProgressBar } from "@heroui/react";
+import { Button } from "../ui/button";
 import { browserArtifactDownloadPath } from "@rootset/web-client";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -32,7 +33,6 @@ import { JobResultDetails } from "./job-result";
 import type {
   Artifact,
   Backup,
-  BackupPolicy,
   Job,
   SettingsPanelProps,
   TableSchemaResult,
@@ -45,17 +45,6 @@ const ACTIVE_STATES = [
   "uploading",
   "verifying",
 ];
-const INITIAL_POLICY: BackupPolicy = {
-  enabled: false,
-  cron: "0 2 * * *",
-  timezone: "UTC",
-  retentionDays: 30,
-  retentionCount: 10,
-  maxRuntimeSeconds: 3600,
-  destination: "installation",
-  encryption: true,
-  notifications: true,
-};
 interface JobAccepted {
   jobId: string;
   state: string;
@@ -224,78 +213,20 @@ export function JobTracker({
   );
 }
 
-export function JobsSettings(props: SettingsPanelProps) {
-  const resource = useResource<Job[]>(
-    `${organisationPath(props.orgId)}/jobs`,
-    [],
-  );
-  const [selected, setSelected] = useState("");
-  return (
-    <>
-      <Section
-        title="Jobs"
-        description="A queued operation is not complete. Check its terminal outcome and validation before relying on the result."
-      >
-        <Loading {...resource} retry={resource.reload} />
-        <Button variant="secondary" onPress={resource.reload}>
-          Refresh jobs
-        </Button>
-        <RecordList>
-          {resource.data.map((job) => (
-            <Record
-              key={job.id}
-              title={job.kind ?? job.type ?? "Job"}
-              description={
-                <>
-                  <Status value={job.state} /> · {job.stage} ·{" "}
-                  <DateLabel value={job.createdAt} />
-                </>
-              }
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => setSelected(job.id)}
-              >
-                Inspect
-              </Button>
-            </Record>
-          ))}
-        </RecordList>
-        {!resource.loading && !resource.error && !resource.data.length && (
-          <Empty>No jobs are visible.</Empty>
-        )}
-      </Section>
-      {selected && (
-        <Section title="Job details">
-          <JobTracker orgId={props.orgId} jobId={selected} />
-        </Section>
-      )}
-    </>
-  );
-}
-
 export function BackupsSettings(props: SettingsPanelProps) {
   const path = props.databaseId
     ? databasePath(props.orgId, props.databaseId)
     : undefined;
-  const resource = useResource<{ policy: BackupPolicy | null }>(
-    path ? `${path}/backup-policy` : undefined,
-    { policy: null },
-  );
   const backups = useResource<Backup[]>(
     path ? `${path}/backups` : undefined,
     [],
   );
   const mutation = useMutation(() => {
-    resource.reload();
     backups.reload();
     props.onChanged?.();
   });
   const deletion = useMutation();
   const confirmation = useConfirmation();
-  const [policy, setPolicy] = useState(INITIAL_POLICY);
-  const [occurrences, setOccurrences] = useState<string[]>([]);
   const [jobId, setJobId] = useState("");
   const [restoreId, setRestoreId] = useState("");
   const [restoreMode, setRestoreMode] = useState("new");
@@ -307,118 +238,15 @@ export function BackupsSettings(props: SettingsPanelProps) {
     rowCount?: number;
     tableCount?: number;
   }>();
-  useEffect(() => {
-    setPolicy(resource.data.policy ?? INITIAL_POLICY);
-  }, [resource.data]);
-  function patch<K extends keyof BackupPolicy>(key: K, value: BackupPolicy[K]) {
-    setPolicy((previous) => ({ ...previous, [key]: value }));
-  }
   if (!path) return <Empty>Select a database to manage backups.</Empty>;
   return (
     <>
-      <Loading {...resource} retry={resource.reload} />
       <Feedback {...mutation} />
       <Feedback {...deletion} />
       <Section
-        title="Backup schedule"
-        description="Every run captures all tables, schema, and retained history in one database snapshot. A run succeeds only after an isolated restore validates it."
+        title="Manual backups"
+        description="Back up all tables, schema and retained history on demand. Each backup is encrypted in the object storage configured by the installation environment and verified with an isolated restore."
       >
-        <Form
-          busy={mutation.busy}
-          onSubmit={async () => {
-            await mutation.run(
-              () => write(`${path}/backup-policy`, "PUT", policy),
-              "Backup policy saved.",
-            );
-          }}
-        >
-          <Toggle
-            label="Enable scheduled backups"
-            selected={policy.enabled}
-            onChange={(value) => patch("enabled", value)}
-          />
-          <Field
-            label="Five-field cron"
-            value={policy.cron}
-            onChange={(value) => patch("cron", value)}
-            required
-            description="Minute, hour, day of month, month, day of week. Example: 0 2 * * *."
-          />
-          <Field
-            label="Schedule timezone"
-            value={policy.timezone}
-            onChange={(value) => patch("timezone", value)}
-            required
-            description="IANA timezone. Skipped local times are skipped; repeated local times run once at the earlier occurrence."
-          />
-          <div className="settings-inline">
-            <Field
-              label="Retention days"
-              type="number"
-              min={1}
-              max={3650}
-              value={String(policy.retentionDays)}
-              onChange={(value) => patch("retentionDays", Number(value))}
-              required
-            />
-            <Field
-              label="Retained backup count"
-              type="number"
-              min={1}
-              max={1000}
-              value={String(policy.retentionCount)}
-              onChange={(value) => patch("retentionCount", Number(value))}
-              required
-            />
-            <Field
-              label="Maximum runtime (seconds)"
-              type="number"
-              min={30}
-              max={86400}
-              value={String(policy.maxRuntimeSeconds)}
-              onChange={(value) => patch("maxRuntimeSeconds", Number(value))}
-              required
-            />
-          </div>
-          <Toggle
-            label="Notify on backup failure"
-            selected={policy.notifications}
-            onChange={(value) => patch("notifications", value)}
-          />
-          <p className="settings-muted">
-            Destination: encrypted installation object storage. Its credentials
-            are managed by an installation operator.
-          </p>
-          <Button
-            variant="secondary"
-            isDisabled={mutation.busy}
-            onPress={async () => {
-              const result = await mutation.run(
-                () =>
-                  write<{ occurrences: string[] }>(
-                    `${path}/backup-policy/preview`,
-                    "POST",
-                    { cron: policy.cron, timezone: policy.timezone, count: 5 },
-                  ),
-                "Schedule preview complete.",
-              );
-              if (result.ok) setOccurrences(result.value.occurrences);
-            }}
-          >
-            Preview next runs
-          </Button>
-          {occurrences.length > 0 && (
-            <ol className="settings-preview">
-              {occurrences.map((value) => (
-                <li key={value}>
-                  <DateLabel value={value} /> <small>{value}</small>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Form>
-      </Section>
-      <Section title="Recovery points">
         <Button
           isDisabled={mutation.busy}
           onPress={async () => {
@@ -450,16 +278,16 @@ export function BackupsSettings(props: SettingsPanelProps) {
             >
               <Button
                 variant="secondary"
-                size="sm"
+
                 onPress={() => {
                   if (backup.jobId) setJobId(backup.jobId);
                 }}
               >
-                Inspect job
+                View progress
               </Button>
               <Button
                 variant="secondary"
-                size="sm"
+
                 isDisabled={backup.state !== "succeeded"}
                 onPress={() => {
                   setRestoreId(backup.id);
@@ -470,7 +298,7 @@ export function BackupsSettings(props: SettingsPanelProps) {
               </Button>
               <Button
                 variant="danger-soft"
-                size="sm"
+
                 isDisabled={mutation.busy || deletion.busy}
                 onPress={async () => {
                   if (
@@ -626,7 +454,7 @@ export function BackupsSettings(props: SettingsPanelProps) {
         </Section>
       )}
       {jobId && (
-        <Section title="Current backup, restore or deletion job">
+        <Section title="Current backup or restore">
           <JobTracker
             orgId={props.orgId}
             jobId={jobId}
@@ -730,7 +558,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
         Object.fromEntries(
           sourceColumns
             .filter((column) =>
-              schema.data?.fields.some((field) => field.apiKey === column),
+              schema.data?.fields.some((field) => field.name === column),
             )
             .map((column) => [column, column]),
         ),
@@ -808,8 +636,8 @@ export function ImportsSettings(props: SettingsPanelProps) {
               options={[
                 { value: "__skip", label: "Skip this source column" },
                 ...(schema.data?.fields.map((field) => ({
-                  value: field.apiKey,
-                  label: `${field.label} (${field.type})`,
+                  value: field.name,
+                  label: `${field.name} (${field.type})`,
                 })) ?? []),
               ]}
             />
@@ -849,7 +677,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
                       .map(
                         (id) =>
                           schema.data?.fields.find((field) => field.id === id)
-                            ?.label ?? id,
+                            ?.name ?? id,
                       )
                       .join(" + "),
                   })) ?? []),
@@ -1092,13 +920,13 @@ export function ExportsSettings(props: SettingsPanelProps) {
             {schema.data?.fields.map((field) => (
               <Toggle
                 key={field.id}
-                label={`${field.label} (${field.apiKey})`}
-                selected={selected.includes(field.apiKey)}
+                label={`${field.name} (${field.type})`}
+                selected={selected.includes(field.name)}
                 onChange={(include) =>
                   setSelected((previous) =>
                     include
-                      ? [...previous, field.apiKey]
-                      : previous.filter((value) => value !== field.apiKey),
+                      ? [...previous, field.name]
+                      : previous.filter((value) => value !== field.name),
                   )
                 }
               />
