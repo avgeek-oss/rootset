@@ -9,6 +9,14 @@ patterns. Rootset retains its email-delivered invitation protocol because the
 shared invitation-creation dialog requires a returned invitation URL; Rootset's
 list and creation responses do not disclose that token.
 
+The published SignIn pattern has no resend-verification action or link. Rootset
+retains `/verification` and `/verify-email` for direct use, but they are not
+discoverable from that shared form. A correct password sign-in for an unverified
+account queues an account-verification email and returns `EMAIL_NOT_VERIFIED`
+without granting a session; the real identity setup test verifies that behavior.
+Delivery still requires the configured SMTP worker. This is a discoverability
+limitation of the current shared component, not full authentication-flow parity.
+
 Authenticator/TOTP enrollment, verification, action types and storage have been
 removed. Passkey recovery codes belong to the shared first-key/replacement
 ceremony. They are not a separate account settings panel. The single prelaunch

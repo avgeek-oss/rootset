@@ -373,8 +373,33 @@ test(
             claimed: true,
             verified: false,
           });
+          await owner.query(
+            `DELETE FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification'`,
+            [email],
+          );
           const refused = await login(service, email, password);
           assert.equal(refused.response.ok, false);
+          assert.equal(refused.response.status, 403);
+          assert.equal(
+            (await refused.response.json()).code,
+            "EMAIL_NOT_VERIFIED",
+          );
+          assert.equal(
+            (
+              await owner.query(
+                `SELECT count(*) FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification' AND state='pending'`,
+                [email],
+              )
+            ).rows[0].count,
+            "1",
+          );
+          assert.equal(
+            await service.resolveActor(
+              request("/get-session", undefined, refused.cookie),
+              "browser",
+            ),
+            null,
+          );
           await latestVerification(service, pool, email);
           assert.deepEqual(await service.setupStatus(), {
             claimed: true,
