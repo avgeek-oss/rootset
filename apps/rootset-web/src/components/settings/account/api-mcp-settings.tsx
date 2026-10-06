@@ -84,12 +84,14 @@ function RevealedSecret({ title, code }: { title: string; code: string }) {
   );
 }
 function Choice({
+  isDisabled = false,
   label,
   value,
   onChange,
   options,
   renderIcon,
 }: {
+  isDisabled?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -99,6 +101,7 @@ function Choice({
   return (
     <Select
       fullWidth
+      isDisabled={isDisabled}
       isRequired
       variant="secondary"
       selectedKey={value}
@@ -492,6 +495,7 @@ function CreateKey({
         />
       </div>
       <Choice
+        isDisabled={busy}
         label="Expires after"
         value={expiry}
         onChange={setExpiry}
