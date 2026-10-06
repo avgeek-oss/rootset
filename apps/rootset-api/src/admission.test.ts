@@ -155,10 +155,20 @@ test(
         principals.map((principal) =>
           assert.rejects(
             admission.enter(principal, true, false, 120, 1),
-            (error) => error instanceof RootsetError && error.status === 429,
+            (error) =>
+              error instanceof RootsetError &&
+              (error.status === 429 ||
+                (error.status === 503 &&
+                  error.code === "DEPENDENCY_UNAVAILABLE" &&
+                  (error.details as { retryAfter: number }).retryAfter === 1)),
           ),
         ),
       );
+      for (const principal of principals)
+        await assert.rejects(
+          admission.enter(principal, true, false, 120, 1),
+          (error) => error instanceof RootsetError && error.status === 429,
+        );
       assert.equal(
         Number(
           (

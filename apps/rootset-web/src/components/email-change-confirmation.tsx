@@ -49,6 +49,14 @@ export function EmailChangeConfirmation() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const reloadForNewProof = () => {
+      if (window.location.hash) window.location.reload();
+    };
+    window.addEventListener("hashchange", reloadForNewProof);
+    return () => window.removeEventListener("hashchange", reloadForNewProof);
+  }, []);
+
   const shared = {
     brand: <AuthBrand />,
     purpose: "email-change" as const,

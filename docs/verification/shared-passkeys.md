@@ -64,6 +64,9 @@ confirmation action, clears the URL while preserving router state, and keeps the
 proof only in memory. Rendered inspection left the fixture email, pending proof,
 sessions and change-notice count unchanged. A reload of the scrubbed URL shows
 the shared unavailable state without submitting confirmation.
+Opening a new fragment link on the same confirmation route reloads the document
+for a fresh inspection, so an earlier unavailable/ready screen cannot retain the
+new link's proof in the address bar or confirm the previous in-memory proof.
 
 `email-verification.test.ts` checks real handler responses, normalized and hashed
 buckets, foreign origins, API-key denial, session isolation, timing, concurrent
