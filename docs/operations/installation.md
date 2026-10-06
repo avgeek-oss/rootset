@@ -6,7 +6,7 @@ a failed one-shot baseline migration must prevent API/worker startup.
 
 ## Package registry
 
-Rootset consumes `@avgeek-oss/design-system@1.1.0` from GitHub Packages through its
+Rootset consumes `@avgeek-oss/design-system@1.2.0` from GitHub Packages through its
 public package exports. Authenticate before installing:
 
 ```sh
