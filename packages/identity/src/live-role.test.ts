@@ -11,7 +11,7 @@ function fixture() {
     orgId = newId(),
     credentialId = newId();
   const state = {
-    role: "editor" as Actor["role"],
+    role: "member" as Actor["role"],
     version: 1,
     verified: true,
     member: true,
@@ -85,6 +85,7 @@ function fixture() {
   const service = new IdentityService({
     pool,
     baseURL: "http://localhost:6300",
+    passwordPolicy: { breachCheck: false },
     secret: randomBytes(32).toString("hex"),
     bootstrapSecret: randomBytes(32).toString("hex"),
     keyHashSecret: randomBytes(32).toString("hex"),
@@ -108,14 +109,14 @@ const unauthenticated = (error: unknown) =>
 
 test("personal keys inherit the live member role and membership version without an issued scope ceiling", async () => {
   const { state, service, actor } = fixture();
-  const editor = await service.refreshActor(actor);
-  assert.equal(editor.role, "editor");
-  assert.ok(editor.scopes.includes("rows:write"));
-  assert.ok(!editor.scopes.includes("installation:manage"));
-  assert.equal(editor.membershipVersion, 1);
+  const member = await service.refreshActor(actor);
+  assert.equal(member.role, "member");
+  assert.ok(member.scopes.includes("rows:write"));
+  assert.ok(!member.scopes.includes("installation:manage"));
+  assert.equal(member.membershipVersion, 1);
   state.role = "viewer";
   state.version++;
-  const viewer = await service.refreshActor(editor);
+  const viewer = await service.refreshActor(member);
   assert.equal(viewer.role, "viewer");
   assert.equal(viewer.membershipVersion, 2);
   assert.ok(!viewer.scopes.includes("rows:write"));

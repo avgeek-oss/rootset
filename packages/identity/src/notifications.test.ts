@@ -19,6 +19,7 @@ test("durable notification feed preserves all unread pages, user isolation, immu
     const service = new IdentityService({
       pool: db.identity,
       baseURL: "http://localhost:6300",
+      passwordPolicy: { breachCheck: false },
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),

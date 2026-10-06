@@ -1076,7 +1076,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         journalResults[mode]![operationId] = first;
         const changed =
           operationId === "inviteMember"
-            ? { ...input, role: "editor" }
+            ? { ...input, role: "member" }
             : operationId === "beginAccountAction"
               ? {
                   ...input,
@@ -2144,44 +2144,42 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         .split("/")
         .at(-1)!;
     const onboarding = await request(
-      "/v1/auth/invitations/accept",
+      `/v1/auth/invitations/${invitationToken}/verify`,
       "POST",
-      {
-        token: invitationToken,
-        name: "Rootset verification viewer",
-        password: "Rootset viewer verification password 2026!",
-      },
+      {},
       { headers: { Origin: baseURL } },
     );
-    assert.equal(onboarding.status, 202);
+    assert.equal(onboarding.status, 200);
     const viewerVerificationEnvelope = (
       await db.owner.query(
         "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE template=$1 AND to_address=$2 ORDER BY created_at DESC LIMIT 1",
-        ["account-verification", invitedEmail],
+        ["invitation-verification", invitedEmail],
       )
     ).rows[0];
     assert(viewerVerificationEnvelope);
-    const viewerVerification = decryptProtected<{ actionUrl: string }>(
+    const viewerVerification = decryptProtected<{ details: string }>(
       viewerVerificationEnvelope.payload_encrypted,
       config,
     );
-    assert(
-      [200, 302].includes(
-        (await fetch(viewerVerification.actionUrl, { redirect: "manual" }))
-          .status,
-      ),
-    );
-    const viewerLogin = await request(
-      "/v1/auth/sign-in/email",
+    const proofResponse = await request(
+      `/v1/auth/invitations/${invitationToken}/code`,
       "POST",
       {
-        email: invitedEmail,
-        password: "Rootset viewer verification password 2026!",
+        name: "Rootset verification viewer",
+        code: viewerVerification.details.match(/\d{6}/)![0],
       },
       { headers: { Origin: baseURL } },
     );
-    assert.equal(viewerLogin.status, 200);
-    cookie = viewerLogin.headers
+    assert.equal(proofResponse.status, 200);
+    const { setupToken } = await proofResponse.json();
+    const viewerSignup = await request(
+      `/v1/auth/invitations/${invitationToken}/signup`,
+      "POST",
+      { setupToken, password: "Rootset viewer verification password 2026!" },
+      { headers: { Origin: baseURL } },
+    );
+    assert.equal(viewerSignup.status, 200, await viewerSignup.clone().text());
+    cookie = viewerSignup.headers
       .getSetCookie()
       .map((value) => value.split(";")[0])
       .join("; ");

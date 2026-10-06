@@ -11,7 +11,7 @@ const actor: Actor = {
   orgId: id(1),
   userId: id(2),
   credentialId: id(3),
-  role: "editor",
+  role: "member",
   scopes: ["databases:read", "tables:read"],
   membershipVersion: 4,
 };

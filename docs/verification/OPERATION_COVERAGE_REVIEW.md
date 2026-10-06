@@ -23,7 +23,7 @@ history, uniqueness, backup readback or process recovery.
 
 ## Revised authority and naming
 
-Exercise Admin, Editor and Viewer across browser, REST and MCP. Admin alone
+Exercise Admin, Member and Viewer across browser, REST and MCP. Admin alone
 views installation health and manages people, databases/schema and recovery. Personal
 keys inherit current role without operation/resource selectors. OAuth consent
 limits operations and is intersected with live role; its audience `resource` is

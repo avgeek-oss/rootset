@@ -69,7 +69,7 @@ before(async () => {
     "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
     [orgId, "Role authority fixture"],
   );
-  for (const role of ["admin", "editor", "viewer"] as const) {
+  for (const role of ["admin", "member", "viewer"] as const) {
     const userId = newId();
     await database.owner.query(
       "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
@@ -186,10 +186,10 @@ verificationCase(
     id: "ACCESS-ROLE-01",
     gates: ["V1-04"],
     scope:
-      "Real Core runtime enforces Admin/Editor/Viewer read, row-write, schema, people and installation authority; password/MFA transports have separate tests",
+      "Real Core runtime enforces Admin/Member/Viewer read, row-write, schema, people and installation authority; password/MFA transports have separate tests",
   },
   async () => {
-    for (const role of ["admin", "editor", "viewer"] as const) {
+    for (const role of ["admin", "member", "viewer"] as const) {
       const actor = actors[role];
       await execute("queryRows", actor, { ...ids(), query: {} });
       const write = execute("createRow", actor, {
@@ -263,9 +263,9 @@ verificationCase(
   },
   async () => {
     const created = record(
-      await execute("createPersonalKey", actors.editor, {
+      await execute("createPersonalKey", actors.member, {
         orgId,
-        name: "Editor role fixture",
+        name: "Member role fixture",
       }),
     );
     const actor = await resolveKey(created.secret);
@@ -300,7 +300,7 @@ verificationCase(
     const member = (
       await database.owner.query(
         "SELECT id,version::text version FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",
-        [orgId, actors.editor.userId],
+        [orgId, actors.member.userId],
       )
     ).rows[0]!;
     await execute("updateMember", actors.admin, {
@@ -317,7 +317,7 @@ verificationCase(
     );
     await deny(execute("createRow", actor, writeInput, replayKey));
     await execute("queryRows", actor, { ...ids(), query: {} });
-    await execute("revokePersonalKey", actors.editor, {
+    await execute("revokePersonalKey", actors.member, {
       id: idOf(created.key),
     });
     await deny(execute("queryRows", actor, { ...ids(), query: {} }), [

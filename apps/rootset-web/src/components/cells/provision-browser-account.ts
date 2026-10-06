@@ -11,9 +11,9 @@ const mailboxURL =
   process.env.ROOTSET_BROWSER_MAILBOX_URL ?? "http://localhost:59080";
 const origin = new URL(baseURL).origin;
 const fixtureRole = process.env.ROOTSET_BROWSER_FIXTURE_ROLE ?? "admin";
-if (!["admin", "editor", "viewer"].includes(fixtureRole))
+if (!["admin", "member", "viewer"].includes(fixtureRole))
   throw new Error(
-    "Browser fixture invitation role must be admin, editor or viewer.",
+    "Browser fixture invitation role must be admin, member or viewer.",
   );
 const fixture = JSON.parse(
   readFileSync(
@@ -95,6 +95,36 @@ async function findMailLink(
     );
 }
 
+async function findVerificationCode(email: string): Promise<string> {
+  const deadline = Date.now() + 60_000;
+  do {
+    const response = await fetch(`${mailboxURL}/api/v1/messages`);
+    if (!response.ok)
+      throw new ProvisionError(`The test mailbox returned ${response.status}.`);
+    const mailbox = (await response.json()) as Mailbox;
+    for (const message of mailbox.messages.filter((item) =>
+      item.To.some((recipient) => recipient.Address === email),
+    )) {
+      const response = await fetch(
+        `${mailboxURL}/api/v1/message/${encodeURIComponent(message.ID)}`,
+      );
+      if (!response.ok)
+        throw new ProvisionError(
+          `The test message endpoint returned ${response.status}.`,
+        );
+      const body = (await response.json()) as { HTML?: string; Text?: string };
+      const code = `${body.Text ?? ""}\n${body.HTML ?? ""}`.match(
+        /Your verification code is (\d{6})\b/,
+      )?.[1];
+      if (code) return code;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  } while (Date.now() < deadline);
+  throw new ProvisionError(
+    "The invitation verification email did not arrive within 60 seconds.",
+  );
+}
+
 async function assertInstallationContext(
   context: APIRequestContext,
 ): Promise<void> {
@@ -148,13 +178,14 @@ async function main() {
     }
     let invitation = await findMailLink(
       credentials.ROOTSET_TEST_OWNER_EMAIL,
-      /^\/invitations\/[A-Za-z0-9_-]{43}$/,
+      /^\/invite\/[A-Za-z0-9]{26}$/,
       false,
     );
     if (!invitation) {
       const stored = parseEnv(
         readFileSync(
-          resolve(root, "apps/rootset-web/.env.browser-test"),
+          process.env.ROOTSET_BROWSER_ADMIN_CREDENTIALS_PATH ??
+            resolve(root, "apps/rootset-web/.env.browser-test"),
           "utf8",
         ),
       );
@@ -209,46 +240,46 @@ async function main() {
       }
       invitation = await findMailLink(
         credentials.ROOTSET_TEST_OWNER_EMAIL,
-        /^\/invitations\/[A-Za-z0-9_-]{43}$/,
+        /^\/invite\/[A-Za-z0-9]{26}$/,
       );
     }
     if (!invitation)
       throw new ProvisionError("The invitation link is missing.");
-    const token = invitation.pathname.split("/").at(-1);
-    const accepted = await own.post(`${baseURL}/v1/auth/invitations/accept`, {
-      data: {
-        token,
-        name: "Cell editor verification",
-        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+    const id = invitation.pathname.split("/").at(-1);
+    const begun = await own.post(
+      `${baseURL}/v1/auth/invitations/${id}/verify`,
+      {
+        data: {},
       },
-    });
-    if (accepted.status() !== 202)
-      throw new ProvisionError(
-        `The invitation registration endpoint returned ${accepted.status()}.`,
-      );
-    const verification = await findMailLink(
-      credentials.ROOTSET_TEST_OWNER_EMAIL,
-      /^\/v1\/auth\/verify-email$/,
     );
-    if (!verification)
-      throw new ProvisionError("The verification link is missing.");
-    const verified = await own.get(verification.toString(), {
-      maxRedirects: 0,
-    });
-    if (verified.status() !== 302 && !verified.ok())
+    if (!begun.ok())
       throw new ProvisionError(
-        `The real email verification endpoint returned ${verified.status()}.`,
+        `The invitation verification endpoint returned ${begun.status()}.`,
       );
-    if (!(await authenticate(own, credentials)))
+    if ((await begun.json()).existingAccount)
       throw new ProvisionError(
-        "The email-verified invited account could not sign in.",
+        "The isolated account exists but could not sign in with its retained fixture credentials.",
       );
-    const confirmed = await own.post(`${baseURL}/v1/auth/invitations/accept`, {
-      data: { token },
+    const code = await findVerificationCode(
+      credentials.ROOTSET_TEST_OWNER_EMAIL,
+    );
+    const proof = await own.post(`${baseURL}/v1/auth/invitations/${id}/code`, {
+      data: { name: "Cell editor verification", code },
     });
-    if (!confirmed.ok())
+    if (!proof.ok())
       throw new ProvisionError(
-        `The verified invitation acceptance endpoint returned ${confirmed.status()}.`,
+        `The invitation email proof endpoint returned ${proof.status()}.`,
+      );
+    const { setupToken } = (await proof.json()) as { setupToken: string };
+    const accepted = await own.post(
+      `${baseURL}/v1/auth/invitations/${id}/signup`,
+      {
+        data: { setupToken, password: credentials.ROOTSET_TEST_OWNER_PASSWORD },
+      },
+    );
+    if (!accepted.ok())
+      throw new ProvisionError(
+        `The invitation password setup endpoint returned ${accepted.status()}.`,
       );
     await assertInstallationContext(own);
     console.log(

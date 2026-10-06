@@ -239,12 +239,9 @@ async function mutate(
         }),
       );
     if (path === "/v1/public/auth/identity/send-verification-email")
-      return check(
-        await authClient.sendVerificationEmail({
-          email: String(values.email),
-          callbackURL: String(values.callbackURL),
-        }),
-      );
+      return identityRequest("/send-verification-email", "POST", {
+        email: values.email,
+      });
     if (path.startsWith("/v1/core/sessions/"))
       return write(`/me/sessions/${path.split("/").at(-1)}`, "DELETE");
     if (path === "/v1/core/settings/api-keys/personal") {

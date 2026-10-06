@@ -93,6 +93,13 @@ persistent authentication, key-hash, cursor and encryption secrets across restar
 Test artifact encryption/readback and actual email delivery before relying on
 backups or account recovery.
 
+Password policy uses `ROOTSET_PASSWORD_BREACH_CHECK=true` by default. New
+passwords need access to the padded breached-password range service; unavailable
+checks reject the change with a retryable error. `ROOTSET_PASSWORD_VERIFY_CONCURRENCY`
+(default 2) and `ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT` (default 16) bound expensive
+password work. Synthetic offline CI/browser fixtures set breach checking to
+`false` explicitly; that fixture exception is not a production recommendation.
+
 Serve the browser and API through the configured origin. Remote installations
 require HTTPS; plain HTTP is a loopback development exception. Configure the
 public base URL, trusted origins, secure cookies and OAuth discovery/redirect

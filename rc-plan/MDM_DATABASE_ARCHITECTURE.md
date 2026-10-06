@@ -39,7 +39,7 @@ credentials; deployment migration authority stays out of runtime environments.
 The managed-table owner is a PostgreSQL privilege boundary, not another user role.
 A trusted DDL credential able to alter owned tables is not safe against hostile
 use of that credential. [Runtime architecture](STACK_ARCHITECTURE.md) describes
-that boundary. Product permission comes from live Admin/Editor/Viewer membership.
+that boundary. Product permission comes from live Admin/Member/Viewer membership.
 
 ## Values and types
 

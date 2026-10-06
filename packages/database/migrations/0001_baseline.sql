@@ -351,7 +351,7 @@ CREATE FUNCTION rootset_control.invitation_locator(invitation_hash text) RETURNS
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
-    AS $$ SELECT org_id FROM rootset_control.invitations WHERE token_hash=invitation_hash; $$;
+    AS $$ SELECT org_id FROM rootset_control.invitations WHERE id=invitation_hash; $$;
 
 ALTER FUNCTION rootset_control.invitation_locator(invitation_hash text) OWNER TO rootset_identity_definer;
 
@@ -512,6 +512,18 @@ $_$;
 
 ALTER FUNCTION rootset_control.operator_metrics() OWNER TO rootset_metrics_definer;
 
+CREATE FUNCTION rootset_control.preserve_notification_read_time() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$ BEGIN
+      IF OLD.read_at IS NOT NULL AND NEW.read_at IS DISTINCT FROM OLD.read_at THEN
+        RAISE EXCEPTION 'Notification read time is immutable' USING ERRCODE='23514';
+      END IF;
+      RETURN NEW;
+    END $$;
+
+ALTER FUNCTION rootset_control.preserve_notification_read_time() OWNER TO rootset_owner;
+
 CREATE FUNCTION rootset_control.track_history_metrics() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -601,7 +613,7 @@ CREATE TABLE rootset_control.api_keys (
     org_id character varying(26) NOT NULL,
     user_id character varying(26) NOT NULL,
     creator_user_id character varying(26),
-    name character varying(255) NOT NULL,
+    name character varying(120) NOT NULL,
     secret_hash text NOT NULL,
     prefix text NOT NULL,
     expires_at timestamp with time zone,
@@ -677,7 +689,7 @@ ALTER TABLE rootset_control.auth_accounts OWNER TO rootset_owner;
 CREATE TABLE rootset_control.auth_passkeys (
     id character varying(26) NOT NULL,
     user_id character varying(26) NOT NULL,
-    name character varying(255),
+    name character varying(120),
     public_key text NOT NULL,
     credential_id text NOT NULL,
     counter integer NOT NULL,
@@ -875,7 +887,7 @@ CREATE TABLE rootset_control.fields (
     id character varying(26) NOT NULL,
     table_id character varying(26) NOT NULL,
     org_id character varying(26) NOT NULL,
-    name character varying(64) CONSTRAINT fields_name_not_null NOT NULL,
+    name character varying(64) NOT NULL,
     definition jsonb NOT NULL,
     "position" integer NOT NULL,
     state text DEFAULT 'active'::text NOT NULL,
@@ -1042,12 +1054,11 @@ CREATE TABLE rootset_control.invitations (
     email character varying(320) NOT NULL,
     role text NOT NULL,
     inviter_id character varying(26) NOT NULL,
-    token_hash text NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     state text DEFAULT 'pending'::text NOT NULL,
     accepted_by character varying(26),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT invitations_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'editor'::text, 'viewer'::text]))),
+    CONSTRAINT invitations_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'member'::text, 'viewer'::text]))),
     CONSTRAINT invitations_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'accepted'::text, 'cancelled'::text])))
 );
 
@@ -1114,20 +1125,12 @@ CREATE TABLE rootset_control.memberships (
     version bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT memberships_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'editor'::text, 'viewer'::text])))
+    CONSTRAINT memberships_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'member'::text, 'viewer'::text])))
 );
 
 ALTER TABLE ONLY rootset_control.memberships FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.memberships OWNER TO rootset_owner;
-
-CREATE TABLE IF NOT EXISTS rootset_control.migrations (
-    name text PRIMARY KEY,
-    digest text NOT NULL,
-    applied_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-ALTER TABLE rootset_control.migrations OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.mutations (
     id character varying(26) NOT NULL,
@@ -1146,6 +1149,33 @@ CREATE TABLE rootset_control.mutations (
 ALTER TABLE ONLY rootset_control.mutations FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.mutations OWNER TO rootset_managed_owner;
+
+CREATE TABLE rootset_control.notification_events (
+    id character varying(26) NOT NULL,
+    org_id character varying(26) NOT NULL,
+    dedupe_key text NOT NULL,
+    type text NOT NULL,
+    payload jsonb NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT notification_events_payload_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT notification_events_type_check CHECK ((type = ANY (ARRAY['backup.succeeded'::text, 'backup.failed'::text, 'backup.cancelled'::text])))
+);
+
+ALTER TABLE ONLY rootset_control.notification_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE rootset_control.notification_events OWNER TO rootset_owner;
+
+CREATE TABLE rootset_control.notification_receipts (
+    org_id character varying(26) NOT NULL,
+    user_id text NOT NULL,
+    event_id character varying(26) NOT NULL,
+    read_at timestamp with time zone
+);
+
+ALTER TABLE ONLY rootset_control.notification_receipts FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE rootset_control.notification_receipts OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_clients (
     client_id text NOT NULL,
@@ -1241,7 +1271,7 @@ ALTER TABLE rootset_control.operation_outcomes OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.organisations (
     id character varying(26) NOT NULL,
-    name character varying(255) NOT NULL,
+    name character varying(120) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -1488,7 +1518,7 @@ ALTER TABLE rootset_control.user_preferences OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.users (
     id character varying(26) NOT NULL,
-    name character varying(255) NOT NULL,
+    name character varying(120) NOT NULL,
     email character varying(320) NOT NULL,
     email_verified boolean DEFAULT false NOT NULL,
     image text,
@@ -1633,9 +1663,6 @@ ALTER TABLE ONLY rootset_control.indexes
 ALTER TABLE ONLY rootset_control.invitations
     ADD CONSTRAINT invitations_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.invitations
-    ADD CONSTRAINT invitations_token_hash_key UNIQUE (token_hash);
-
 ALTER TABLE ONLY rootset_control.jobs
     ADD CONSTRAINT jobs_org_id_requester_id_operation_id_idempotency_key_key UNIQUE (org_id, requester_id, operation_id, idempotency_key);
 
@@ -1659,6 +1686,18 @@ ALTER TABLE ONLY rootset_control.mutations
 
 ALTER TABLE ONLY rootset_control.mutations
     ADD CONSTRAINT mutations_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY rootset_control.notification_events
+    ADD CONSTRAINT notification_events_org_id_dedupe_key_key UNIQUE (org_id, dedupe_key);
+
+ALTER TABLE ONLY rootset_control.notification_events
+    ADD CONSTRAINT notification_events_org_id_id_key UNIQUE (org_id, id);
+
+ALTER TABLE ONLY rootset_control.notification_events
+    ADD CONSTRAINT notification_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY rootset_control.notification_receipts
+    ADD CONSTRAINT notification_receipts_pkey PRIMARY KEY (org_id, user_id, event_id);
 
 ALTER TABLE ONLY rootset_control.oauth_clients
     ADD CONSTRAINT oauth_clients_pkey PRIMARY KEY (client_id);
@@ -1787,6 +1826,8 @@ CREATE INDEX control_mutation_replays_expiry ON rootset_control.control_mutation
 
 CREATE INDEX email_outbox_next_attempt_at_idx ON rootset_control.email_outbox USING btree (next_attempt_at) WHERE (state = ANY (ARRAY['pending'::text, 'sending'::text]));
 
+CREATE INDEX email_outbox_verification_recipient ON rootset_control.email_outbox USING btree (to_address, created_at DESC) WHERE (template = 'account-verification'::text);
+
 CREATE UNIQUE INDEX fields_active_name ON rootset_control.fields USING btree (table_id, lower((name)::text)) WHERE (state = 'active'::text);
 
 CREATE UNIQUE INDEX history_archive_active_table ON rootset_control.history_archives USING btree (table_id) WHERE (state = ANY (ARRAY['snapshotting'::text, 'uploading'::text, 'verified'::text, 'purging'::text]));
@@ -1808,6 +1849,10 @@ CREATE INDEX mutations_restore_order ON rootset_control.mutations USING btree (o
 CREATE INDEX mutations_snapshot ON rootset_control.mutations USING btree (org_id, COALESCE(restore_original_id, id));
 
 CREATE INDEX mutations_snapshot_private ON rootset_control.mutations USING btree (org_id, table_id, id);
+
+CREATE INDEX notification_events_page ON rootset_control.notification_events USING btree (org_id, occurred_at DESC, id DESC);
+
+CREATE INDEX notification_receipts_unread ON rootset_control.notification_receipts USING btree (org_id, user_id, event_id) WHERE (read_at IS NULL);
 
 CREATE INDEX oauth_grants_user ON rootset_control.oauth_grants USING btree (user_id, org_id);
 
@@ -1854,6 +1899,8 @@ ALTER INDEX rootset_control.cell_changes_lookup ATTACH PARTITION rootset_control
 ALTER INDEX rootset_control.cell_changes_public_id ATTACH PARTITION rootset_control.cell_changes_default_public_id_changed_at_idx;
 
 CREATE TRIGGER history_usage AFTER INSERT OR DELETE ON rootset_control.cell_changes FOR EACH ROW EXECUTE FUNCTION rootset_control.track_history_metrics();
+
+CREATE TRIGGER notification_read_time BEFORE UPDATE ON rootset_control.notification_receipts FOR EACH ROW EXECUTE FUNCTION rootset_control.preserve_notification_read_time();
 
 ALTER TABLE ONLY rootset_control.account_actions
     ADD CONSTRAINT account_actions_org_id_fkey FOREIGN KEY (org_id) REFERENCES rootset_control.organisations(id);
@@ -1935,6 +1982,15 @@ ALTER TABLE ONLY rootset_control.memberships
 
 ALTER TABLE ONLY rootset_control.memberships
     ADD CONSTRAINT memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
+
+ALTER TABLE ONLY rootset_control.notification_events
+    ADD CONSTRAINT notification_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES rootset_control.organisations(id);
+
+ALTER TABLE ONLY rootset_control.notification_receipts
+    ADD CONSTRAINT notification_receipts_org_id_event_id_fkey FOREIGN KEY (org_id, event_id) REFERENCES rootset_control.notification_events(org_id, id);
+
+ALTER TABLE ONLY rootset_control.notification_receipts
+    ADD CONSTRAINT notification_receipts_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
 
 ALTER TABLE ONLY rootset_control.oauth_codes
     ADD CONSTRAINT oauth_codes_grant_id_fkey FOREIGN KEY (grant_id) REFERENCES rootset_control.oauth_grants(id);
@@ -2029,6 +2085,10 @@ CREATE POLICY identity_org_isolation ON rootset_control.key_requests TO rootset_
 
 CREATE POLICY identity_org_isolation ON rootset_control.memberships TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
 
+CREATE POLICY identity_org_isolation ON rootset_control.notification_events TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+
+CREATE POLICY identity_org_isolation ON rootset_control.notification_receipts TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+
 CREATE POLICY identity_org_isolation ON rootset_control.organisations TO rootset_identity USING (((id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((id)::text = current_setting('rootset.org_id'::text, true)));
 
 ALTER TABLE rootset_control.import_batches ENABLE ROW LEVEL SECURITY;
@@ -2046,6 +2106,10 @@ ALTER TABLE rootset_control.key_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rootset_control.memberships ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.mutations ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE rootset_control.notification_events ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE rootset_control.notification_receipts ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.operation_outcomes ENABLE ROW LEVEL SECURITY;
 
@@ -2179,6 +2243,8 @@ GRANT ALL ON FUNCTION rootset_control.oauth_grant_active(grant_id text) TO roots
 REVOKE ALL ON FUNCTION rootset_control.operator_metrics() FROM PUBLIC;
 GRANT ALL ON FUNCTION rootset_control.operator_metrics() TO rootset_identity;
 
+REVOKE ALL ON FUNCTION rootset_control.preserve_notification_read_time() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION rootset_control.worker_org_directory() FROM PUBLIC;
 GRANT ALL ON FUNCTION rootset_control.worker_org_directory() TO rootset_ddl;
 
@@ -2277,7 +2343,6 @@ GRANT SELECT(attempts) ON TABLE rootset_control.email_outbox TO rootset_metrics_
 
 GRANT SELECT(created_at) ON TABLE rootset_control.email_outbox TO rootset_metrics_definer;
 
-
 GRANT SELECT ON TABLE rootset_control.fields TO rootset_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.fields TO rootset_ddl;
 GRANT SELECT ON TABLE rootset_control.fields TO rootset_identity;
@@ -2319,9 +2384,9 @@ GRANT SELECT(state) ON TABLE rootset_control.indexes TO rootset_metrics_definer;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.invitations TO rootset_identity;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.invitations TO rootset_identity_definer;
+GRANT SELECT(id) ON TABLE rootset_control.invitations TO rootset_identity_definer;
 
-GRANT SELECT(token_hash) ON TABLE rootset_control.invitations TO rootset_identity_definer;
+GRANT SELECT(org_id) ON TABLE rootset_control.invitations TO rootset_identity_definer;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.jobs TO rootset_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.jobs TO rootset_ddl;
@@ -2359,14 +2424,16 @@ GRANT SELECT(role) ON TABLE rootset_control.memberships TO rootset_identity_defi
 
 GRANT SELECT(version) ON TABLE rootset_control.memberships TO rootset_identity_definer;
 
-GRANT SELECT ON TABLE rootset_control.migrations TO rootset_app;
-GRANT SELECT ON TABLE rootset_control.migrations TO rootset_identity;
-GRANT SELECT ON TABLE rootset_control.migrations TO rootset_ddl;
-
 GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.mutations TO rootset_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.mutations TO rootset_ddl;
 
 GRANT SELECT(org_id) ON TABLE rootset_control.mutations TO rootset_worker_definer;
+
+GRANT SELECT,INSERT ON TABLE rootset_control.notification_events TO rootset_identity;
+
+GRANT SELECT,INSERT ON TABLE rootset_control.notification_receipts TO rootset_identity;
+
+GRANT UPDATE(read_at) ON TABLE rootset_control.notification_receipts TO rootset_identity;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_clients TO rootset_identity;
 
@@ -2467,6 +2534,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.user_preferences TO r
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.users TO rootset_identity;
 
 GRANT SELECT(id) ON TABLE rootset_control.users TO rootset_identity_definer;
+
 GRANT SELECT(email_verified) ON TABLE rootset_control.users TO rootset_identity_definer;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.view_preferences TO rootset_identity;
@@ -2479,54 +2547,6 @@ GRANT SELECT(heartbeat_at) ON TABLE rootset_control.worker_heartbeats TO rootset
 
 GRANT SELECT(state) ON TABLE rootset_control.worker_heartbeats TO rootset_metrics_definer;
 
+GRANT SELECT ON TABLE rootset_control.migrations TO rootset_app, rootset_identity, rootset_ddl;
+
 INSERT INTO rootset_control.bootstrap(singleton) VALUES(true);
-
-CREATE TABLE rootset_control.notification_events (
-    id character varying(26) PRIMARY KEY,
-    org_id character varying(26) NOT NULL REFERENCES rootset_control.organisations(id),
-    dedupe_key text NOT NULL,
-    type text NOT NULL CHECK (type IN ('backup.succeeded','backup.failed','backup.cancelled')),
-    payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object'),
-    occurred_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    UNIQUE (org_id,id),
-    UNIQUE (org_id,dedupe_key)
-);
-ALTER TABLE rootset_control.notification_events OWNER TO rootset_owner;
-ALTER TABLE rootset_control.notification_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rootset_control.notification_events FORCE ROW LEVEL SECURITY;
-CREATE POLICY identity_org_isolation ON rootset_control.notification_events TO rootset_identity
-    USING (org_id=current_setting('rootset.org_id',true))
-    WITH CHECK (org_id=current_setting('rootset.org_id',true));
-CREATE INDEX notification_events_page ON rootset_control.notification_events(org_id,occurred_at DESC,id DESC);
-
-CREATE TABLE rootset_control.notification_receipts (
-    org_id character varying(26) NOT NULL,
-    user_id text NOT NULL REFERENCES rootset_control.users(id),
-    event_id character varying(26) NOT NULL,
-    read_at timestamp with time zone,
-    PRIMARY KEY (org_id,user_id,event_id),
-    FOREIGN KEY (org_id,event_id) REFERENCES rootset_control.notification_events(org_id,id)
-);
-ALTER TABLE rootset_control.notification_receipts OWNER TO rootset_owner;
-ALTER TABLE rootset_control.notification_receipts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rootset_control.notification_receipts FORCE ROW LEVEL SECURITY;
-CREATE POLICY identity_org_isolation ON rootset_control.notification_receipts TO rootset_identity
-    USING (org_id=current_setting('rootset.org_id',true))
-    WITH CHECK (org_id=current_setting('rootset.org_id',true));
-CREATE INDEX notification_receipts_unread ON rootset_control.notification_receipts(org_id,user_id,event_id) WHERE read_at IS NULL;
-CREATE FUNCTION rootset_control.preserve_notification_read_time() RETURNS trigger LANGUAGE plpgsql
-    SET search_path TO pg_catalog,pg_temp
-    AS $$ BEGIN
-      IF OLD.read_at IS NOT NULL AND NEW.read_at IS DISTINCT FROM OLD.read_at THEN
-        RAISE EXCEPTION 'Notification read time is immutable' USING ERRCODE='23514';
-      END IF;
-      RETURN NEW;
-    END $$;
-ALTER FUNCTION rootset_control.preserve_notification_read_time() OWNER TO rootset_owner;
-REVOKE ALL ON FUNCTION rootset_control.preserve_notification_read_time() FROM PUBLIC;
-CREATE TRIGGER notification_read_time BEFORE UPDATE ON rootset_control.notification_receipts
-    FOR EACH ROW EXECUTE FUNCTION rootset_control.preserve_notification_read_time();
-GRANT SELECT,INSERT ON rootset_control.notification_events TO rootset_identity;
-GRANT SELECT,INSERT ON rootset_control.notification_receipts TO rootset_identity;
-GRANT UPDATE(read_at) ON rootset_control.notification_receipts TO rootset_identity;

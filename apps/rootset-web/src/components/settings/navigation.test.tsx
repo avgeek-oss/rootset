@@ -52,7 +52,7 @@ describe("context settings navigation", () => {
       ),
     ).toEqual(["exports"]);
     expect(
-      settingsNavigationGroups("table", "editor").flatMap((group) =>
+      settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
     ).toEqual(["imports", "exports"]);

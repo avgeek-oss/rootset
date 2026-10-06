@@ -306,7 +306,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string", "minLength": 1, "maxLength": 255 }
+                  "name": { "type": "string", "minLength": 1, "maxLength": 120 }
                 },
                 "required": ["name"],
                 "additionalProperties": false
@@ -2778,7 +2778,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string", "minLength": 1, "maxLength": 255 }
+                  "name": { "type": "string", "minLength": 1, "maxLength": 120 }
                 },
                 "required": ["name"],
                 "additionalProperties": false
@@ -3141,11 +3141,11 @@
                   "name": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 255
+                    "maxLength": 120
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "editor", "viewer"]
+                    "enum": ["admin", "member", "viewer"]
                   },
                   "expectedVersion": {
                     "type": "string",
@@ -3716,7 +3716,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "editor", "viewer"]
+                    "enum": ["admin", "member", "viewer"]
                   }
                 },
                 "required": ["email", "role"],
@@ -4206,7 +4206,7 @@
                   "name": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 255
+                    "maxLength": 120
                   },
                   "expiresAt": {
                     "anyOf": [
@@ -11318,7 +11318,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_create_row",
         "x-rootset-error-codes": [
@@ -12089,7 +12089,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_update_row",
         "x-rootset-error-codes": [
@@ -12317,7 +12317,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_delete_row",
         "x-rootset-error-codes": [
@@ -12663,7 +12663,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "conditional",
         "x-rootset-job": true,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_mutate_rows",
         "x-rootset-error-codes": [
@@ -14002,7 +14002,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_prepare_import_upload",
         "x-rootset-error-codes": [
@@ -14259,7 +14259,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_validate_import",
         "x-rootset-error-codes": [
@@ -14506,7 +14506,7 @@
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
-        "x-rootset-minimum-role": "editor",
+        "x-rootset-minimum-role": "member",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_import_rows",
         "x-rootset-error-codes": [
@@ -19034,7 +19034,7 @@
               },
               "role": {
                 "type": "string",
-                "enum": ["admin", "editor", "viewer"]
+                "enum": ["admin", "member", "viewer"]
               }
             },
             "required": ["id", "kind", "role"],
@@ -19052,7 +19052,7 @@
                   "name": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 255
+                    "maxLength": 120
                   },
                   "createdAt": {
                     "type": "string",
@@ -19088,7 +19088,7 @@
                   "name": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 255
+                    "maxLength": 120
                   },
                   "email": {
                     "type": "string",
@@ -19193,7 +19193,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
           "email": {
             "type": "string",
             "format": "email",
@@ -19358,7 +19358,7 @@
       "updateProfileInput": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 }
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 }
         },
         "required": ["name"],
         "additionalProperties": false
@@ -19370,7 +19370,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
           "email": {
             "type": "string",
             "format": "email",
@@ -20317,7 +20317,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
           "createdAt": {
             "type": "string",
             "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
@@ -20343,7 +20343,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 }
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 }
         },
         "required": ["orgId", "name"],
         "additionalProperties": false
@@ -20355,7 +20355,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
           "createdAt": {
             "type": "string",
             "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
@@ -20412,7 +20412,7 @@
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                 },
-                "name": { "type": "string" },
+                "name": { "type": "string", "minLength": 1, "maxLength": 120 },
                 "email": {
                   "type": "string",
                   "format": "email",
@@ -20420,7 +20420,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "editor", "viewer"]
+                  "enum": ["admin", "member", "viewer"]
                 },
                 "version": {
                   "type": "string",
@@ -20460,8 +20460,8 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
-          "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
           "expectedVersion": {
             "type": "string",
             "pattern": "^[1-9][0-9]{0,18}$"
@@ -20489,13 +20489,13 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
           "email": {
             "type": "string",
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
+          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
           "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
           "verified": { "type": "boolean" },
           "twoFactorEnabled": { "type": "boolean" }
@@ -20593,7 +20593,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "editor", "viewer"]
+                  "enum": ["admin", "member", "viewer"]
                 },
                 "state": {
                   "type": "string",
@@ -20644,7 +20644,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "editor", "viewer"] }
+          "role": { "type": "string", "enum": ["admin", "member", "viewer"] }
         },
         "required": ["orgId", "email", "role"],
         "additionalProperties": false
@@ -20665,7 +20665,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
+          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
           "state": {
             "type": "string",
             "enum": ["pending", "accepted", "cancelled", "expired"]
@@ -20683,7 +20683,8 @@
             "format": "date-time",
             "description": "UTC instant with mandatory Z and at most three fractional digits.",
             "examples": ["2024-01-01T12:30:00.000Z"]
-          }
+          },
+          "inviteUrl": { "type": "string", "format": "uri" }
         },
         "required": [
           "id",
@@ -20692,7 +20693,8 @@
           "role",
           "state",
           "expiresAt",
-          "createdAt"
+          "createdAt",
+          "inviteUrl"
         ],
         "additionalProperties": false
       },
@@ -20741,7 +20743,7 @@
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                 },
-                "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "name": { "type": "string", "minLength": 1, "maxLength": 120 },
                 "userId": {
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -20818,7 +20820,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
           "expiresAt": {
             "anyOf": [
               {
@@ -20853,7 +20855,7 @@
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
               },
-              "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
               "userId": {
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -20969,7 +20971,7 @@
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
               },
-              "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
               "userId": {
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -34427,8 +34429,14 @@
       "reason": "First identity must exist before OAuth."
     },
     {
+      "path": "/v1/public/auth/request-verification-email",
+      "methods": ["POST"],
+      "kind": "identity",
+      "reason": "Public normalized-email verification request with neutral acknowledgement and fixed login callback."
+    },
+    {
       "path": "/v1/auth/*",
-      "methods": ["GET", "POST"],
+      "methods": ["GET", "POST", "DELETE"],
       "kind": "identity",
       "reason": "Identity/factor proof is browser-mediated. Personal account deletion, organisation lifecycle and team credentials are not supported."
     },

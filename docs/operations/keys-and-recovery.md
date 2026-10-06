@@ -32,7 +32,7 @@ factors, personal-key verification or cursors. Plan the resulting access changes
 provide replacement personal keys if needed and verify old/new behavior. Do not
 promise seamless rotation where there is no versioned verification ring.
 
-Personal keys inherit live Admin/Editor/Viewer membership. Rotation, expiry,
+Personal keys inherit live Admin/Member/Viewer membership. Rotation, expiry,
 revocation, demotion and membership removal must affect further requests, waiting
 work and replay. Keys have no operation/resource selection. OAuth retains approved
 operations intersected with the person's current role; reconnecting must not

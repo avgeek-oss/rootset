@@ -145,7 +145,7 @@ export function RootsetApp() {
   const preferences = context.data?.preferences ?? defaultPreferences;
   const canManage = context.data?.principal.role === "admin";
   const canCreateDatabase = canManage;
-  const canEdit = canManage || context.data?.principal.role === "editor";
+  const canEdit = canManage || context.data?.principal.role === "member";
 
   const requestedOrganisation =
     parameters.get("organisationId") ?? parameters.get("orgId");

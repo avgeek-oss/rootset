@@ -1790,7 +1790,7 @@ test(
     });
     await refused({ ...invalidActor, operations }, "OPERATOR_REQUIRED", {
       ...suppliedRepairActor,
-      role: "editor",
+      role: "member",
     });
     await refused(
       { ...invalidActor, operations, onCommit: undefined },

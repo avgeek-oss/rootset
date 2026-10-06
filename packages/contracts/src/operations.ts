@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { OperationalMetricsSchema } from "@rootset/observability/schema";
 import {
+  AccountNameSchema,
   ActorSchema,
   IdSchema,
   JobAcceptedSchema,
@@ -194,7 +195,7 @@ function operation(
         ? "admin"
         : readOnly
           ? "viewer"
-          : "editor",
+          : "member",
     resource: path.includes("{tableId}")
       ? "table"
       : path.includes("{databaseId}")
@@ -279,7 +280,7 @@ operation(
   "PATCH",
   "/v1/me/profile",
   ["profile:manage"],
-  z.strictObject({ name: names.name }),
+  z.strictObject({ name: AccountNameSchema }),
   ProfileSchema,
   "Update your display name.",
   { personal: true },
@@ -435,7 +436,7 @@ operation(
   "PATCH",
   O,
   ["org:manage"],
-  z.strictObject({ ...org, name: names.name }),
+  z.strictObject({ ...org, name: AccountNameSchema }),
   OrganisationSchema,
   "Update the installation organisation name.",
   { minimumRole: "admin" },
@@ -460,7 +461,7 @@ operation(
   z.strictObject({
     ...org,
     id: IdSchema,
-    name: names.name.optional(),
+    name: AccountNameSchema.optional(),
     role: RoleSchema.optional(),
     expectedVersion: VersionSchema,
     ...approval,
@@ -509,9 +510,9 @@ operation(
   z.strictObject({
     ...org,
     email: z.email(),
-    role: z.enum(["admin", "editor", "viewer"]),
+    role: z.enum(["admin", "member", "viewer"]),
   }),
-  InvitationSchema,
+  InvitationSchema.extend({ inviteUrl: z.url() }),
   "Invite a member as an admin with email proof.",
   { minimumRole: "admin", personal: true },
 );
@@ -527,7 +528,7 @@ operation(
   { minimumRole: "admin" },
 );
 const keyInput = {
-  name: names.name,
+  name: AccountNameSchema,
   expiresAt: DateTimeSchema.nullable().optional(),
   ...approval,
 };
@@ -1615,8 +1616,15 @@ export const ProtocolAdapterInventory = Object.freeze([
     reason: "First identity must exist before OAuth.",
   },
   {
+    path: "/v1/public/auth/request-verification-email",
+    methods: ["POST"],
+    kind: "identity",
+    reason:
+      "Public normalized-email verification request with neutral acknowledgement and fixed login callback.",
+  },
+  {
     path: "/v1/auth/*",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "DELETE"],
     kind: "identity",
     reason:
       "Identity/factor proof is browser-mediated. Personal account deletion, organisation lifecycle and team credentials are not supported.",

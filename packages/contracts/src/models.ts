@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { ulid } from "ulid";
 
+export const AccountNameSchema = z.string().trim().min(1).max(120);
+
 export const limits = Object.freeze({
   maxRows: 5_000_000,
   maxFields: 200,
@@ -206,7 +208,7 @@ export const FieldTypeSchema = z.enum([
   "json",
 ]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
-export const RoleSchema = z.enum(["admin", "editor", "viewer"]);
+export const RoleSchema = z.enum(["admin", "member", "viewer"]);
 export type Role = z.infer<typeof RoleSchema>;
 export const ActorSchema = z.strictObject({
   kind: z.enum(["session", "personal_key", "oauth", "operator"]),

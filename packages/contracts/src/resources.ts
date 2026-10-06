@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AccountNameSchema,
   IdSchema,
   FieldNameSchema,
   FieldTypeSchema,
@@ -102,21 +103,21 @@ export const TableSchemaResultSchema = z.strictObject({
 export type TableSchemaResult = z.infer<typeof TableSchemaResultSchema>;
 export const ProfileSchema = z.strictObject({
   id: IdSchema,
-  name: z.string().min(1).max(255),
+  name: AccountNameSchema,
   email: z.email(),
   emailVerified: z.boolean(),
   ...timestamps,
 });
 export const OrganisationSchema = z.strictObject({
   id: IdSchema,
-  name: z.string().min(1).max(255),
+  name: AccountNameSchema,
   ...timestamps,
 });
 export const MemberSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
   userId: IdSchema,
-  name: z.string(),
+  name: AccountNameSchema,
   email: z.email(),
   role: RoleSchema,
   version: VersionSchema,
@@ -127,7 +128,7 @@ export const InvitationSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
   email: z.email(),
-  role: z.enum(["admin", "editor", "viewer"]),
+  role: z.enum(["admin", "member", "viewer"]),
   state: z.enum(["pending", "accepted", "cancelled", "expired"]),
   expiresAt: DateTimeSchema,
   createdAt: DateTimeSchema,
@@ -135,7 +136,7 @@ export const InvitationSchema = z.strictObject({
 export const KeyMetadataSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
-  name: z.string().min(1).max(255),
+  name: AccountNameSchema,
   userId: IdSchema,
   prefix: z.string(),
   createdAt: DateTimeSchema,

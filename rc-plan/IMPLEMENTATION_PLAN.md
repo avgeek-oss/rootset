@@ -10,7 +10,7 @@ completion credit for the revised model.
    `packages/database/migrations/0001_baseline.sql`. Enforce the organisation
    singleton in SQL, verify normal migration digests and refuse an incompatible
    earlier ledger without changing its data.
-2. Align identity/access with Admin, Editor and Viewer. Admin manages installation
+2. Align identity/access with Admin, Member and Viewer. Admin manages installation
    health and deployment configuration is supplied through `.env`. Remove obsolete role/flag/grant/key models and workflows. Recheck
    live authority after demotion, member removal and credential revocation.
 3. Align contracts, handlers and UI with one field `name` matching

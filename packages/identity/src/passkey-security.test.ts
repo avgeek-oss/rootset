@@ -23,6 +23,7 @@ test(
     const config = {
       pool: fixture.identity,
       baseURL: origin,
+      passwordPolicy: { breachCheck: false },
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),

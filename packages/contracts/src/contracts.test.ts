@@ -6,6 +6,7 @@ import ts from "typescript";
 import {
   CanonicalUtcDateTimeSchema,
   AccountActionSchema,
+  AccountNameSchema,
   AccountActionTypeSchema,
   JsonValueSchema,
   ImportMappingSchema,
@@ -57,6 +58,30 @@ import {
 } from "./index";
 
 const id = "01K6J7B8000000000000000000";
+test("shared account and team name limits stay separate from resource names", () => {
+  assert.equal(AccountNameSchema.parse(`  ${"N".repeat(120)}  `).length, 120);
+  for (const [operation, input] of Object.entries({
+    updateProfile: {},
+    updateOrganisation: { orgId: id },
+    updateMember: { orgId: id, id, expectedVersion: "1" },
+    createPersonalKey: { orgId: id },
+  })) {
+    const schema = operationMap[operation]!.inputSchema;
+    assert.equal(
+      schema.safeParse({ ...input, name: "N".repeat(120) }).success,
+      true,
+    );
+    for (const name of ["   ", "N".repeat(121)])
+      assert.equal(schema.safeParse({ ...input, name }).success, false);
+  }
+  assert.equal(
+    operationMap.createDatabase!.inputSchema.safeParse({
+      orgId: id,
+      name: "R".repeat(255),
+    }).success,
+    true,
+  );
+});
 const makeField = (
   type: FieldDefinition["type"],
   extra: Partial<FieldDefinition> = {},

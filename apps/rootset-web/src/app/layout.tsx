@@ -6,6 +6,7 @@ import { Providers } from "../components/providers";
 export const metadata: Metadata = {
   title: "Rootset",
   description: "Simple MDM structured storage",
+  referrer: "no-referrer",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

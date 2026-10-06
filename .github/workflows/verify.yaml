@@ -29,6 +29,7 @@ jobs:
       ROOTSET_IDENTITY_DATABASE_URL: postgres://rootset_identity:fixture-identity@127.0.0.1:5432/rootset
       ROOTSET_MIGRATION_DATABASE_URL: postgres://rootset_owner:fixture-owner@127.0.0.1:5432/rootset
       ROOTSET_TEST_DATABASE_URL: postgres://rootset_owner:fixture-owner@127.0.0.1:5432/rootset
+      ROOTSET_PASSWORD_BREACH_CHECK: "false"
       ROOTSET_TEST_APP_DATABASE_URL: postgres://rootset_app:fixture-app@127.0.0.1:5432/rootset
       ROOTSET_TEST_DDL_DATABASE_URL: postgres://rootset_ddl:fixture-ddl@127.0.0.1:5432/rootset
       ROOTSET_TEST_IDENTITY_DATABASE_URL: postgres://rootset_identity:fixture-identity@127.0.0.1:5432/rootset

@@ -31,7 +31,7 @@ describe("account component bindings", () => {
   it("creates a personal key in the singleton installation without permission selectors", async () => {
     vi.mocked(read).mockResolvedValue({
       organisation: { id: "installation" },
-      principal: { role: "editor" },
+      principal: { role: "member" },
     });
     vi.mocked(performAction).mockResolvedValue({ secret: "one-time-key" });
     const input = { name: "Script", expiresAt: "2027-01-01T00:00:00.000Z" };

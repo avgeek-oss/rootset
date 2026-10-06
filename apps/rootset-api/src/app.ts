@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Handler } from "hono";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Pool } from "pg";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -432,7 +432,7 @@ export function createApp(deps: ApiDependencies) {
   app.post("/v1/setup", async (c) =>
     json(await deps.identity.claimSetup(await readJson(c.req.raw)), 201),
   );
-  app.all("/v1/auth/*", async (c) => {
+  const handleIdentity: Handler = async (c) => {
     const headers = new Headers(c.req.raw.headers);
     let ip = "in-process";
     try {
@@ -442,8 +442,11 @@ export function createApp(deps: ApiDependencies) {
     headers.delete("content-length");
     if (c.req.method !== "GET" && c.req.method !== "HEAD" && c.req.raw.body) {
       const body = await readJson(c.req.raw);
+      const url = new URL(c.req.url);
+      if (url.pathname === "/v1/public/auth/request-verification-email")
+        url.pathname = "/v1/auth/request-verification-email";
       return deps.identity.auth.handler(
-        new Request(c.req.url, {
+        new Request(url, {
           method: c.req.method,
           headers,
           body: JSON.stringify(body),
@@ -451,7 +454,9 @@ export function createApp(deps: ApiDependencies) {
       );
     }
     return deps.identity.auth.handler(new Request(c.req.raw, { headers }));
-  });
+  };
+  app.post("/v1/public/auth/request-verification-email", handleIdentity);
+  app.all("/v1/auth/*", handleIdentity);
   app.get("/api/internal/v1/context", async (c) => {
     const actor = await authenticate(deps, c.req.raw, true),
       release = await enterActor(actor, true);

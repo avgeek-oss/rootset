@@ -124,6 +124,10 @@ try {
     .replace(/^ROOTSET_ENCRYPTION_KEY=.*$/m, "ROOTSET_ENCRYPTION_KEY=");
   content += `\nROOTSET_ENCRYPTION_KEYS=${JSON.stringify({ primary: config.ROOTSET_ENCRYPTION_KEY })}\n`;
   content += `ROOTSET_WEB_PORT=${webPort}\nROOTSET_MAIL_UI_PORT=${mailPort}\n`;
+  content = content.replace(
+    /^ROOTSET_PASSWORD_BREACH_CHECK=.*$/m,
+    "ROOTSET_PASSWORD_BREACH_CHECK=false",
+  );
   content += `ROOTSET_RUNTIME_IMAGE=${process.env.ROOTSET_SMOKE_RUNTIME_IMAGE ?? "rootset-runtime:ci"}\n`;
   content += `ROOTSET_WEB_IMAGE=${process.env.ROOTSET_SMOKE_WEB_IMAGE ?? "rootset-web:ci"}\n`;
   if (process.env.ROOTSET_SMOKE_CI_HOST_CPU === "1") {

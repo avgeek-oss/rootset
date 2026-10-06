@@ -7,7 +7,7 @@ and verification are in progress; acceptance remains false.
 ## Product
 
 One installation contains one organisation, enforced by a SQL singleton
-constraint. People use Admin, Editor or Viewer membership roles. Admin includes
+constraint. People use Admin, Member or Viewer membership roles. Admin includes
 installation management. Personal keys inherit the person's live role; OAuth
 connections retain PKCE and operation consent without resource selections.
 

@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import {
   AuthForm,
-  AsyncActionButton,
   ForgotPassword,
   ResetLinkSent,
   PasswordSetup,
   TeamSetup,
   InvitationUnavailable,
-  InvitationPasswordSetup,
+  AcceptInvitation,
+  InvitationVerification,
 } from "@avgeek-oss/design-system";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Modal } from "@avgeek-oss/design-system/overlays/modal";
@@ -258,7 +259,11 @@ export function InvitationScreen({ token }: { token: string }) {
       }>(`/auth/invitations/${encodeURIComponent(token)}`, { signal }),
   });
   const session = authClient.useSession();
-  const [created, setCreated] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyPending, setVerifyPending] = useState(false);
+  const verifyRequestPending = useRef(false);
+  const [existing, setExisting] = useState(false);
+  const [setupToken, setSetupToken] = useState<string>();
   if (invitation.isError) {
     if (
       !(invitation.error instanceof ApiError) ||
@@ -283,67 +288,118 @@ export function InvitationScreen({ token }: { token: string }) {
       />
     );
   const details = invitation.data;
-  if (!created && !session.data)
+  const self = `/invite/${token}`;
+  const signIn = () =>
+    window.location.assign(`/login?returnTo=${encodeURIComponent(self)}`);
+  if (setupToken)
     return (
-      <InvitationPasswordSetup
+      <PasswordSetup
+        brand={<AuthBrand />}
+        mode="first"
+        onBackToSignIn={signIn}
+        onSubmit={async ({ password }) => {
+          await publicApi.request(`/auth/invitations/${token}/signup`, {
+            method: "POST",
+            body: { setupToken, password },
+          });
+          window.location.replace("/");
+        }}
+      />
+    );
+  if (!session.data && verifying)
+    return (
+      <InvitationVerification
         brand={<AuthBrand />}
         teamName={details.organisationName}
-        email={details.email}
-        role={details.role}
-        onBackToSignIn={() =>
-          window.location.assign(
-            `/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`,
-          )
-        }
-        onSubmit={async ({ name, password }) => {
-          await publicApi.request("/auth/invitations/accept", {
-            method: "POST",
-            body: { token, name, password },
-          });
-          setCreated(true);
+        maxNameLength={120}
+        onSubmit={async (values) => {
+          const result = await publicApi.request<{ setupToken: string }>(
+            `/auth/invitations/${token}/code`,
+            { method: "POST", body: values },
+          );
+          setSetupToken(result.setupToken);
+        }}
+      />
+    );
+  if (!session.data && !existing)
+    return (
+      <AcceptInvitation
+        brand={<AuthBrand />}
+        teamName={details.organisationName}
+        role={details.role[0]!.toUpperCase() + details.role.slice(1)}
+        isPending={verifyPending}
+        onBackToSignIn={signIn}
+        onVerifyEmail={() => {
+          if (verifyRequestPending.current) return;
+          verifyRequestPending.current = true;
+          setVerifyPending(true);
+          void publicApi
+            .request<{ existingAccount: boolean }>(
+              `/auth/invitations/${token}/verify`,
+              { method: "POST", body: {} },
+            )
+            .then((result) => {
+              setExisting(result.existingAccount);
+              setVerifying(!result.existingAccount);
+            })
+            .catch((error: unknown) =>
+              toast.danger(
+                error instanceof Error
+                  ? error.message
+                  : "Unable to verify invitation",
+              ),
+            )
+            .finally(() => {
+              verifyRequestPending.current = false;
+              setVerifyPending(false);
+            });
         }}
       />
     );
   return (
     <AuthFrame
-      title="Join your team"
-      description={`You’re invited to ${details.organisationName} as ${details.role}.`}
+      title={`Join ${details.organisationName}`}
+      description={`Invited as ${details.role[0]!.toUpperCase() + details.role.slice(1)}. ${details.role === "admin" ? "Manage the installation, data and team." : details.role === "member" ? "Read data and create, edit or delete rows." : "Read and export data."}`}
     >
-      <p className="text-sm text-muted">
-        Invitation for <strong>{details.email}</strong>. Expires{" "}
-        {new Date(details.expiresAt).toLocaleString()}.
-      </p>
-      {created ? (
+      <p className="break-words text-sm">{details.email}</p>
+      {session.data && session.data.user.email !== details.email ? (
         <>
-          <p role="status" className="text-sm text-muted">
-            Verify your email, then sign in and reopen this invitation to
-            complete membership acceptance.
-          </p>
-          <Link
-            href={`/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`}
-            className={authTextActionClassName}
-          >
-            Continue to sign in
-          </Link>
+          <p>Sign out and use the email address on this invitation.</p>
+          <AuthForm
+            fields={[]}
+            submitLabel="Sign out"
+            onSubmit={async () => {
+              authFailure(await authClient.signOut());
+              window.location.reload();
+            }}
+          />
         </>
       ) : session.data ? (
+        <AuthForm
+          fields={[]}
+          submitLabel="Join team"
+          onSubmit={async () => {
+            await publicApi.request(`/auth/invitations/${token}/accept`, {
+              method: "POST",
+              body: {},
+            });
+            window.location.replace("/");
+          }}
+        />
+      ) : (
         <>
-          <p className="text-sm text-muted">
-            Signed in as {session.data.user.email}.
+          <p>
+            An account already exists for this email. Sign in to accept your
+            invitation.
           </p>
-          <AsyncActionButton
-            onAction={async () => {
-              await publicApi.request("/auth/invitations/accept", {
-                method: "POST",
-                body: { token },
-              });
-              window.location.assign("/");
-            }}
+          <Link
+            href={`/login?returnTo=${encodeURIComponent(self)}`}
+            className={authTextActionClassName}
           >
-            Accept invitation
-          </AsyncActionButton>
+            Already have an account? Sign in
+          </Link>
         </>
-      ) : null}
+      )}
     </AuthFrame>
   );
 }

@@ -6,6 +6,7 @@ import {
   AccountActionSchema,
   ContextSchema,
   KeyCreatedSchema,
+  OrganisationSchema,
   ProfileSchema,
   newId,
   type Actor,
@@ -92,6 +93,7 @@ test(
     const config = {
       pool: fixture.identity,
       baseURL,
+      passwordPolicy: { breachCheck: false },
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),
@@ -263,6 +265,7 @@ test(
       const config = {
         pool,
         baseURL,
+        passwordPolicy: { breachCheck: false },
         secret: randomBytes(32).toString("hex"),
         bootstrapSecret: randomBytes(32).toString("hex"),
         keyHashSecret: randomBytes(32).toString("hex"),
@@ -304,6 +307,12 @@ test(
           await assert.rejects(() =>
             service.claimSetup({ ...input, bootstrapSecret: "wrong-secret" }),
           );
+          for (const field of ["name", "organisationName"])
+            for (const value of ["   ", "N".repeat(121)])
+              await assert.rejects(
+                () => service.claimSetup({ ...input, [field]: value }),
+                { code: "VALIDATION_FAILED" },
+              );
           await assert.rejects(() =>
             service.claimSetup({
               ...input,
@@ -384,6 +393,11 @@ test(
             (await refused.response.json()).code,
             "EMAIL_NOT_VERIFIED",
           );
+          const resend = await service.auth.handler(
+            request("/request-verification-email", { email }),
+          );
+          assert.equal(resend.status, 200);
+          assert.deepEqual(await resend.json(), { status: true });
           assert.equal(
             (
               await owner.query(
@@ -734,14 +748,35 @@ test(
             config,
           );
           const token = new URL(payload.actionUrl!).pathname.split("/").at(-1)!;
-          const signup = await service.auth.handler(
-            request("/invitations/accept", { token, name: "Viewer", password }),
+          const begin = await service.auth.handler(
+            request(`/invitations/${token}/verify`, {}),
           );
-          assert.equal(signup.status, 202);
-          await latestVerification(service, pool, email);
-          const session = await login(service, email, password);
-          assert.ok(session.response.ok);
-          viewerCookie = session.cookie;
+          assert.equal(begin.status, 200);
+          assert.deepEqual(await begin.json(), { existingAccount: false });
+          const codeEmail = (
+            await owner.query(
+              "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE to_address=$1 AND template='invitation-verification' ORDER BY created_at DESC LIMIT 1",
+              [email],
+            )
+          ).rows[0];
+          const codePayload = decryptProtected<EmailPayload>(
+            codeEmail.payload_encrypted,
+            config,
+          );
+          const code = codePayload.details!.match(/\d{6}/)![0];
+          const proofResponse = await service.auth.handler(
+            request(`/invitations/${token}/code`, { name: "Viewer", code }),
+          );
+          assert.equal(proofResponse.status, 200);
+          const { setupToken } = await proofResponse.json();
+          const signup = await service.auth.handler(
+            request(`/invitations/${token}/signup`, { setupToken, password }),
+          );
+          assert.equal(signup.status, 200, await signup.clone().text());
+          viewerCookie = signup.headers
+            .getSetCookie()
+            .map((value) => value.split(";")[0])
+            .join("; ");
           const accepted = await service.auth.handler(
             request("/invitations/accept", { token }, viewerCookie),
           );
@@ -823,7 +858,7 @@ test(
               id: member.id,
               expectedVersion: member.version,
               name: "Stale name",
-              role: "editor",
+              role: "member",
             }),
           );
           await assert.rejects(() =>
@@ -864,7 +899,7 @@ test(
           await execute("inviteMember", actor, {
             orgId,
             email: "pending-team@example.test",
-            role: "editor",
+            role: "member",
           });
           const pending = (await execute("listInvitations", actor, {
             orgId,
@@ -907,12 +942,41 @@ test(
       await t.test(
         "ACC-08 verified email change handles uniqueness, one-use tokens, and session revocation",
         async () => {
-          const name = "N".repeat(255);
+          const name = "N".repeat(120);
           assert.equal(
             ProfileSchema.parse(await execute("updateProfile", actor, { name }))
               .name,
             name,
           );
+          await assert.rejects(
+            () => execute("updateProfile", actor, { name: "N".repeat(121) }),
+            { code: "VALIDATION_FAILED" },
+          );
+          assert.equal(
+            ProfileSchema.parse(await execute("getProfile", actor, {})).name,
+            name,
+          );
+          const team = OrganisationSchema.parse(
+            await execute("getOrganisation", actor, {}),
+          );
+          assert.equal(
+            OrganisationSchema.parse(
+              await execute("updateOrganisation", actor, { name }),
+            ).name,
+            name,
+          );
+          await assert.rejects(
+            () =>
+              execute("updateOrganisation", actor, { name: "N".repeat(121) }),
+            { code: "VALIDATION_FAILED" },
+          );
+          assert.equal(
+            OrganisationSchema.parse(
+              await execute("getOrganisation", actor, {}),
+            ).name,
+            name,
+          );
+          await execute("updateOrganisation", actor, { name: team.name });
           await execute("changeEmail", actor, {
             newEmail: "viewer@example.test",
           });
@@ -928,7 +992,7 @@ test(
           const conflict = await service.auth.handler(
             request(
               "/email-change/confirm",
-              { token: new URL(payload.actionUrl!).searchParams.get("token") },
+              { token: new URL(payload.actionUrl!).hash.slice(1) },
               cookie,
             ),
           );
@@ -965,9 +1029,7 @@ test(
           const cancelled = await service.auth.handler(deleteRequest);
           assert.equal(cancelled.status, 200);
           assert.deepEqual(await cancelled.json(), { pending: null });
-          const cancelledToken = new URL(payload.actionUrl!).searchParams.get(
-            "token",
-          );
+          const cancelledToken = new URL(payload.actionUrl!).hash.slice(1);
           assert.equal(
             (
               await service.auth.handler(
@@ -995,7 +1057,7 @@ test(
             change.payload_encrypted,
             config,
           );
-          const token = new URL(payload.actionUrl!).searchParams.get("token");
+          const token = new URL(payload.actionUrl!).hash.slice(1);
           const confirmed = await service.auth.handler(
             request("/email-change/confirm", { token }, cookie),
           );
@@ -1431,6 +1493,7 @@ test(
     const config = {
       pool: fixture.identity,
       baseURL,
+      passwordPolicy: { breachCheck: false },
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),

@@ -3,7 +3,7 @@
 Earlier development records describe the 2–4 October 2026 candidate, including a
 multi-organisation model, Owner/resource-grant checks and the former migration
 sequence. The revised V1 replaces those requirements with one organisation,
-Admin/Editor/Viewer, live-role personal keys, one field name and one fresh SQL
+Admin/Member/Viewer, live-role personal keys, one field name and one fresh SQL
 baseline. Earlier reports are retained under `verification/` and are historical.
 They do not establish current acceptance.
 

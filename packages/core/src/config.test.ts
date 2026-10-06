@@ -150,3 +150,24 @@ test("database and S3 URLs reject mismatched protocols before dependency access"
       }),
     );
 });
+
+test("password safety and bounded work use the common deployment defaults", () => {
+  assert.deepEqual(loadConfig(env).passwordPolicy, {
+    breachCheck: true,
+    maximumActive: 2,
+    maximumWaiting: 16,
+  });
+  assert.equal(
+    loadConfig({ ...env, ROOTSET_PASSWORD_BREACH_CHECK: "false" })
+      .passwordPolicy.breachCheck,
+    false,
+  );
+  for (const [key, value] of [
+    ["ROOTSET_PASSWORD_BREACH_CHECK", "yes"],
+    ["ROOTSET_PASSWORD_VERIFY_CONCURRENCY", "0"],
+    ["ROOTSET_PASSWORD_VERIFY_CONCURRENCY", "9"],
+    ["ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT", "101"],
+  ]) {
+    assert.throws(() => loadConfig({ ...env, [key!]: value }));
+  }
+});

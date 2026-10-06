@@ -5,7 +5,7 @@ databases and typed tables, edit records in a spreadsheet, and use the same data
 through REST or OAuth-protected MCP. PostgreSQL stores values, revisions and
 cell history. The project domain is `rootset.fyi`.
 
-V1 uses Admin, Editor and Viewer roles. Admins manage people, schema and recovery and can view installation health.
+V1 uses Admin, Member and Viewer roles. Admins manage people, schema and recovery and can view installation health.
 SMTP and S3-compatible storage use `.env`; backups run only on manual trigger.
 There is no standalone Background Jobs page or storage admission policy.
 Personal API keys inherit the person's current role; OAuth connections add

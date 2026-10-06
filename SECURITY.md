@@ -11,7 +11,7 @@ released version is currently designated production-supported.
 ## Current security boundary
 
 An installation has one SQL-enforced organisation and three membership roles:
-Admin, Editor and Viewer. Admin includes installation management. Personal API
+Admin, Member and Viewer. Admin includes installation management. Personal API
 keys use live membership authority; demotion removes former permissions and
 member removal or credential revocation must reject subsequent use. OAuth adds
 operation consent, PKCE and token/client/audience validation. It has no database

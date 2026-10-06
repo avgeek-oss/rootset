@@ -45,7 +45,7 @@
     {
       "id": "V1-04",
       "area": "Installation and accounts",
-      "requirement": "Admin/Editor/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone views installation health and manages people, schema and restores; SMTP/S3 configuration is read only from the deployment environment.",
+      "requirement": "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone views installation health and manages people, schema and restores; SMTP/S3 configuration is read only from the deployment environment.",
       "status": "pending",
       "testSources": [
         {
@@ -1125,21 +1125,5 @@
       "status": "pending",
       "testSources": []
     }
-  ],
-  "checksWithoutTestPointers": [
-    "V1-02",
-    "V1-08",
-    "V1-09",
-    "V1-16",
-    "V1-29",
-    "V1-31",
-    "V1-32",
-    "V1-33",
-    "V1-34",
-    "V1-35",
-    "V1-36",
-    "V1-37",
-    "V1-39",
-    "V1-40"
   ]
 }

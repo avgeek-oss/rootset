@@ -1,18 +1,26 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import {
   createHash,
   createHmac,
   randomBytes,
+  randomInt,
   timingSafeEqual,
 } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { hashPassword, verifyPassword } from "better-auth/crypto";
+import {
+  PasswordPolicy,
+  type PasswordPolicyOptions,
+} from "./password-policy.js";
 import {
   passwordSecondFactor,
   completePasskeySecondFactor,
 } from "./password-second-factor.js";
 import { replaceRecoveryCodes, ensureRecoveryCodes } from "./recovery-codes.js";
+import {
+  enqueueVerificationEmail,
+  isPrivateVerificationRejection,
+  requestPublicVerificationEmail,
+} from "./email-verification.js";
 import { passkey } from "@better-auth/passkey";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -30,6 +38,7 @@ import {
   type Role,
 } from "@rootset/access";
 import {
+  AccountNameSchema,
   IdSchema,
   InvitationSchema,
   KeyCreatedSchema,
@@ -70,6 +79,7 @@ import {
 
 export interface IdentityConfig extends EmailConfig {
   pool: Pool;
+  passwordPolicy?: PasswordPolicyOptions;
   secret: string;
   bootstrapSecret: string;
   keyHashSecret: string;
@@ -105,15 +115,12 @@ export interface IdentityPaging {
     request: IdentityPageRequest,
   ): { data: T[]; nextCursor: string | null; hasMore: boolean };
 }
-const nameSchema = z.string().trim().min(1).max(255);
+const nameSchema = AccountNameSchema;
 const emailSchema = z.string().trim().toLowerCase().email().max(320);
 const passwordSchema = z.string().min(15).max(1024);
 const signOutEverywhereInputSchema = z.strictObject({
   revokeDelegated: z.boolean().optional(),
 });
-const pendingProvision = new AsyncLocalStorage<{
-  reason: "bootstrap" | "invitation";
-}>();
 const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
   const result = schema.safeParse(value);
   if (!result.success)
@@ -218,6 +225,30 @@ const factorRoutes: Record<string, string> = {
   "/passkey/delete-passkey": "removePasskey",
   "/passkey/replace-recovery-codes": "rotateRecoveryCodes",
 };
+const identityRoutes = new Set([
+  "GET /get-session",
+  "POST /sign-in/email",
+  "POST /sign-out",
+  "POST /request-password-reset",
+  "POST /reset-password",
+  "GET /verify-email",
+  "POST /request-verification-email",
+  "POST /send-verification-email",
+  "POST /reauthenticate",
+  "GET /email-change",
+  "DELETE /email-change",
+  "POST /email-change/inspect",
+  "POST /email-change/confirm",
+  "GET /passkey/generate-authenticate-options",
+  "POST /passkey/verify-authentication",
+  "POST /passkey/verify-recovery-code",
+  "GET /passkey/generate-register-options",
+  "POST /passkey/verify-registration",
+  "POST /passkey/delete-passkey",
+  "POST /passkey/update-passkey",
+  "GET /passkey/list-user-passkeys",
+  "POST /passkey/replace-recovery-codes",
+]);
 const actionTypes: Record<string, string> = {
   changePassword: "change_password",
   changeEmail: "change_email",
@@ -260,6 +291,7 @@ const repairIntent = (input: Record<string, unknown>) =>
 
 export class IdentityService {
   readonly emailOutbox: EmailOutbox;
+  private readonly passwords: PasswordPolicy;
   private readonly rawAuth;
   readonly auth;
   private paging?: IdentityPaging;
@@ -294,6 +326,7 @@ export class IdentityService {
         500,
       );
     this.emailOutbox = new EmailOutbox(config.pool, config);
+    this.passwords = new PasswordPolicy(config.passwordPolicy);
     const database = drizzle(config.pool, { schema: identitySchema });
     this.rawAuth = betterAuth({
       appName: "Rootset",
@@ -341,6 +374,7 @@ export class IdentityService {
         autoSignIn: false,
         minPasswordLength: 15,
         maxPasswordLength: 1024,
+        password: { hash: this.passwords.hash, verify: this.passwords.verify },
         requireEmailVerification: true,
         revokeSessionsOnPasswordReset: true,
         sendResetPassword: async ({ user, url }) =>
@@ -367,37 +401,24 @@ export class IdentityService {
       },
       emailVerification: {
         sendOnSignUp: false,
-        sendOnSignIn: true,
+        sendOnSignIn: false,
         autoSignInAfterVerification: false,
         expiresIn: 3600,
         sendVerificationEmail: async ({ user, url }) =>
-          this.sendEmail({
-            template: "account-verification",
-            to: user.email,
-            payload: {
-              name: user.name,
-              actionUrl: url,
-              expiresAt: new Date(Date.now() + 3600000).toISOString(),
-            },
-            dedupeKey: `email-verify:${user.id}:${digest(url)}`,
-            expiresAt: new Date(Date.now() + 3600000),
+          enqueueVerificationEmail(config.pool, this.emailOutbox, {
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+            actionUrl: url,
           }),
       },
       databaseHooks: {
         user: {
           create: {
-            before: async (user) => {
-              if (!pendingProvision.getStore())
-                throw new APIError("FORBIDDEN", {
-                  message: "Use an invitation to create an account",
-                });
-              return {
-                data: {
-                  ...user,
-                  email: user.email.trim().toLowerCase(),
-                  emailVerified: false,
-                },
-              };
+            before: async () => {
+              throw new APIError("FORBIDDEN", {
+                message: "Use an invitation to create an account",
+              });
             },
           },
           update: {
@@ -425,7 +446,7 @@ export class IdentityService {
       },
       hooks: {
         before: createAuthMiddleware(async (ctx) => {
-          if (ctx.path === "/sign-up/email" && !pendingProvision.getStore())
+          if (ctx.path === "/sign-up/email")
             throw new APIError("FORBIDDEN", {
               message: "Use an invitation to create an account",
             });
@@ -477,6 +498,28 @@ export class IdentityService {
     return createHmac("sha256", this.config.keyHashSecret)
       .update(secret)
       .digest("hex");
+  }
+  private async passwordOperation<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof APIError)
+        throw new RootsetError(
+          String(error.body?.code ?? error.status),
+          error.message,
+          error.statusCode,
+        );
+      throw error;
+    }
+  }
+  private hashPassword(password: string): Promise<string> {
+    return this.passwordOperation(() => this.passwords.hash(password));
+  }
+  private verifyPassword(input: {
+    password: string;
+    hash: string;
+  }): Promise<boolean> {
+    return this.passwordOperation(() => this.passwords.verify(input));
   }
   private requestDigest(value: unknown): string {
     return this.hashSecret(`rootset:bound-request:v2:${canonical(value)}`);
@@ -543,7 +586,7 @@ export class IdentityService {
         "Setup credentials are invalid",
         403,
       );
-    const password = await hashPassword(input.password),
+    const password = await this.hashPassword(input.password),
       claimDigest = this.requestDigest({
         ...input,
         bootstrapSecret: undefined,
@@ -603,9 +646,16 @@ export class IdentityService {
       );
       return { orgId, userId };
     });
-    await this.rawAuth.api.sendVerificationEmail({
-      body: { email: input.email, callbackURL: `${this.config.baseURL}/login` },
-    });
+    try {
+      await this.rawAuth.api.sendVerificationEmail({
+        body: {
+          email: input.email,
+          callbackURL: `${this.config.baseURL}/login`,
+        },
+      });
+    } catch (error) {
+      if (!isPrivateVerificationRejection(error)) throw error;
+    }
     return { state: "awaiting_verification", ...result };
   }
   async refreshActor(actor: Actor): Promise<Actor> {
@@ -793,10 +843,37 @@ export class IdentityService {
     const path = new URL(request.url).pathname.replace(/^\/v1\/auth/, "");
     let approvalLease: PoolClient | undefined;
     try {
-      if (request.method !== "GET") await this.limitRequest(request, path);
+      if (
+        !identityRoutes.has(`${request.method} ${path}`) &&
+        !(
+          request.method === "GET" &&
+          /^\/reset-password\/[A-Za-z0-9_-]+$/.test(path)
+        ) &&
+        !(
+          (request.method === "GET" &&
+            /^\/invitations\/[A-Za-z0-9]{26}$/.test(path)) ||
+          (request.method === "POST" &&
+            (path === "/invitations/accept" ||
+              /^\/invitations\/[A-Za-z0-9]{26}\/(?:verify|code|signup|accept)$/.test(
+                path,
+              )))
+        )
+      )
+        notFound();
+      if (
+        request.headers.has("authorization") ||
+        request.headers.has("x-api-key")
+      )
+        throw new RootsetError(
+          "ACCESS_DENIED",
+          "Use a browser session for account settings",
+          403,
+        );
+      if (request.method !== "GET" && path !== "/request-verification-email")
+        await this.limitRequest(request, path);
       if (
         !["GET", "HEAD"].includes(request.method) &&
-        request.headers.has("cookie") &&
+        (request.headers.has("cookie") || request.headers.has("origin")) &&
         request.headers.get("origin") !== new URL(this.config.baseURL).origin
       )
         throw new RootsetError(
@@ -804,6 +881,54 @@ export class IdentityService {
           "The request origin is invalid",
           403,
         );
+      if (path === "/request-verification-email" && request.method === "POST") {
+        const { email } = parse(
+          z.strictObject({ email: emailSchema }),
+          await request.json(),
+        );
+        return await requestPublicVerificationEmail({
+          pool: this.config.pool,
+          hash: (value) => this.hashSecret(value),
+          email,
+          address: request.headers.get("x-rootset-client-address") ?? "unknown",
+          send: (address) =>
+            this.rawAuth.api.sendVerificationEmail({
+              body: {
+                email: address,
+                callbackURL: `${new URL(this.config.baseURL).origin}/login`,
+              },
+            }),
+        });
+      }
+      if (path === "/send-verification-email" && request.method === "POST") {
+        const session = await this.rawAuth.api.getSession({
+          headers: request.headers,
+        });
+        if (!session)
+          throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
+        const { email } = parse(
+          z.strictObject({
+            email: emailSchema,
+            callbackURL: z.string().optional(),
+          }),
+          await request.json(),
+        );
+        if (session.user.email !== email)
+          throw new RootsetError(
+            "ACCESS_DENIED",
+            "Use your signed-in email address",
+            403,
+          );
+        return Response.json(
+          await this.rawAuth.api.sendVerificationEmail({
+            headers: request.headers,
+            body: {
+              email,
+              callbackURL: `${new URL(this.config.baseURL).origin}/settings/email-password`,
+            },
+          }),
+        );
+      }
       if (
         path.startsWith("/two-factor/") ||
         ["/organisations", "/organisation", "/delete-user"].includes(path)
@@ -814,6 +939,8 @@ export class IdentityService {
       if (path === "/reauthenticate") return await this.reauthenticate(request);
       if (path === "/email-change")
         return await this.pendingEmailChange(request);
+      if (path === "/email-change/inspect")
+        return await this.inspectEmailChange(request);
       if (path === "/email-change/confirm")
         return await this.confirmEmailChange(request);
       const actionId = request.headers.get("x-rootset-action-id");
@@ -1021,13 +1148,23 @@ export class IdentityService {
         await approvalLease.query(response.ok ? "COMMIT" : "ROLLBACK");
       return response;
     } catch (error) {
-      const status = error instanceof RootsetError ? error.status : 500;
+      const status =
+        error instanceof RootsetError
+          ? error.status
+          : error instanceof APIError
+            ? error.statusCode
+            : 500;
       return Response.json(
         {
           error: {
-            code: error instanceof RootsetError ? error.code : "INTERNAL_ERROR",
-            message:
+            code:
               error instanceof RootsetError
+                ? error.code
+                : error instanceof APIError
+                  ? (error.body?.code ?? error.status)
+                  : "INTERNAL_ERROR",
+            message:
+              error instanceof RootsetError || error instanceof APIError
                 ? error.message
                 : "Authentication could not be completed",
           },
@@ -1508,7 +1645,7 @@ export class IdentityService {
         );
       const definition = operationMap[operation];
       if (definition) {
-        const ranks = { viewer: 1, editor: 2, admin: 3 };
+        const ranks = { viewer: 1, member: 2, admin: 3 };
         if (ranks[actor.role] < ranks[definition.minimumRole])
           throw new RootsetError(
             "ACCESS_DENIED",
@@ -2428,7 +2565,7 @@ export class IdentityService {
       z.strictObject({
         id: IdSchema,
         orgId: IdSchema.optional(),
-        role: z.enum(["admin", "editor", "viewer"]).optional(),
+        role: z.enum(["admin", "member", "viewer"]).optional(),
         name: nameSchema.optional(),
         expectedVersion: z.string().regex(/^[1-9][0-9]*$/),
       }),
@@ -2524,12 +2661,11 @@ export class IdentityService {
       z.strictObject({
         orgId: IdSchema.optional(),
         email: emailSchema,
-        role: z.enum(["admin", "editor", "viewer"]),
+        role: z.enum(["admin", "member", "viewer"]),
       }),
       input,
     );
     const id = newId(),
-      token = randomBytes(32).toString("base64url"),
       expiresAt = new Date(Date.now() + 7 * 86400000);
     const existing = await client.query(
       `SELECT 1 FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE org_id=$1 AND u.email=$2`,
@@ -2542,16 +2678,8 @@ export class IdentityService {
         409,
       );
     await client.query(
-      `INSERT INTO rootset_control.invitations(id,org_id,email,role,inviter_id,token_hash,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7)`,
-      [
-        id,
-        actor.orgId,
-        data.email,
-        data.role,
-        actor.userId,
-        this.hashSecret(token),
-        expiresAt,
-      ],
+      `INSERT INTO rootset_control.invitations(id,org_id,email,role,inviter_id,expires_at) VALUES($1,$2,$3,$4,$5,$6)`,
+      [id, actor.orgId, data.email, data.role, actor.userId, expiresAt],
     );
     const organisation = (
       await client.query(
@@ -2564,7 +2692,7 @@ export class IdentityService {
       to: data.email,
       payload: {
         organisationName: organisation.name,
-        actionUrl: `${this.config.baseURL}/invitations/${token}`,
+        actionUrl: `${this.config.baseURL}/invite/${id}`,
         expiresAt: expiresAt.toISOString(),
       },
       dedupeKey: `invitation:${id}`,
@@ -2572,6 +2700,7 @@ export class IdentityService {
     });
     return {
       id,
+      inviteUrl: `${this.config.baseURL}/invite/${id}`,
       orgId: actor.orgId,
       email: data.email,
       role: data.role,
@@ -2584,16 +2713,16 @@ export class IdentityService {
     request: Request,
     path: string,
   ): Promise<Response> {
-    const token =
+    const id =
       path === "/invitations/accept"
         ? ((await request.clone().json()) as { token?: string }).token
-        : path.slice("/invitations/".length);
-    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) notFound();
-    const hash = this.hashSecret(token!),
-      locator = await this.config.pool.query(
-        `SELECT org_id FROM rootset_control.invitation_locator($1)`,
-        [hash],
-      );
+        : path.slice("/invitations/".length).split("/")[0];
+    const parsedId = IdSchema.safeParse(id);
+    if (!parsedId.success) notFound();
+    const locator = await this.config.pool.query(
+      `SELECT org_id FROM rootset_control.invitation_locator($1)`,
+      [id],
+    );
     if (!locator.rows[0]) notFound();
     const orgId = locator.rows[0].org_id as string;
     const invitation = await withOrg(
@@ -2601,8 +2730,8 @@ export class IdentityService {
       orgId,
       async (client) => {
         const r = await client.query(
-          `SELECT i.*,o.name organisation_name,m.role inviter_role,u.email_verified inviter_verified FROM rootset_control.invitations i JOIN rootset_control.organisations o ON o.id=i.org_id AND o.singleton LEFT JOIN rootset_control.memberships m ON m.org_id=i.org_id AND m.user_id=i.inviter_id LEFT JOIN rootset_control.users u ON u.id=m.user_id WHERE i.token_hash=$1`,
-          [hash],
+          `SELECT i.*,o.name organisation_name,m.role inviter_role,u.email_verified inviter_verified FROM rootset_control.invitations i JOIN rootset_control.organisations o ON o.id=i.org_id AND o.singleton LEFT JOIN rootset_control.memberships m ON m.org_id=i.org_id AND m.user_id=i.inviter_id LEFT JOIN rootset_control.users u ON u.id=m.user_id WHERE i.id=$1`,
+          [id],
         );
         return r.rows[0];
       },
@@ -2627,48 +2756,32 @@ export class IdentityService {
         expiresAt: invitation.expires_at,
         state: invitation.state,
       });
-    if (path !== "/invitations/accept" || request.method !== "POST") notFound();
+    if (request.method !== "POST") notFound();
+    if (path === `/invitations/${id}/verify`) {
+      parse(z.strictObject({}), await request.json());
+      return this.beginInvitationVerification(orgId, invitation);
+    }
+    if (path === `/invitations/${id}/code`)
+      return this.verifyInvitationCode(request, orgId, invitation);
+    if (path === `/invitations/${id}/signup`)
+      return this.completeInvitationSignup(request, orgId, invitation);
+    if (!["/invitations/accept", `/invitations/${id}/accept`].includes(path))
+      notFound();
     const session = await this.rawAuth.api.getSession({
       headers: request.headers,
     });
-    if (!session) {
-      const data = parse(
-        z.strictObject({
-          token: z.string(),
-          name: nameSchema,
-          password: passwordSchema,
-        }),
-        await request.json(),
+    if (!session)
+      throw new RootsetError(
+        "UNAUTHENTICATED",
+        "Sign in with the email address on the invitation",
+        401,
       );
-      const existing = await this.config.pool.query(
-        `SELECT id FROM rootset_control.users WHERE email=$1`,
-        [invitation.email],
-      );
-      if (!existing.rowCount)
-        await pendingProvision.run({ reason: "invitation" }, () =>
-          this.rawAuth.api.signUpEmail({
-            body: {
-              name: data.name,
-              email: invitation.email,
-              password: data.password,
-            },
-          }),
-        );
-      await this.rawAuth.api.sendVerificationEmail({
-        body: {
-          email: invitation.email,
-          callbackURL: `${this.config.baseURL}/invitations/${token}`,
-        },
-      });
-      return Response.json(
-        {
-          state: "verification_required",
-          message:
-            "Verify the invited email, sign in, and accept this invitation",
-        },
-        { status: 202 },
-      );
-    }
+    parse(
+      path === "/invitations/accept"
+        ? z.strictObject({ token: IdSchema })
+        : z.strictObject({}),
+      await request.json(),
+    );
     if (
       session.user.email.toLowerCase() !== invitation.email ||
       !session.user.emailVerified
@@ -2735,6 +2848,269 @@ export class IdentityService {
       return { state: "accepted", orgId };
     });
     return Response.json(result);
+  }
+  private async lockPendingInvitation(
+    client: PoolClient,
+    orgId: string,
+    id: string,
+  ) {
+    await client.query(
+      "SELECT id FROM rootset_control.organisations WHERE id=$1 FOR UPDATE",
+      [orgId],
+    );
+    const invitation = (
+      await client.query<{
+        id: string;
+        email: string;
+        role: Role;
+        inviter_id: string;
+      }>(
+        "SELECT i.id,i.email,i.role,i.inviter_id FROM rootset_control.invitations i JOIN rootset_control.memberships m ON m.org_id=i.org_id AND m.user_id=i.inviter_id AND m.role='admin' JOIN rootset_control.users u ON u.id=m.user_id AND u.email_verified WHERE i.id=$1 AND i.org_id=$2 AND i.state='pending' AND i.expires_at>now() FOR UPDATE OF i",
+        [id, orgId],
+      )
+    ).rows[0];
+    if (!invitation)
+      throw new RootsetError(
+        "INVITATION_UNAVAILABLE",
+        "Invitation is unavailable",
+        410,
+      );
+    return invitation;
+  }
+  private async beginInvitationVerification(
+    orgId: string,
+    invitation: { id: string; email: string },
+  ): Promise<Response> {
+    const result = await withOrg(this.config.pool, orgId, async (client) => {
+      const current = await this.lockPendingInvitation(
+        client,
+        orgId,
+        invitation.id,
+      );
+      if (
+        (
+          await client.query(
+            "SELECT id FROM rootset_control.users WHERE email=$1",
+            [current.email],
+          )
+        ).rowCount
+      )
+        return { existingAccount: true };
+      const recent = await client.query<{ created_at: Date }>(
+        "SELECT created_at FROM rootset_control.email_outbox WHERE to_address=$1 AND template='invitation-verification' AND created_at>now()-interval '24 hours' ORDER BY created_at DESC LIMIT 5",
+        [current.email],
+      );
+      if (
+        recent.rowCount === 5 ||
+        (recent.rows[0] &&
+          recent.rows[0].created_at.getTime() > Date.now() - 60_000)
+      )
+        throw new RootsetError(
+          "EMAIL_VERIFICATION_RATE_LIMITED",
+          "Too many verification requests. Try again later.",
+          429,
+        );
+      const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+      const identifier = `rootset-invitation-code:${invitation.id}`;
+      await client.query(
+        "DELETE FROM rootset_control.auth_verifications WHERE identifier=$1",
+        [identifier],
+      );
+      const expiresAt = new Date(Date.now() + 10 * 60_000);
+      await client.query(
+        "INSERT INTO rootset_control.auth_verifications(id,identifier,value,expires_at) VALUES($1,$2,$3,$4)",
+        [
+          newId(),
+          identifier,
+          JSON.stringify({
+            email: current.email,
+            codeHash: this.hashSecret(`${invitation.id}:${code}`),
+            attempts: 0,
+          }),
+          expiresAt,
+        ],
+      );
+      await this.emailOutbox.enqueue(client, {
+        template: "invitation-verification",
+        to: current.email,
+        payload: {
+          details: `Your verification code is ${code}.`,
+          expiresAt: expiresAt.toISOString(),
+        },
+        dedupeKey: `invitation-verification:${invitation.id}:${newId()}`,
+        expiresAt,
+      });
+      return { existingAccount: false };
+    });
+    return Response.json(result);
+  }
+  private async verifyInvitationCode(
+    request: Request,
+    orgId: string,
+    invitation: { id: string; email: string },
+  ): Promise<Response> {
+    const input = parse(
+      z.strictObject({
+        name: z.string().trim().min(1).max(120),
+        code: z.string().regex(/^\d{6}$/),
+      }),
+      await request.json(),
+    );
+    const setupToken = randomBytes(32).toString("base64url");
+    const verified = await withOrg(this.config.pool, orgId, async (client) => {
+      const current = await this.lockPendingInvitation(
+        client,
+        orgId,
+        invitation.id,
+      );
+      const row = (
+        await client.query<{ id: string; value: string }>(
+          "SELECT id,value FROM rootset_control.auth_verifications WHERE identifier=$1 AND expires_at>now() FOR UPDATE",
+          [`rootset-invitation-code:${invitation.id}`],
+        )
+      ).rows[0];
+      if (!row) return false;
+      const code = JSON.parse(row.value) as {
+        email: string;
+        codeHash: string;
+        attempts: number;
+      };
+      if (code.email !== current.email || code.attempts >= 5) return false;
+      if (
+        !safeEqual(
+          code.codeHash,
+          this.hashSecret(`${invitation.id}:${input.code}`),
+        )
+      ) {
+        await client.query(
+          "UPDATE rootset_control.auth_verifications SET value=$2 WHERE id=$1",
+          [row.id, JSON.stringify({ ...code, attempts: code.attempts + 1 })],
+        );
+        return false;
+      }
+      await client.query(
+        "DELETE FROM rootset_control.auth_verifications WHERE id=$1",
+        [row.id],
+      );
+      await client.query(
+        "INSERT INTO rootset_control.auth_verifications(id,identifier,value,expires_at) VALUES($1,$2,$3,$4)",
+        [
+          newId(),
+          `rootset-invitation-password:${this.hashSecret(setupToken)}`,
+          JSON.stringify({
+            invitationId: invitation.id,
+            email: current.email,
+            name: input.name,
+          }),
+          new Date(Date.now() + 10 * 60_000),
+        ],
+      );
+      return true;
+    });
+    if (!verified)
+      throw new RootsetError(
+        "VERIFICATION_CODE_INVALID",
+        "Verification code is invalid or expired",
+        400,
+      );
+    return Response.json({ setupToken });
+  }
+  private async completeInvitationSignup(
+    request: Request,
+    orgId: string,
+    invitation: { id: string; email: string },
+  ): Promise<Response> {
+    const input = parse(
+      z.strictObject({
+        setupToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+        password: passwordSchema,
+      }),
+      await request.json(),
+    );
+    const identifier = `rootset-invitation-password:${this.hashSecret(input.setupToken)}`;
+    if (
+      !(
+        await this.config.pool.query(
+          "SELECT 1 FROM rootset_control.auth_verifications WHERE identifier=$1 AND expires_at>now()",
+          [identifier],
+        )
+      ).rowCount
+    )
+      throw new RootsetError(
+        "VERIFICATION_CODE_INVALID",
+        "Verification code is invalid or expired",
+        400,
+      );
+    const password = await this.hashPassword(input.password);
+    await withOrg(this.config.pool, orgId, async (client) => {
+      const current = await this.lockPendingInvitation(
+        client,
+        orgId,
+        invitation.id,
+      );
+      const row = (
+        await client.query<{ value: string }>(
+          "DELETE FROM rootset_control.auth_verifications WHERE identifier=$1 AND expires_at>now() RETURNING value",
+          [identifier],
+        )
+      ).rows[0];
+      if (!row)
+        throw new RootsetError(
+          "VERIFICATION_CODE_INVALID",
+          "Verification code is invalid or expired",
+          400,
+        );
+      const proof = JSON.parse(row.value) as {
+        invitationId: string;
+        email: string;
+        name: string;
+      };
+      if (proof.invitationId !== invitation.id || proof.email !== current.email)
+        throw new RootsetError(
+          "VERIFICATION_CODE_INVALID",
+          "Verification code is invalid or expired",
+          400,
+        );
+      if (
+        (
+          await client.query(
+            "SELECT 1 FROM rootset_control.users WHERE email=$1",
+            [current.email],
+          )
+        ).rowCount
+      )
+        throw new RootsetError(
+          "ACCOUNT_EXISTS",
+          "This email already has an account. Sign in to accept the invitation",
+          409,
+        );
+      const userId = newId();
+      await client.query(
+        "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
+        [userId, proof.name, current.email],
+      );
+      await client.query(
+        "INSERT INTO rootset_control.auth_accounts(id,user_id,account_id,provider_id,password) VALUES($1,$2,$4,'credential',$3)",
+        [newId(), userId, password, userId],
+      );
+      await client.query(
+        "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,$4)",
+        [newId(), orgId, userId, current.role],
+      );
+      await client.query(
+        "UPDATE rootset_control.invitations SET state='accepted',accepted_by=$2 WHERE id=$1",
+        [invitation.id, userId],
+      );
+      await client.query(
+        "UPDATE rootset_control.email_outbox SET state='failed',last_error='INVITATION_COMPLETED' WHERE dedupe_key=$1 AND state='pending'",
+        [`invitation:${invitation.id}`],
+      );
+    });
+    return this.rawAuth.api.signInEmail({
+      body: { email: invitation.email, password: input.password },
+      headers: request.headers,
+      asResponse: true,
+    });
   }
   private async prepareKeyReceipt(
     client: PoolClient,
@@ -2934,7 +3310,7 @@ export class IdentityService {
       !account?.password ||
       (!account.has_passkey &&
         (!data.currentPassword ||
-          !(await verifyPassword({
+          !(await this.verifyPassword({
             password: data.currentPassword,
             hash: account.password,
           }))))
@@ -2946,7 +3322,7 @@ export class IdentityService {
       );
     await client.query(
       `UPDATE rootset_control.auth_accounts SET password=$2,updated_at=now() WHERE id=$1`,
-      [account.id, await hashPassword(data.newPassword)],
+      [account.id, await this.hashPassword(data.newPassword)],
     );
     await this.revokeAllUserAccess(actor.userId!, undefined, client);
     const user = (
@@ -3002,7 +3378,7 @@ export class IdentityService {
       to: data.newEmail,
       payload: {
         name: user.name,
-        actionUrl: `${this.config.baseURL}/email-change?token=${token}`,
+        actionUrl: `${this.config.baseURL}/email-change#${token}`,
         expiresAt: expiresAt.toISOString(),
       },
       dedupeKey: `email-change:${id}`,
@@ -3051,32 +3427,58 @@ export class IdentityService {
     );
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   }
-  private async confirmEmailChange(request: Request): Promise<Response> {
-    const token =
-      request.method === "GET"
-        ? new URL(request.url).searchParams.get("token")
-        : ((await request.json()) as { token?: string }).token;
-    if (!token)
-      throw new RootsetError("VALIDATION_FAILED", "Token is required");
-    const result = await transaction(this.config.pool, async (client) => {
-      const result = await client.query(
-        `SELECT * FROM rootset_control.email_changes WHERE token_hash=$1 AND expires_at>now() FOR UPDATE`,
-        [this.hashSecret(token)],
+  private emailChangeToken(value: unknown): string {
+    return parse(
+      z.strictObject({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }),
+      value,
+    ).token;
+  }
+  private async inspectEmailChange(request: Request): Promise<Response> {
+    const token = this.emailChangeToken(await request.json());
+    const result = await this.config.pool.query(
+      "SELECT 1 FROM rootset_control.email_changes e JOIN rootset_control.users u ON u.id=e.user_id AND u.email=e.previous_email WHERE e.token_hash=$1 AND e.expires_at>now()",
+      [this.hashSecret(token)],
+    );
+    if (!result.rowCount)
+      throw new RootsetError(
+        "TOKEN_UNAVAILABLE",
+        "Email verification has expired or was already used",
+        410,
       );
-      const change = result.rows[0];
-      if (!change)
+    return Response.json(
+      { status: "ready" },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  private async confirmEmailChange(request: Request): Promise<Response> {
+    const token = this.emailChangeToken(await request.json());
+    await transaction(this.config.pool, async (client) => {
+      const locator = (
+        await client.query(
+          "SELECT user_id FROM rootset_control.email_changes WHERE token_hash=$1 AND expires_at>now()",
+          [this.hashSecret(token)],
+        )
+      ).rows[0];
+      if (!locator)
         throw new RootsetError(
           "TOKEN_UNAVAILABLE",
           "Email verification has expired or was already used",
           410,
         );
+      await this.lockUserAuthorities(client, [locator.user_id]);
       const user = (
         await client.query(
-          `SELECT name,email FROM rootset_control.users WHERE id=$1 FOR UPDATE`,
-          [change.user_id],
+          "SELECT name,email FROM rootset_control.users WHERE id=$1 FOR UPDATE",
+          [locator.user_id],
         )
       ).rows[0];
-      if (!user || user.email !== change.previous_email)
+      const change = (
+        await client.query(
+          "SELECT * FROM rootset_control.email_changes WHERE token_hash=$1 AND user_id=$2 AND expires_at>now() FOR UPDATE",
+          [this.hashSecret(token), locator.user_id],
+        )
+      ).rows[0];
+      if (!change || !user || user.email !== change.previous_email)
         throw new RootsetError(
           "TOKEN_UNAVAILABLE",
           "Email change is unavailable",
@@ -3084,7 +3486,7 @@ export class IdentityService {
         );
       try {
         await client.query(
-          `UPDATE rootset_control.users SET email=$2,email_verified=true,updated_at=now() WHERE id=$1`,
+          "UPDATE rootset_control.users SET email=$2,email_verified=true,updated_at=now() WHERE id=$1",
           [change.user_id, change.new_email],
         );
       } catch (error) {
@@ -3097,13 +3499,10 @@ export class IdentityService {
         throw error;
       }
       await client.query(
-        `DELETE FROM rootset_control.email_changes WHERE id=$1`,
+        "DELETE FROM rootset_control.email_changes WHERE id=$1",
         [change.id],
       );
-      await client.query(
-        `DELETE FROM rootset_control.sessions WHERE user_id=$1`,
-        [change.user_id],
-      );
+      await this.revokeAllUserAccess(change.user_id, undefined, client);
       for (const email of [change.previous_email, change.new_email])
         await this.emailOutbox.enqueue(client, {
           template: "email-changed",
@@ -3111,10 +3510,11 @@ export class IdentityService {
           payload: { name: user.name },
           dedupeKey: `email-notice:${change.id}:${email}`,
         });
-      return { userId: change.user_id };
     });
-    await this.revokeAllUserAccess(result.userId);
-    return Response.json({ changed: true });
+    return Response.json(
+      { changed: true },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
   private async reauthenticate(request: Request): Promise<Response> {
     const actor = await this.resolveActor(request, "browser");
@@ -3132,7 +3532,7 @@ export class IdentityService {
     ).rows[0];
     if (
       !account?.password ||
-      !(await verifyPassword({
+      !(await this.verifyPassword({
         password: data.password,
         hash: account.password,
       }))

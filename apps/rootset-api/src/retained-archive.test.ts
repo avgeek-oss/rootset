@@ -312,7 +312,7 @@ export async function runNativeRetainedArchiveRegression(
           role: "admin" as const,
         })),
       ];
-      const readers: Actor[] = (["editor", "viewer"] as const).map((role) => ({
+      const readers: Actor[] = (["member", "viewer"] as const).map((role) => ({
         ...actors[1]!,
         id: newId(),
         role,

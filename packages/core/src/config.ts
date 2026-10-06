@@ -52,6 +52,19 @@ const schema = z.object({
   ROOTSET_ENCRYPTION_KEYS: z.string().optional(),
   ROOTSET_ENCRYPTION_KEY_ID: z.string().min(1).default("primary"),
   ROOTSET_BOOTSTRAP_SECRET: secret,
+  ROOTSET_PASSWORD_BREACH_CHECK: z.enum(["true", "false"]).default("true"),
+  ROOTSET_PASSWORD_VERIFY_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(8)
+    .default(2),
+  ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(16),
   ROOTSET_PORT: z.coerce.number().int().min(1).max(65535).default(4310),
   ROOTSET_S3_ENDPOINT: objectStorageUrl,
   ROOTSET_S3_REGION: z.string().default("us-east-1"),
@@ -104,6 +117,11 @@ export function loadConfig(
     identityDatabaseURL: v.ROOTSET_IDENTITY_DATABASE_URL,
     secret: v.ROOTSET_AUTH_SECRET,
     bootstrapSecret: v.ROOTSET_BOOTSTRAP_SECRET,
+    passwordPolicy: {
+      breachCheck: v.ROOTSET_PASSWORD_BREACH_CHECK === "true",
+      maximumActive: v.ROOTSET_PASSWORD_VERIFY_CONCURRENCY,
+      maximumWaiting: v.ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT,
+    },
     keyHashSecret: v.ROOTSET_KEY_HASH_SECRET,
     cursorSecret: v.ROOTSET_CURSOR_SECRET,
     encryptionKeys,

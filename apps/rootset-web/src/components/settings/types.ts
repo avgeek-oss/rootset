@@ -53,14 +53,14 @@ export interface Member {
   userId: string;
   name?: string;
   email: string;
-  role: "admin" | "editor" | "viewer";
+  role: "admin" | "member" | "viewer";
   version: string;
   verified: boolean;
 }
 export interface Invitation {
   id: string;
   email: string;
-  role: "admin" | "editor" | "viewer";
+  role: "admin" | "member" | "viewer";
   status?: string;
   state?: string;
   expiresAt?: string;
@@ -234,9 +234,9 @@ export function canOpenSettings(
   section: SettingsSection,
   role?: string,
 ): boolean {
-  if (!["admin", "editor", "viewer"].includes(role ?? "")) return false;
+  if (!["admin", "member", "viewer"].includes(role ?? "")) return false;
   if (ADMIN_SETTINGS.includes(section)) return role === "admin";
-  if (section === "imports") return role === "admin" || role === "editor";
+  if (section === "imports") return role === "admin" || role === "member";
   return true;
 }
 

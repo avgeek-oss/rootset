@@ -14,7 +14,7 @@ const updatedAt = () =>
   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
 export const users = control.table("users", {
   id: id(),
-  name: varchar("name", { length: 255 }).notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
@@ -64,7 +64,7 @@ export const authVerifications = control.table("auth_verifications", {
 export const authPasskeys = control.table("auth_passkeys", {
   id: id(),
   userId: varchar("user_id", { length: 26 }).notNull(),
-  name: varchar("name", { length: 255 }),
+  name: varchar("name", { length: 120 }),
   publicKey: text("public_key").notNull(),
   credentialID: text("credential_id").notNull(),
   counter: integer("counter").notNull(),

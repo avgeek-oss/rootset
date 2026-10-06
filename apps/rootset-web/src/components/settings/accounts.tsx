@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AuthForm,
-  ChoiceField,
+  InviteMemberDialog,
   MembersTable,
   MemberEditDialog,
   InvitationsTable,
@@ -14,7 +13,6 @@ import {
 } from "@avgeek-oss/design-system";
 import type { ChoiceOption } from "@avgeek-oss/design-system/patterns/choice-field";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { Modal } from "@avgeek-oss/design-system/overlays/modal";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import {
   QueryError,
@@ -40,8 +38,8 @@ const roles: readonly ChoiceOption<Member["role"]>[] = [
     description: "Manage the installation, data and team.",
   },
   {
-    id: "editor",
-    label: "Editor",
+    id: "member",
+    label: "Member",
     description: "Read data and create, edit or delete rows.",
   },
   { id: "viewer", label: "Viewer", description: "Read and export data." },
@@ -112,7 +110,6 @@ export function MembersSettings(props: SettingsPanelProps) {
   const [removing, setRemoving] = useState<Member | null>(null);
   const [revoking, setRevoking] = useState<Invitation | null>(null);
   const [busy, setBusy] = useState(false);
-  const [role, setRole] = useState<Member["role"]>("viewer");
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -150,7 +147,6 @@ export function MembersSettings(props: SettingsPanelProps) {
       <Button
         isDisabled={busy}
         onPress={() => {
-          setRole("viewer");
           setInviteOpen(true);
         }}
       >
@@ -310,58 +306,27 @@ export function MembersSettings(props: SettingsPanelProps) {
           }}
         />
       )}
-      <Modal.Backdrop
+      <InviteMemberDialog
         isOpen={inviteOpen}
-        onOpenChange={(open) => {
-          if (!busy) setInviteOpen(open);
+        onOpenChange={setInviteOpen}
+        roles={roles}
+        defaultRole="viewer"
+        onInvite={async ({ email, role }) => {
+          setBusy(true);
+          try {
+            const result = await write<{ inviteUrl: string }>(
+              `${path}/invitations`,
+              "POST",
+              { email, role },
+            );
+            toast.success("Invitation created");
+            changed();
+            return result;
+          } finally {
+            setBusy(false);
+          }
         }}
-      >
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>Create invitation</Modal.Heading>
-              <Modal.CloseTrigger isDisabled={busy} />
-            </Modal.Header>
-            <Modal.Body>
-              <AuthForm
-                variant="secondary"
-                fields={[
-                  {
-                    name: "email",
-                    label: "Email",
-                    type: "email",
-                    required: true,
-                    maxLength: 320,
-                    autoComplete: "off",
-                  },
-                ]}
-                submitLabel="Create invitation"
-                busyLabel="Creating invitation…"
-                onSubmit={async ({ email }) => {
-                  setBusy(true);
-                  try {
-                    await write(`${path}/invitations`, "POST", { email, role });
-                    toast.success("Invitation created");
-                    setInviteOpen(false);
-                    changed();
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                <ChoiceField
-                  label="Role"
-                  value={role}
-                  onChange={setRole}
-                  options={roles}
-                  isRequired
-                  isDisabled={busy}
-                />
-              </AuthForm>
-            </Modal.Body>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+      />
     </div>
   );
 }

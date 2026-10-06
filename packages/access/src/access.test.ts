@@ -14,12 +14,12 @@ const base: Actor = {
   id: "user:one",
   userId: "01K6J7B8000000000000000000",
   orgId: "01K6J7B8000000000000000001",
-  role: "editor",
+  role: "member",
   scopes: [],
 };
 
-test("roles separate admin management, editor row writes and viewer reads", () => {
-  for (const role of ["admin", "editor", "viewer"] as const) {
+test("roles separate admin management, member row writes and viewer reads", () => {
+  for (const role of ["admin", "member", "viewer"] as const) {
     for (const scope of [
       "rows:read",
       "history:read",

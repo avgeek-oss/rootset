@@ -5,7 +5,7 @@ read the [current V1 scope](rc-plan/README.md) before changing a domain contract
 
 Keep browser, REST and MCP operations on the same validated domain service.
 Resolve the installation's single organisation and the person's current
-Admin/Editor/Viewer role on each request. Admin includes installation management.
+Admin/Member/Viewer role on each request. Admin includes installation management.
 Personal keys inherit that role; OAuth additionally checks operation consent.
 Use generated internal IDs for SQL identifiers and bound parameters for values.
 

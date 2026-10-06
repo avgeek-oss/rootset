@@ -8,7 +8,7 @@ a second handwritten operation count or endpoint table here.
 ## Current authority
 
 Resolve the SQL-singleton organisation and the person's live membership for every
-request. Enforce Admin, Editor and Viewer capabilities from the
+request. Enforce Admin, Member and Viewer capabilities from the
 [account contract](ACCOUNT_ARCHITECTURE.md). Validate every nested target against
 its real database/table even within a single organisation; an unrelated ID must
 not authorize the wrong parent.
@@ -27,6 +27,12 @@ Reject unknown fields and invalid types before effects. Return stable error code
 request IDs and meaningful status codes without secrets or inaccessible values.
 Bound JSON requests/results to 8 MiB, and MCP structured results to 1 MiB.
 
+Account/team/member/personal-key name inputs share the trimmed, non-empty
+120-character account-name schema used by the Towbar forms. Generated OpenAPI
+and MCP schemas carry that bound; data-resource name contracts keep their own
+limits. Account email addresses are capped at 320 characters and new passwords
+at 15–1,024 characters.
+
 Browser mutations enforce the configured Origin and cookie/CSRF policy. Expose
 one HTTPS origin for remote use; loopback HTTP is the local exception. OAuth
 retains PKCE, exact redirect/state/issuer/audience/resource checks, single-use
@@ -36,6 +42,41 @@ Hardware authentication and browser approval have explicit interactive adapters.
 Data, schema, operation progress, manual backups and read-only installation health retain the applicable
 REST/MCP operation path and current-role checks. Approval binds the exact input,
 principal, client and expiry; it cannot add permissions to the credential.
+
+## Browser authentication adapters
+
+Identity routes are an explicit method/path allowlist. They reject API keys and
+bearer credentials; a cookie mutation requires the configured exact Origin.
+Data APIs/MCP do not inherit browser credential authority. Raw sign-up, password
+mutation and profile-mutation shortcuts are unavailable; application adapters
+retain reviewed actions and live-role checks.
+
+`POST /v1/public/auth/request-verification-email` takes only `{ email }`, uses no
+inherited session, has a fixed login callback and neutral `{ status: true }`
+response. `/v1/auth/request-verification-email` is its compatible identity alias.
+Public address/email budgets, private delivery limits and the response floor are
+specified in the [account contract](ACCOUNT_ARCHITECTURE.md#authentication).
+Signed-in `/v1/auth/send-verification-email` is bound to that session's email and
+fixed Email & Password callback; callbacks supplied by a client cannot redirect
+verification into another origin or account flow.
+
+Email-change links use `/email-change#<proof>` so the proof is absent from the
+HTTP request URL and referrer. The browser removes it from its address bar after
+reading it, and supports earlier query-based prelaunch links. A strict
+`POST /v1/auth/email-change/inspect` validates without effects and returns only
+`{ status: "ready" }`; `POST /v1/auth/email-change/confirm` consumes `{ token }`
+after an explicit confirmation. Email update, all browser/session/delegated
+revocation and encrypted notices are one transaction. Unknown, cancelled,
+expired and consumed proofs are unavailable. GET does not confirm a change.
+
+Invitation creation returns `{ ...metadata, inviteUrl }` with an opaque ID in
+`/invite/{id}`. `GET /v1/auth/invitations/{id}` previews eligibility.
+`POST .../{id}/verify` requests recipient email proof, `POST .../{id}/code`
+submits `{ name, code }` and issues a bounded password receipt, and
+`POST .../{id}/signup` consumes `{ setupToken, password }` to create the verified
+account and membership. `POST .../{id}/accept` accepts an existing matching
+verified account. The invitation link is replayable metadata; email codes,
+password receipts and recovery codes remain single-use credentials.
 
 ## Fields, rows and queries
 

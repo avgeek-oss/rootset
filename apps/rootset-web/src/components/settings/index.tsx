@@ -100,7 +100,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
       ) ? (
       <Empty>
         {activeSection === "imports"
-          ? "Editor or admin access is required to import rows."
+          ? "Member or admin access is required to import rows."
           : "Admin access is required to manage these settings."}
       </Empty>
     ) : (

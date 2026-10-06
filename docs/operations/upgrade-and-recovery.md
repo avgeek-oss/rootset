@@ -11,6 +11,15 @@ Recover an older installation with its matching source/images/schema and retaine
 keys. A recovery copy is not a conversion into the new baseline. Any future data
 transfer needs its own reviewed, tested procedure.
 
+The current baseline calls the former `editor` role `member`; permissions are
+unchanged. Fresh installations accept only `admin`, `member` and `viewer`.
+An older installation is recovered with its matching schema and original role
+values. A future reviewed transfer into a fresh installation must map membership
+and pending-invitation `editor` values to `member`, preserve identities and
+last-Admin protection, and reissue origin-bound credentials through supported
+flows. This repository does not automatically rewrite an older schema, its digest
+or live memberships to perform that conversion.
+
 ## Prepare an installation recovery copy
 
 A logical database backup includes table data and history, but excludes account

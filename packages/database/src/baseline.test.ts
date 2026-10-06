@@ -34,6 +34,11 @@ test(
       complete: true,
       version: "0001_baseline.sql",
     });
+    const names = await pool.query(
+      "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
+    );
+    assert.equal(names.rowCount, 4);
+    assert.ok(names.rows.every((row) => row.character_maximum_length === 120));
     await pool.query(
       "INSERT INTO rootset_control.organisations(id,name) VALUES('00000000000000000000000001','Rootset')",
     );
@@ -50,6 +55,28 @@ test(
     await pool.query(
       "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES('00000000000000000000000003','Admin','admin@example.test',true)",
     );
+    for (const table of ["users", "organisations"] as const) {
+      const previous = (
+        await pool.query(`SELECT name FROM rootset_control.${table}`)
+      ).rows[0].name;
+      await pool.query(`UPDATE rootset_control.${table} SET name=$1`, [
+        "N".repeat(120),
+      ]);
+      await assert.rejects(
+        pool.query(`UPDATE rootset_control.${table} SET name=$1`, [
+          "N".repeat(121),
+        ]),
+        { code: "22001" },
+      );
+      assert.equal(
+        (await pool.query(`SELECT name FROM rootset_control.${table}`)).rows[0]
+          .name,
+        "N".repeat(120),
+      );
+      await pool.query(`UPDATE rootset_control.${table} SET name=$1`, [
+        previous,
+      ]);
+    }
     await assert.rejects(
       pool.query(
         "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES('00000000000000000000000004','00000000000000000000000001','00000000000000000000000003','owner')",
@@ -59,6 +86,39 @@ test(
     await pool.query(
       "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES('00000000000000000000000004','00000000000000000000000001','00000000000000000000000003','admin')",
     );
+    await assert.rejects(
+      pool.query("UPDATE rootset_control.memberships SET role='editor'"),
+      { code: "23514" },
+    );
+    await pool.query("UPDATE rootset_control.memberships SET role='member'");
+    assert.equal(
+      (await pool.query("SELECT role FROM rootset_control.memberships")).rows[0]
+        .role,
+      "member",
+    );
+    await pool.query("UPDATE rootset_control.memberships SET role='admin'");
+    for (const role of ["rootset_app", "rootset_identity", "rootset_ddl"]) {
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT has_table_privilege($1,'rootset_control.migrations','SELECT') allowed",
+            [role],
+          )
+        ).rows[0].allowed,
+        true,
+        `${role} can inspect the applied baseline`,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT has_table_privilege($1,'rootset_control.migrations','UPDATE') allowed",
+            [role],
+          )
+        ).rows[0].allowed,
+        false,
+        `${role} cannot rewrite the applied baseline`,
+      );
+    }
     const absent = await pool.query(
       "SELECT table_name,column_name FROM information_schema.columns WHERE table_schema='rootset_control' AND ((table_name='organisations' AND column_name IN('description','state','quota_bytes')) OR (table_name='memberships' AND column_name IN('state','restricted')) OR (table_name='api_keys' AND column_name IN('owner_kind','scopes','targets','unrestricted')) OR (table_name='users' AND column_name='disabled') OR (table_name='fields' AND column_name IN('api_key','label')))",
     );

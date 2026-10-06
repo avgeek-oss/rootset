@@ -545,7 +545,7 @@ test("OAuth bearer authority follows live role demotion and user removal", async
     role: "admin",
     scopes: ["rows:read", "rows:write"],
   };
-  let liveRole: Actor["role"] | null = "editor";
+  let liveRole: Actor["role"] | null = "member";
   const pool = {
     query: async (_sql: string, values: unknown[]) => ({
       rows:

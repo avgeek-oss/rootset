@@ -10,16 +10,16 @@ const fixture = JSON.parse(
 );
 const browser = await chromium.launch();
 const admin = await browser.newContext({ baseURL });
-const editor = await browser.newContext({
+const member = await browser.newContext({
   baseURL,
   viewport: { width: 1440, height: 1000 },
 });
-const page = await editor.newPage();
+const page = await member.newPage();
 const adminPage = await admin.newPage();
 const report = {
   browser: "chromium",
   source:
-    "Actual admin and editor roles, automatic installation context, schema guards and personal settings",
+    "Actual admin and member roles, automatic installation context, schema guards and personal settings",
   checks: [],
   pageErrors: [],
 };
@@ -48,29 +48,29 @@ async function signIn(context, file, role) {
 }
 const target = `organisationId=${fixture.orgId}&databaseId=${fixture.databaseId}&tableId=${fixture.tableId}`;
 try {
-  const editorContext = await signIn(
-    editor,
+  const memberContext = await signIn(
+    member,
     "../.env.permissions-browser-test",
-    "editor",
+    "member",
   );
-  expect(editorContext.scopes).toContain("rows:write");
-  expect(editorContext.scopes).not.toContain("databases:manage");
-  expect(editorContext.scopes).not.toContain("tables:manage");
+  expect(memberContext.scopes).toContain("rows:write");
+  expect(memberContext.scopes).not.toContain("databases:manage");
+  expect(memberContext.scopes).not.toContain("tables:manage");
   await page.goto(baseURL);
-  await expect(page.locator(".rootset-shell")).toBeVisible();
+  await expect(page.locator(".rootset-application")).toBeVisible();
   await expect(
     page
-      .locator(".main-sidebar")
+      .getByRole("navigation", { name: "Primary navigation", exact: true })
       .getByRole("button", { name: "Create database", exact: true }),
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "UI verification", exact: true })
+    .getByRole("link", { name: "UI verification", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Create table", exact: true }),
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: fixture.tableName, exact: true })
+    .getByRole("link", { name: fixture.tableName, exact: true })
     .click();
   await expect(
     page.getByRole("grid", { name: `${fixture.tableName} spreadsheet` }),
@@ -82,7 +82,7 @@ try {
     page.getByRole("button", { name: "Table settings", exact: true }),
   ).toHaveCount(0);
   report.checks.push({
-    name: "Editor can edit rows but has no database, table or schema management controls",
+    name: "Member can edit rows but has no database, table or schema management controls",
     status: "passed",
   });
   const protectedRequests = [];
@@ -96,27 +96,34 @@ try {
   });
   for (const section of ["fields", "members", "operator"]) {
     await page.goto(`/settings/${section}?${target}`);
-    await expect(page.locator(".settings-content")).toContainText(
+    await expect(page.locator("#table-content")).toContainText(
       "Admin access is required",
     );
-    await expect(page.locator(".settings-content form")).toHaveCount(0);
+    await expect(page.locator("#table-content form")).toHaveCount(0);
   }
   expect(protectedRequests).toEqual([]);
-  await page.goto(`/settings/keys?${target}`);
-  await expect(page.getByLabel(/^Key name/)).toBeVisible();
-  await expect(page.getByRole("button", { name: /Key ownership/ })).toHaveCount(
-    0,
-  );
-  await expect(
-    page.getByLabel("Database target ID", { exact: true }),
-  ).toHaveCount(0);
+  await page.goto("/settings/api-keys");
+  await page
+    .getByRole("button", { name: "Create API key", exact: true })
+    .click();
   await expect(
     page
-      .getByRole("navigation", { name: "Settings sections" })
-      .getByRole("button", { name: "Import rows", exact: true }),
+      .getByRole("dialog")
+      .getByRole("textbox", { name: "Name*", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByText("Permissions", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await page.goto(`/settings/imports?${target}`);
+  await expect(
+    page.getByRole("link", { name: "Import rows", exact: true }),
   ).toBeVisible();
   report.checks.push({
-    name: "Direct admin links do not fetch or mount protected forms; editors retain imports and personal keys",
+    name: "Direct admin links do not fetch or mount protected forms; members retain imports and personal keys",
     status: "passed",
   });
   const adminContext = await signIn(admin, "../.env.browser-test", "admin");
@@ -124,24 +131,24 @@ try {
   await adminPage.goto(baseURL);
   await expect(
     adminPage
-      .locator(".main-sidebar")
+      .getByRole("navigation", { name: "Primary navigation", exact: true })
       .getByRole("button", { name: "Create database", exact: true }),
   ).toBeVisible();
   await adminPage.goto(`/settings/operator?${target}`);
   await expect(
-    adminPage.getByLabel("Installation quota (bytes)", { exact: true }),
+    adminPage
+      .getByRole("heading", { name: "Installation health", exact: true })
+      .last(),
   ).toBeVisible();
   await expect(
-    adminPage
-      .getByRole("navigation", { name: "Settings sections" })
-      .getByRole("button", { name: /Resource access|Organisation audit/ }),
+    adminPage.getByRole("link", { name: /Resource access|Organisation audit/ }),
   ).toHaveCount(0);
   report.checks.push({
     name: "Admin alone manages installation and schema without a second authority flag",
     status: "passed",
   });
   await page.screenshot({
-    path: new URL("chromium-editor-personal-settings.png", output).pathname,
+    path: new URL("chromium-member-personal-settings.png", output).pathname,
   });
   expect(report.pageErrors).toEqual([]);
   report.status = "passed";
@@ -152,12 +159,12 @@ try {
 } finally {
   await mkdir(output, { recursive: true });
   await writeFile(
-    new URL("chromium-editor-permissions-report.json", output),
+    new URL("chromium-member-permissions-report.json", output),
     JSON.stringify(report, null, 2),
   );
   console.log(JSON.stringify(report));
   await admin.close();
-  await editor.close();
+  await member.close();
   await browser.close();
   if (report.status !== "passed") process.exitCode = 1;
 }

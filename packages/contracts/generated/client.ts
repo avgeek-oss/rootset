@@ -43,7 +43,7 @@ export type getContextOutput = {
     id: string;
     kind: string;
     userId?: string;
-    role: "admin" | "editor" | "viewer";
+    role: "admin" | "member" | "viewer";
   };
   organisation: {
     id: string;
@@ -368,7 +368,7 @@ export type listMembersOutput = {
     userId: string;
     name: string;
     email: string;
-    role: "admin" | "editor" | "viewer";
+    role: "admin" | "member" | "viewer";
     version: string;
     verified: boolean;
     twoFactorEnabled: boolean;
@@ -380,7 +380,7 @@ export type updateMemberInput = {
   orgId: string;
   id: string;
   name?: string;
-  role?: "admin" | "editor" | "viewer";
+  role?: "admin" | "member" | "viewer";
   expectedVersion: string;
   approvalId?: string;
 };
@@ -390,7 +390,7 @@ export type updateMemberOutput = {
   userId: string;
   name: string;
   email: string;
-  role: "admin" | "editor" | "viewer";
+  role: "admin" | "member" | "viewer";
   version: string;
   verified: boolean;
   twoFactorEnabled: boolean;
@@ -413,7 +413,7 @@ export type listInvitationsOutput = {
     id: string;
     orgId: string;
     email: string;
-    role: "admin" | "editor" | "viewer";
+    role: "admin" | "member" | "viewer";
     state: "pending" | "accepted" | "cancelled" | "expired";
     expiresAt: string;
     createdAt: string;
@@ -424,16 +424,17 @@ export type listInvitationsOutput = {
 export type inviteMemberInput = {
   orgId: string;
   email: string;
-  role: "admin" | "editor" | "viewer";
+  role: "admin" | "member" | "viewer";
 };
 export type inviteMemberOutput = {
   id: string;
   orgId: string;
   email: string;
-  role: "admin" | "editor" | "viewer";
+  role: "admin" | "member" | "viewer";
   state: "pending" | "accepted" | "cancelled" | "expired";
   expiresAt: string;
   createdAt: string;
+  inviteUrl: string;
 };
 export type cancelInvitationInput = { orgId: string; id: string };
 export type cancelInvitationOutput = { deleted: boolean; mutationId?: string };

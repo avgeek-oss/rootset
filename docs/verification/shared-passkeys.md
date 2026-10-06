@@ -4,18 +4,24 @@ Rootset consumes Towbar's account, authentication and team patterns from
 `@avgeek-oss/design-system@1.2.1`. Profile, Preferences, Email & Password,
 Passkeys, Sessions, API Keys and MCP Guide use the library's components and
 fixed copy. The secondary sidebar contains only the current settings scope.
-Team details, member editing/removal and invitation revocation also use shared
-patterns. Rootset retains its email-delivered invitation protocol because the
-shared invitation-creation dialog requires a returned invitation URL; Rootset's
-list and creation responses do not disclose that token.
+Team details, invitation creation, member editing/removal and invitation
+revocation also use shared patterns. The native `EmailChangeSettings` owns
+verification status, resend cooldown, pending changes and cancellation; the
+application supplies only identity operations and date formatting.
 
-The published SignIn pattern has no resend-verification action or link. Rootset
-retains `/verification` and `/verify-email` for direct use, but they are not
-discoverable from that shared form. A correct password sign-in for an unverified
-account queues an account-verification email and returns `EMAIL_NOT_VERIFIED`
-without granting a session; the real identity setup test verifies that behavior.
-Delivery still requires the configured SMTP worker. This is a discoverability
-limitation of the current shared component, not full authentication-flow parity.
+Invitation creation returns a replayable URL containing the opaque invitation
+ID, not a credential. The shared acceptance and email-code forms establish
+recipient proof before the shared first-password form creates an account. A
+valid link alone cannot set a password, create a session or grant membership.
+Email codes allow five attempts and expire after ten minutes; the subsequent
+password receipt is hashed, bound to the invitation and consumed once.
+
+Public verification requests use a dedicated handler with a neutral response,
+fixed login callback and no inherited session. Unknown, verified and unverified
+addresses receive the same acknowledgement and a 500 ms response floor. Public
+IP and normalized-email budgets apply before account eligibility; private outbox
+cooldown and daily delivery limits do not reveal eligibility. The signed-in
+resend route accepts only that session's email. Unverified sign-in remains denied.
 
 Authenticator/TOTP enrollment, verification, action types and storage have been
 removed. Passkey recovery codes belong to the shared first-key/replacement
@@ -41,6 +47,36 @@ not replace the server's cryptographic verifier with a success stub.
 | A fresh passkey restores the intended authority                       | The same recovery-authority subtest performs a signed assertion bound to the recovery session, then completes the reviewed API-key action and OAuth consent                                                                                                                               |
 | Revocation invalidates outstanding proofs                             | Revoked-session/foreign-owner subtest refuses challenges after session or access revocation                                                                                                                                                                                               |
 | Recovery and member status follow actual enrollment                   | First/last-key subtest preserves codes when adding a key, removes them with the last key and verifies member status before/after enrollment and removal                                                                                                                                   |
+
+`email-change-security.test.ts` verifies that opening/inspecting a confirmation
+cannot change the account. New links hold their proof in a URL fragment; the
+explicit POST consumes it once. Email update, session/key/grant revocation and
+the two encrypted notices commit together. A forced notice-persistence failure
+rolls back the email, authority and receipt; a later concurrent retry commits only
+once. GET confirmation and foreign-origin/bearer mutations are refused.
+
+`email-verification.test.ts` checks real handler responses, normalized and hashed
+buckets, foreign origins, API-key denial, session isolation, timing, concurrent
+requests and private delivery limits. `invitation-security.test.ts` exercises
+link authority, email-code expiry and attempts, invitation-bound password proof,
+concurrent consumption and revocation/last-Admin eligibility before account
+creation. `password-policy.test.ts` checks the privacy-preserving breached-password
+range request, strict padded responses, fail-closed outages and the bounded FIFO
+password-work queue. Production enables breach checking by default; offline
+synthetic fixtures disable the network lookup explicitly while policy tests
+exercise its behavior with controlled responses.
+
+The human-approved rename from Editor to Member changes the role name, not its
+capabilities. Role matrix tests, live-role credentials, browser guards and
+invitation contracts use Admin/Member/Viewer. The fresh-install baseline was
+regenerated from an isolated PostgreSQL 18 schema; repeat application and digest
+refusal preserve earlier databases. No original database or volume was reset.
+
+Common account/team/member/key name contracts and SQL columns use the same
+120-character bound as the shared forms. Existing identity and contract suites
+exercise trimmed/non-empty, 120 and 121-character boundaries; the baseline suite
+checks the actual column types and rejects oversized SQL updates without changing
+the previous value. Rootset resource naming limits remain separate.
 
 The existing identity suite continues to cover verified-email setup and
 invitations, email changes, password reset, session/key revocation, role changes,

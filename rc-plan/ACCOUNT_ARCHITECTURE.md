@@ -16,14 +16,21 @@ Password reset uses the shared confirmation form and removes the reset token
 from the browser URL after success. Rootset retains verified-email invitations
 and binds published shared forms to those protocols. Invitation and account email verification remain required. Sign-in and sensitive-action confirmation use Towbar's passkey workflow.
 
-Membership stores a user and one role: `admin`, `editor` or `viewer`. A present
+The prelaunch Editor role is now called Member, with identical permissions.
+Membership stores a user and one role: `admin`, `member` or `viewer`. A present
 membership grants access; removing it removes access. There is no active-member
 flag or deleted-account lifecycle. Preserve actor references needed to interpret
 row/cell history when membership is removed.
 
+Profile, team, member, passkey and personal-key names follow the shared Towbar
+forms: trimmed, non-empty names with a 120-character maximum. The public account
+contracts, identity service and fresh SQL baseline enforce that limit. Email
+addresses are normalized and capped at 320 characters; resource names retain
+their separate Rootset limits.
+
 ## Roles
 
-| Capability                                                 | Admin | Editor | Viewer |
+| Capability                                                 | Admin | Member | Viewer |
 | ---------------------------------------------------------- | ----- | ------ | ------ |
 | Read tables and history; export readable data              | Yes   | Yes    | Yes    |
 | Create, edit and delete rows; import data                  | Yes   | Yes    | No     |
@@ -47,15 +54,42 @@ includes a passkey-enrollment flag. The shared security column is labelled Passk
 Members and pending invitations use cursor pagination. The invitation API accepts
 an optional state filter and computes expired state on the server. The UI also
 refreshes at the next expiry and on focus, so an expired invitation cannot stay
-actionable merely because the page remains open. Invitations retain Rootset's
-email-proof protocol: tokens are hashed and delivery payloads encrypted, and list
-responses do not disclose invitation links.
+actionable merely because the page remains open. Invitation creation returns an ID-based link that can be copied from the shared
+invite dialog. The ID is a locator, not email proof or password authority; list
+responses retain only metadata. A new recipient requests a six-digit email code,
+then submits their name and code using the shared verification form. The code is
+hashed at rest, expires after ten minutes and permits five failed attempts.
+Successful proof issues a hashed, invitation-bound, single-use ten-minute password
+receipt. The shared first-password form consumes that receipt and creates the
+verified account, credential and membership atomically. Existing accounts sign in
+with the matching verified email before accepting. Expiry, revocation or loss of
+the inviter's Admin role blocks acceptance and new-account creation. Delivery
+payloads remain encrypted.
 
 ## Authentication
 
 Keep verified email/password sign-in, password reset, passkeys, passkey recovery codes and session management. There is no authenticator/TOTP plugin, setup secret, verification endpoint, database table or action type. Setup/invitation/reset/factor tokens
 are bounded, single-use and protected at rest. Rate-limit authentication and
 approval attempts; errors must not reveal unrelated account existence.
+
+Passwords contain 15–1,024 characters and use salted credential hashes. New
+passwords undergo the same breached-password check as Towbar: send only the first
+five SHA-1 characters to the padded range endpoint, compare suffixes locally and
+fail closed if the response is unavailable, malformed or too large. The lookup
+has a five-second deadline. Hash/verify work shares a bounded FIFO gate: two
+active operations and sixteen waiting by default, configurable by deployment
+environment. Overflow returns a retryable 503. Offline test fixtures disable the
+external lookup explicitly; production enables it by default.
+
+Public resend takes only a normalized email and returns a neutral acknowledgement
+for unknown, verified and unverified accounts, with a common 500 ms response
+floor. It inherits no session and fixes the callback to the configured login
+route. Apply IP 20/minute, email 1/minute and email 5/24-hour budgets to every
+request before checking eligibility. Hash rate-limit identifiers at rest. Private
+outbox limits permit no more than one delivery/minute and five/24 hours and stay
+hidden from the public response. The signed-in resend route requires the session's
+exact email and fixes its callback to Email & Password. Unverified password
+sign-in does not issue a session or trigger an automatic email.
 
 Once a user registers a passkey, successful password verification creates a bounded pending sign-in instead of a usable session. The second step requires a cryptographically verified passkey with user verification. Its challenge binds the exact pending sign-in and user. Direct passkey sign-in remains supported. Reauthentication binds the exact existing session, keeps its identifier and updates only its fresh-proof timestamp; password-only reauthentication is refused for an account with passkeys.
 
@@ -65,7 +99,11 @@ Sensitive account changes, credential changes and
 replacement restore require current authentication and explicit approval of the
 intended action. A cached session or old approval cannot approve a changed
 request. Changes to email verify the new address and handle uniqueness races;
-revocation invalidates affected sessions and grants.
+revocation invalidates affected sessions and grants. Email-change links hold
+proof in a URL fragment; opening the page only inspects it. An explicit shared
+confirmation button submits the proof. Email update, session/key/grant revocation
+and both encrypted notices are atomic; failure preserves the previous email,
+authority and usable proof.
 
 ## Personal API keys
 
@@ -76,7 +114,7 @@ approve a non-expiring key. Rotation uses a bounded overlap before revocation.
 
 Keys inherit the person's current role across this installation. They do not
 contain selected operations or database/table whitelists. An Admin key loses
-Admin permissions when its person becomes Editor or Viewer. A removed person,
+Admin permissions when its person becomes Member or Viewer. A removed person,
 expired key or revoked key cannot read, mutate or recover a previously cached
 response using that credential. Every person manages their own personal keys;
 there are no team/service keys.
@@ -133,7 +171,7 @@ contains a previous database or table identifier.
 | API & MCP | API Keys         | `/settings/api-keys`       | Personal keys table and MCP Connections table; creation/expiry and one-time secret modal; role-inherited permissions   |
 | API & MCP | MCP Guide        | `/settings/mcp`            | Towbar client selector, client configuration code blocks, copy controls and OAuth connection instructions              |
 
-Legacy `/settings/security` and `/settings/2fa` links resolve to Passkeys; keys/connections aliases resolve to API Keys. Account pages consume published `ProfileImageSettings`, `ProfileSettings`, `PasswordChangeSettings`, `PasskeySettings`, `SessionsSettings`, and the shared API/MCP patterns. Shared labels, dialogs and fixed copy stay in the library. Recovery-code saving belongs to the passkey ceremony, with no separate recovery-code administration panel.
+Legacy `/settings/security` and `/settings/2fa` links resolve to Passkeys; keys/connections aliases resolve to API Keys. Account pages consume published `ProfileImageSettings`, `ProfileSettings`, `EmailChangeSettings`, `PasswordChangeSettings`, `PasskeySettings`, `SessionsSettings`, and the shared API/MCP patterns. Shared labels, dialogs and fixed copy stay in the library. Recovery-code saving belongs to the passkey ceremony, with no separate recovery-code administration panel.
 
 Sensitive operations continue to use Rootset's immutable approval checks. The browser verifies the matching server ticket before approving and completing it. Identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Restore, delete and operator repair keep their separate explicit review.
 
