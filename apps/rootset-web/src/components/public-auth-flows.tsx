@@ -14,6 +14,7 @@ import {
   InvitationUnavailable,
   AcceptInvitation,
   InvitationVerification,
+  VerificationEmail,
 } from "@avgeek-oss/design-system";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Modal } from "@avgeek-oss/design-system/overlays/modal";
@@ -206,45 +207,32 @@ export function ResetPasswordForm() {
 }
 
 export function VerificationForm() {
-  const [sent, setSent] = useState(false);
+  const params = useSearchParams();
   return (
-    <AuthFrame
-      title="Verify your email"
-      description={
-        sent
-          ? "Check your email. If your account is eligible, the link will arrive shortly."
-          : "Request a fresh verification link for your Rootset account."
-      }
-    >
-      {!sent && (
-        <AuthForm
-          fields={[
-            {
-              name: "email",
-              label: "Email",
-              type: "email",
-              autoComplete: "email",
-              required: true,
-            },
-          ]}
-          submitLabel="Send link"
-          busyLabel="Sending…"
-          onSubmit={async ({ email }) => {
-            authFailure(
-              await authClient.sendVerificationEmail({
-                email: email ?? "",
-                callbackURL: `${window.location.origin}/`,
-              }),
-            );
-            setSent(true);
-          }}
-        />
-      )}
-      <Link href="/login" className={authTextActionClassName}>
-        Back to Sign In
-      </Link>
-    </AuthFrame>
+    <VerificationEmail
+      brand={<AuthBrand />}
+      defaultEmail={params.get("email") ?? ""}
+      onBackToSignIn={back}
+      onSubmit={async ({ email }) => {
+        const result = await publicApi.request<{ status: boolean }>(
+          "/public/auth/request-verification-email",
+          { method: "POST", body: { email } },
+        );
+        if (result.status !== true)
+          throw new Error("Verification email was not requested. Try again.");
+      }}
+    />
   );
+}
+
+async function requestInvitationVerification(invitationId: string) {
+  const result = await publicApi.request<{ existingAccount: boolean }>(
+    `/auth/invitations/${invitationId}/verify`,
+    { method: "POST", body: {} },
+  );
+  if (typeof result.existingAccount !== "boolean")
+    throw new Error("Invitation verification was not completed. Try again.");
+  return result;
 }
 
 export function InvitationScreen({ token }: { token: string }) {
@@ -260,6 +248,7 @@ export function InvitationScreen({ token }: { token: string }) {
   });
   const session = authClient.useSession();
   const [verifying, setVerifying] = useState(false);
+  const [resendAt, setResendAt] = useState(0);
   const [verifyPending, setVerifyPending] = useState(false);
   const verifyRequestPending = useRef(false);
   const [existing, setExisting] = useState(false);
@@ -312,6 +301,14 @@ export function InvitationScreen({ token }: { token: string }) {
         brand={<AuthBrand />}
         teamName={details.organisationName}
         maxNameLength={120}
+        resendAvailableAt={resendAt}
+        onResendCode={async () => {
+          const result = await requestInvitationVerification(token);
+          if (result.existingAccount) {
+            setExisting(true);
+            setVerifying(false);
+          } else setResendAt(Date.now() + 60_000);
+        }}
         onSubmit={async (values) => {
           const result = await publicApi.request<{ setupToken: string }>(
             `/auth/invitations/${token}/code`,
@@ -333,14 +330,11 @@ export function InvitationScreen({ token }: { token: string }) {
           if (verifyRequestPending.current) return;
           verifyRequestPending.current = true;
           setVerifyPending(true);
-          void publicApi
-            .request<{ existingAccount: boolean }>(
-              `/auth/invitations/${token}/verify`,
-              { method: "POST", body: {} },
-            )
+          void requestInvitationVerification(token)
             .then((result) => {
               setExisting(result.existingAccount);
               setVerifying(!result.existingAccount);
+              if (!result.existingAccount) setResendAt(Date.now() + 60_000);
             })
             .catch((error: unknown) =>
               toast.danger(

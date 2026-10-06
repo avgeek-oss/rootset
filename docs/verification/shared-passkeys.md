@@ -1,13 +1,18 @@
 # Shared account settings and passkeys
 
 Rootset consumes Towbar's account, authentication and team patterns from
-`@avgeek-oss/design-system@1.2.1`. Profile, Preferences, Email & Password,
+`@avgeek-oss/design-system@1.2.3`. Profile, Preferences, Email & Password,
 Passkeys, Sessions, API Keys and MCP Guide use the library's components and
 fixed copy. The secondary sidebar contains only the current settings scope.
 Team details, invitation creation, member editing/removal and invitation
 revocation also use shared patterns. The native `EmailChangeSettings` owns
 verification status, resend cooldown, pending changes and cancellation; the
 application supplies only identity operations and date formatting.
+
+Sign-in exposes the library's verification-email action. `VerificationEmail`
+uses the neutral public resend endpoint, and `InvitationVerification` supplies
+the shared resend control and one-minute cooldown without replacing its copy.
+Invalid invitation codes leave the draft in place and show one error toast.
 
 Invitation creation returns a replayable URL containing the opaque invitation
 ID, not a credential. The shared acceptance and email-code forms establish
@@ -54,6 +59,11 @@ explicit POST consumes it once. Email update, session/key/grant revocation and
 the two encrypted notices commit together. A forced notice-persistence failure
 rolls back the email, authority and receipt; a later concurrent retry commits only
 once. GET confirmation and foreign-origin/bearer mutations are refused.
+The native `EmailConfirmation` screen inspects the proof before showing its
+confirmation action, clears the URL while preserving router state, and keeps the
+proof only in memory. Rendered inspection left the fixture email, pending proof,
+sessions and change-notice count unchanged. A reload of the scrubbed URL shows
+the shared unavailable state without submitting confirmation.
 
 `email-verification.test.ts` checks real handler responses, normalized and hashed
 buckets, foreign origins, API-key denial, session isolation, timing, concurrent

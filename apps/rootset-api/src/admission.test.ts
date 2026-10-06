@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { newId, RootsetError } from "@rootset/contracts";
 import { Admission } from "./admission.js";
 
@@ -113,7 +113,7 @@ test(
     const pool = new Pool({
       connectionString: url,
       max: 2,
-      connectionTimeoutMillis: 150,
+      connectionTimeoutMillis: 5_000,
       options: "-c statement_timeout=100 -c timezone=UTC",
     });
     const blockerPool = new Pool({ connectionString: url, max: 1 });
@@ -127,8 +127,11 @@ test(
       ];
     const leases: (() => Promise<void>)[] = [];
     try {
-      const held = await Promise.all([pool.connect(), pool.connect()]);
+      const held: PoolClient[] = [];
       try {
+        held.push(await pool.connect());
+        held.push(await pool.connect());
+        pool.options.connectionTimeoutMillis = 150;
         await Promise.all(
           principals.map((principal) =>
             assert.rejects(

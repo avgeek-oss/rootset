@@ -135,6 +135,7 @@ function LoginForm({ onSignedIn }: { onSignedIn: () => void }) {
       defaultEmail={params.get("email") ?? ""}
       isPending={busy}
       onForgotPassword={() => window.location.assign("/forgot-password")}
+      onResendVerification={() => window.location.assign("/verification")}
       onSubmit={async ({ identifier, password }) =>
         authenticate(async () => {
           const result = await authClient.signIn.email({

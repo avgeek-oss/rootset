@@ -51,7 +51,7 @@ uploads, retries and cleanup; expose partial outcomes and terminal failures.
 
 ## Spreadsheet
 
-Use the public exports of `@avgeek-oss/design-system@1.2.1` for the application
+Use the public exports of `@avgeek-oss/design-system@1.2.3` for the application
 shell, navigation, account settings, authentication, buttons, avatars, typography
 and HeroUI controls. Rootset owns API adapters, permissions, UTC/date policy and
 branding. Keep Rootset's green accent. The primary sidebar contains databases,

@@ -30,6 +30,7 @@ import {
   repairReviewError,
 } from "./repair-review-status";
 import { AuthScreen } from "./auth-screen";
+import { EmailChangeConfirmation } from "./email-change-confirmation";
 import { ReauthenticationDialog } from "./settings/account/reauthentication-dialog";
 import { NotificationCenter } from "./notification-center";
 import { authClient } from "../lib/auth-client";
@@ -254,6 +255,12 @@ export function RootsetApp() {
     }
   }
 
+  if (path === "/email-change" || path === "/confirm-email-change")
+    return (
+      <AuthPage>
+        <EmailChangeConfirmation />
+      </AuthPage>
+    );
   if (setup.isPending || (setup.data?.claimed && context.isPending))
     return (
       <main className="startup-state" role="status">
