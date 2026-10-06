@@ -124,36 +124,36 @@
         {
           "path": "packages/jobs/src/integration.ts",
           "line": 2520,
-          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail, schedule preview and backup lists obey strict contracts and current role authority"
+          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2663,
+          "line": 2648,
           "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2820,
+          "line": 2805,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2889,
+          "line": 2874,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3136,
+          "line": 3121,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3602,
+          "line": 3587,
           "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3835,
+          "line": 3820,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
@@ -190,12 +190,12 @@
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 122,
+          "line": 120,
           "title": "OWNERSHIP-02"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 440,
+          "line": 439,
           "title": "OWNERSHIP-04"
         },
         {
@@ -315,12 +315,12 @@
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2663,
+          "line": 2648,
           "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3835,
+          "line": 3820,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
@@ -429,22 +429,22 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3136,
+          "line": 3121,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3602,
+          "line": 3587,
           "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3835,
+          "line": 3820,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 122,
+          "line": 120,
           "title": "OWNERSHIP-02"
         },
         {
@@ -503,11 +503,11 @@
         {
           "path": "packages/jobs/src/integration.ts",
           "line": 2520,
-          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail, schedule preview and backup lists obey strict contracts and current role authority"
+          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3136,
+          "line": 3121,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
@@ -558,12 +558,12 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2889,
+          "line": 2874,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3007,
+          "line": 2992,
           "title": "V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover"
         },
         {
@@ -672,46 +672,46 @@
         {
           "path": "packages/jobs/src/integration.ts",
           "line": 2520,
-          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail, schedule preview and backup lists obey strict contracts and current role authority"
+          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2663,
+          "line": 2648,
           "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2820,
+          "line": 2805,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2889,
+          "line": 2874,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3007,
+          "line": 2992,
           "title": "V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3136,
+          "line": 3121,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3602,
+          "line": 3587,
           "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3835,
+          "line": 3820,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 440,
+          "line": 439,
           "title": "OWNERSHIP-04"
         }
       ]
@@ -804,12 +804,12 @@
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2820,
+          "line": 2805,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2889,
+          "line": 2874,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
@@ -838,11 +838,11 @@
         {
           "path": "packages/jobs/src/integration.ts",
           "line": 2520,
-          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail, schedule preview and backup lists obey strict contracts and current role authority"
+          "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 277,
+          "line": 275,
           "title": "OBSERVABILITY-02"
         },
         {
@@ -900,12 +900,12 @@
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3007,
+          "line": 2992,
           "title": "V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3136,
+          "line": 3121,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         }
       ]
@@ -938,7 +938,7 @@
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3136,
+          "line": 3121,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         }
       ]
@@ -1003,17 +1003,17 @@
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2820,
+          "line": 2805,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 209,
+          "line": 207,
           "title": "OBSERVABILITY-01"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 277,
+          "line": 275,
           "title": "OBSERVABILITY-02"
         }
       ]
@@ -1021,7 +1021,7 @@
     {
       "id": "V1-31",
       "area": "Browser and performance",
-      "requirement": "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states.",
+      "requirement": "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states. The shared notification menu covers empty/loading/failure states, bounded complete pagination, explicit mark-all, per-user isolation and durable read-state recovery.",
       "status": "pending",
       "testSources": []
     },
@@ -1080,12 +1080,12 @@
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 122,
+          "line": 120,
           "title": "OWNERSHIP-02"
         },
         {
           "path": "tools/verification/runtime-ownership.integration.test.ts",
-          "line": 440,
+          "line": 439,
           "title": "OWNERSHIP-04"
         },
         {

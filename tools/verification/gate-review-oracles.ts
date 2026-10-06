@@ -122,7 +122,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-31",
-    "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states.",
+    "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states. The shared notification menu covers empty/loading/failure states, bounded complete pagination, explicit mark-all, per-user isolation and durable read-state recovery.",
   ],
   [
     "V1-32",
