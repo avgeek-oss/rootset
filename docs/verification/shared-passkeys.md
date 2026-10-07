@@ -1,15 +1,23 @@
 # Shared account settings and passkeys
 
 Rootset consumes Towbar's account, authentication and team patterns from
-`@avgeek-oss/design-system@1.2.5`. Profile, Preferences, Email & Password,
-Passkeys, Sessions, API Keys and MCP Guide use the library's components and
+`@avgeek-oss/design-system@1.2.7`. Profile, Preferences, Email & Password,
+Passkeys, Sessions, API Keys, MCP Connections and MCP Guide use the library's components and
 fixed copy. The secondary sidebar contains only the current settings scope.
 Team details, invitation creation, member editing/removal and invitation
 revocation also use shared patterns. The native `EmailChangeSettings` owns
 verification status, resend cooldown, pending changes and cancellation; the
 application supplies only identity operations and date formatting.
 
-Sign-in exposes the library's verification-email action. `VerificationEmail`
+Account pages use `/settings/<page>` with Account Settings as their breadcrumb
+parent. Team pages use `/team-settings/general` and `/team-settings/members`
+with Team Settings as their parent. Previous team-settings links redirect to
+the canonical routes. Profile details combines the Gravatar image and name
+form in one widget. Date/time preferences keep their searchable options without
+a preview or explanatory footer.
+
+Sign-in exposes the library's verification-email action only after an
+`EMAIL_NOT_VERIFIED` failure. `VerificationEmail`
 uses the neutral public resend endpoint, and `InvitationVerification` supplies
 the shared resend control and one-minute cooldown without replacing its copy.
 Invalid invitation codes leave the draft in place and show one error toast.

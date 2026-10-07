@@ -41,7 +41,7 @@ notice into its notices directory.
 
 ## Published shared UI
 
-Rootset imports `@avgeek-oss/design-system@1.2.0` from GitHub Packages through its
+Rootset imports `@avgeek-oss/design-system@1.2.7` from GitHub Packages through its
 public exports. The shared package supplies primitives, typography, widgets,
 query feedback, theme providers and styles under Apache-2.0, Copyright Avgeek,
 Inc. Its packaged LICENSE and NOTICE remain part of the distribution.
