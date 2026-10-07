@@ -2,21 +2,16 @@
 
 import { useMemo } from "react";
 import { PreferencesSettings as LibraryPreferencesSettings } from "@avgeek-oss/design-system";
-import type {
-  DateTimePreferenceOptions,
-  DateTimePreferences,
-} from "@avgeek-oss/design-system/patterns/settings/date-time-preference-fields";
+import type { DateTimePreferenceOptions } from "@avgeek-oss/design-system/patterns/settings/date-time-preference-fields";
 import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import { PreferencesSchema, type Preferences } from "@rootset/contracts";
-import { formatCellValue } from "../cells/drafts";
 import { dateFormats, timeFormats } from "../../lib/date-time-options";
 import { useResource, write } from "./api";
 import type { SettingsPanelProps } from "./types";
 
-const previewInstant = "2026-09-16T14:30:45.000Z";
 type PreferenceOptions = {
   timezones: string[];
   dateFormats: Preferences["dateFormat"][];
@@ -63,9 +58,6 @@ export function PreferencesSettings(props: SettingsPanelProps) {
           timeFormat: preferences.timeFormat,
         }}
         options={options}
-        formatPreview={(value) => (
-          <PreferencePreview value={value} locale={preferences.locale} />
-        )}
         onSave={async (value) => {
           const updated = PreferencesSchema.parse({
             ...preferences,
@@ -84,24 +76,5 @@ export function PreferencesSettings(props: SettingsPanelProps) {
         }}
       />
     </div>
-  );
-}
-
-function PreferencePreview({
-  value,
-  locale,
-}: {
-  value: DateTimePreferences;
-  locale: string;
-}) {
-  return formatCellValue(
-    { id: "preview", name: "Preview", type: "date-time" },
-    previewInstant,
-    {
-      timeZone: value.timeZone,
-      locale,
-      dateFormat: PreferencesSchema.shape.dateFormat.parse(value.dateFormat),
-      timeFormat: PreferencesSchema.shape.timeFormat.parse(value.timeFormat),
-    },
   );
 }

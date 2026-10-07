@@ -62,8 +62,9 @@ describe("context settings navigation", () => {
     const context = { databaseId: "db", tableId: "table" };
     expect(settingsHref("profile", context)).toBe("/settings/profile");
     expect(settingsHref("organisation", context)).toBe(
-      "/settings/organisation",
+      "/team-settings/general",
     );
+    expect(settingsHref("members", context)).toBe("/team-settings/members");
     expect(settingsHref("backups", context)).toBe(
       "/settings/backups?databaseId=db",
     );

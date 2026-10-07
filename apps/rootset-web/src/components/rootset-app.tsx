@@ -98,7 +98,17 @@ export function RootsetApp() {
   const browserSession = authClient.useSession();
   const databaseId = parameters.get("databaseId");
   const tableId = parameters.get("tableId");
-  const section = path.startsWith("/settings/") ? path.split("/")[2] : null;
+  const teamSection = path.startsWith("/team-settings/")
+    ? path.split("/")[2]
+    : null;
+  const section =
+    teamSection === "general"
+      ? "organisation"
+      : teamSection === "members"
+        ? "members"
+        : path.startsWith("/settings/")
+          ? path.split("/")[2]
+          : null;
   const settings = resolveSettingsSection(section ?? null);
   const [create, setCreate] = useState<"database" | "table" | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -332,8 +342,9 @@ export function RootsetApp() {
           location.assign(
             returnTo?.startsWith("/") && !returnTo.startsWith("//")
               ? returnTo
-              : path.startsWith("/settings/")
-                ? `${path}${location.search}`
+              : path.startsWith("/settings/") ||
+                  path.startsWith("/team-settings/")
+                ? `${path}${location.search}${location.hash}`
                 : "/",
           );
         }}
@@ -496,7 +507,7 @@ export function RootsetApp() {
                       {
                         kind: "link",
                         id: "account",
-                        label: "Account settings",
+                        label: "Account Settings",
                         href: settingsHref("profile", {}),
                         icon: UserAccountIcon,
                         activePath:
@@ -509,13 +520,13 @@ export function RootsetApp() {
                             {
                               kind: "link" as const,
                               id: "team",
-                              label: "Team settings",
+                              label: "Team Settings",
                               href: settingsHref("organisation", {}),
                               icon: UserGroupIcon,
                               activePath:
                                 settings && settingsScope(settings) === "team"
                                   ? path
-                                  : "/settings/organisation",
+                                  : "/team-settings",
                             },
                           ]
                         : []),
@@ -571,7 +582,7 @@ export function RootsetApp() {
                         items: [
                           {
                             id: "logout",
-                            label: "Log out",
+                            label: "Sign out",
                             icon: icon(Logout01Icon),
                             destructive: true,
                           },
@@ -603,7 +614,11 @@ export function RootsetApp() {
         >
           <AppShellBreadcrumb
             items={[
-              { label: "Rootset", href: "/" },
+              settings && settingsScope(settings) === "account"
+                ? { label: "Account Settings", href: "/settings/profile" }
+                : settings && settingsScope(settings) === "team"
+                  ? { label: "Team Settings", href: "/team-settings/general" }
+                  : { label: "Rootset", href: "/" },
               ...(settings
                 ? [{ label: SECTION_LABELS[settings] }]
                 : [

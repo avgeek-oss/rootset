@@ -67,11 +67,11 @@ beforeEach(() => {
 });
 
 describe("Towbar account component parity", () => {
-  it("puts appearance and Gravatar in Profile and keeps email and password separate", () => {
+  it("combines Gravatar and name in Profile details and keeps email/password separate", () => {
     const profile = render(ProfileSettings);
-    expect(profile).toContain("Appearance");
+    expect(profile).not.toContain("Appearance");
     expect(profile).toContain("Gravatar Image");
-    expect(profile).toContain("Click the image to update it on Gravatar.");
+    expect(profile).not.toContain("Click the image to update it on Gravatar.");
     expect(profile).toContain("Profile details");
     expect(profile).toContain("Your Name");
     expect(profile).not.toContain("Current email");
@@ -90,7 +90,7 @@ describe("Towbar account component parity", () => {
     const html = render(EmailPasswordSettings);
     expect(html).toContain("new@example.test");
     expect(html).toContain("Cancel email change");
-    expect(html).toContain("email changes only after you confirm it.");
+    expect(html).not.toContain("email changes only after you confirm it.");
   });
   it("uses the shared passkey page without authenticator enrollment", () => {
     const html = render(PasskeySettings);

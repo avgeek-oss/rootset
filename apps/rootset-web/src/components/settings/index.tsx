@@ -114,13 +114,17 @@ export function SettingsPanel(props: SettingsPanelProps) {
       <RelativeTimeProvider>
         {commonSettings && activeSection === "passkeys" ? (
           <Page>
-            <div className="content-grid min-w-0">{content}</div>
+            <div className="min-w-0">{content}</div>
             <AccountActionApproval orgId={props.orgId} />
           </Page>
         ) : commonSettings ? (
           <ContentPage
             title={title}
-            breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}
+            breadcrumbAncestors={[
+              settingsScope(activeSection) === "team"
+                ? { label: "Team Settings", href: "/team-settings/general" }
+                : { label: "Account Settings", href: "/settings/profile" },
+            ]}
             actions={selection?.actions}
             titleContent={
               <SettingsPageTitle

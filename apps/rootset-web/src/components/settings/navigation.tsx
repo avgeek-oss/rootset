@@ -55,8 +55,8 @@ export function settingsScope(section: SettingsSection): SettingsScope {
 }
 
 export const scopeTitles: Record<SettingsScope, string> = {
-  account: "Account settings",
-  team: "Team settings",
+  account: "Account Settings",
+  team: "Team Settings",
   database: "Database settings",
   table: "Table settings",
 };
@@ -72,7 +72,11 @@ export function settingsHref(
   if (scope === "table" && context.tableId)
     parameters.set("tableId", context.tableId);
   const query = parameters.toString();
-  return `/settings/${section}${query ? `?${query}` : ""}`;
+  const path =
+    scope === "team"
+      ? `/team-settings/${section === "organisation" ? "general" : section}`
+      : `/settings/${section}`;
+  return `${path}${query ? `?${query}` : ""}`;
 }
 
 export function dataHref(databaseId?: string | null, tableId?: string | null) {

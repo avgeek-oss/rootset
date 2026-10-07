@@ -3,7 +3,6 @@ import { useAccess } from "./adapter";
 import {
   ProfileSettings as LibraryProfileSettings,
   SessionsSettings,
-  ProfileImageSettings,
   PasswordChangeSettings,
 } from "@avgeek-oss/design-system";
 
@@ -29,13 +28,10 @@ export function ProfileSettings() {
 
   return (
     <div className="content-grid min-w-0 lg:grid-cols-2 lg:items-start">
-      <ProfileImageSettings
-        email={profile.data.user.email}
-        name={profile.data.user.name}
-      />
       <LibraryProfileSettings
         key={profile.data.user.name}
         value={profile.data.user.name}
+        email={profile.data.user.email}
         label="Your Name"
         maxLength={120}
         onSave={async (displayName) => {

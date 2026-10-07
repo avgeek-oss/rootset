@@ -11,6 +11,30 @@ const config: NextConfig = {
     "@rootset/web-client",
     "@rootset/observability",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/settings",
+        destination: "/settings/profile",
+        permanent: false,
+      },
+      {
+        source: "/settings/organisation",
+        destination: "/team-settings/general",
+        permanent: false,
+      },
+      {
+        source: "/settings/members",
+        destination: "/team-settings/members",
+        permanent: false,
+      },
+      {
+        source: "/team-settings",
+        destination: "/team-settings/general",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     const api = [
       "/v1/:path*",
