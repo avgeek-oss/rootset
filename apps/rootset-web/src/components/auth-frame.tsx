@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AuthScreen } from "@avgeek-oss/design-system";
+import { BrandLockup } from "@avgeek-oss/design-system/media/brand-lockup";
 
 export const authTextActionClassName =
   "w-fit text-sm/5 text-muted underline decoration-dashed underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus";
@@ -11,13 +12,14 @@ export function AuthBrand() {
   return (
     <Link
       aria-label="Rootset sign in"
-      className="inline-flex w-fit items-center gap-2.5 text-xl font-medium text-foreground"
+      className="inline-flex w-fit text-foreground"
       href="/login"
     >
-      <span aria-hidden="true" className="rootset-symbol">
-        r
-      </span>
-      Rootset
+      <BrandLockup
+        logo={<span className="rootset-symbol rootset-auth-symbol">r</span>}
+      >
+        Rootset
+      </BrandLockup>
     </Link>
   );
 }

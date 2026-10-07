@@ -1,9 +1,10 @@
 import { RootsetApp } from "../../components/rootset-app";
 import { Suspense } from "react";
+import { QueryLoading } from "@avgeek-oss/design-system/patterns/feedback/query-state";
 
 export default function Page() {
   return (
-    <Suspense fallback={<p role="status">Loading Rootset…</p>}>
+    <Suspense fallback={<QueryLoading />}>
       <RootsetApp />
     </Suspense>
   );

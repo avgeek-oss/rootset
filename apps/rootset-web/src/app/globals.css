@@ -113,6 +113,11 @@ h1 {
     700 28px/1 Georgia,
     serif;
 }
+.rootset-auth-symbol {
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+}
 .rootset-application {
   height: 100dvh;
   min-height: 0;

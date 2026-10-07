@@ -15,6 +15,10 @@ import {
   unwrapData,
 } from "@rootset/web-client";
 import { AuthPage, AsyncActionButton } from "@avgeek-oss/design-system";
+import {
+  QueryError,
+  QueryLoading,
+} from "@avgeek-oss/design-system/patterns/feedback/query-state";
 import { AuthFrame } from "./auth-frame";
 import {
   ContextSchema,
@@ -262,21 +266,15 @@ export function RootsetApp() {
       </AuthPage>
     );
   if (setup.isPending || (setup.data?.claimed && context.isPending))
-    return (
-      <main className="startup-state" role="status">
-        <span className="rootset-symbol" aria-hidden="true">
-          r
-        </span>
-        <p>Opening Rootset…</p>
-      </main>
-    );
+    return <QueryLoading />;
   if (setup.isError)
     return (
-      <main className="startup-state">
-        <h1>Rootset could not be reached</h1>
-        <p role="alert">{setup.error.message}</p>
-        <Button onPress={() => void setup.refetch()}>Retry connection</Button>
-      </main>
+      <AuthPage>
+        <QueryError
+          message={setup.error.message}
+          onRetry={() => void setup.refetch()}
+        />
+      </AuthPage>
     );
   if (path === "/consent" || path === "/oauth/consent")
     return <ConsentScreen />;

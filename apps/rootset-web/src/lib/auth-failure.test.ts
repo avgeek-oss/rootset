@@ -72,6 +72,26 @@ describe("installed authentication client error consumer", () => {
     }
   });
 
+  it("preserves typed email verification failures through the installed client", async () => {
+    for (const body of [
+      { code: "EMAIL_NOT_VERIFIED", message: "Verify your email" },
+      { error: { code: "EMAIL_NOT_VERIFIED", message: "Verify your email" } },
+    ]) {
+      const result = await installedClientResult(body, 403);
+      let failure: unknown;
+      try {
+        authFailure(result);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).toMatchObject({
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Verify your email",
+      });
+    }
+  });
+
   it("leaves successful client results unchanged", async () => {
     const result = await installedClientResult({ success: true }, 200);
     expect(() => authFailure(result)).not.toThrow();

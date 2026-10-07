@@ -1,7 +1,7 @@
 # Shared account settings and passkeys
 
 Rootset consumes Towbar's account, authentication and team patterns from
-`@avgeek-oss/design-system@1.2.4`. Profile, Preferences, Email & Password,
+`@avgeek-oss/design-system@1.2.5`. Profile, Preferences, Email & Password,
 Passkeys, Sessions, API Keys and MCP Guide use the library's components and
 fixed copy. The secondary sidebar contains only the current settings scope.
 Team details, invitation creation, member editing/removal and invitation
