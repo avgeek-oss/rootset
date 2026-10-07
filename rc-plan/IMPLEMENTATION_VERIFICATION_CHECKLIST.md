@@ -15,7 +15,7 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-01` An empty PostgreSQL 18 installation applies only `0001_baseline.sql`; concurrent startup and digest mismatch behave safely.
 - [ ] `V1-02` An incompatible earlier prelaunch ledger refuses startup without changing data; the message gives fresh-install guidance and preserves the original installation.
 - [ ] `V1-03` Setup claims one organisation and the first Admin atomically; SQL rejects a second organisation, including concurrent/direct fixture attempts.
-- [ ] `V1-04` Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone views installation health and manages people, schema and restores; SMTP/S3 configuration is read only from the deployment environment.
+- [ ] `V1-04` Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema and restores; SMTP/S3 configuration is read only from the deployment environment.
 - [ ] `V1-05` Invitations and member role/removal flows work, protect the last Admin, and have no organisation switcher or removed lifecycle fields.
 - [ ] `V1-06` Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.
 - [ ] `V1-07` Personal keys inherit current role without operation/resource selectors; demotion, member removal, expiry and revocation affect existing and waiting requests and replay.

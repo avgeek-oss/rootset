@@ -1,6 +1,6 @@
 # Installation metrics and SQL roles
 
-Admins manage installation status through their current membership. There is no
+Admins manage team settings through their current membership. There is no
 operator binding flag or separate Owner role. Product roles and deployment SQL
 privileges are different boundaries.
 

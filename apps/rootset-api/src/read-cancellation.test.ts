@@ -698,7 +698,6 @@ test(
             config,
             identity: fixtureIdentity,
             jobs: unexpected,
-            installation: unexpected,
           } as unknown as CoreOptions);
           const events: Array<{
             requestId: string;

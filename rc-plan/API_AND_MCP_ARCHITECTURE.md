@@ -39,7 +39,7 @@ retains PKCE, exact redirect/state/issuer/audience/resource checks, single-use
 codes, refresh rotation/reuse detection and protected metadata discovery.
 
 Hardware authentication and browser approval have explicit interactive adapters.
-Data, schema, operation progress, manual backups and read-only installation health retain the applicable
+Data, schema, operation progress, manual backups and deployment readiness checks retain the applicable
 REST/MCP operation path and current-role checks. Approval binds the exact input,
 principal, client and expiry; it cannot add permissions to the credential.
 

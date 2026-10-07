@@ -301,7 +301,7 @@ export function generateOpenApi(
             "502":
               "The configured API upstream is unavailable at the same-origin web transport.",
             "503":
-              "A required service is unavailable. Check installation health before retrying.",
+              "A required service is unavailable. Check service configuration before retrying.",
           } as Record<string, string>
         )[status],
         headers:

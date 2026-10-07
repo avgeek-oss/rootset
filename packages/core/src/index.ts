@@ -81,14 +81,6 @@ export interface CoreOptions {
   identityPool: Pool;
   config: Config;
   paging?: MetadataPaging;
-  installation: {
-    execute(
-      id: string,
-      actor: Actor,
-      input: Record<string, unknown>,
-      context: OperationContext,
-    ): Promise<unknown>;
-  };
 }
 
 const record = (value: unknown): Record<string, unknown> => {
@@ -1236,8 +1228,6 @@ export class RootsetCore {
       }
       case "getUsage":
         return readUsage(this.options.pool, a);
-      case "getInstallationStatus":
-        return this.options.installation.execute(id, a, input, ctx);
       default:
         return this.options.identity.execute(id, a, input, {
           ...ctx,

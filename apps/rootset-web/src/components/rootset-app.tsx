@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Input, Label, TextField } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Database as DatabaseIcon } from "./ui/icons";
+import { DatabasesPage } from "./databases-page";
 import { TablesPage } from "./tables-page";
 import {
   client,
@@ -69,7 +70,6 @@ import {
   Settings01Icon,
   UserAccountIcon,
   UserGroupIcon,
-  PlusSignIcon,
   BookOpen01Icon,
   Key01Icon,
   SecurityCheckIcon,
@@ -130,7 +130,7 @@ export function RootsetApp() {
       ),
     enabled: !!orgId,
   });
-  const selectedDatabaseId = databaseId ?? databases.data?.[0]?.id ?? null;
+  const selectedDatabaseId = databaseId ?? null;
   const tables = useQuery({
     queryKey: ["tables", orgId, selectedDatabaseId],
     queryFn: async ({ signal }) =>
@@ -476,34 +476,17 @@ export function RootsetApp() {
                 },
                 groups: [
                   {
-                    id: "databases",
-                    label: "Databases",
+                    id: "operate",
+                    label: "Operate",
                     items: [
-                      ...(canCreateDatabase
-                        ? [
-                            {
-                              kind: "action" as const,
-                              id: "create-database",
-                              label: "Create database",
-                              icon: PlusSignIcon,
-                              onSelect: () => {
-                                setCreate("database");
-                                setMutationError(null);
-                              },
-                            },
-                          ]
-                        : []),
-                      ...(databases.data ?? []).map((entry) => ({
-                        kind: "link" as const,
-                        id: entry.id,
-                        label: entry.name,
-                        href: dataHref(entry.id),
+                      {
+                        kind: "link",
+                        id: "databases",
+                        label: "Databases",
+                        href: "/databases",
                         icon: Database01Icon,
-                        activePath:
-                          resourceScope && entry.id === selectedDatabaseId
-                            ? path
-                            : dataHref(entry.id),
-                      })),
+                        activePath: resourceScope ? path : "/databases",
+                      },
                     ],
                   },
                   {
@@ -629,10 +612,12 @@ export function RootsetApp() {
                       href: dataHref(selectedDatabaseId),
                     },
                     { label: table?.name ?? "Tables" },
-                  ]),
+                  ].filter((_, index) => selectedDatabaseId || index === 0)),
             ]}
             title={
-              settings ? SECTION_LABELS[settings] : (table?.name ?? "Tables")
+              settings
+                ? SECTION_LABELS[settings]
+                : (table?.name ?? (selectedDatabaseId ? "Tables" : "Databases"))
             }
           />
           <div id="table-content" tabIndex={-1} className="rootset-workspace">
@@ -656,6 +641,18 @@ export function RootsetApp() {
                     onChanged={refresh}
                   />
                 </AppShell.Content>
+              ) : !selectedDatabaseId && !selectedTableId ? (
+                <DatabasesPage
+                  databases={databases.data ?? []}
+                  pending={databases.isPending}
+                  error={databases.error?.message ?? ""}
+                  canCreate={canCreateDatabase}
+                  onCreate={() => {
+                    setCreate("database");
+                    setMutationError(null);
+                  }}
+                  onRetry={() => void databases.refetch()}
+                />
               ) : table && selectedDatabaseId ? (
                 <Spreadsheet
                   key={table.id}

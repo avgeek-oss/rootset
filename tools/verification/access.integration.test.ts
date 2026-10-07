@@ -205,7 +205,6 @@ verificationCase(
           { orgId, databaseId, name: `${role} schema authority` },
         ],
         ["listMembers", { orgId }],
-        ["getInstallationStatus", {}],
       ] as const) {
         const work = execute(operation, actor, input);
         if (role === "admin") await work;

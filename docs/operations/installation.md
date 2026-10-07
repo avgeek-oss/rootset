@@ -88,7 +88,7 @@ Configure the declared PostgreSQL application/identity/DDL/migration URLs,
 S3-compatible endpoint/bucket/credentials and SMTP endpoint/TLS/sender in the installation `.env` file. These settings have no UI/API override.
 Optional SMTP authentication uses `ROOTSET_SMTP_USER` and
 `ROOTSET_SMTP_PASSWORD`. Restart API and worker after changing their environment.
-Installation health is read-only; no test-email action is provided. Do not copy a migration-owner URL into runtime settings. Keep
+Deployment readiness checks dependencies without exposing an account settings page. Do not copy a migration-owner URL into runtime settings. Keep
 persistent authentication, key-hash, cursor and encryption secrets across restarts.
 Test artifact encryption/readback and actual email delivery before relying on
 backups or account recovery.

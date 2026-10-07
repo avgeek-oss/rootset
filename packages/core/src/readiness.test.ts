@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newId, getOperation } from "@rootset/contracts";
+import { newId } from "@rootset/contracts";
 import { migrationStatus, migrate } from "@rootset/database";
 import { EmailOutbox } from "@rootset/email";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { loadConfig } from "./config.js";
-import { InstallationService } from "./installation.js";
+import { ReadinessService } from "./readiness.js";
 
 test("readiness detects migration drift, stale workers, unavailable SMTP and object storage without exposing credentials", async () => {
   const db = await isolatedDatabase();
@@ -20,14 +20,13 @@ test("readiness detects migration drift, stale workers, unavailable SMTP and obj
         from: config.smtp.from,
       },
     });
-    const installation = new InstallationService(db.identity, config, outbox);
+    const readiness = new ReadinessService(db.identity, config, outbox);
     const workerId = newId();
     await db.owner.query(
       "INSERT INTO rootset_control.worker_heartbeats(id,state) VALUES($1,'ready')",
       [workerId],
     );
-    const ready = await installation.status();
-    getOperation("getInstallationStatus").outputSchema.parse(ready);
+    const ready = await readiness.status();
     assert.equal(ready.healthy, true);
     assert.equal(ready.metrics.databaseStatus, "healthy");
     const latest = (
@@ -40,7 +39,7 @@ test("readiness detects migration drift, stale workers, unavailable SMTP and obj
       [latest.name, "0".repeat(64)],
     );
     assert.equal(
-      (await installation.status()).dependencies.postgresql,
+      (await readiness.status()).dependencies.postgresql,
       "degraded",
     );
     await assert.rejects(migrate(db.owner), /changed after application/);
@@ -65,12 +64,12 @@ test("readiness detects migration drift, stale workers, unavailable SMTP and obj
     await db.owner.query(
       "DELETE FROM rootset_control.migrations WHERE name='999_unexpected.sql'",
     );
-    assert.equal((await installation.status()).healthy, true);
+    assert.equal((await readiness.status()).healthy, true);
     await db.owner.query(
       "UPDATE rootset_control.worker_heartbeats SET heartbeat_at=now()-interval '31 seconds' WHERE id=$1",
       [workerId],
     );
-    const stale = await installation.status();
+    const stale = await readiness.status();
     assert.equal(stale.dependencies.worker, "unavailable");
     assert.equal(stale.healthy, false);
     await db.owner.query(
@@ -86,14 +85,14 @@ test("readiness detects migration drift, stale workers, unavailable SMTP and obj
         from: config.smtp.from,
       },
     });
-    const smtpFailure = await new InstallationService(
+    const smtpFailure = await new ReadinessService(
       db.identity,
       config,
       unavailableSMTP,
     ).status();
     assert.equal(smtpFailure.dependencies.smtp, "unavailable");
     assert.equal(smtpFailure.healthy, false);
-    const objectFailure = await new InstallationService(
+    const objectFailure = await new ReadinessService(
       db.identity,
       {
         ...config,

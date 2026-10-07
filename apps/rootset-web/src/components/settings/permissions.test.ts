@@ -10,7 +10,6 @@ const management = [
   "rules",
   "indexes",
   "backups",
-  "operator",
 ] as const;
 const personalAndRead = [
   "profile",
@@ -20,6 +19,7 @@ const personalAndRead = [
   "sessions",
   "mcp",
   "api-keys",
+  "mcp-connections",
   "exports",
 ] as const;
 describe("settings role boundaries", () => {

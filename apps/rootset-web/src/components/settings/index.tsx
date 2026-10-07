@@ -1,9 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Page } from "@avgeek-oss/design-system/layouts/page";
-import { ContentPage } from "@avgeek-oss/design-system";
-import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
+import { ContentPage, SettingsPageTitle } from "@avgeek-oss/design-system";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   PageSelectionContext,
@@ -17,7 +15,7 @@ import {
 } from "./account/settings-pages";
 import { PasskeySettings } from "./account/passkey-settings";
 import { ApiMcpSettings } from "./account/api-mcp-settings";
-import { settingsScope, settingsIcons } from "./navigation";
+import { settingsScope } from "./navigation";
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useResource } from "./api";
@@ -26,7 +24,6 @@ import { PreferencesSettings } from "./preferences";
 import { AccountActionApproval } from "./security";
 import { FieldsSettings, RulesIndexesSettings, TableSettings } from "./schema";
 import { BackupsSettings, ImportsSettings, ExportsSettings } from "./jobs";
-import { InstallationSettings } from "./operator";
 import { DatabaseSettings } from "./database";
 import {
   canOpenSettings,
@@ -65,6 +62,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     organisation: OrganisationSettings,
     members: MembersSettings,
     "api-keys": PersonalKeysSettings,
+    "mcp-connections": ConnectionsSettings,
     profile: ProfileSettings,
     preferences: PreferencesSettings,
     "email-password": EmailPasswordSettings,
@@ -79,7 +77,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
     backups: BackupsSettings,
     imports: ImportsSettings,
     exports: ExportsSettings,
-    operator: InstallationSettings,
   };
   const Component = components[activeSection];
   const tableSections = [
@@ -126,17 +123,15 @@ export function SettingsPanel(props: SettingsPanelProps) {
             breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}
             actions={selection?.actions}
             titleContent={
-              <span className="inline-flex min-w-0 items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="inline-flex shrink-0 [&_svg]:size-6"
-                >
-                  <HugeiconsIcon icon={settingsIcons[activeSection]} />
-                </span>
-                <TooltipText className="truncate" tooltip={title}>
-                  {title}
-                </TooltipText>
-              </span>
+              <SettingsPageTitle
+                section={
+                  activeSection === "organisation"
+                    ? "general"
+                    : (activeSection as Parameters<
+                        typeof SettingsPageTitle
+                      >[0]["section"])
+                }
+              />
             }
           >
             <div className="content-grid min-w-0">{content}</div>
@@ -168,4 +163,8 @@ function PersonalKeysSettings() {
 }
 function McpGuideSettings() {
   return <ApiMcpSettings section="mcp" />;
+}
+
+function ConnectionsSettings() {
+  return <ApiMcpSettings section="mcp-connections" />;
 }

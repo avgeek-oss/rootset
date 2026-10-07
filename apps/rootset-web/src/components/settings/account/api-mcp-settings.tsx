@@ -12,7 +12,6 @@ import { useAccess } from "./adapter";
 import { PageSelectionTitle } from "./page-selection-title";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  BookOpen01Icon,
   Key01Icon,
   Add01Icon,
   ShieldBanIcon,
@@ -25,7 +24,11 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Button, ButtonLink } from "@avgeek-oss/design-system/buttons/button";
+import {
+  McpGuideSettings,
+  McpConnectionsSettings,
+} from "@avgeek-oss/design-system";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Input } from "@avgeek-oss/design-system/forms/input";
 import { Label } from "@avgeek-oss/design-system/forms/label";
 import { Select, ListBox } from "@avgeek-oss/design-system/forms/select";
@@ -42,7 +45,7 @@ import {
 } from "@avgeek-oss/design-system/patterns/resource-table";
 import { useApiQuery } from "./adapter";
 import { api } from "./adapter";
-import { ActionButton, FormCard } from "./page-parts";
+import { ActionButton } from "./page-parts";
 import { RelativeTime } from "./last-synced-time";
 import { McpClientLogo } from "./mcp-client-logo";
 
@@ -147,12 +150,14 @@ function Choice({
   );
 }
 
-export type KeyStoreSection = "personal-keys" | "mcp";
+export type KeyStoreSection = "personal-keys" | "mcp-connections" | "mcp";
 export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
   const scope: KeyScope = "personal";
   const endpoint = `${baseEndpoint}/${scope}`;
   const isKeyPage = section === "personal-keys";
-  const query = useApiQuery<KeySettings>(isKeyPage ? endpoint : null);
+  const query = useApiQuery<KeySettings>(
+    isKeyPage || section === "mcp-connections" ? endpoint : null,
+  );
   const guide = useApiQuery<KeySettings>(
     section === "mcp" ? `${baseEndpoint}/personal` : null,
   );
@@ -188,6 +193,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
   );
   const sectionLabels: Record<KeyStoreSection, string> = {
     "personal-keys": "API Keys",
+    "mcp-connections": "MCP Connections",
     mcp: "MCP Guide",
   };
   const columns: ResourceTableColumn<ApiKey>[] = [
@@ -282,6 +288,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
             <HugeiconsIcon
               aria-hidden="true"
               icon={ShieldBanIcon}
+              size={16}
               className="shrink-0"
             />
             Revoke
@@ -293,7 +300,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
   return (
     <div className="content-grid">
       <PageSelectionTitle label={sectionLabels[section]} actions={actions} />
-      {isKeyPage ? (
+      {isKeyPage || section === "mcp-connections" ? (
         query.error ? (
           <QueryError
             message={query.error}
@@ -303,39 +310,48 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
           />
         ) : !query.data ? (
           <QueryLoading />
+        ) : isKeyPage ? (
+          <ResourceTable
+            ariaLabel={sectionLabels[section]}
+            columns={columns}
+            items={apiKeys}
+            getRowKey={(key) => key.id}
+            emptyTitle="No API keys yet"
+            emptyDescription="Create an API key for your scripts or apps."
+          />
         ) : (
-          <>
-            <ResourceTable
-              ariaLabel={sectionLabels[section]}
-              columns={columns}
-              items={apiKeys}
-              getRowKey={(key) => key.id}
-              emptyTitle="No API keys yet"
-              emptyDescription="Create an API key for your scripts or apps."
-            />
-            {scope === "personal" && (
-              <section
-                className="content-grid mt-4"
-                aria-labelledby="mcp-connections-title"
-              >
-                <h3 id="mcp-connections-title" className="font-medium">
-                  MCP Connections
-                </h3>
-                <ResourceTable
-                  ariaLabel="MCP Connections"
-                  columns={columns.map((column) =>
-                    column.key === "name"
-                      ? { ...column, header: "App" }
-                      : column,
-                  )}
-                  items={mcpConnections}
-                  getRowKey={(key) => key.id}
-                  emptyTitle="No MCP connections yet"
-                  emptyDescription="Connect an app to Rootset by signing in from the app."
-                />
-              </section>
-            )}
-          </>
+          <McpConnectionsSettings
+            items={mcpConnections.map((key) => ({
+              id: key.id,
+              name: key.oauthClientName ?? key.name,
+              createdAt: key.createdAt,
+              expiresAt: key.expiresAt,
+              lastUsedAt: key.lastUsedAt,
+              permissions:
+                key.access === "read"
+                  ? "Read-only"
+                  : key.includeAdmin
+                    ? "Administrative"
+                    : "Edit",
+              client: {
+                name: key.oauthClientName ?? key.name,
+                id:
+                  key.oauthClientTrust === "metadata-document"
+                    ? (key.oauthClientId ?? undefined)
+                    : undefined,
+                logo: (
+                  <McpClientLogo client={key.oauthClientLogo ?? "unknown"} />
+                ),
+              },
+            }))}
+            formatDate={(value) => <RelativeTime label="Date" value={value} />}
+            onRevoke={async (id) => {
+              await api.delete(`${endpoint}/${id}`);
+              setRevokedKeyIds((ids) => new Set(ids).add(id));
+              query.refresh();
+              toast.success("Connection revoked");
+            }}
+          />
         )
       ) : guide.error ? (
         <QueryError
@@ -531,7 +547,6 @@ function CreateKey({
 }
 
 function McpSetup({ url }: { url: string }) {
-  const [client, setClient] = useState("cursor");
   const configs = {
     codex: {
       title: "~/.codex/config.toml",
@@ -585,62 +600,23 @@ function McpSetup({ url }: { url: string }) {
       code: `Transport: Streamable HTTP\nURL: ${url}\nAuthorization: Bearer YOUR_ROOTSET_API_KEY`,
     },
   };
-  const config = configs[client as keyof typeof configs]!;
+  const labels = {
+    codex: "Codex",
+    claude: "Claude Code",
+    cursor: "Cursor",
+    vscode: "VS Code",
+    other: "Other clients",
+  };
   return (
-    <FormCard title="Connect your MCP client">
-      <div className="content-grid">
-        <div className="max-w-sm">
-          <Choice
-            label="Client"
-            value={client}
-            onChange={setClient}
-            renderIcon={(id) => (
-              <McpClientLogo client={id} className="size-5" />
-            )}
-            options={[
-              ["codex", "ChatGPT"],
-              ["claude", "Claude Code"],
-              ["cursor", "Cursor"],
-              ["vscode", "VS Code"],
-              ["other", "Other clients"],
-            ]}
-          />
-        </div>
-        <RevealedSecret title={config.title} code={config.code} />
-        {client === "codex" ? (
-          <p className="text-sm leading-relaxed font-normal text-muted">
-            Set{" "}
-            <code className="whitespace-nowrap rounded bg-default px-1 py-0.25 text-foreground">
-              ROOTSET_API_KEY
-            </code>{" "}
-            to your key in the environment that launches the app, then restart
-            it. The configuration stores the variable name, not the key. In the
-            CLI, use{" "}
-            <code className="rounded bg-default px-1 py-0.25 text-foreground">
-              /mcp
-            </code>{" "}
-            to check the connection.
-          </p>
-        ) : null}
-        <p className="text-sm leading-relaxed text-muted">
-          To connect by signing in, add the MCP URL to your app, sign in to
-          Rootset and approve access. Reconnect after 30 days. You can revoke
-          access in your personal API keys. The configurations above use
-          manually created API keys.
-        </p>
-        <ButtonLink
-          href="https://github.com/avgeek-oss/rootset/blob/main/rc-plan/API_AND_MCP_ARCHITECTURE.md"
-          variant="secondary"
-          className="w-fit"
-        >
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={BookOpen01Icon}
-            className="size-4 shrink-0"
-          />
-          MCP setup and troubleshooting
-        </ButtonLink>
-      </div>
-    </FormCard>
+    <McpGuideSettings
+      configurations={Object.entries(configs).map(([id, config]) => ({
+        id,
+        label: labels[id as keyof typeof labels],
+        filename: config.title,
+        code: config.code,
+        icon: <McpClientLogo client={id} />,
+      }))}
+      documentationUrl="https://github.com/avgeek-oss/rootset/blob/main/rc-plan/API_AND_MCP_ARCHITECTURE.md"
+    />
   );
 }

@@ -16,11 +16,11 @@ describe("context settings navigation", () => {
         title: "Security",
         sections: ["email-password", "passkeys", "sessions"],
       },
-      { title: "API & MCP", sections: ["api-keys", "mcp"] },
+      { title: "API & MCP", sections: ["api-keys", "mcp-connections", "mcp"] },
     ]);
     expect(resolveSettingsSection("security")).toBe("passkeys");
     expect(resolveSettingsSection("keys")).toBe("api-keys");
-    expect(resolveSettingsSection("connections")).toBe("api-keys");
+    expect(resolveSettingsSection("connections")).toBe("mcp-connections");
     expect(resolveSettingsSection("missing")).toBeNull();
   });
   it("gives every section one settings context", () => {

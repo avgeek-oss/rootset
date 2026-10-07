@@ -13,6 +13,7 @@ export type SettingsSection =
   | "email-password"
   | "passkeys"
   | "sessions"
+  | "mcp-connections"
   | "mcp"
   | "database"
   | "table"
@@ -21,8 +22,7 @@ export type SettingsSection =
   | "indexes"
   | "backups"
   | "imports"
-  | "exports"
-  | "operator";
+  | "exports";
 
 export interface SettingsPanelProps {
   section: SettingsSection;
@@ -206,6 +206,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "email-password": "Email & Password",
   passkeys: "Passkeys",
   sessions: "Sessions",
+  "mcp-connections": "MCP Connections",
   mcp: "MCP Guide",
   database: "Database settings",
   table: "Table settings",
@@ -215,7 +216,6 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   backups: "Database backups",
   imports: "Import rows",
   exports: "Export rows",
-  operator: "Installation health",
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
@@ -227,7 +227,6 @@ const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "rules",
   "indexes",
   "backups",
-  "operator",
 ];
 
 export function canOpenSettings(
@@ -247,7 +246,7 @@ export function resolveSettingsSection(
     security: "passkeys",
     "2fa": "passkeys",
     keys: "api-keys",
-    connections: "api-keys",
+    connections: "mcp-connections",
   };
   if (value && aliases[value]) return aliases[value];
   return value && Object.hasOwn(SECTION_LABELS, value)

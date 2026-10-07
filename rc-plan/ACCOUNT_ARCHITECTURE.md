@@ -37,7 +37,6 @@ their separate Rootset limits.
 | Manage databases, schema, uniqueness and indexes           | Yes   | No     | No     |
 | Manage backups and restores                                | Yes   | No     | No     |
 | Invite people and change/remove memberships                | Yes   | No     | No     |
-| View installation health                                   | Yes   | No     | No     |
 | Manage own profile, factors, preferences and personal keys | Yes   | Yes    | Yes    |
 
 Protect the last Admin from removal or demotion that would leave the installation
@@ -163,7 +162,7 @@ to verify authentication and operations, without inventing another product area.
 
 SMTP and S3-compatible storage settings belong to the deployment `.env` file.
 There is no UI/API configuration override or test-email action. Apply provider
-changes by restarting API and worker; Admin views read-only installation health.
+changes by restarting API and worker; Deployment readiness validates dependencies separately.
 
 ## Account settings pages
 

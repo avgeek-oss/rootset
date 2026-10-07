@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@avgeek-oss/design-system": "1.2.5",
+    "@avgeek-oss/design-system": "1.2.6",
     "@better-auth/passkey": "catalog:",
     "@codemirror/commands": "catalog:",
     "@codemirror/lang-json": "catalog:",

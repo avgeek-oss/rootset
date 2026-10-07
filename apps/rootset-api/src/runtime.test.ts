@@ -813,7 +813,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal((await client.listTools()).tools.length, operations.length);
     await t.test(
-      "API-08 MCP genuine issued OAuth returns typed retryable dependency when the bounded work pool is occupied; operator status and liveness survive",
+      "API-08 MCP genuine issued OAuth returns typed retryable dependency when the bounded work pool is occupied; readiness and liveness survive",
       async () => {
         const dependencyEventStart = dependencyEvents.length;
         const workConnections = await Promise.all(
@@ -821,8 +821,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         );
         try {
           assert.equal((await request("/health/live")).status, 200);
-          getOperation("getInstallationStatus").outputSchema.parse(
-            await call("getInstallationStatus", {}, "browser"),
+          assert.equal(
+            typeof (await runtime!.getReadiness()).healthy,
+            "boolean",
           );
           const failure = await client.callTool({
             name: getOperation("queryRows").toolName,

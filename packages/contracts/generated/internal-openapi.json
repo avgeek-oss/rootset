@@ -116,7 +116,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -255,7 +255,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -417,7 +417,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -582,7 +582,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -732,7 +732,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -875,7 +875,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1078,7 +1078,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1221,7 +1221,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1446,7 +1446,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1594,7 +1594,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1771,7 +1771,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1914,7 +1914,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2074,7 +2074,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2284,7 +2284,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2442,7 +2442,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2602,7 +2602,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2757,7 +2757,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2930,7 +2930,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3105,7 +3105,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3304,7 +3304,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3499,7 +3499,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3688,7 +3688,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3867,7 +3867,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4042,7 +4042,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4187,7 +4187,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4378,7 +4378,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4584,7 +4584,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4746,7 +4746,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4889,7 +4889,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5061,7 +5061,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5244,7 +5244,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5408,7 +5408,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5604,7 +5604,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5795,7 +5795,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5981,7 +5981,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -6474,7 +6474,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -6649,7 +6649,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -6859,7 +6859,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7065,7 +7065,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7244,7 +7244,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7418,7 +7418,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7923,7 +7923,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -8447,7 +8447,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -8669,7 +8669,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -8881,7 +8881,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9173,7 +9173,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9471,7 +9471,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9660,7 +9660,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9837,7 +9837,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10060,7 +10060,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10276,7 +10276,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10453,7 +10453,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10677,7 +10677,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10892,7 +10892,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11126,7 +11126,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11345,7 +11345,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11689,7 +11689,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11874,7 +11874,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12116,7 +12116,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12344,7 +12344,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12690,7 +12690,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12871,7 +12871,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13216,7 +13216,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13433,7 +13433,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13661,7 +13661,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13825,7 +13825,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14029,7 +14029,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14286,7 +14286,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14533,7 +14533,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14883,7 +14883,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15049,7 +15049,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15224,7 +15224,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15457,7 +15457,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15673,7 +15673,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15871,7 +15871,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16057,7 +16057,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16243,7 +16243,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16411,7 +16411,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16585,7 +16585,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16764,7 +16764,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16970,7 +16970,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17181,7 +17181,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17399,7 +17399,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17559,7 +17559,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17729,7 +17729,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17900,7 +17900,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18054,7 +18054,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18206,7 +18206,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18439,7 +18439,7 @@
             }
           },
           "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
+            "description": "A required service is unavailable. Check service configuration before retrying.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18477,147 +18477,6 @@
             "hiddenColumns": []
           }
         }
-      }
-    },
-    "/api/internal/v1/installation/status": {
-      "get": {
-        "operationId": "getInstallationStatus",
-        "tags": ["installation"],
-        "summary": "Read installation dependency state as an admin.",
-        "parameters": [],
-        "security": [{ "browserSession": [] }],
-        "responses": {
-          "200": {
-            "description": "Authorised operation result.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/getInstallationStatusOutput"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired, revoked or wrong-audience credential.",
-            "headers": {
-              "WWW-Authenticate": { "schema": { "type": "string" } }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient current authority.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown or undisclosed target.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "408": {
-            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "409": {
-            "description": "Revision, schema, uniqueness or idempotency conflict.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "413": {
-            "description": "Payload or output budget exceeded.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "422": {
-            "description": "Typed validation failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate, concurrency or admission limit.",
-            "headers": { "Retry-After": { "schema": { "type": "string" } } },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "500": {
-            "description": "Redacted internal failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "503": {
-            "description": "A required service is unavailable. Check installation health before retrying.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          }
-        },
-        "x-rootset-scopes": ["installation:read"],
-        "x-rootset-read-only": true,
-        "x-rootset-step-up": "never",
-        "x-rootset-job": false,
-        "x-rootset-minimum-role": "admin",
-        "x-rootset-personal": false,
-        "x-rootset-mcp-tool": "rootset_get_installation_status",
-        "x-rootset-error-codes": [
-          "VALIDATION_FAILED",
-          "UNAUTHENTICATED",
-          "ACCESS_DENIED",
-          "FORBIDDEN",
-          "INSUFFICIENT_SCOPE",
-          "RESOURCE_NOT_FOUND",
-          "DEPENDENCY_UNAVAILABLE",
-          "REQUEST_TIMEOUT"
-        ],
-        "x-rootset-json-request-max-bytes": 8388608,
-        "x-rootset-json-read-timeout-ms": 10000,
-        "x-rootset-request-example": {}
       }
     },
     "/v1/orgs/{orgId}/artifacts/{id}/upload": {
@@ -33692,662 +33551,6 @@
         "required": ["tableId", "preferences"],
         "additionalProperties": false
       },
-      "getInstallationStatusInput": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      },
-      "getInstallationStatusOutput": {
-        "type": "object",
-        "properties": {
-          "healthy": { "type": "boolean" },
-          "version": { "type": "string" },
-          "migrationVersion": { "type": "string" },
-          "dependencies": {
-            "type": "object",
-            "propertyNames": { "type": "string" },
-            "additionalProperties": {
-              "type": "string",
-              "enum": ["healthy", "degraded", "unavailable"]
-            }
-          },
-          "workerHeartbeatAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
-                "format": "date-time",
-                "description": "UTC instant with mandatory Z and at most three fractional digits.",
-                "examples": ["2024-01-01T12:30:00.000Z"]
-              },
-              { "type": "null" }
-            ]
-          },
-          "metrics": {
-            "type": "object",
-            "properties": {
-              "collectedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              "processStartedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              "uptimeSeconds": { "type": "number", "minimum": 0 },
-              "requestCounterScope": {
-                "type": "string",
-                "const": "process_since_start"
-              },
-              "requests": {
-                "type": "object",
-                "properties": {
-                  "total": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "errors": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "timeouts": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "rowLimitRejections": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "rateLimitRejections": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "loggingFailures": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "operations": {
-                    "maxItems": 256,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "operationId": {
-                          "type": "string",
-                          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,119}$"
-                        },
-                        "requests": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        "errors": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        "timeouts": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        "durationSumMs": { "type": "number", "minimum": 0 },
-                        "durationMaxMs": { "type": "number", "minimum": 0 },
-                        "histogram": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "upperBoundMs": {
-                                "anyOf": [
-                                  { "type": "number", "minimum": 0 },
-                                  { "type": "null" }
-                                ]
-                              },
-                              "count": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              }
-                            },
-                            "required": ["upperBoundMs", "count"],
-                            "additionalProperties": false
-                          }
-                        }
-                      },
-                      "required": [
-                        "operationId",
-                        "requests",
-                        "errors",
-                        "timeouts",
-                        "durationSumMs",
-                        "durationMaxMs",
-                        "histogram"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": [
-                  "total",
-                  "errors",
-                  "timeouts",
-                  "rowLimitRejections",
-                  "rateLimitRejections",
-                  "loggingFailures",
-                  "operations"
-                ],
-                "additionalProperties": false
-              },
-              "pools": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string",
-                  "enum": ["api", "ddl", "identity", "worker", "admission"]
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "idle": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "waiting": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "maximum": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": ["total", "idle", "waiting", "maximum"],
-                  "additionalProperties": false
-                }
-              },
-              "databaseStatus": {
-                "type": "string",
-                "enum": ["healthy", "unavailable"]
-              },
-              "database": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "databaseBytes": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "temporaryBytes": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "temporaryFiles": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "walDirectoryBytes": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "walGeneratedBytes": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "walRecords": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "transactionsCommitted": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "transactionsRolledBack": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "deadlocks": {
-                        "type": "string",
-                        "pattern": "^(0|[1-9][0-9]*)$"
-                      },
-                      "connections": {
-                        "type": "object",
-                        "properties": {
-                          "total": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "active": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "idle": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "idleInTransaction": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "maximum": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "oldestTransactionSeconds": {
-                            "anyOf": [
-                              { "type": "number", "minimum": 0 },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "total",
-                          "active",
-                          "idle",
-                          "idleInTransaction",
-                          "maximum",
-                          "oldestTransactionSeconds"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "jobs": {
-                        "type": "object",
-                        "properties": {
-                          "queued": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "running": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "failed": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "expiredLeases": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "oldestQueuedSeconds": {
-                            "anyOf": [
-                              { "type": "number", "minimum": 0 },
-                              { "type": "null" }
-                            ]
-                          },
-                          "retried": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          }
-                        },
-                        "required": [
-                          "queued",
-                          "running",
-                          "failed",
-                          "expiredLeases",
-                          "oldestQueuedSeconds",
-                          "retried"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "backups": {
-                        "type": "object",
-                        "properties": {
-                          "verified": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "failed": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "pendingNotifications": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "failedNotifications": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "lastVerifiedAt": {
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                              },
-                              { "type": "null" }
-                            ]
-                          },
-                          "oldestDatabaseVerifiedAgeSeconds": {
-                            "anyOf": [
-                              { "type": "number", "minimum": 0 },
-                              { "type": "null" }
-                            ]
-                          },
-                          "databasesWithoutVerifiedBackup": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          }
-                        },
-                        "required": [
-                          "verified",
-                          "failed",
-                          "pendingNotifications",
-                          "failedNotifications",
-                          "lastVerifiedAt",
-                          "oldestDatabaseVerifiedAgeSeconds",
-                          "databasesWithoutVerifiedBackup"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "email": {
-                        "type": "object",
-                        "properties": {
-                          "pending": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "sending": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "failed": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "retrying": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "oldestPendingSeconds": {
-                            "anyOf": [
-                              { "type": "number", "minimum": 0 },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "pending",
-                          "sending",
-                          "failed",
-                          "retrying",
-                          "oldestPendingSeconds"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "schema": {
-                        "type": "object",
-                        "properties": {
-                          "pending": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "failed": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "buildingIndexes": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "failedIndexes": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "invalidIndexes": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          }
-                        },
-                        "required": [
-                          "pending",
-                          "failed",
-                          "buildingIndexes",
-                          "failedIndexes",
-                          "invalidIndexes"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "workers": {
-                        "type": "object",
-                        "properties": {
-                          "freshReady": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "stale": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "degraded": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          }
-                        },
-                        "required": ["freshReady", "stale", "degraded"],
-                        "additionalProperties": false
-                      },
-                      "storage": {
-                        "type": "object",
-                        "properties": {
-                          "activeDatabases": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "activeTables": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "retainedTables": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "liveRows": {
-                            "type": "string",
-                            "pattern": "^(0|[1-9][0-9]*)$"
-                          },
-                          "dataBytes": {
-                            "type": "string",
-                            "pattern": "^(0|[1-9][0-9]*)$"
-                          },
-                          "indexBytes": {
-                            "type": "string",
-                            "pattern": "^(0|[1-9][0-9]*)$"
-                          },
-                          "historyEvents": {
-                            "type": "string",
-                            "pattern": "^(0|[1-9][0-9]*)$"
-                          },
-                          "historyBytes": {
-                            "type": "string",
-                            "pattern": "^(0|[1-9][0-9]*)$"
-                          },
-                          "artifactBytes": {
-                            "type": "string",
-                            "pattern": "^(0|[1-9][0-9]*)$"
-                          }
-                        },
-                        "required": [
-                          "activeDatabases",
-                          "activeTables",
-                          "retainedTables",
-                          "liveRows",
-                          "dataBytes",
-                          "indexBytes",
-                          "historyEvents",
-                          "historyBytes",
-                          "artifactBytes"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "statisticsResetAt": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "format": "date-time",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                          },
-                          { "type": "null" }
-                        ]
-                      },
-                      "walStatisticsResetAt": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "format": "date-time",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                          },
-                          { "type": "null" }
-                        ]
-                      }
-                    },
-                    "required": [
-                      "databaseBytes",
-                      "temporaryBytes",
-                      "temporaryFiles",
-                      "walDirectoryBytes",
-                      "walGeneratedBytes",
-                      "walRecords",
-                      "transactionsCommitted",
-                      "transactionsRolledBack",
-                      "deadlocks",
-                      "connections",
-                      "jobs",
-                      "backups",
-                      "email",
-                      "schema",
-                      "workers",
-                      "storage",
-                      "statisticsResetAt",
-                      "walStatisticsResetAt"
-                    ],
-                    "additionalProperties": false
-                  },
-                  { "type": "null" }
-                ]
-              },
-              "signals": {
-                "maxItems": 32,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "string",
-                      "enum": [
-                        "DATABASE_METRICS_UNAVAILABLE",
-                        "POOL_SATURATED",
-                        "DATABASE_CONNECTION_PRESSURE",
-                        "IDLE_TRANSACTION_PRESSURE",
-                        "JOB_BACKLOG",
-                        "JOB_LEASE_EXPIRED",
-                        "WORKER_STALE",
-                        "WORKER_DEGRADED",
-                        "EMAIL_DELIVERY_FAILED",
-                        "EMAIL_DELIVERY_RETRYING",
-                        "SCHEMA_JOB_FAILED",
-                        "INDEX_INVALID",
-                        "BACKUP_FAILED",
-                        "BACKUP_NOTIFICATION_FAILED",
-                        "BACKUP_RECOVERY_POINT_MISSING",
-                        "LOG_SINK_FAILED"
-                      ]
-                    },
-                    "severity": {
-                      "type": "string",
-                      "enum": ["warning", "critical"]
-                    },
-                    "component": {
-                      "type": "string",
-                      "enum": [
-                        "database",
-                        "pool",
-                        "jobs",
-                        "worker",
-                        "email",
-                        "schema",
-                        "backup",
-                        "logging"
-                      ]
-                    },
-                    "message": { "type": "string", "maxLength": 300 }
-                  },
-                  "required": ["code", "severity", "component", "message"],
-                  "additionalProperties": false
-                }
-              }
-            },
-            "required": [
-              "collectedAt",
-              "processStartedAt",
-              "uptimeSeconds",
-              "requestCounterScope",
-              "requests",
-              "pools",
-              "databaseStatus",
-              "database",
-              "signals"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": [
-          "healthy",
-          "version",
-          "migrationVersion",
-          "dependencies",
-          "workerHeartbeatAt",
-          "metrics"
-        ],
-        "additionalProperties": false
-      },
       "ErrorCode": {
         "type": "string",
         "enum": [
@@ -34491,8 +33694,7 @@
               "backups:manage": "Current backups:manage authority; the live role ceiling still applies.",
               "jobs:read": "Current jobs:read authority; the live role ceiling still applies.",
               "jobs:cancel": "Current jobs:cancel authority; the live role ceiling still applies.",
-              "jobs:retry": "Current jobs:retry authority; the live role ceiling still applies.",
-              "installation:read": "Current installation:read authority; the live role ceiling still applies."
+              "jobs:retry": "Current jobs:retry authority; the live role ceiling still applies."
             }
           }
         }

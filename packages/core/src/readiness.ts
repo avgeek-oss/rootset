@@ -1,11 +1,10 @@
 import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
-import { RootsetError } from "@rootset/contracts";
 import { migrationStatus, type Pool } from "@rootset/database";
 import type { EmailOutbox } from "@rootset/email";
 import { OperationalObserver } from "@rootset/observability";
 import type { Config } from "./config.js";
 
-export class InstallationService {
+export class ReadinessService {
   constructor(
     readonly pool: Pool,
     readonly config: Config,
@@ -74,13 +73,5 @@ export class InstallationService {
       workerHeartbeatAt,
       metrics,
     };
-  }
-
-  async execute(id: string): Promise<unknown> {
-    if (id === "getInstallationStatus") return this.status();
-    throw new RootsetError(
-      "VALIDATION_FAILED",
-      "Unsupported installation operation",
-    );
   }
 }

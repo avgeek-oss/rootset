@@ -4246,136 +4246,6 @@ export type updateViewPreferencesOutput = {
       null | boolean | number | string | unknown[] | Record<string, unknown>;
   };
 };
-export type getInstallationStatusInput = Record<string, never>;
-export type getInstallationStatusOutput = {
-  healthy: boolean;
-  version: string;
-  migrationVersion: string;
-  dependencies: Record<string, "healthy" | "degraded" | "unavailable">;
-  workerHeartbeatAt: string | null;
-  metrics: {
-    collectedAt: string;
-    processStartedAt: string;
-    uptimeSeconds: number;
-    requestCounterScope: "process_since_start";
-    requests: {
-      total: number;
-      errors: number;
-      timeouts: number;
-      rowLimitRejections: number;
-      rateLimitRejections: number;
-      loggingFailures: number;
-      operations: {
-        operationId: string;
-        requests: number;
-        errors: number;
-        timeouts: number;
-        durationSumMs: number;
-        durationMaxMs: number;
-        histogram: { upperBoundMs: number | null; count: number }[];
-      }[];
-    };
-    pools: Record<
-      string,
-      { total: number; idle: number; waiting: number; maximum: number }
-    >;
-    databaseStatus: "healthy" | "unavailable";
-    database: {
-      databaseBytes: string;
-      temporaryBytes: string;
-      temporaryFiles: string;
-      walDirectoryBytes: string;
-      walGeneratedBytes: string;
-      walRecords: string;
-      transactionsCommitted: string;
-      transactionsRolledBack: string;
-      deadlocks: string;
-      connections: {
-        total: number;
-        active: number;
-        idle: number;
-        idleInTransaction: number;
-        maximum: number;
-        oldestTransactionSeconds: number | null;
-      };
-      jobs: {
-        queued: number;
-        running: number;
-        failed: number;
-        expiredLeases: number;
-        oldestQueuedSeconds: number | null;
-        retried: number;
-      };
-      backups: {
-        verified: number;
-        failed: number;
-        pendingNotifications: number;
-        failedNotifications: number;
-        lastVerifiedAt: string | null;
-        oldestDatabaseVerifiedAgeSeconds: number | null;
-        databasesWithoutVerifiedBackup: number;
-      };
-      email: {
-        pending: number;
-        sending: number;
-        failed: number;
-        retrying: number;
-        oldestPendingSeconds: number | null;
-      };
-      schema: {
-        pending: number;
-        failed: number;
-        buildingIndexes: number;
-        failedIndexes: number;
-        invalidIndexes: number;
-      };
-      workers: { freshReady: number; stale: number; degraded: number };
-      storage: {
-        activeDatabases: number;
-        activeTables: number;
-        retainedTables: number;
-        liveRows: string;
-        dataBytes: string;
-        indexBytes: string;
-        historyEvents: string;
-        historyBytes: string;
-        artifactBytes: string;
-      };
-      statisticsResetAt: string | null;
-      walStatisticsResetAt: string | null;
-    } | null;
-    signals: {
-      code:
-        | "DATABASE_METRICS_UNAVAILABLE"
-        | "POOL_SATURATED"
-        | "DATABASE_CONNECTION_PRESSURE"
-        | "IDLE_TRANSACTION_PRESSURE"
-        | "JOB_BACKLOG"
-        | "JOB_LEASE_EXPIRED"
-        | "WORKER_STALE"
-        | "WORKER_DEGRADED"
-        | "EMAIL_DELIVERY_FAILED"
-        | "EMAIL_DELIVERY_RETRYING"
-        | "SCHEMA_JOB_FAILED"
-        | "INDEX_INVALID"
-        | "BACKUP_FAILED"
-        | "BACKUP_NOTIFICATION_FAILED"
-        | "BACKUP_RECOVERY_POINT_MISSING"
-        | "LOG_SINK_FAILED";
-      severity: "warning" | "critical";
-      component:
-        | "database"
-        | "pool"
-        | "jobs"
-        | "worker"
-        | "email"
-        | "schema"
-        | "backup"
-        | "logging";
-      message: string;
-    }[];
-  };
-};
 export interface CallOptions {
   signal?: AbortSignal;
   idempotencyKey?: string;
@@ -4825,11 +4695,6 @@ const routes = {
     path: "/v1/me/view-preferences/{tableId}",
     method: "PUT",
     idempotencyRequired: true,
-  },
-  getInstallationStatus: {
-    path: "/v1/installation/status",
-    method: "GET",
-    idempotencyRequired: false,
   },
 } as const;
 export class RootsetClient {
@@ -5698,15 +5563,5 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<updateViewPreferencesOutput>;
-  }
-  getInstallationStatus(
-    input: getInstallationStatusInput,
-    options?: CallOptions,
-  ): Promise<getInstallationStatusOutput> {
-    return this.call(
-      "getInstallationStatus",
-      input,
-      options,
-    ) as Promise<getInstallationStatusOutput>;
   }
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon } from "@hugeicons/core-free-icons";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,8 +12,8 @@ import {
   RemoveMemberDialog,
   RevokeInvitationDialog,
   TeamGeneralSettings,
+  teamRoleOptions,
 } from "@avgeek-oss/design-system";
-import type { ChoiceOption } from "@avgeek-oss/design-system/patterns/choice-field";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import {
@@ -22,7 +24,6 @@ import { RootsetClient } from "@rootset/web-client";
 import { MemberSchema, InvitationSchema } from "@rootset/contracts";
 import type { z } from "zod";
 import { organisationPath, useResource, write } from "./api";
-import { FormCard } from "./account/page-parts";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { RelativeTime } from "./account/last-synced-time";
 import type { Organisation, SettingsPanelProps } from "./types";
@@ -31,19 +32,7 @@ const client = new RootsetClient();
 type Member = z.infer<typeof MemberSchema>;
 type Invitation = z.infer<typeof InvitationSchema>;
 type Page<T> = { data: T[]; nextCursor?: string | null; hasMore?: boolean };
-const roles: readonly ChoiceOption<Member["role"]>[] = [
-  {
-    id: "admin",
-    label: "Admin",
-    description: "Manage the installation, data and team.",
-  },
-  {
-    id: "member",
-    label: "Member",
-    description: "Read data and create, edit or delete rows.",
-  },
-  { id: "viewer", label: "Viewer", description: "Read and export data." },
-];
+const roles = teamRoleOptions;
 
 export function OrganisationSettings(props: SettingsPanelProps) {
   const path = organisationPath(props.orgId);
@@ -150,7 +139,8 @@ export function MembersSettings(props: SettingsPanelProps) {
           setInviteOpen(true);
         }}
       >
-        Create invite
+        <HugeiconsIcon icon={Add01Icon} size={16} aria-hidden />
+        Create invitation
       </Button>
     ),
     [busy],
@@ -216,7 +206,7 @@ export function MembersSettings(props: SettingsPanelProps) {
         nextCursor={members.data.nextCursor}
         disabled={members.isFetching || busy}
       />
-      <FormCard title="Pending Invitations">
+      <>
         {invitations.isError ? (
           <QueryError
             message={invitations.error.message}
@@ -254,7 +244,7 @@ export function MembersSettings(props: SettingsPanelProps) {
             />
           </>
         )}
-      </FormCard>
+      </>
       {removing && (
         <RemoveMemberDialog
           isOpen
@@ -310,7 +300,7 @@ export function MembersSettings(props: SettingsPanelProps) {
         isOpen={inviteOpen}
         onOpenChange={setInviteOpen}
         roles={roles}
-        defaultRole="viewer"
+        defaultRole="member"
         onInvite={async ({ email, role }) => {
           setBusy(true);
           try {

@@ -31,7 +31,6 @@ export const ALL_SCOPES = [
   "jobs:read",
   "jobs:cancel",
   "jobs:retry",
-  "installation:read",
   "installation:manage",
 ] as const;
 

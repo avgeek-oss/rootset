@@ -13,7 +13,7 @@ import {
   JobsService,
   type JobsConfig,
 } from "../../../packages/jobs/src/index.ts";
-import { RootsetCore, type CoreOptions } from "@rootset/core";
+import { RootsetCore } from "@rootset/core";
 import type { Config } from "@rootset/core/config";
 import type { IdentityService } from "../../../packages/identity/src/index.ts";
 import type { IsolatedDatabase } from "../../../tools/verification/isolated-database.ts";
@@ -175,11 +175,7 @@ export async function runNativeRetainedArchiveRegression(
     authorise: (actor, operation, target) =>
       core!.authorise(actor, operation, { ...target }),
   });
-  const unusedInstallation = {
-    execute() {
-      throw new Error("Installation component is outside this regression");
-    },
-  } as unknown as CoreOptions["installation"];
+
   const core = new constructors.Core({
     storage,
     jobs,
@@ -187,7 +183,6 @@ export async function runNativeRetainedArchiveRegression(
     pool: db.app,
     identityPool: db.identity,
     config,
-    installation: unusedInstallation,
   });
   const receipts: Input[] = [];
   async function record(value: Input) {

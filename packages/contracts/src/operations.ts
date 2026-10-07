@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { OperationalMetricsSchema } from "@rootset/observability/schema";
 import {
   AccountNameSchema,
   ActorSchema,
@@ -1497,29 +1496,6 @@ operation(
   "Save table view preferences without changing data/schema.",
   { personal: true, resource: "table", minimumRole: "viewer" },
 );
-const installationStatus = z.strictObject({
-  healthy: z.boolean(),
-  version: z.string(),
-  migrationVersion: z.string(),
-  dependencies: z.record(
-    z.string(),
-    z.enum(["healthy", "degraded", "unavailable"]),
-  ),
-  workerHeartbeatAt: DateTimeSchema.nullable(),
-  metrics: OperationalMetricsSchema,
-});
-operation(
-  "getInstallationStatus",
-  "get_installation_status",
-  "GET",
-  "/v1/installation/status",
-  ["installation:read"],
-  empty,
-  installationStatus,
-  "Read installation dependency state as an admin.",
-  { minimumRole: "admin" },
-);
-
 export const operations: readonly OperationDefinition[] =
   Object.freeze(definitions);
 export const operationMap: Readonly<Record<string, OperationDefinition>> =

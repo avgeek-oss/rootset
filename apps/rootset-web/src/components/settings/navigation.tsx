@@ -2,7 +2,7 @@
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Activity01Icon,
+  Link01Icon,
   Database01Icon,
   Download01Icon,
   Key01Icon,
@@ -29,12 +29,9 @@ export const settingsGroups = {
   account: [
     { title: "Account", sections: ["profile", "preferences"] },
     { title: "Security", sections: ["email-password", "passkeys", "sessions"] },
-    { title: "API & MCP", sections: ["api-keys", "mcp"] },
+    { title: "API & MCP", sections: ["api-keys", "mcp-connections", "mcp"] },
   ],
-  team: [
-    { title: "Account", sections: ["organisation", "members"] },
-    { title: "Installation", sections: ["operator"] },
-  ],
+  team: [{ title: "Account", sections: ["organisation", "members"] }],
   database: [{ title: "Settings", sections: ["database", "backups"] }],
   table: [
     { title: "Settings", sections: ["table", "fields", "rules", "indexes"] },
@@ -96,7 +93,7 @@ export const settingsIcons = {
   mcp: BookOpen01Icon,
   organisation: Settings01Icon,
   members: UserGroupIcon,
-  operator: Activity01Icon,
+  "mcp-connections": Link01Icon,
   database: Settings01Icon,
   backups: Download01Icon,
   table: Table01Icon,

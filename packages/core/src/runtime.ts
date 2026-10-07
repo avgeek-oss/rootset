@@ -10,7 +10,7 @@ import { RootsetCore } from "./index.js";
 import { loadConfig, type Config } from "./config.js";
 import { MetadataPaging } from "./paging.js";
 import { createBackupNotifications } from "./backup-notifications.js";
-import { InstallationService } from "./installation.js";
+import { ReadinessService } from "./readiness.js";
 
 export async function createRuntime(
   baseline: Config = loadConfig(),
@@ -53,7 +53,7 @@ export async function createRuntime(
       ddlPool,
       cursorSecret: config.cursorSecret,
     });
-    const installation = new InstallationService(
+    const readiness = new ReadinessService(
       identityPool,
       config,
       identity.emailOutbox,
@@ -138,7 +138,6 @@ export async function createRuntime(
       storage,
       identity,
       jobs,
-      installation,
       config,
       paging,
     });
@@ -160,9 +159,8 @@ export async function createRuntime(
       jobs,
       oauth,
       config,
-      installation,
       observer,
-      getReadiness: () => installation.status(),
+      getReadiness: () => readiness.status(),
       close: async () => {
         await Promise.all([
           pool.end(),

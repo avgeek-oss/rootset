@@ -121,7 +121,7 @@ test("unsupported organisation, resource grant, account deletion and team-key op
     assert.throws(() => getRuntimeOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 90);
+  assert.equal(operations.length, 89);
   assert.equal(tools.length, operations.length);
   for (const operation of operations)
     assert.equal(getRuntimeOperation(operation.id), operation);
@@ -737,43 +737,6 @@ test("usage rejects removed quota and storage-admission fields", () => {
     }).success,
     false,
   );
-  const status = {
-    healthy: false,
-    version: "0.1.0",
-    migrationVersion: "001",
-    dependencies: { database: "unavailable", objectStorage: "unavailable" },
-    workerHeartbeatAt: null,
-    metrics: {
-      collectedAt: "2026-10-02T00:00:00.000Z",
-      processStartedAt: "2026-10-02T00:00:00.000Z",
-      uptimeSeconds: 0,
-      requestCounterScope: "process_since_start",
-      requests: {
-        total: 0,
-        errors: 0,
-        timeouts: 0,
-        rowLimitRejections: 0,
-        rateLimitRejections: 0,
-        loggingFailures: 0,
-        operations: [],
-      },
-      pools: {},
-      databaseStatus: "unavailable",
-      database: null,
-      signals: [],
-    },
-  };
-  assert.deepEqual(
-    operationMap.getInstallationStatus!.outputSchema.parse(status),
-    status,
-  );
-  const { metrics, ...missingMetrics } = status;
-  assert.equal(typeof metrics, "object");
-  assert.equal(
-    operationMap.getInstallationStatus!.outputSchema.safeParse(missingMetrics)
-      .success,
-    false,
-  );
 });
 
 test("ordinary JSON budgets retain 8 MiB input, a separate read deadline and unchanged result/binary budgets", () => {
@@ -870,7 +833,6 @@ test("catalog covers every named baseline MCP operation with unique routes and s
     operations.length,
   );
   assert.equal(operationMap.queryRows!.readOnly, true);
-  assert.equal(operationMap.getInstallationStatus!.readOnly, true);
   assert.equal(operationMap.createRow!.readOnly, false);
   assert.equal(operationMap.createTeamKey, undefined);
   const indexInput = operationExample(operationMap.createIndex!);
@@ -1199,7 +1161,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 90);
+  assert.equal(operations.length, 89);
   const api = generateOpenApi() as {
     paths: Record<
       string,

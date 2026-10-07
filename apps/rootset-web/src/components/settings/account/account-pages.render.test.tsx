@@ -106,15 +106,17 @@ describe("Towbar account component parity", () => {
     expect(html).toContain("current-session");
     expect(html).toMatch(/<button[^>]*disabled[^>]*>.*?Revoke/s);
   });
-  it("keeps API keys and OAuth connections in the same page without team keys", () => {
+  it("separates API keys and MCP connections without team keys", () => {
     const html = render(() =>
       createElement(ApiMcpSettings, { section: "personal-keys" }),
     );
     expect(html).toContain("No API keys yet");
-    expect(html).toContain("MCP Connections");
-    expect(html).toContain(
-      "Connect an app to Rootset by signing in from the app.",
+    expect(html).not.toContain("MCP Connections");
+    const connections = render(() =>
+      createElement(ApiMcpSettings, { section: "mcp-connections" }),
     );
+    expect(connections).toContain("No MCP connections yet");
+    expect(connections).not.toContain("Create API key");
     expect(html).not.toContain("Team keys");
   });
   it("uses a real Rootset MCP endpoint and Rootset key placeholder", () => {
@@ -122,9 +124,9 @@ describe("Towbar account component parity", () => {
       createElement(ApiMcpSettings, { section: "mcp" }),
     );
     expect(html).toContain("Connect your MCP client");
-    expect(html).toContain(".cursor/mcp.json");
+    expect(html).toContain("~/.codex/config.toml");
     expect(html).toContain("https://rootset.example/mcp");
-    expect(html).toContain("YOUR_ROOTSET_API_KEY");
+    expect(html).toContain("ROOTSET_API_KEY");
     expect(html).not.toContain("TOWBAR_API_KEY");
   });
 });

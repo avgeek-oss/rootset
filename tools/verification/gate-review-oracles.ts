@@ -14,7 +14,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-04",
-    "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone views installation health and manages people, schema and restores; SMTP/S3 configuration is read only from the deployment environment.",
+    "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema and restores; SMTP/S3 configuration is read only from the deployment environment.",
   ],
   [
     "V1-05",
