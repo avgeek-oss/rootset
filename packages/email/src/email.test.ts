@@ -63,4 +63,21 @@ test("AUTH-12 all security templates render branded escaped HTML and plain text"
       "https://rootset.fyi",
     ),
   );
+  await renderEmail(
+    "account-verification",
+    {
+      actionUrl:
+        "https://rootset-api.avgeek.ltd/v1/auth/verify-email?token=fixture",
+    },
+    "https://rootset.avgeek.ltd",
+    ["https://rootset-api.avgeek.ltd"],
+  );
+  await assert.rejects(() =>
+    renderEmail(
+      "account-verification",
+      { actionUrl: "https://attacker.invalid/secret" },
+      "https://rootset.avgeek.ltd",
+      ["https://rootset-api.avgeek.ltd"],
+    ),
+  );
 });

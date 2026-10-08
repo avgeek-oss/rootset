@@ -4,10 +4,13 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
 import { createServer } from "node:http";
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const clientId = "rootset-browser-verification";
 const redirect = "http://localhost:4311/settings/connections";
-const resource = `${baseURL}/mcp`;
+const resource = `${apiURL}/mcp`;
 const output = new URL("../test-results/browser/", import.meta.url);
 const fixture = JSON.parse(
   await readFile(
@@ -45,7 +48,7 @@ page.on("pageerror", (error) => report.pageErrors.push(reportError(error)));
 await mkdir(output, { recursive: true });
 function authorization(state) {
   const verifier = randomBytes(40).toString("base64url"),
-    url = new URL("/oauth/authorize", baseURL);
+    url = new URL("/oauth/authorize", apiURL);
   url.search = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirect,
@@ -75,7 +78,7 @@ async function review(request) {
   );
 }
 async function rpc(accessToken, method, params) {
-  const response = await context.request.post("/mcp", {
+  const response = await context.request.post(new URL("/mcp", apiURL).href, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json, text/event-stream",
@@ -96,16 +99,21 @@ async function rpc(accessToken, method, params) {
     : JSON.parse(text);
 }
 try {
-  const signed = await context.request.post("/v1/auth/sign-in/email", {
-    headers: { Origin: new URL(baseURL).origin },
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const signed = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      headers: { Origin: new URL(baseURL).origin },
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
     },
-  });
+  );
   if (!signed.ok())
     throw new Error(`Verified browser sign-in HTTP ${signed.status()}`);
-  const selected = await context.request.get("/api/internal/v1/context");
+  const selected = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   if (!selected.ok())
     throw new Error(`Automatic organisation context HTTP ${selected.status()}`);
   const denied = authorization("rendered-denial-proof");
@@ -135,16 +143,19 @@ try {
   const code = completed.searchParams.get("code");
   expect(Boolean(code)).toBe(true);
   expect(completed.searchParams.get("state")).toBe("rendered-approval-proof");
-  const exchanged = await context.request.post("/oauth/token", {
-    form: {
-      grant_type: "authorization_code",
-      client_id: clientId,
-      redirect_uri: redirect,
-      code,
-      code_verifier: approved.verifier,
-      resource,
+  const exchanged = await context.request.post(
+    new URL("/oauth/token", apiURL).href,
+    {
+      form: {
+        grant_type: "authorization_code",
+        client_id: clientId,
+        redirect_uri: redirect,
+        code,
+        code_verifier: approved.verifier,
+        resource,
+      },
     },
-  });
+  );
   expect(exchanged.status()).toBe(200);
   const tokens = await exchanged.json();
   expect(typeof tokens.access_token).toBe("string");
@@ -205,7 +216,7 @@ try {
   await expect(page.locator(".settings-content")).toContainText(
     "Application access revoked.",
   );
-  const revoked = await context.request.post("/mcp", {
+  const revoked = await context.request.post(new URL("/mcp", apiURL).href, {
     headers: {
       Authorization: `Bearer ${tokens.access_token}`,
       Accept: "application/json, text/event-stream",

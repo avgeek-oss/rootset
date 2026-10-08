@@ -3,6 +3,9 @@ import { chromium, expect } from "@playwright/test";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { randomUUID } from "node:crypto";
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300",
   output = new URL("../test-results/browser/", import.meta.url);
 const f = JSON.parse(
@@ -25,14 +28,17 @@ p.on("pageerror", (e) => report.pageErrors.push(e.message));
 const path = `/orgs/${f.orgId}/databases/${f.databaseId}/tables/${f.tableId}`;
 let originalField, originalRow;
 async function call(method, path, data) {
-  const r = await x.request.fetch(`/api/internal/v1${path}`, {
-      method,
-      ...(data ? { data } : {}),
-      headers: {
-        Origin: new URL(baseURL).origin,
-        "Idempotency-Key": randomUUID(),
+  const r = await x.request.fetch(
+      new URL(`/api/internal/v1${path}`, apiURL).href,
+      {
+        method,
+        ...(data ? { data } : {}),
+        headers: {
+          Origin: new URL(baseURL).origin,
+          "Idempotency-Key": randomUUID(),
+        },
       },
-    }),
+    ),
     j = r.status() === 204 ? null : await r.json();
   if (!r.ok())
     throw new Error(`${method} ${path}: HTTP ${r.status()} ${j.error?.code}`);
@@ -67,14 +73,14 @@ async function saveView(trigger) {
   return r.json();
 }
 try {
-  await x.request.post("/v1/auth/sign-in/email", {
+  await x.request.post(new URL("/v1/auth/sign-in/email", apiURL).href, {
     headers: { Origin: new URL(baseURL).origin },
     data: {
       email: c.ROOTSET_TEST_OWNER_EMAIL,
       password: c.ROOTSET_TEST_OWNER_PASSWORD,
     },
   });
-  await x.request.get("/api/internal/v1/context");
+  await x.request.get(new URL("/api/internal/v1/context", apiURL).href);
   await call("PUT", `/view-preferences/${f.tableId}`, {
     preferences: {
       columnOrder: [],

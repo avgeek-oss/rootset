@@ -86,6 +86,7 @@ import {
 } from "@rootset/email";
 
 export interface IdentityConfig extends EmailConfig {
+  webURL?: string;
   pool: Pool;
   passwordPolicy?: PasswordPolicyOptions;
   secret: string;
@@ -333,7 +334,11 @@ export class IdentityService {
         "Identity secrets must contain at least 32 characters",
         500,
       );
-    this.emailOutbox = new EmailOutbox(config.pool, config);
+    this.emailOutbox = new EmailOutbox(config.pool, {
+      ...config,
+      baseURL: config.webURL ?? config.baseURL,
+      allowedActionOrigins: [new URL(config.baseURL).origin],
+    });
     this.passwords = new PasswordPolicy(config.passwordPolicy);
     const database = drizzle(config.pool, { schema: identitySchema });
     this.rawAuth = betterAuth({
@@ -341,7 +346,10 @@ export class IdentityService {
       baseURL: config.baseURL,
       basePath: "/v1/auth",
       secret: config.secret,
-      trustedOrigins: [new URL(config.baseURL).origin],
+      trustedOrigins: [
+        new URL(config.baseURL).origin,
+        new URL(config.webURL ?? config.baseURL).origin,
+      ],
       database: drizzleAdapter(database, {
         provider: "pg",
         transaction: true,
@@ -463,9 +471,9 @@ export class IdentityService {
       plugins: [
         passwordSecondFactor(database, config.pool),
         passkey({
-          rpID: new URL(config.baseURL).hostname,
+          rpID: new URL(config.webURL ?? config.baseURL).hostname,
           rpName: "Rootset",
-          origin: new URL(config.baseURL).origin,
+          origin: new URL(config.webURL ?? config.baseURL).origin,
           authenticatorSelection: {
             residentKey: "required",
             userVerification: "required",
@@ -676,7 +684,7 @@ export class IdentityService {
       await this.rawAuth.api.sendVerificationEmail({
         body: {
           email: input.email,
-          callbackURL: `${this.config.baseURL}/login`,
+          callbackURL: `${this.config.webURL ?? this.config.baseURL}/login`,
         },
       });
     } catch (error) {
@@ -900,7 +908,8 @@ export class IdentityService {
       if (
         !["GET", "HEAD"].includes(request.method) &&
         (request.headers.has("cookie") || request.headers.has("origin")) &&
-        request.headers.get("origin") !== new URL(this.config.baseURL).origin
+        request.headers.get("origin") !==
+          new URL(this.config.webURL ?? this.config.baseURL).origin
       )
         throw new RootsetError(
           "ACCESS_DENIED",
@@ -921,7 +930,7 @@ export class IdentityService {
             this.rawAuth.api.sendVerificationEmail({
               body: {
                 email: address,
-                callbackURL: `${new URL(this.config.baseURL).origin}/login`,
+                callbackURL: `${new URL(this.config.webURL ?? this.config.baseURL).origin}/login`,
               },
             }),
         });
@@ -950,7 +959,7 @@ export class IdentityService {
             headers: request.headers,
             body: {
               email,
-              callbackURL: `${new URL(this.config.baseURL).origin}/settings/email-password`,
+              callbackURL: `${new URL(this.config.webURL ?? this.config.baseURL).origin}/settings/email-password`,
             },
           }),
         );
@@ -1329,7 +1338,7 @@ export class IdentityService {
       type: actionTypes[row.operation as string],
       state,
       expiresAt: new Date(row.expires_at as string | Date).toISOString(),
-      approvalUrl: `${this.config.baseURL}/account-actions/${row.id}`,
+      approvalUrl: `${this.config.webURL ?? this.config.baseURL}/account-actions/${row.id}`,
       ...(result === undefined ? {} : { result }),
       ...(intent === undefined ? {} : { repairIntent: intent }),
     };
@@ -2243,7 +2252,7 @@ export class IdentityService {
         return {
           state: "interactive_proof_required",
           operationId: operation,
-          proofUrl: `${this.config.baseURL}/settings/passkeys`,
+          proofUrl: `${this.config.webURL ?? this.config.baseURL}/settings/passkeys`,
           actionId: context.actionId ?? null,
         };
       default:
@@ -2725,7 +2734,7 @@ export class IdentityService {
       to: data.email,
       payload: {
         organisationName: organisation.name,
-        actionUrl: `${this.config.baseURL}/invite/${id}`,
+        actionUrl: `${this.config.webURL ?? this.config.baseURL}/invite/${id}`,
         expiresAt: expiresAt.toISOString(),
       },
       dedupeKey: `invitation:${id}`,
@@ -2733,7 +2742,7 @@ export class IdentityService {
     });
     return {
       id,
-      inviteUrl: `${this.config.baseURL}/invite/${id}`,
+      inviteUrl: `${this.config.webURL ?? this.config.baseURL}/invite/${id}`,
       orgId: actor.orgId,
       email: data.email,
       role: data.role,
@@ -3411,7 +3420,7 @@ export class IdentityService {
       to: data.newEmail,
       payload: {
         name: user.name,
-        actionUrl: `${this.config.baseURL}/email-change#${token}`,
+        actionUrl: `${this.config.webURL ?? this.config.baseURL}/email-change#${token}`,
         expiresAt: expiresAt.toISOString(),
       },
       dedupeKey: `email-change:${id}`,

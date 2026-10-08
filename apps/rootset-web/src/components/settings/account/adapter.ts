@@ -14,6 +14,7 @@ import type {
   Preferences,
 } from "../types";
 import { createDateTimeFormatter } from "@rootset/contracts";
+import { browserApiOrigin } from "@rootset/web-client";
 
 export type AccountUser = Profile & {
   name: string;
@@ -149,8 +150,8 @@ async function loadAccount(path: string): Promise<unknown> {
       ]);
       return {
         keys: accountKeyRows(keys, connections, context.principal.role),
-        apiUrl: `${window.location.origin}/v1`,
-        mcpUrl: `${window.location.origin}/mcp`,
+        apiUrl: `${browserApiOrigin()}/v1`,
+        mcpUrl: `${browserApiOrigin()}/mcp`,
       };
     }
     default:

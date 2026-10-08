@@ -10,8 +10,8 @@ versions come from the workspace catalog and lockfile.
 
 ```mermaid
 flowchart LR
-  Browser[Browser] --> Web[Next.js web]
-  Web --> API[Hono and shared operations]
+  Browser[Browser] --> Web[Next.js web shell]
+  Browser --> API[Hono and shared operations]
   REST[REST] --> API
   MCP[OAuth MCP] --> API
   API --> PG[(PostgreSQL)]
@@ -21,7 +21,11 @@ flowchart LR
   API --> Objects
 ```
 
-Expose a configured HTTPS origin for assets, API, authentication and MCP. Keep
+Expose separate configured HTTPS origins for the UI and API. The browser sends
+authentication, REST, OAuth, MCP and artifact requests directly to the API
+origin. The API owns host-only HttpOnly sessions, exact credentialed UI CORS and
+Origin checks; passkeys bind to the UI hostname and OAuth issuer/resource URLs
+bind to the API hostname. Keep
 server-only SQL and secret modules out of browser bundles. Use public dependencies
 and self-contained packages; a Rootset installation needs no Towbar/Mill checkout.
 

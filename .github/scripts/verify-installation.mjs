@@ -117,13 +117,17 @@ try {
       ]),
   );
   const webPort = await unusedPort();
+  let apiPort = await unusedPort();
+  while (apiPort === webPort) apiPort = await unusedPort();
   const mailPort = await unusedPort();
   const baseURL = `http://127.0.0.1:${webPort}`;
+  const apiURL = `http://127.0.0.1:${apiPort}`;
   content = content
-    .replace(/^ROOTSET_BASE_URL=.*$/m, `ROOTSET_BASE_URL=${baseURL}`)
+    .replace(/^ROOTSET_WEB_URL=.*$/m, `ROOTSET_WEB_URL=${baseURL}`)
+    .replace(/^ROOTSET_API_URL=.*$/m, `ROOTSET_API_URL=${apiURL}`)
     .replace(/^ROOTSET_ENCRYPTION_KEY=.*$/m, "ROOTSET_ENCRYPTION_KEY=");
   content += `\nROOTSET_ENCRYPTION_KEYS=${JSON.stringify({ primary: config.ROOTSET_ENCRYPTION_KEY })}\n`;
-  content += `ROOTSET_WEB_PORT=${webPort}\nROOTSET_MAIL_UI_PORT=${mailPort}\n`;
+  content += `ROOTSET_WEB_PORT=${webPort}\nROOTSET_API_PORT=${apiPort}\nROOTSET_MAIL_UI_PORT=${mailPort}\n`;
   content = content.replace(
     /^ROOTSET_PASSWORD_BREACH_CHECK=.*$/m,
     "ROOTSET_PASSWORD_BREACH_CHECK=false",
@@ -279,16 +283,26 @@ try {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Rootset/);
+  assert.ok(
+    html.includes(`window.__ROOTSET_API_ORIGIN=${JSON.stringify(apiURL)}`),
+  );
   const asset = html.match(/src="([^"\s]+\.js)"/)?.[1];
   assert.ok(asset);
   assert.match(
     (await fetch(new URL(asset, baseURL))).headers.get("content-type"),
     /javascript/,
   );
-  const fresh = await (await fetch(`${baseURL}/v1/setup`)).json();
+  const freshResponse = await fetch(`${apiURL}/v1/setup`, {
+    headers: { origin: baseURL },
+  });
+  assert.equal(
+    freshResponse.headers.get("access-control-allow-origin"),
+    baseURL,
+  );
+  const fresh = await freshResponse.json();
   assert.deepEqual(fresh, { claimed: false, verified: false });
   const email = `installation-${Date.now()}@example.test`;
-  const claim = await fetch(`${baseURL}/v1/setup`, {
+  const claim = await fetch(`${apiURL}/v1/setup`, {
     method: "POST",
     headers: { "content-type": "application/json", origin: baseURL },
     body: JSON.stringify({
@@ -316,7 +330,7 @@ try {
       )?.[0];
       if (value) {
         const url = new URL(value.replaceAll("&amp;", "&"));
-        assert.equal(url.origin, baseURL);
+        assert.equal(url.origin, apiURL);
         return url;
       }
     }
@@ -324,7 +338,7 @@ try {
   }, "bootstrap verification email");
   const verified = await fetch(verificationURL, { redirect: "manual" });
   assert.equal(verified.status, 302);
-  assert.deepEqual(await (await fetch(`${baseURL}/v1/setup`)).json(), {
+  assert.deepEqual(await (await fetch(`${apiURL}/v1/setup`)).json(), {
     claimed: true,
     verified: true,
   });
@@ -352,7 +366,7 @@ try {
   }, "runtime health after restart");
   const resumedSetup = await poll(async () => {
     try {
-      const response = await fetch(`${baseURL}/v1/setup`);
+      const response = await fetch(`${apiURL}/v1/setup`);
       return response.ok ? await response.json() : null;
     } catch {
       return null;

@@ -1527,38 +1527,6 @@ export function validateOperationInput(
 }
 export const ProtocolAdapterInventory = Object.freeze([
   {
-    path: "/api/backend/{path*}",
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    kind: "reverse_proxy",
-    surface: "web",
-    allowedPaths: [
-      "/v1/{path*}",
-      "/api/internal/{path*}",
-      "/oauth/authorize",
-      "/oauth/token",
-      "/oauth/revoke",
-      "/oauth/register",
-      "/mcp",
-      "/.well-known/{path*}",
-    ],
-    upstream: "configured-api-only",
-    jsonRequestMaxBytes: limits.requestBytes,
-    jsonReadTimeoutMs: limits.requestTimeoutMs,
-    requestHeaderMaxBytes: 192 * 1024,
-    streamedResponses: true,
-    binaryUpload: {
-      path: "/api/artifact-upload/{orgId}/{id}",
-      method: "PUT",
-      maxBytes: 134217728,
-      mappedPaths: [
-        "/v1/orgs/{orgId}/artifacts/{id}/upload",
-        "/api/internal/v1/orgs/{orgId}/artifacts/{id}/upload",
-      ],
-    },
-    reason:
-      "Same-origin web routing uses a local bounded streaming handler and a fixed configured API upstream. It preserves operation authentication, cookies, Origin and idempotency while removing untrusted forwarding/hop headers; completed-input MCP/SSE and verified binary responses stream without a ten-second response deadline. Only the narrow authenticated artifact upload handler has the separate 128 MiB request budget.",
-  },
-  {
     path: "/mcp",
     methods: ["GET", "POST", "DELETE"],
     kind: "protocol",

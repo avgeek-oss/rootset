@@ -4,6 +4,9 @@ import { parseEnv } from "node:util";
 import { randomUUID } from "node:crypto";
 import { reportError } from "./report-error.mjs";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const engine = process.env.ROOTSET_TEST_BROWSER ?? "chromium";
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const candidateCommit = process.env.ROOTSET_CANDIDATE_COMMIT ?? null;
@@ -69,11 +72,14 @@ async function call(method, path, data) {
     "Idempotency-Key": randomUUID(),
   };
   for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await context.request.fetch(`/api/internal/v1${path}`, {
-      method,
-      ...(data ? { data } : {}),
-      headers,
-    });
+    const response = await context.request.fetch(
+      new URL(`/api/internal/v1${path}`, apiURL).href,
+      {
+        method,
+        ...(data ? { data } : {}),
+        headers,
+      },
+    );
     const body = response.status() === 204 ? undefined : await response.json();
     if (response.ok()) return body;
     if (response.status() === 429 && attempt < 2) {
@@ -141,15 +147,20 @@ async function paste(text, row) {
   await expect(dialog).not.toBeVisible();
 }
 try {
-  const login = await context.request.post("/v1/auth/sign-in/email", {
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const login = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
+      headers: { Origin: new URL(baseURL).origin },
     },
-    headers: { Origin: new URL(baseURL).origin },
-  });
+  );
   expect(login.ok()).toBe(true);
-  const chosen = await context.request.get("/api/internal/v1/context");
+  const chosen = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   expect(chosen.ok()).toBe(true);
   const root = `/orgs/${fixture.orgId}/databases/${fixture.databaseId}`;
   const definitions = Array.from({ length: 24 }, (_, i) => ({
@@ -526,7 +537,7 @@ try {
   await select(0, 21);
   const rowToDelete = await call("GET", `${path}/rows/${sourceRows[0].id}`);
   const deletion = await context.request.delete(
-    `/api/internal/v1${path}/rows/${rowToDelete.id}`,
+    new URL(`/api/internal/v1${path}/rows/${rowToDelete.id}`, apiURL).href,
     {
       headers: {
         Origin: new URL(baseURL).origin,

@@ -67,7 +67,7 @@ export async function createRuntime(
         ...createBackupNotifications(
           identityPool,
           identity.emailOutbox,
-          config.baseURL,
+          config.webURL,
         ),
         metadataPaging: paging,
         idempotencySecret: config.keyHashSecret,
@@ -127,6 +127,7 @@ export async function createRuntime(
     });
     const oauth: OAuthService = new OAuthService(identityPool, {
       baseURL: config.baseURL,
+      webURL: config.webURL,
       scopes: scopeNames,
       clients: options.oauthClients,
       resolveSession: (request) => identity.resolveActor(request, "browser"),

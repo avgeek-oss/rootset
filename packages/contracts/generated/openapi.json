@@ -108,7 +108,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -247,7 +247,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -409,7 +409,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -574,7 +574,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -724,7 +724,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -867,7 +867,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1070,7 +1070,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1213,7 +1213,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1438,7 +1438,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1586,7 +1586,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1763,7 +1763,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -1906,7 +1906,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2066,7 +2066,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2276,7 +2276,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2434,7 +2434,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2594,7 +2594,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2749,7 +2749,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -2922,7 +2922,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3097,7 +3097,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3296,7 +3296,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3491,7 +3491,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3680,7 +3680,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -3859,7 +3859,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4034,7 +4034,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4179,7 +4179,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4370,7 +4370,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4576,7 +4576,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4738,7 +4738,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -4881,7 +4881,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5053,7 +5053,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5236,7 +5236,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5400,7 +5400,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5596,7 +5596,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5787,7 +5787,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -5973,7 +5973,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -6466,7 +6466,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -6641,7 +6641,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -6851,7 +6851,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7057,7 +7057,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7236,7 +7236,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7410,7 +7410,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -7915,7 +7915,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -8439,7 +8439,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -8661,7 +8661,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -8873,7 +8873,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9165,7 +9165,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9463,7 +9463,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9652,7 +9652,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -9829,7 +9829,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10052,7 +10052,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10268,7 +10268,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10445,7 +10445,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10669,7 +10669,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -10884,7 +10884,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11118,7 +11118,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11337,7 +11337,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11681,7 +11681,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -11866,7 +11866,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12108,7 +12108,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12336,7 +12336,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12682,7 +12682,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -12863,7 +12863,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13208,7 +13208,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13425,7 +13425,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13653,7 +13653,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -13817,7 +13817,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14021,7 +14021,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14278,7 +14278,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14528,7 +14528,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -14881,7 +14881,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15047,7 +15047,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15222,7 +15222,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15458,7 +15458,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15677,7 +15677,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -15875,7 +15875,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16061,7 +16061,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16247,7 +16247,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16415,7 +16415,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16589,7 +16589,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16768,7 +16768,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -16974,7 +16974,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17188,7 +17188,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17406,7 +17406,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17566,7 +17566,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17736,7 +17736,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -17907,7 +17907,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18061,7 +18061,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18213,7 +18213,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18446,7 +18446,7 @@
             }
           },
           "502": {
-            "description": "The configured API upstream is unavailable at the same-origin web transport.",
+            "description": "A required upstream service is unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
@@ -18499,7 +18499,7 @@
         "operationId": "uploadArtifactBytes",
         "tags": ["artifacts"],
         "summary": "Stream the exact bytes for an authorised prepared import artifact.",
-        "description": "Use the URL, PUT method and content-type header from prepareImportUpload. The server verifies current target access, declared byte length and any supplied checksum; the upload is bounded to 128 MiB. This bound artifact upload accepts the MCP-audience OAuth token used to prepare the upload, with current imports:write scope and exact artifact organisation and table access checked again. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes require an API-audience credential. Browser sessions also require a same-origin request and CSRF proof. JSON body limits and MCP result limits do not apply to this binary handoff.",
+        "description": "Use the API-origin URL, PUT method and content-type header from prepareImportUpload. The server verifies current target access, declared byte length and any supplied checksum; the upload is bounded to 128 MiB. This bound artifact upload accepts the MCP-audience OAuth token used to prepare the upload, with current imports:write scope and exact artifact organisation and table access checked again. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes require an API-audience credential. Browser sessions also require the configured UI Origin and CSRF proof. JSON body limits and MCP result limits do not apply to this binary handoff.",
         "parameters": [
           {
             "name": "orgId",
@@ -33589,37 +33589,6 @@
     }
   },
   "x-rootset-protocol-adapters": [
-    {
-      "path": "/api/backend/{path*}",
-      "methods": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      "kind": "reverse_proxy",
-      "surface": "web",
-      "allowedPaths": [
-        "/v1/{path*}",
-        "/api/internal/{path*}",
-        "/oauth/authorize",
-        "/oauth/token",
-        "/oauth/revoke",
-        "/oauth/register",
-        "/mcp",
-        "/.well-known/{path*}"
-      ],
-      "upstream": "configured-api-only",
-      "jsonRequestMaxBytes": 8388608,
-      "jsonReadTimeoutMs": 10000,
-      "requestHeaderMaxBytes": 196608,
-      "streamedResponses": true,
-      "binaryUpload": {
-        "path": "/api/artifact-upload/{orgId}/{id}",
-        "method": "PUT",
-        "maxBytes": 134217728,
-        "mappedPaths": [
-          "/v1/orgs/{orgId}/artifacts/{id}/upload",
-          "/api/internal/v1/orgs/{orgId}/artifacts/{id}/upload"
-        ]
-      },
-      "reason": "Same-origin web routing uses a local bounded streaming handler and a fixed configured API upstream. It preserves operation authentication, cookies, Origin and idempotency while removing untrusted forwarding/hop headers; completed-input MCP/SSE and verified binary responses stream without a ten-second response deadline. Only the narrow authenticated artifact upload handler has the separate 128 MiB request budget."
-    },
     {
       "path": "/mcp",
       "methods": ["GET", "POST", "DELETE"],

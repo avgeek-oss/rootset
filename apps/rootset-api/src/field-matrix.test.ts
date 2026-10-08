@@ -183,6 +183,7 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
     const config = {
       ...loadConfig(),
       baseURL,
+      webURL: baseURL,
       port: address.port,
       databaseURL: db.app.options.connectionString!,
       ddlDatabaseURL: db.ddl.options.connectionString!,

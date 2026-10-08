@@ -2,7 +2,7 @@
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useEffect, useRef, useState } from "react";
-import { client } from "@rootset/web-client";
+import { client, browserApiOrigin } from "@rootset/web-client";
 import type { JsonValue, QueryResult, QuerySpec } from "@rootset/contracts";
 import type { Job } from "./settings/types";
 import { MutationAttempt } from "../lib/mutation-attempt";
@@ -135,18 +135,14 @@ export function PasteImport({
         { orgId, databaseId, tableId, format: "jsonl", byteLength: blob.size },
         options,
       );
-      const destination = new URL(upload.uploadUrl, location.origin);
-      if (
-        destination.protocol !== "https:" &&
-        destination.origin !== location.origin
-      )
-        throw new Error("The import upload address must use HTTPS.");
+      const destination = new URL(upload.uploadUrl, browserApiOrigin());
+      if (destination.origin !== browserApiOrigin())
+        throw new Error("The import upload address must match the API origin.");
       const uploaded = await fetch(destination.href, {
         method: upload.method,
         headers: upload.headers,
         body: blob,
-        credentials:
-          destination.origin === location.origin ? "same-origin" : "omit",
+        credentials: "include",
         signal: controller.signal,
       });
       if (!uploaded.ok)

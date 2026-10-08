@@ -12,6 +12,7 @@ import {
   client,
   ApiError,
   RootsetClient,
+  browserApiOrigin,
   resourcePath,
   unwrapData,
 } from "@rootset/web-client";
@@ -76,7 +77,9 @@ import {
 } from "@hugeicons/core-free-icons";
 
 type Context = z.infer<typeof ContextSchema>;
-const publicClient = new RootsetClient({ baseUrl: "/v1" });
+const publicClient = new RootsetClient({
+  baseUrl: () => `${browserApiOrigin()}/v1`,
+});
 const defaultPreferences = {
   timezone: "UTC",
   locale: "en",

@@ -172,6 +172,7 @@ export async function renderEmail(
   template: EmailTemplate,
   payload: EmailPayload,
   baseURL: string,
+  allowedActionOrigins: readonly string[] = [],
 ): Promise<{ subject: string; html: string; text: string }> {
   const entry = emailTemplates[template];
   if (!entry)
@@ -179,7 +180,7 @@ export async function renderEmail(
   const url = payload.actionUrl ? new URL(payload.actionUrl) : undefined;
   if (
     url &&
-    (url.origin !== new URL(baseURL).origin ||
+    (![new URL(baseURL).origin, ...allowedActionOrigins].includes(url.origin) ||
       !["http:", "https:"].includes(url.protocol))
   )
     throw new RootsetError(
@@ -221,6 +222,7 @@ export async function renderEmail(
 }
 export interface EmailConfig extends EncryptionConfig {
   baseURL: string;
+  allowedActionOrigins?: readonly string[];
   smtp?: {
     host: string;
     port: number;
@@ -263,7 +265,12 @@ export class EmailOutbox {
       expiresAt?: Date;
     },
   ): Promise<string> {
-    await renderEmail(input.template, input.payload, this.config.baseURL);
+    await renderEmail(
+      input.template,
+      input.payload,
+      this.config.baseURL,
+      this.config.allowedActionOrigins,
+    );
     const id = newId();
     const result = await client.query<{ id: string }>(
       `INSERT INTO rootset_control.email_outbox(id,to_address,template,payload_encrypted,dedupe_key,expires_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(dedupe_key) DO UPDATE SET dedupe_key=EXCLUDED.dedupe_key RETURNING id`,
@@ -314,6 +321,7 @@ export class EmailOutbox {
         row.template as EmailTemplate,
         decryptProtected<EmailPayload>(row.payload_encrypted, this.config),
         this.config.baseURL,
+        this.config.allowedActionOrigins,
       );
       const result = await transport.sendMail({
         from: smtp.from,

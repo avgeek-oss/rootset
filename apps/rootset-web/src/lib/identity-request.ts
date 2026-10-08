@@ -1,5 +1,6 @@
 "use client";
 import { describeError } from "../components/settings/api";
+import { browserApiOrigin } from "@rootset/web-client";
 export async function identityRequest<T>(
   path: string,
   method = "GET",
@@ -7,10 +8,10 @@ export async function identityRequest<T>(
   actionId?: string,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(`/v1/auth${path}`, {
+  const response = await fetch(`${browserApiOrigin()}/v1/auth${path}`, {
     method,
     signal,
-    credentials: "same-origin",
+    credentials: "include",
     headers: {
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(actionId ? { "X-Rootset-Action-ID": actionId } : {}),

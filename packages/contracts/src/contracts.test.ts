@@ -768,15 +768,10 @@ test("ordinary JSON budgets retain 8 MiB input, a separate read deadline and unc
   const client = generateClientSource();
   assert.ok(client.includes("export const transportLimits"));
   assert.ok(client.includes('"jsonReadTimeoutMs": 10000'));
-  const proxy = ProtocolAdapterInventory.find(
-    (value) => value.kind === "reverse_proxy",
-  )!;
-  assert.equal(proxy.upstream, "configured-api-only");
-  assert.equal(proxy.jsonRequestMaxBytes, limits.requestBytes);
-  assert.equal(proxy.jsonReadTimeoutMs, limits.requestTimeoutMs);
-  assert.equal(proxy.requestHeaderMaxBytes, 196_608);
-  assert.equal(proxy.streamedResponses, true);
-  assert.equal(proxy.binaryUpload.maxBytes, 134_217_728);
+  assert.equal(
+    ProtocolAdapterInventory.some((value) => value.kind === "reverse_proxy"),
+    false,
+  );
 });
 
 test("query AST budgets reject deep object input before recursive Zod traversal", () => {

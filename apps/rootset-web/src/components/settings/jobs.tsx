@@ -2,7 +2,10 @@
 
 import { ProgressBar } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { browserArtifactDownloadPath } from "@rootset/web-client";
+import {
+  browserArtifactDownloadPath,
+  browserApiOrigin,
+} from "@rootset/web-client";
 import { useEffect, useRef, useState } from "react";
 import {
   databasePath,
@@ -714,21 +717,17 @@ export function ImportsSettings(props: SettingsPanelProps) {
                 });
                 const destination = new URL(
                   upload.uploadUrl,
-                  window.location.origin,
+                  browserApiOrigin(),
                 );
-                if (
-                  destination.protocol !== "https:" &&
-                  destination.origin !== window.location.origin
-                )
-                  throw new Error("The upload address must use HTTPS.");
+                if (destination.origin !== browserApiOrigin())
+                  throw new Error(
+                    "The upload address must match the API origin.",
+                  );
                 const response = await fetch(destination.href, {
                   method: upload.method ?? "PUT",
                   headers: upload.headers,
                   body: file,
-                  credentials:
-                    destination.origin === window.location.origin
-                      ? "same-origin"
-                      : "omit",
+                  credentials: "include",
                 });
                 if (!response.ok)
                   throw new Error(`Upload failed (${response.status}).`);

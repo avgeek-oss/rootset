@@ -29,6 +29,8 @@ import {
 const root = resolve(import.meta.dirname, "../../../../..");
 if (existsSync(resolve(root, ".env.test")))
   process.loadEnvFile(resolve(root, ".env.test"));
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const statePath =
   process.env.ROOTSET_BROWSER_STATE_PATH ?? "/tmp/rootset-browser-state.json";
@@ -68,7 +70,7 @@ let previousTestStart = 0;
 
 function api(page: Page): RootsetClient {
   return new RootsetClient({
-    baseUrl: `${baseURL}/api/internal/v1`,
+    baseUrl: `${apiURL}/api/internal/v1`,
     fetch: async (input, init) => {
       const response = await page.request.fetch(String(input), {
         method: init?.method ?? "GET",
@@ -87,7 +89,7 @@ function api(page: Page): RootsetClient {
 }
 
 async function assertInstallationContext(page: Page) {
-  const response = await page.request.get(`${baseURL}/api/internal/v1/context`);
+  const response = await page.request.get(`${apiURL}/api/internal/v1/context`);
   if (!response.ok())
     throw new Error(
       `The automatic installation context endpoint returned ${response.status()}.`,
@@ -276,7 +278,7 @@ test.beforeAll(async ({ browser }) => {
       if (!email || !password)
         throw new Error("Isolated browser account credentials are incomplete.");
       const signedIn = await page.request.post(
-        `${baseURL}/v1/auth/sign-in/email`,
+        `${apiURL}/v1/auth/sign-in/email`,
         {
           headers: { Origin: new URL(baseURL).origin },
           data: { email, password },

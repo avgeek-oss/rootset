@@ -7,7 +7,7 @@ import {
 } from "./index";
 
 describe("browser transport", () => {
-  it("builds browser artifact downloads within the session-only adapter and rejects path substitution", () => {
+  it("builds API-hosted browser artifact downloads and rejects path substitution", () => {
     const orgId = "01K6DVWSFS9MR156YW1H5XZ440";
     const artifactId = "01K6DVWSFS9MR156YW1H5XZ441";
     expect(browserArtifactDownloadPath(orgId, artifactId)).toBe(
@@ -17,6 +17,16 @@ describe("browser transport", () => {
       browserArtifactDownloadPath("//other.test", artifactId),
     ).toThrow();
     expect(() => browserArtifactDownloadPath(orgId, "../another")).toThrow();
+    vi.stubGlobal("window", {
+      __ROOTSET_API_ORIGIN: "https://rootset-api.avgeek.ltd",
+    });
+    try {
+      expect(browserArtifactDownloadPath(orgId, artifactId)).toBe(
+        `https://rootset-api.avgeek.ltd/api/internal/v1/orgs/${orgId}/artifacts/${artifactId}/download`,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
   it("sends cookie requests and preserves query read classification", async () => {
     const fetcher = vi
@@ -30,7 +40,7 @@ describe("browser transport", () => {
       body: { limit: 200 },
     });
     const [, options] = fetcher.mock.calls[0]!;
-    expect(options.credentials).toBe("same-origin");
+    expect(options.credentials).toBe("include");
     expect(options.headers.has("Idempotency-Key")).toBe(false);
   });
   it("preserves typed conflict details", async () => {

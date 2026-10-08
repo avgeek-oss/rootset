@@ -4,7 +4,6 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["ROOTSET_API_INTERNAL_URL"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "typecheck": { "dependsOn": ["^typecheck"] },

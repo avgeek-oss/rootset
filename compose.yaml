@@ -1,7 +1,8 @@
 name: ${ROOTSET_COMPOSE_PROJECT:-rootset}
 
 x-runtime-environment: &runtime-environment
-  ROOTSET_BASE_URL: ${ROOTSET_BASE_URL:?Run pnpm setup:env and configure the installation}
+  ROOTSET_API_URL: ${ROOTSET_API_URL:?Run pnpm setup:env and configure the API origin}
+  ROOTSET_WEB_URL: ${ROOTSET_WEB_URL:?Run pnpm setup:env and configure the web origin}
   ROOTSET_PORT: 4310
   ROOTSET_HOST: 0.0.0.0
   ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?Application role URL required}
@@ -193,6 +194,8 @@ services:
     environment:
       <<: *runtime-environment
       NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
+    ports:
+      - "${ROOTSET_API_BIND:-127.0.0.1}:${ROOTSET_API_PORT:-4310}:4310"
     healthcheck:
       test:
         [
@@ -216,7 +219,6 @@ services:
       target: web
       secrets: [npmrc]
       args:
-        ROOTSET_API_INTERNAL_URL: http://api:4310
         ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
     init: true
     restart: unless-stopped
@@ -228,13 +230,10 @@ services:
     environment:
       PORT: 4300
       HOSTNAME: 0.0.0.0
-      ROOTSET_API_INTERNAL_URL: http://api:4310
+      ROOTSET_PUBLIC_API_ORIGIN: ${ROOTSET_API_URL:?Public API origin required}
       NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
     ports:
       - "${ROOTSET_WEB_BIND:-127.0.0.1}:${ROOTSET_WEB_PORT:-4300}:4300"
-    depends_on:
-      api:
-        condition: service_healthy
     healthcheck:
       test:
         [

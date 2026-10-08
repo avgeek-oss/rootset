@@ -63,7 +63,7 @@ export interface AdmissionLimits {
 export interface ApiDependencies {
   pool: Pool;
   admissionPool?: Pool;
-  config: { baseURL: string; version?: string };
+  config: { baseURL: string; webURL?: string; version?: string };
   core: {
     execute(
       id: string,
@@ -241,6 +241,7 @@ export function createApp(deps: ApiDependencies) {
       Variables: { requestId: string; operationId: string; errorCode: string };
     }>(),
     origin = new URL(deps.config.baseURL).origin,
+    webOrigin = new URL(deps.config.webURL ?? deps.config.baseURL).origin,
     admission = new Admission(deps.admissionPool ?? deps.pool),
     mcpReads = new McpReadRegistry();
   const publicSpec = buildOpenAPI(origin),
@@ -347,9 +348,27 @@ export function createApp(deps: ApiDependencies) {
     c.header("X-Request-Id", requestId);
     c.header("X-Content-Type-Options", "nosniff");
     c.header("Referrer-Policy", "no-referrer");
+    if (c.req.header("Origin") === webOrigin) {
+      c.header("Access-Control-Allow-Origin", webOrigin);
+      c.header("Access-Control-Allow-Credentials", "true");
+      c.header(
+        "Access-Control-Allow-Methods",
+        "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS",
+      );
+      c.header(
+        "Access-Control-Allow-Headers",
+        "Accept, Authorization, Content-Type, Idempotency-Key, If-Match, X-Rootset-Action-ID, X-Rootset-Organisation-Id",
+      );
+      c.header("Access-Control-Expose-Headers", "X-Request-ID");
+      c.header("Vary", "Origin");
+      if (c.req.method === "OPTIONS") return c.body(null, 204);
+    }
     if (
-      c.req.path.startsWith("/.well-known/") ||
-      ["/oauth/token", "/oauth/revoke", "/oauth/register"].includes(c.req.path)
+      c.req.header("Origin") !== webOrigin &&
+      (c.req.path.startsWith("/.well-known/") ||
+        ["/oauth/token", "/oauth/revoke", "/oauth/register"].includes(
+          c.req.path,
+        ))
     ) {
       c.header("Access-Control-Allow-Origin", "*");
       c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -365,6 +384,12 @@ export function createApp(deps: ApiDependencies) {
         });
     }
     await next();
+    if (c.req.header("Origin") === webOrigin) {
+      c.header("Access-Control-Allow-Origin", webOrigin);
+      c.header("Access-Control-Allow-Credentials", "true");
+      c.header("Access-Control-Expose-Headers", "X-Request-ID");
+      c.header("Vary", "Origin");
+    }
   });
   app.onError((error, c) => {
     const failure = normaliseTransportError(error);
@@ -485,7 +510,7 @@ export function createApp(deps: ApiDependencies) {
     ["GET", "PUT"],
     "/api/internal/v1/view-preferences/:tableId",
     async (c) => {
-      if (c.req.method === "PUT") assertBrowserOrigin(c.req.raw, origin);
+      if (c.req.method === "PUT") assertBrowserOrigin(c.req.raw, webOrigin);
       const actor = await authenticate(deps, c.req.raw, true),
         operation = operations.find(
           (op) =>
@@ -552,7 +577,7 @@ export function createApp(deps: ApiDependencies) {
       c.set("operationId", "uploadArtifactBytes");
       const browser =
         !c.req.header("Authorization") && Boolean(c.req.header("Cookie"));
-      if (browser) assertBrowserOrigin(c.req.raw, origin);
+      if (browser) assertBrowserOrigin(c.req.raw, webOrigin);
       const actor = browser
         ? await authenticate(deps, c.req.raw, true)
         : await authenticateArtifactBearer(deps, c.req.raw);
@@ -660,12 +685,12 @@ export function createApp(deps: ApiDependencies) {
       json({ error: "invalid_request" }, 404),
   );
   app.post("/api/internal/v1/account-actions/:id/approve", async (c) => {
-    assertBrowserOrigin(c.req.raw, origin);
+    assertBrowserOrigin(c.req.raw, webOrigin);
     const actor = await authenticate(deps, c.req.raw, true);
     return json(await deps.identity.approveAction(c.req.param("id"), actor));
   });
   app.post("/api/internal/v1/tables/:id/windows/query", async (c) => {
-    assertBrowserOrigin(c.req.raw, origin);
+    assertBrowserOrigin(c.req.raw, webOrigin);
     const actor = await authenticate(deps, c.req.raw, true),
       decoded = await readJson(c.req.raw),
       numericLexemes = numberLexemes(decoded);
@@ -776,7 +801,7 @@ export function createApp(deps: ApiDependencies) {
       );
       app.on(operation.httpMethod, path, async (c) => {
         if (internal && !operation.readOnly)
-          assertBrowserOrigin(c.req.raw, origin);
+          assertBrowserOrigin(c.req.raw, webOrigin);
         const actor = await authenticate(deps, c.req.raw, internal),
           requestId = c.get("requestId");
         const pathInput: Record<string, unknown> = {};
@@ -1238,9 +1263,9 @@ export function createApp(deps: ApiDependencies) {
   });
   return app;
 }
-function assertBrowserOrigin(request: Request, origin: string) {
+function assertBrowserOrigin(request: Request, webOrigin: string) {
   if (
-    request.headers.get("origin") !== origin ||
+    request.headers.get("origin") !== webOrigin ||
     request.headers.get("sec-fetch-site") === "cross-site"
   )
     throw new RootsetError(

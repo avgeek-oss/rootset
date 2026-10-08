@@ -17,6 +17,19 @@ const objectStorageUrl = url.refine(
   (value) => hasProtocol(value, ["http:", "https:"]),
   "Use http:// or https:// for the S3 endpoint",
 );
+const publicOrigin = url.refine((value) => {
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.origin === value &&
+      (parsed.protocol === "https:" ||
+        (parsed.protocol === "http:" &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)))
+    );
+  } catch {
+    return false;
+  }
+}, "Use an HTTPS or loopback HTTP origin");
 const keyringSchema = z.record(
   z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
   z.string().regex(/^[a-fA-F0-9]{64}$/),
@@ -24,18 +37,8 @@ const keyringSchema = z.record(
 const invalidKeyringMessage =
   "ROOTSET_ENCRYPTION_KEYS must be a JSON object mapping 1-64 character alphanumeric, underscore or hyphen key IDs to 64 hexadecimal characters";
 const schema = z.object({
-  ROOTSET_BASE_URL: url.refine((value) => {
-    try {
-      const u = new URL(value);
-      return (
-        u.protocol === "https:" ||
-        (u.protocol === "http:" &&
-          ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname))
-      );
-    } catch {
-      return false;
-    }
-  }, "Use HTTPS or loopback HTTP"),
+  ROOTSET_API_URL: publicOrigin,
+  ROOTSET_WEB_URL: publicOrigin,
   ROOTSET_DATABASE_URL: databaseUrl,
   ROOTSET_DDL_DATABASE_URL: databaseUrl,
   ROOTSET_IDENTITY_DATABASE_URL: databaseUrl,
@@ -111,7 +114,8 @@ export function loadConfig(
     ]),
   );
   return {
-    baseURL: v.ROOTSET_BASE_URL,
+    baseURL: new URL(v.ROOTSET_API_URL).origin,
+    webURL: new URL(v.ROOTSET_WEB_URL).origin,
     databaseURL: v.ROOTSET_DATABASE_URL,
     ddlDatabaseURL: v.ROOTSET_DDL_DATABASE_URL,
     identityDatabaseURL: v.ROOTSET_IDENTITY_DATABASE_URL,

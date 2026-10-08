@@ -5,11 +5,13 @@ import type {
   OperatorRepairIntent,
 } from "@rootset/contracts";
 import type { z } from "zod";
-import { RootsetClient } from "@rootset/web-client";
+import { RootsetClient, browserApiOrigin } from "@rootset/web-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveSettingsOperation } from "./requests";
 
-const client = new RootsetClient({ baseUrl: "/api/internal/v1" });
+const client = new RootsetClient({
+  baseUrl: () => `${browserApiOrigin()}/api/internal/v1`,
+});
 
 export interface AccountActionTicket {
   id: string;

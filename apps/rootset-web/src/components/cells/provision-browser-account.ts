@@ -5,6 +5,9 @@ import { parseEnv } from "node:util";
 import { request, type APIRequestContext } from "@playwright/test";
 import type { BrowserDatabaseFixture } from "./browser-fixture";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const root = resolve(import.meta.dirname, "../../../../..");
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const mailboxURL =
@@ -40,7 +43,7 @@ async function authenticate(
   context: APIRequestContext,
   credentials: Credentials,
 ): Promise<boolean> {
-  const signedIn = await context.post(`${baseURL}/v1/auth/sign-in/email`, {
+  const signedIn = await context.post(`${apiURL}/v1/auth/sign-in/email`, {
     data: {
       email: credentials.ROOTSET_TEST_OWNER_EMAIL,
       password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
@@ -128,7 +131,7 @@ async function findVerificationCode(email: string): Promise<string> {
 async function assertInstallationContext(
   context: APIRequestContext,
 ): Promise<void> {
-  const response = await context.get(`${baseURL}/api/internal/v1/context`);
+  const response = await context.get(`${apiURL}/api/internal/v1/context`);
   if (!response.ok())
     throw new ProvisionError(
       `The isolated account could not enter the fixture installation (${response.status()}).`,
@@ -207,7 +210,7 @@ async function main() {
         );
       await assertInstallationContext(inviter);
       const pending = await inviter.get(
-        `${baseURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
+        `${apiURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
       );
       if (!pending.ok())
         throw new ProvisionError(
@@ -224,7 +227,7 @@ async function main() {
         )
       ) {
         const response = await inviter.post(
-          `${baseURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
+          `${apiURL}/api/internal/v1/orgs/${fixture.orgId}/invitations`,
           {
             headers: { "Idempotency-Key": randomUUID() },
             data: {
@@ -246,12 +249,9 @@ async function main() {
     if (!invitation)
       throw new ProvisionError("The invitation link is missing.");
     const id = invitation.pathname.split("/").at(-1);
-    const begun = await own.post(
-      `${baseURL}/v1/auth/invitations/${id}/verify`,
-      {
-        data: {},
-      },
-    );
+    const begun = await own.post(`${apiURL}/v1/auth/invitations/${id}/verify`, {
+      data: {},
+    });
     if (!begun.ok())
       throw new ProvisionError(
         `The invitation verification endpoint returned ${begun.status()}.`,
@@ -263,7 +263,7 @@ async function main() {
     const code = await findVerificationCode(
       credentials.ROOTSET_TEST_OWNER_EMAIL,
     );
-    const proof = await own.post(`${baseURL}/v1/auth/invitations/${id}/code`, {
+    const proof = await own.post(`${apiURL}/v1/auth/invitations/${id}/code`, {
       data: { name: "Cell editor verification", code },
     });
     if (!proof.ok())
@@ -272,7 +272,7 @@ async function main() {
       );
     const { setupToken } = (await proof.json()) as { setupToken: string };
     const accepted = await own.post(
-      `${baseURL}/v1/auth/invitations/${id}/signup`,
+      `${apiURL}/v1/auth/invitations/${id}/signup`,
       {
         data: { setupToken, password: credentials.ROOTSET_TEST_OWNER_PASSWORD },
       },

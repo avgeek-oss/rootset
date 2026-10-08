@@ -37,6 +37,13 @@ encrypted recovery copy. Open `http://localhost:4300`, claim setup with the
 bootstrap secret, and establish the first Admin and the installation's single
 organisation. Local email is captured at `http://localhost:8025`.
 
+The browser calls `http://localhost:4310` directly for authentication, REST,
+OAuth, MCP and artifact transfer. For HTTPS routing, configure
+`ROOTSET_WEB_URL=https://rootset.avgeek.ltd` and
+`ROOTSET_API_URL=https://rootset-api.avgeek.ltd`. The API owns the host-only
+browser session cookie and accepts credentialed requests from the exact UI
+origin.
+
 V1 has one fresh-install schema, [0001_baseline.sql](packages/database/migrations/0001_baseline.sql).
 It can be regenerated before V1 release. An earlier prelaunch database is not an
 upgrade target: startup must refuse its incompatible ledger without changing data.

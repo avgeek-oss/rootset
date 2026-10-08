@@ -22,14 +22,16 @@ import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
-import { ApiError, RootsetClient } from "@rootset/web-client";
+import { ApiError, RootsetClient, browserApiOrigin } from "@rootset/web-client";
 import { PreferencesSchema } from "@rootset/contracts";
 import { authClient } from "../lib/auth-client";
 import { authFailure } from "../lib/auth-failure";
 import { setupPreferenceOptions } from "../lib/date-time-options";
 import { AuthBrand, AuthFrame, authTextActionClassName } from "./auth-frame";
 
-const publicApi = new RootsetClient({ baseUrl: "/v1" });
+const publicApi = new RootsetClient({
+  baseUrl: () => `${browserApiOrigin()}/v1`,
+});
 const back = () => window.location.assign("/login");
 const secretFields = [
   {

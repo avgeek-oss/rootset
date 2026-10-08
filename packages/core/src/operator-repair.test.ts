@@ -45,6 +45,7 @@ test(
     const runtime = await createRuntime({
       ...loadConfig(),
       baseURL: "http://localhost:6313",
+      webURL: "http://localhost:6313",
       databaseURL: fixture.app.options.connectionString!,
       ddlDatabaseURL: fixture.ddl.options.connectionString!,
       identityDatabaseURL: fixture.identity.options.connectionString!,

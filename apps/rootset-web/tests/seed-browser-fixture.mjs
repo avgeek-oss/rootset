@@ -3,20 +3,26 @@ import { chromium } from "@playwright/test";
 import { writeFile, mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const browser = await chromium.launch();
 const context = await browser.newContext({
   storageState: "/tmp/rootset-browser-state.json",
   baseURL: "http://localhost:4300",
 });
 async function call(method, path, input) {
-  const response = await context.request.fetch(`/api/internal/v1${path}`, {
-    method,
-    ...(input ? { data: input } : {}),
-    headers: {
-      Origin: "http://localhost:4300",
-      "Idempotency-Key": randomUUID(),
+  const response = await context.request.fetch(
+    new URL(`/api/internal/v1${path}`, apiURL).href,
+    {
+      method,
+      ...(input ? { data: input } : {}),
+      headers: {
+        Origin: "http://localhost:4300",
+        "Idempotency-Key": randomUUID(),
+      },
     },
-  });
+  );
   const result = await response.json();
   if (!response.ok())
     throw new Error(

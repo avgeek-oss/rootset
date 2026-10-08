@@ -4,6 +4,9 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { randomUUID } from "node:crypto";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const engine = process.env.ROOTSET_TEST_BROWSER ?? "chromium";
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const browser = await { chromium, webkit }[engine].launch();
@@ -31,14 +34,17 @@ if (process.env.ROOTSET_VERIFY_INITIAL_PAUSE_MS)
   );
 
 async function request(method, path, data) {
-  const response = await context.request.fetch(`/api/internal/v1${path}`, {
-    method,
-    ...(data ? { data } : {}),
-    headers: {
-      Origin: new URL(baseURL).origin,
-      "Idempotency-Key": randomUUID(),
+  const response = await context.request.fetch(
+    new URL(`/api/internal/v1${path}`, apiURL).href,
+    {
+      method,
+      ...(data ? { data } : {}),
+      headers: {
+        Origin: new URL(baseURL).origin,
+        "Idempotency-Key": randomUUID(),
+      },
     },
-  });
+  );
   const body = response.status() === 204 ? undefined : await response.json();
   if (!response.ok())
     throw new Error(
@@ -93,15 +99,18 @@ async function addRow(name) {
   ).toBeVisible();
 }
 try {
-  const signed = await context.request.post("/v1/auth/sign-in/email", {
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const signed = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
+      headers: { Origin: new URL(baseURL).origin },
     },
-    headers: { Origin: new URL(baseURL).origin },
-  });
+  );
   if (!signed.ok()) throw new Error(`QA sign-in failed (${signed.status()}).`);
-  await context.request.get("/api/internal/v1/context");
+  await context.request.get(new URL("/api/internal/v1/context", apiURL).href);
   await page.goto(baseURL);
   const suffix = randomUUID().slice(0, 8);
   await page

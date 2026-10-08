@@ -6,6 +6,9 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { performance } from "node:perf_hooks";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const execute = promisify(execFile);
 const engine = process.env.ROOTSET_TEST_BROWSER ?? "chromium";
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
@@ -58,15 +61,20 @@ const report = {
 };
 await mkdir(output, { recursive: true });
 try {
-  const login = await context.request.post("/v1/auth/sign-in/email", {
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const login = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
+      headers: { Origin: new URL(baseURL).origin },
     },
-    headers: { Origin: new URL(baseURL).origin },
-  });
+  );
   if (!login.ok()) throw new Error(`QA sign-in failed (${login.status()}).`);
-  const selected = await context.request.get("/api/internal/v1/context");
+  const selected = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   if (!selected.ok())
     throw new Error(`QA org selection failed (${selected.status()}).`);
   const start = performance.now();

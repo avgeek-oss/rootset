@@ -4,7 +4,8 @@ import { inspect } from "node:util";
 import { loadConfig } from "./config.js";
 
 const env = {
-  ROOTSET_BASE_URL: "http://localhost:4300",
+  ROOTSET_API_URL: "http://localhost:4310",
+  ROOTSET_WEB_URL: "http://localhost:4300",
   ROOTSET_DATABASE_URL: "postgres://app:test@localhost/rootset",
   ROOTSET_DDL_DATABASE_URL: "postgres://ddl:test@localhost/rootset",
   ROOTSET_IDENTITY_DATABASE_URL: "postgres://identity:test@localhost/rootset",
@@ -31,11 +32,25 @@ test("configuration requires distinct explicit connections and persistent keys",
     loadConfig({ ...env, ROOTSET_IDENTITY_DATABASE_URL: undefined }),
   );
   assert.throws(() =>
-    loadConfig({ ...env, ROOTSET_BASE_URL: "http://rootset.example" }),
+    loadConfig({ ...env, ROOTSET_API_URL: "http://rootset.example" }),
+  );
+  assert.throws(() =>
+    loadConfig({ ...env, ROOTSET_API_URL: "https://rootset.example/path" }),
+  );
+  assert.throws(() =>
+    loadConfig({ ...env, ROOTSET_WEB_URL: "https://user@rootset.example" }),
   );
   assert.equal(
-    loadConfig({ ...env, ROOTSET_BASE_URL: "https://rootset.example" }).baseURL,
+    loadConfig({ ...env, ROOTSET_API_URL: "https://rootset.example" }).baseURL,
     "https://rootset.example",
+  );
+  assert.equal(
+    loadConfig({ ...env, ROOTSET_WEB_URL: "https://rootset.avgeek.ltd" })
+      .webURL,
+    "https://rootset.avgeek.ltd",
+  );
+  assert.throws(() =>
+    loadConfig({ ...env, ROOTSET_WEB_URL: "http://rootset.avgeek.ltd" }),
   );
 });
 test("key rotation supports a JSON-only retained keyring and rejects a missing active key", () => {
@@ -110,10 +125,10 @@ test("invalid encryption key maps fail without exposing input or parser causes",
 test("invalid base URLs report validation without the URL parser input", () => {
   const sentinel = "PRIVATE_BASE_URL_SENTINEL";
   assert.throws(
-    () => loadConfig({ ...env, ROOTSET_BASE_URL: sentinel }),
+    () => loadConfig({ ...env, ROOTSET_API_URL: sentinel }),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /ROOTSET_BASE_URL/);
+      assert.match(error.message, /ROOTSET_API_URL/);
       assert.equal(inspect(error).includes(sentinel), false);
       assert.equal(String(error).includes(sentinel), false);
       assert.equal(Object.hasOwn(error, "input"), false);

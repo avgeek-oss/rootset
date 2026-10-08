@@ -3,6 +3,9 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { randomUUID, createHash } from "node:crypto";
 import { reportError } from "./report-error.mjs";
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const engine = process.env.ROOTSET_TEST_BROWSER ?? "chromium";
 const verifyTerminal =
   process.env.ROOTSET_VERIFY_LARGE_PASTE_TERMINAL === "true";
@@ -43,14 +46,17 @@ await page.addInitScript(() =>
   ),
 );
 async function call(method, path, data) {
-  const response = await context.request.fetch(`/api/internal/v1${path}`, {
-    method,
-    ...(data ? { data } : {}),
-    headers: {
-      Origin: new URL(baseURL).origin,
-      "Idempotency-Key": randomUUID(),
+  const response = await context.request.fetch(
+    new URL(`/api/internal/v1${path}`, apiURL).href,
+    {
+      method,
+      ...(data ? { data } : {}),
+      headers: {
+        Origin: new URL(baseURL).origin,
+        "Idempotency-Key": randomUUID(),
+      },
     },
-  });
+  );
   const body = response.status() === 204 ? undefined : await response.json();
   if (!response.ok())
     throw new Error(
@@ -61,18 +67,25 @@ async function call(method, path, data) {
 try {
   expect(
     (
-      await context.request.post("/v1/auth/sign-in/email", {
-        data: {
-          email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-          password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      await context.request.post(
+        new URL("/v1/auth/sign-in/email", apiURL).href,
+        {
+          data: {
+            email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+            password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+          },
+          headers: { Origin: new URL(baseURL).origin },
         },
-        headers: { Origin: new URL(baseURL).origin },
-      })
+      )
     ).ok(),
   ).toBe(true);
-  expect((await context.request.get("/api/internal/v1/context")).ok()).toBe(
-    true,
-  );
+  expect(
+    (
+      await context.request.get(
+        new URL("/api/internal/v1/context", apiURL).href,
+      )
+    ).ok(),
+  ).toBe(true);
   const root = `/orgs/${fixture.orgId}/databases/${fixture.databaseId}`;
   const fields = Array.from({ length: 200 }, (_, i) => ({
     name: `${String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26))}_${"K".repeat(61)}`,

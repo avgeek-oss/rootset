@@ -57,6 +57,7 @@ type Client = {
 };
 export interface OAuthConfig {
   baseURL: string;
+  webURL?: string;
   scopes: readonly string[];
   resolveSession: (request: Request) => Promise<Actor | null>;
   refreshActor: (actor: Actor) => Promise<Actor | null>;
@@ -447,7 +448,10 @@ export class OAuthService {
     return actor;
   }
   private originCheck(request: Request) {
-    if (request.headers.get("origin") !== this.origin)
+    if (
+      request.headers.get("origin") !==
+      new URL(this.config.webURL ?? this.origin).origin
+    )
       throw new OAuthError("access_denied", "Browser origin is required.", 403);
   }
   private grantActor(actor: Actor, orgId: string, scopes: string[]): Actor {
@@ -667,7 +671,7 @@ export class OAuthService {
       ],
     );
     return Response.redirect(
-      `${this.origin}/oauth/consent?requestId=${encodeURIComponent(requestId)}`,
+      `${this.config.webURL ?? this.origin}/oauth/consent?requestId=${encodeURIComponent(requestId)}`,
       302,
     );
   }

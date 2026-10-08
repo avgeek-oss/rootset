@@ -298,8 +298,7 @@ export function generateOpenApi(
             "422": "Typed validation failure.",
             "429": "Rate, concurrency or admission limit.",
             "500": "Redacted internal failure.",
-            "502":
-              "The configured API upstream is unavailable at the same-origin web transport.",
+            "502": "A required upstream service is unavailable.",
             "503":
               "A required service is unavailable. Check service configuration before retrying.",
           } as Record<string, string>
@@ -392,7 +391,7 @@ export function generateOpenApi(
       summary:
         "Stream the exact bytes for an authorised prepared import artifact.",
       description:
-        "Use the URL, PUT method and content-type header from prepareImportUpload. The server verifies current target access, declared byte length and any supplied checksum; the upload is bounded to 128 MiB. This bound artifact upload accepts the MCP-audience OAuth token used to prepare the upload, with current imports:write scope and exact artifact organisation and table access checked again. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes require an API-audience credential. Browser sessions also require a same-origin request and CSRF proof. JSON body limits and MCP result limits do not apply to this binary handoff.",
+        "Use the API-origin URL, PUT method and content-type header from prepareImportUpload. The server verifies current target access, declared byte length and any supplied checksum; the upload is bounded to 128 MiB. This bound artifact upload accepts the MCP-audience OAuth token used to prepare the upload, with current imports:write scope and exact artifact organisation and table access checked again. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes require an API-audience credential. Browser sessions also require the configured UI Origin and CSRF proof. JSON body limits and MCP result limits do not apply to this binary handoff.",
       parameters: [
         {
           name: "orgId",
@@ -556,7 +555,7 @@ export function generateOpenApi(
         summary:
           "Stream verified artifact bytes using the current browser session.",
         description:
-          "Browser clients remap the validated same-origin getArtifact download path to this session-only adapter. It uses the same original artifact-purpose, requester and current target authority checks and the same integrity-verified stream as the public handoff. Bearer API or OAuth tokens are not accepted here. This GET only reads artifact bytes and requires no mutation CSRF proof. Public /v1 binary downloads remain bearer-only, including the explicit bound MCP-audience handoff.",
+          "Browser clients use the API-origin session-only download path. It uses the same original artifact-purpose, requester and current target authority checks and the same integrity-verified stream as the public handoff. Bearer API or OAuth tokens are not accepted here. This GET only reads artifact bytes and requires no mutation CSRF proof. Public /v1 binary downloads remain bearer-only, including the explicit bound MCP-audience handoff.",
         security: [{ browserSession: [] }],
         "x-rootset-mcp-audience-handoff": false,
         "x-rootset-browser-session-only": true,

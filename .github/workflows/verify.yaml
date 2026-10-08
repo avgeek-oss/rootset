@@ -21,8 +21,9 @@ jobs:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
       TURBO_TELEMETRY_DISABLED: "1"
-      ROOTSET_BASE_URL: http://127.0.0.1:4300
-      ROOTSET_API_INTERNAL_URL: http://127.0.0.1:4310
+      ROOTSET_WEB_URL: http://127.0.0.1:4300
+      ROOTSET_API_URL: http://127.0.0.1:4310
+      ROOTSET_PUBLIC_API_ORIGIN: http://127.0.0.1:4310
       ROOTSET_PORT: "4310"
       ROOTSET_DATABASE_URL: postgres://rootset_app:fixture-app@127.0.0.1:5432/rootset
       ROOTSET_DDL_DATABASE_URL: postgres://rootset_ddl:fixture-ddl@127.0.0.1:5432/rootset

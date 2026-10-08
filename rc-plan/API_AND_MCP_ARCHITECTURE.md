@@ -33,8 +33,10 @@ and MCP schemas carry that bound; data-resource name contracts keep their own
 limits. Account email addresses are capped at 320 characters and new passwords
 at 15–1,024 characters.
 
-Browser mutations enforce the configured Origin and cookie/CSRF policy. Expose
-one HTTPS origin for remote use; loopback HTTP is the local exception. OAuth
+Browser mutations enforce the exact UI Origin and cookie/CSRF policy at the
+public API host. Expose separate HTTPS UI and API origins for remote use;
+loopback HTTP is the local exception. API sessions use host-only Secure HttpOnly
+cookies and exact credentialed CORS. OAuth
 retains PKCE, exact redirect/state/issuer/audience/resource checks, single-use
 codes, refresh rotation/reuse detection and protected metadata discovery.
 

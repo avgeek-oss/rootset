@@ -4,6 +4,9 @@ import { parseEnv } from "node:util";
 import { randomUUID } from "node:crypto";
 import { reportError } from "./report-error.mjs";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const engine = process.env.ROOTSET_TEST_BROWSER ?? "chromium";
 const before = process.env.ROOTSET_VERIFY_BEFORE_FIX === "true";
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
@@ -32,14 +35,17 @@ const report = {
 };
 page.on("pageerror", (e) => report.pageErrors.push(reportError(e)));
 async function call(method, path, data) {
-  const response = await context.request.fetch(`/api/internal/v1${path}`, {
-    method,
-    ...(data ? { data } : {}),
-    headers: {
-      Origin: new URL(baseURL).origin,
-      "Idempotency-Key": randomUUID(),
+  const response = await context.request.fetch(
+    new URL(`/api/internal/v1${path}`, apiURL).href,
+    {
+      method,
+      ...(data ? { data } : {}),
+      headers: {
+        Origin: new URL(baseURL).origin,
+        "Idempotency-Key": randomUUID(),
+      },
     },
-  });
+  );
   const body = await response.json();
   if (!response.ok())
     throw new Error(
@@ -48,17 +54,24 @@ async function call(method, path, data) {
   return body;
 }
 try {
-  const login = await context.request.post("/v1/auth/sign-in/email", {
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const login = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
+      headers: { Origin: new URL(baseURL).origin },
     },
-    headers: { Origin: new URL(baseURL).origin },
-  });
-  expect(login.ok()).toBe(true);
-  expect((await context.request.get("/api/internal/v1/context")).ok()).toBe(
-    true,
   );
+  expect(login.ok()).toBe(true);
+  expect(
+    (
+      await context.request.get(
+        new URL("/api/internal/v1/context", apiURL).href,
+      )
+    ).ok(),
+  ).toBe(true);
   const root = `/orgs/${fixture.orgId}/databases/${fixture.databaseId}`;
   const created = await call("POST", `${root}/tables`, {
     name: `Integer precision ${randomUUID().slice(0, 8)}`,

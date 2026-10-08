@@ -5,6 +5,9 @@ import { parseEnv } from "node:util";
 import { randomBytes } from "node:crypto";
 
 const root = new URL("../../../", import.meta.url);
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+const webURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const config = parseEnv(await readFile(new URL(".env.test", root), "utf8"));
 const credentialsFile = new URL("../.env.browser-test", import.meta.url);
 let credentials;
@@ -35,10 +38,10 @@ await mkdir(new URL("../test-results/browser", import.meta.url), {
   recursive: true,
 });
 try {
-  const setup = await fetch("http://localhost:4300/v1/setup").then((response) =>
+  const setup = await fetch(`${apiURL}/v1/setup`).then((response) =>
     response.json(),
   );
-  await page.goto("http://localhost:4300/");
+  await page.goto(webURL);
   if (!setup.claimed) {
     await page.getByRole("heading", { name: "Set up Rootset" }).waitFor();
     await page.screenshot({

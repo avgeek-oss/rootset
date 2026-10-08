@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --port 4300",
-    "build": "next build",
+    "build": "ROOTSET_PUBLIC_API_ORIGIN=${ROOTSET_PUBLIC_API_ORIGIN:-http://localhost:4310} next build",
     "start": "next start --port 4300",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

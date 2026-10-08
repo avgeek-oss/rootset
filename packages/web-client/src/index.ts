@@ -1,10 +1,23 @@
 import { getOperation, IdSchema } from "@rootset/contracts";
 
+declare global {
+  interface Window {
+    __ROOTSET_API_ORIGIN?: string;
+  }
+}
+
+export function browserApiOrigin(): string {
+  if (typeof window === "undefined") return "";
+  const origin = window.__ROOTSET_API_ORIGIN;
+  if (!origin) throw new Error("The public API origin is not configured.");
+  return origin;
+}
+
 export function browserArtifactDownloadPath(
   orgId: string,
   artifactId: string,
 ): string {
-  return `/api/internal/v1/orgs/${IdSchema.parse(orgId)}/artifacts/${IdSchema.parse(artifactId)}/download`;
+  return `${browserApiOrigin()}/api/internal/v1/orgs/${IdSchema.parse(orgId)}/artifacts/${IdSchema.parse(artifactId)}/download`;
 }
 
 export interface RequestOptions {
@@ -42,11 +55,14 @@ export class ApiError extends Error {
 }
 
 export class RootsetClient {
-  private readonly baseUrl: string;
+  private readonly baseUrl: string | (() => string);
   private readonly fetcher: typeof fetch;
 
-  constructor(options: { baseUrl?: string; fetch?: typeof fetch } = {}) {
-    this.baseUrl = (options.baseUrl ?? "/api/internal/v1").replace(/\/$/, "");
+  constructor(
+    options: { baseUrl?: string | (() => string); fetch?: typeof fetch } = {},
+  ) {
+    this.baseUrl =
+      options.baseUrl ?? (() => `${browserApiOrigin()}/api/internal/v1`);
     this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
@@ -119,14 +135,16 @@ export class RootsetClient {
     }
     let response: Response;
     try {
-      response = await this.fetcher(`${this.baseUrl}${path}`, {
+      const baseUrl =
+        typeof this.baseUrl === "function" ? this.baseUrl() : this.baseUrl;
+      response = await this.fetcher(`${baseUrl.replace(/\/$/, "")}${path}`, {
         method,
         headers,
         ...(options.body !== undefined
           ? { body: JSON.stringify(options.body) }
           : {}),
         ...(options.signal ? { signal: options.signal } : {}),
-        credentials: "same-origin",
+        credentials: "include",
         cache: "no-store",
       });
     } catch (error) {

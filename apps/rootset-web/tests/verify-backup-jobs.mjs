@@ -3,6 +3,9 @@ import { chromium, expect } from "@playwright/test";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { randomUUID } from "node:crypto";
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const output = new URL("../test-results/browser/", import.meta.url);
 const fixture = JSON.parse(
@@ -27,7 +30,9 @@ const report = {
 };
 page.on("pageerror", (error) => report.pageErrors.push(reportError(error)));
 async function get(path) {
-  const response = await context.request.get(`/api/internal/v1${path}`);
+  const response = await context.request.get(
+    new URL(`/api/internal/v1${path}`, apiURL).href,
+  );
   if (!response.ok()) throw new Error(`GET${path} HTTP${response.status()}`);
   return response.json();
 }
@@ -52,13 +57,16 @@ async function terminal(id) {
 }
 await mkdir(output, { recursive: true });
 try {
-  const signed = await context.request.post("/v1/auth/sign-in/email", {
-    headers: { Origin: baseURL },
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const signed = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      headers: { Origin: baseURL },
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
     },
-  });
+  );
   expect(signed.ok()).toBe(true);
   await page.goto(
     `/settings/backups?organisationId=${fixture.orgId}&databaseId=${fixture.databaseId}`,

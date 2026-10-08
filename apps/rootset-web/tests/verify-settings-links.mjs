@@ -3,6 +3,9 @@ import { chromium, expect } from "@playwright/test";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const output = new URL("../test-results/browser/", import.meta.url);
 const fixture = JSON.parse(
@@ -53,14 +56,18 @@ try {
   await expect(
     page.locator(".settings-content [role=alert]").filter({ hasText: /\S/ }),
   ).toHaveCount(0);
-  const current = await context.request.get("/api/internal/v1/context");
+  const current = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   expect((await current.json()).organisation.id).toBe(fixture.orgId);
   report.checks.push({
     name: "Signed-out backup email link survives real sign-in and opens its authorised organisation and database",
     status: "passed",
     path,
   });
-  const selected = await context.request.get("/api/internal/v1/context");
+  const selected = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   expect(selected.ok()).toBe(true);
   await page.goto(path);
   await expect(page.locator(".settings-header h1")).toHaveText(
@@ -70,7 +77,9 @@ try {
   await expect(
     page.locator(`main nav a[href="/?databaseId=${fixture.databaseId}"]`),
   ).toHaveText("Tables");
-  const switched = await context.request.get("/api/internal/v1/context");
+  const switched = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   expect((await switched.json()).organisation.id).toBe(fixture.orgId);
   await expect(
     page.locator(".settings-content [role=alert]").filter({ hasText: /\S/ }),
@@ -86,8 +95,13 @@ try {
     "different installation organisation",
   );
   expect(
-    (await (await context.request.get("/api/internal/v1/context")).json())
-      .organisation.id,
+    (
+      await (
+        await context.request.get(
+          new URL("/api/internal/v1/context", apiURL).href,
+        )
+      ).json()
+    ).organisation.id,
   ).toBe(fixture.orgId);
   report.checks.push({
     name: "Foreign organisation deep link is refused without changing the session context",

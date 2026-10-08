@@ -100,11 +100,18 @@ checks reject the change with a retryable error. `ROOTSET_PASSWORD_VERIFY_CONCUR
 password work. Synthetic offline CI/browser fixtures set breach checking to
 `false` explicitly; that fixture exception is not a production recommendation.
 
-Serve the browser and API through the configured origin. Remote installations
-require HTTPS; plain HTTP is a loopback development exception. Configure the
-public base URL, trusted origins, secure cookies and OAuth discovery/redirect
-URLs together. Do not expose the internal API listener or local SMTP/object
-administration interfaces as public product endpoints.
+Set `ROOTSET_WEB_URL=https://rootset.avgeek.ltd` and
+`ROOTSET_API_URL=https://rootset-api.avgeek.ltd` before passkey enrollment. The
+web service receives `ROOTSET_PUBLIC_API_ORIGIN` at runtime and publishes the
+API origin in rendered HTML. Browser authentication, REST, OAuth, MCP and
+artifact traffic go directly to the API host. Route the two hostnames to web
+port 4300 and API port 4310 respectively; the shipped Caddyfile has separate
+host blocks. Remote origins require HTTPS; plain HTTP is limited to loopback.
+API sessions are host-only Secure HttpOnly cookies, credentialed CORS accepts
+the exact UI origin, passkeys bind to the UI host, and OAuth issuer/resource
+URLs use the API host. The web service starts and serves its shell even while
+the API is unavailable. Keep local SMTP/object administration interfaces off
+public listeners.
 
 ## Confirm startup
 

@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EmailConfirmation } from "@avgeek-oss/design-system";
-import { ApiError, RootsetClient } from "@rootset/web-client";
+import { ApiError, RootsetClient, browserApiOrigin } from "@rootset/web-client";
 import { AuthBrand } from "./auth-frame";
 import { readEmailChangeProof } from "../lib/email-confirmation-proof";
 
-const publicApi = new RootsetClient({ baseUrl: "/v1" });
+const publicApi = new RootsetClient({
+  baseUrl: () => `${browserApiOrigin()}/v1`,
+});
 type Status = "checking" | "ready" | "confirmed" | "unavailable";
 
 export function EmailChangeConfirmation() {

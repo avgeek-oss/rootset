@@ -4,6 +4,9 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { createHash } from "node:crypto";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const output = new URL("../test-results/browser/", import.meta.url);
 const fixture = JSON.parse(
@@ -30,13 +33,16 @@ const downloadPromise = new Promise((resolve) => {
 page.on("download", downloadResolve);
 context.on("page", (opened) => opened.on("download", downloadResolve));
 try {
-  const signed = await context.request.post("/v1/auth/sign-in/email", {
-    headers: { Origin: baseURL },
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const signed = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      headers: { Origin: baseURL },
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
     },
-  });
+  );
   expect(signed.ok()).toBe(true);
   await page.goto(
     `/settings/exports?organisationId=${fixture.orgId}&databaseId=${fixture.databaseId}&tableId=${fixture.tableId}`,
@@ -56,7 +62,10 @@ try {
     .poll(
       async () => {
         const response = await context.request.get(
-          `/api/internal/v1/orgs/${fixture.orgId}/jobs/${jobId}`,
+          new URL(
+            `/api/internal/v1/orgs/${fixture.orgId}/jobs/${jobId}`,
+            apiURL,
+          ).href,
         );
         expect(response.ok()).toBe(true);
         job = await response.json();
@@ -73,7 +82,10 @@ try {
     jobId,
   });
   const artifactResponse = await context.request.get(
-    `/api/internal/v1/orgs/${fixture.orgId}/artifacts/${job.result.artifactId}`,
+    new URL(
+      `/api/internal/v1/orgs/${fixture.orgId}/artifacts/${job.result.artifactId}`,
+      apiURL,
+    ).href,
   );
   expect(artifactResponse.ok()).toBe(true);
   const artifact = await artifactResponse.json();

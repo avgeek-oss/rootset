@@ -65,6 +65,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const config = {
       ...loadConfig(),
       baseURL,
+      webURL: baseURL,
       port: address.port,
       databaseURL: db.app.options.connectionString!,
       ddlDatabaseURL: db.ddl.options.connectionString!,

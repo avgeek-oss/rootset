@@ -4,6 +4,9 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { Readable } from "node:stream";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const output = new URL("../test-results/browser/", import.meta.url);
 const credentials = parseEnv(
@@ -29,26 +32,29 @@ const page = await context.newPage();
 const report = {
   browser: "chromium",
   source:
-    "Actual browser fetch through Rootset Next streaming PUT to PostgreSQL-bound artifact and installation object storage",
+    "Actual browser fetch directly to the public API, PostgreSQL-bound artifact and installation object storage",
   checks: [],
   pageErrors: [],
 };
 page.on("pageerror", (error) => report.pageErrors.push(reportError(error)));
 await mkdir(output, { recursive: true });
 try {
-  const signed = await context.request.post("/v1/auth/sign-in/email", {
-    headers: { Origin: baseURL },
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const signed = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      headers: { Origin: baseURL },
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
     },
-  });
+  );
   expect(signed.ok()).toBe(true);
-  await context.request.get("/api/internal/v1/context");
+  await context.request.get(new URL("/api/internal/v1/context", apiURL).href);
   await page.goto(baseURL);
   await expect(page.locator(".rootset-shell")).toBeVisible();
   const result = await page.evaluate(
-    async ({ orgId, databaseId, tableId, byteLength }) => {
+    async ({ orgId, databaseId, tableId, byteLength, apiURL }) => {
       const bytes = new Uint8Array(byteLength);
       bytes.fill(32);
       bytes.set(
@@ -60,9 +66,10 @@ try {
         .map((byte) => byte.toString(16).padStart(2, "0"))
         .join("");
       const preparedResponse = await fetch(
-        `/api/internal/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/imports/uploads`,
+        `${apiURL}/api/internal/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/imports/uploads`,
         {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
             "Idempotency-Key": crypto.randomUUID(),
@@ -75,16 +82,14 @@ try {
         throw new Error(
           `Upload preparation HTTP${preparedResponse.status}: ${prepared.error?.code}`,
         );
-      const destination = new URL(prepared.uploadUrl, location.origin);
-      if (destination.origin !== location.origin)
-        throw new Error(
-          "The prepared upload did not use the application origin.",
-        );
+      const destination = new URL(prepared.uploadUrl, apiURL);
+      if (destination.origin !== apiURL)
+        throw new Error("The prepared upload did not use the API origin.");
       const uploaded = await fetch(destination, {
         method: prepared.method,
         headers: prepared.headers,
         body: new Blob([bytes]),
-        credentials: "same-origin",
+        credentials: "include",
       });
       const uploadResult = await uploaded.json();
       if (!uploaded.ok)
@@ -92,7 +97,8 @@ try {
           `Streaming upload HTTP${uploaded.status}: ${uploadResult.error?.code}`,
         );
       const artifactResponse = await fetch(
-        `/api/internal/v1/orgs/${orgId}/artifacts/${prepared.artifactId}`,
+        `${apiURL}/api/internal/v1/orgs/${orgId}/artifacts/${prepared.artifactId}`,
+        { credentials: "include" },
       );
       const artifact = await artifactResponse.json();
       if (!artifactResponse.ok)
@@ -102,8 +108,8 @@ try {
       if (!artifact.downloadUrl)
         throw new Error("Uploaded artifact has no ready download URL.");
       const downloaded = await fetch(
-        `/api/internal/v1/orgs/${orgId}/artifacts/${prepared.artifactId}/download`,
-        { credentials: "same-origin" },
+        `${apiURL}/api/internal/v1/orgs/${orgId}/artifacts/${prepared.artifactId}/download`,
+        { credentials: "include" },
       );
       if (!downloaded.ok)
         throw new Error(`Artifact download HTTP${downloaded.status}`);
@@ -124,7 +130,7 @@ try {
         uploadOrigin: destination.origin,
       };
     },
-    { ...fixture, byteLength: requestedBytes },
+    { ...fixture, byteLength: requestedBytes, apiURL },
   );
   expect(result.byteLength).toBeGreaterThan(10 * 1024 * 1024);
   expect(result.uploadedBytes).toBe(result.byteLength);
@@ -132,78 +138,87 @@ try {
   expect(result.storedChecksum).toBe(result.checksum);
   expect(result.readbackChecksum).toBe(result.checksum);
   report.checks.push({
-    name: `${result.byteLength.toLocaleString()}-byte same-origin browser upload and authenticated download preserve exact length and SHA256`,
+    name: `${result.byteLength.toLocaleString()}-byte API-origin browser upload and authenticated download preserve exact length and SHA256`,
     status: "passed",
     ...result,
   });
-  const acceptedBatch = await page.evaluate(async ({ orgId, databaseId }) => {
-    const base = `/api/internal/v1/orgs/${orgId}/databases/${databaseId}`;
-    const created = await fetch(`${base}/tables`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": crypto.randomUUID(),
-      },
-      body: JSON.stringify({
-        name: `Request budget verification ${crypto.randomUUID().slice(0, 8)}`,
-        fields: [{ name: "PAYLOAD", type: "json" }],
-      }),
-    });
-    if (!created.ok)
-      throw new Error(`Budget fixture table HTTP${created.status}`);
-    const schema = await created.json();
-    const rowValue = "x".repeat(Math.ceil((4 * 1024 * 1024) / 100));
-    const body = JSON.stringify({
-      expectedSchemaVersion: schema.table.schemaVersion,
-      mutations: Array.from({ length: 100 }, (_, index) => ({
-        type: "create",
-        values: { PAYLOAD: { index, value: rowValue } },
-      })),
-    });
-    const committed = await fetch(
-      `${base}/tables/${schema.table.id}/rows/batch`,
-      {
+  const acceptedBatch = await page.evaluate(
+    async ({ orgId, databaseId, apiURL }) => {
+      const base = `${apiURL}/api/internal/v1/orgs/${orgId}/databases/${databaseId}`;
+      const created = await fetch(`${base}/tables`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": crypto.randomUUID(),
         },
-        body,
-      },
-    );
-    const result = await committed.json();
-    if (!committed.ok)
-      throw new Error(
-        `4MiB batch HTTP${committed.status}: ${result.error?.code}`,
+        body: JSON.stringify({
+          name: `Request budget verification ${crypto.randomUUID().slice(0, 8)}`,
+          fields: [{ label: "Payload", apiKey: "PAYLOAD", type: "json" }],
+        }),
+      });
+      if (!created.ok)
+        throw new Error(`Budget fixture table HTTP${created.status}`);
+      const schema = await created.json();
+      const rowValue = "x".repeat(Math.ceil((4 * 1024 * 1024) / 100));
+      const body = JSON.stringify({
+        expectedSchemaVersion: schema.table.schemaVersion,
+        mutations: Array.from({ length: 100 }, (_, index) => ({
+          type: "create",
+          values: { PAYLOAD: { index, value: rowValue } },
+        })),
+      });
+      const committed = await fetch(
+        `${base}/tables/${schema.table.id}/rows/batch`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          body,
+        },
       );
-    const last = result.results.at(-1);
-    const readback = await fetch(
-      `${base}/tables/${schema.table.id}/rows/${last.rowId}`,
-    );
-    if (!readback.ok)
-      throw new Error(`Budget row readback HTTP${readback.status}`);
-    const value = await readback.json();
-    return {
-      requestBytes: new TextEncoder().encode(body).byteLength,
-      committedRows: result.results.length,
-      readbackCellBytes: value.values.PAYLOAD.value.length,
-      expectedCellBytes: rowValue.length,
-      tableId: schema.table.id,
-      statusCode: committed.status,
-    };
-  }, fixture);
+      const result = await committed.json();
+      if (!committed.ok)
+        throw new Error(
+          `4MiB batch HTTP${committed.status}: ${result.error?.code}`,
+        );
+      const last = result.results.at(-1);
+      const readback = await fetch(
+        `${base}/tables/${schema.table.id}/rows/${last.rowId}`,
+        { credentials: "include" },
+      );
+      if (!readback.ok)
+        throw new Error(`Budget row readback HTTP${readback.status}`);
+      const value = await readback.json();
+      return {
+        requestBytes: new TextEncoder().encode(body).byteLength,
+        committedRows: result.results.length,
+        readbackCellBytes: value.values.PAYLOAD.value.length,
+        expectedCellBytes: rowValue.length,
+        tableId: schema.table.id,
+        statusCode: committed.status,
+      };
+    },
+    { ...fixture, apiURL },
+  );
   expect(acceptedBatch.requestBytes).toBeGreaterThanOrEqual(4 * 1024 * 1024);
   expect(acceptedBatch.requestBytes).toBeLessThan(8 * 1024 * 1024);
   expect(acceptedBatch.committedRows).toBe(100);
   expect(acceptedBatch.readbackCellBytes).toBe(acceptedBatch.expectedCellBytes);
   report.checks.push({
-    name: "Legal4MiB ordinary browser batch passes through Next, commits100 bounded JSON rows and returns exact cell readback",
+    name: "Legal4MiB ordinary browser batch reaches the API, commits100 bounded JSON rows and returns exact cell readback",
     status: "passed",
     ...acceptedBatch,
   });
   const refusalStarted = performance.now();
   const rejected = await context.request.post(
-    `/api/internal/v1/orgs/${fixture.orgId}/databases/${fixture.databaseId}/tables/${fixture.tableId}/query`,
+    new URL(
+      `/api/internal/v1/orgs/${fixture.orgId}/databases/${fixture.databaseId}/tables/${fixture.tableId}/query`,
+      apiURL,
+    ).href,
     {
       headers: { Origin: baseURL, "Content-Type": "application/json" },
       data: JSON.stringify({
@@ -216,21 +231,21 @@ try {
   const refusalMs = performance.now() - refusalStarted;
   expect(refusalMs).toBeLessThan(10000);
   report.checks.push({
-    name: "Declared9MiB ordinary JSON is refused promptly through Next and the8MiB API budget",
+    name: "Declared9MiB ordinary JSON is refused promptly by the8MiB API budget",
     status: "passed",
     statusCode: rejected.status(),
     refusalMs,
   });
   const state = await context.storageState();
   const cookie = state.cookies
-    .filter((value) => value.domain === new URL(baseURL).hostname)
+    .filter((value) => value.domain === new URL(apiURL).hostname)
     .map((value) => `${value.name}=${value.value}`)
     .join("; ");
   const prefix = JSON.stringify({ query: { limit: 1000 } });
   const chunked = await fetch(
     new URL(
       `/api/internal/v1/orgs/${fixture.orgId}/databases/${fixture.databaseId}/tables/${fixture.tableId}/query`,
-      baseURL,
+      apiURL,
     ),
     {
       method: "POST",
@@ -249,7 +264,7 @@ try {
   );
   expect(chunked.status).toBe(413);
   report.checks.push({
-    name: "Unknown-length chunked JSON containing a valid prefix is refused above8MiB instead of accepting a proxy-truncated document",
+    name: "Unknown-length chunked JSON containing a valid prefix is refused above8MiB",
     status: "passed",
     statusCode: chunked.status,
   });

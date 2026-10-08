@@ -6,6 +6,9 @@ import { parseEnv } from "node:util";
 import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
+
 const output = new URL("../test-results/browser/", import.meta.url);
 const credentials = parseEnv(
   await readFile(new URL("../.env.browser-test", import.meta.url), "utf8"),
@@ -30,7 +33,7 @@ await mkdir(output, { recursive: true });
 
 async function login(context) {
   const response = await context.request.post(
-    `${baseURL}/v1/auth/sign-in/email`,
+    `${apiURL}/v1/auth/sign-in/email`,
     {
       data: {
         email: credentials.ROOTSET_TEST_OWNER_EMAIL,
@@ -44,7 +47,7 @@ async function login(context) {
 }
 async function call(context, method, path, data) {
   const response = await context.request.fetch(
-    `${baseURL}/api/internal/v1${path}`,
+    `${apiURL}/api/internal/v1${path}`,
     {
       method,
       ...(data ? { data } : {}),
@@ -79,7 +82,9 @@ function watch(page) {
 async function assertInstallation(page) {
   await page.goto(baseURL);
   await expect(page.locator(".rootset-shell")).toBeVisible();
-  const context = await page.request.get("/api/internal/v1/context");
+  const context = await page.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   expect((await context.json()).organisation.id).toBe(fixture.orgId);
   await expect(page.locator(".organisation-name")).not.toBeEmpty();
   await expect(

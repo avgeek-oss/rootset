@@ -4,6 +4,8 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseEnv } from "node:util";
 
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
+const apiURL =
+  process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
 const output = new URL("../test-results/browser/", import.meta.url);
 const fixture = JSON.parse(
   await readFile(new URL("fixture.json", output), "utf8"),
@@ -31,15 +33,20 @@ async function signIn(context, file, role) {
   const credentials = parseEnv(
     await readFile(new URL(file, import.meta.url), "utf8"),
   );
-  const response = await context.request.post("/v1/auth/sign-in/email", {
-    headers: { Origin: baseURL },
-    data: {
-      email: credentials.ROOTSET_TEST_OWNER_EMAIL,
-      password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+  const response = await context.request.post(
+    new URL("/v1/auth/sign-in/email", apiURL).href,
+    {
+      headers: { Origin: baseURL },
+      data: {
+        email: credentials.ROOTSET_TEST_OWNER_EMAIL,
+        password: credentials.ROOTSET_TEST_OWNER_PASSWORD,
+      },
     },
-  });
+  );
   expect(response.ok()).toBe(true);
-  const current = await context.request.get("/api/internal/v1/context");
+  const current = await context.request.get(
+    new URL("/api/internal/v1/context", apiURL).href,
+  );
   expect(current.ok()).toBe(true);
   const value = await current.json();
   expect(value.organisation.id).toBe(fixture.orgId);
