@@ -74,8 +74,6 @@ test("personal keys inherit the live role without selected operation or resource
   assert.doesNotThrow(() =>
     assertAccess(actor, {
       scope: "rows:write",
-      databaseId: "any",
-      tableId: "any",
     }),
   );
   assert.doesNotThrow(() =>
@@ -106,8 +104,6 @@ test("OAuth operation consent intersects the current role on every check", () =>
   assert.doesNotThrow(() =>
     assertAccess(actor, {
       scope: "rows:write",
-      databaseId: "one",
-      tableId: "two",
     }),
   );
   assert.throws(

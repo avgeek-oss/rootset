@@ -55,7 +55,6 @@ export const mutationSet: ReadonlySet<string> = new Set([
   ...jobsMutationSet,
   ...queuedMutationSet,
 ]);
-export const recordedOps = mutationSet;
 
 export type MutationLookup =
   { found: false } | { found: true; result: unknown };

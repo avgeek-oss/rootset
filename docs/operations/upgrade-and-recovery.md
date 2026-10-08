@@ -2,7 +2,9 @@
 
 V1 is still prelaunch. It has one fresh-install baseline,
 [`0001_baseline.sql`](../../packages/database/migrations/0001_baseline.sql), which
-may be regenerated before release. There is no supported upgrade from the former
+may be regenerated before release. This includes protected-payload and artifact
+manifest formats: older prelaunch key identifiers, preference aliases and job
+input digests are not supported by the new baseline. There is no supported upgrade from the former
 migration sequence. An earlier ledger or a changed applied digest must refuse
 startup; preserve its data and use a separate empty installation. Do not edit the
 ledger, run reverse DDL or replace old volumes to make the refusal disappear.

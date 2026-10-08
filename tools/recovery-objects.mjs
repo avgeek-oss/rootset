@@ -58,7 +58,7 @@ const objects = [];
 try {
   const artifacts = (
     await pool.query(
-      "SELECT id,org_id,purpose,object_key,byte_length,ciphertext_length,checksum,ciphertext_checksum,encryption_key_id,iv,tag FROM rootset_control.artifacts WHERE state='ready' ORDER BY id",
+      "SELECT id,org_id,purpose,object_key,byte_length,ciphertext_length,checksum,ciphertext_checksum,iv,tag FROM rootset_control.artifacts WHERE state='ready' ORDER BY id",
     )
   ).rows;
   if (!artifacts.length)
@@ -126,7 +126,6 @@ try {
       plaintextSha256,
       cipherBytes,
       plainBytes,
-      keyId: artifact.encryption_key_id,
     });
   }
   await writeFile(
@@ -162,7 +161,6 @@ try {
       event: report.status,
       requiredObjects: artifacts.length,
       verifiedObjects: objects.length,
-      keyIds: report.keyIds,
     }),
   );
   if (report.status !== "installation_recovery_verified") process.exitCode = 1;

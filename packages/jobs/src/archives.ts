@@ -27,7 +27,6 @@ export interface HistoryArchiveManifest {
   artifactId: string;
   checksum: string;
   byteLength: number;
-  encryptionKeyId: string;
   fingerprint: string;
   interpretations: unknown[];
   verifiedAt: string;
@@ -319,7 +318,6 @@ export class HistoryArchiveRunner {
               artifactId: artifact.id,
               checksum: artifact.checksum!,
               byteLength: Number(artifact.byte_length),
-              encryptionKeyId: artifact.encryption_key_id!,
               fingerprint: fingerprint.digest(),
               interpretations: source.metadata.interpretations,
               verifiedAt: "",

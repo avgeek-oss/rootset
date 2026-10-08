@@ -1039,24 +1039,12 @@
             "short-month-day-year",
             "year-month-day",
             "day-month-year",
-            "month-day-year",
-            "YYYY-MM-DD",
-            "DD/MM/YYYY",
-            "MM/DD/YYYY"
-          ],
-          "description": "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs."
+            "month-day-year"
+          ]
         },
         "timeFormat": {
           "type": "string",
-          "enum": [
-            "24-hour",
-            "12-hour",
-            "24-hour-seconds",
-            "12-hour-seconds",
-            "24h",
-            "12h"
-          ],
-          "description": "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs."
+          "enum": ["24-hour", "12-hour", "24-hour-seconds", "12-hour-seconds"]
         },
         "theme": { "type": "string", "enum": ["system", "light", "dark"] },
         "idempotencyKey": {
@@ -1355,12 +1343,8 @@
                 "short-month-day-year",
                 "year-month-day",
                 "day-month-year",
-                "month-day-year",
-                "YYYY-MM-DD",
-                "DD/MM/YYYY",
-                "MM/DD/YYYY"
-              ],
-              "description": "Display date format. Legacy YYYY-MM-DD, DD/MM/YYYY and MM/DD/YYYY aliases are converted to canonical IDs."
+                "month-day-year"
+              ]
             },
             "timeFormat": {
               "type": "string",
@@ -1368,11 +1352,8 @@
                 "24-hour",
                 "12-hour",
                 "24-hour-seconds",
-                "12-hour-seconds",
-                "24h",
-                "12h"
-              ],
-              "description": "Display time format. Legacy 24h and 12h aliases are converted to canonical IDs."
+                "12-hour-seconds"
+              ]
             },
             "theme": { "type": "string", "enum": ["system", "light", "dark"] }
           },

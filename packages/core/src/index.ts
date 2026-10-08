@@ -1,5 +1,5 @@
 import {
-  getRuntimeOperation,
+  getOperation,
   limits,
   operatorsByType,
   operationMap,
@@ -21,7 +21,7 @@ import { withOrg, type Pool, type PoolClient } from "@rootset/database";
 import type { IdentityService } from "@rootset/identity";
 import {
   lookupMutation,
-  recordedOps,
+  mutationSet,
   resolveAdmissionApproval,
 } from "@rootset/idempotency";
 import type {
@@ -264,7 +264,7 @@ export class RootsetCore {
     input: Record<string, unknown>,
   ): Promise<Actor> {
     const actor = await this.options.identity.refreshActor(incoming),
-      op = getRuntimeOperation(operationId);
+      op = getOperation(operationId);
     const orgId = typeof input.orgId === "string" ? input.orgId : actor.orgId;
     let databaseId =
       typeof input.databaseId === "string" ? input.databaseId : undefined;
@@ -320,21 +320,10 @@ export class RootsetCore {
         "Retained history was not found",
         404,
       );
-    const enumeration =
-      operationId === "listDatabases" ||
-      operationId === "listTables" ||
-      operationId === "getDatabase";
     for (const scope of op.scopes) {
-      const level = scope.endsWith(":manage")
-        ? "manage"
-        : scope.endsWith(":write")
-          ? "edit"
-          : "read";
       assertAccess(actor, {
         scope,
         orgId,
-        ...(!enumeration ? { databaseId, tableId } : {}),
-        level,
         personal: op.personal,
         ...(!op.personal && op.minimumRole === "admin"
           ? { roles: ["admin"] }
@@ -365,8 +354,6 @@ export class RootsetCore {
           assertAccess(actor, {
             scope,
             orgId,
-            databaseId: replacementId,
-            level: "manage",
             roles: ["admin"],
           });
       }
@@ -437,7 +424,7 @@ export class RootsetCore {
     context: OperationContext,
     worker: boolean,
   ): Promise<unknown> {
-    const operation = getRuntimeOperation(operationId),
+    const operation = getOperation(operationId),
       input = record(operation.inputSchema.parse(value));
     if (["listRows", "queryRows"].includes(operationId))
       assertReadOpen(context);
@@ -563,7 +550,7 @@ export class RootsetCore {
       !worker &&
       !queued &&
       context.idempotencyKey &&
-      recordedOps.has(operationId)
+      mutationSet.has(operationId)
     ) {
       const replay = await withOrg(
         this.options.identityPool,

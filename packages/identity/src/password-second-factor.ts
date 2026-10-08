@@ -47,7 +47,7 @@ async function pendingPassword(ctx: AuthContext, pool: Pool, required = true) {
 }
 export async function assertAvailableUser(pool: Pool, userId: string) {
   const result = await pool.query(
-    `SELECT u.id FROM rootset_control.users u WHERE u.id=$1 AND u.email_verified AND EXISTS(SELECT 1 FROM rootset_control.memberships_for_user($1))`,
+    `SELECT u.id FROM rootset_control.users u WHERE u.id=$1 AND u.email_verified AND EXISTS(SELECT 1 FROM rootset_control.memberships WHERE user_id=$1)`,
     [userId],
   );
   if (!result.rowCount)

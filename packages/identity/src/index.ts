@@ -40,13 +40,11 @@ import {
   InvitationSchema,
   KeyCreatedSchema,
   PreferencesSchema,
-  PreferencesInputSchema,
   DateTimeSchema,
   defaultDateTimePreferences,
   dateFormatOptions,
   timeFormatOptions,
   availableTimeZones,
-  normalizePreferenceAliases,
   createDateTimeFormatter,
   RootsetError,
   ViewPreferencesSchema,
@@ -572,14 +570,14 @@ export class IdentityService {
     };
   }
   async claimSetup(value: unknown): Promise<unknown> {
-    const parsed = parse(
+    const input = parse(
       z.strictObject({
         bootstrapSecret: z.string(),
         name: nameSchema,
         email: emailSchema,
         password: passwordSchema,
         organisationName: nameSchema,
-        preferences: PreferencesInputSchema.pick({
+        preferences: PreferencesSchema.pick({
           timezone: true,
           dateFormat: true,
           timeFormat: true,
@@ -587,21 +585,6 @@ export class IdentityService {
       }),
       value,
     );
-    const input = {
-      ...parsed,
-      ...(parsed.preferences
-        ? {
-            preferences: parse(
-              PreferencesSchema.pick({
-                timezone: true,
-                dateFormat: true,
-                timeFormat: true,
-              }),
-              normalizePreferenceAliases(parsed.preferences),
-            ),
-          }
-        : {}),
-    };
     if (
       !safeEqual(
         this.hashSecret(input.bootstrapSecret),
@@ -796,7 +779,7 @@ export class IdentityService {
       if (!session) return null;
       const membership = (
         await this.config.pool.query(
-          `SELECT org_id FROM rootset_control.memberships_for_user($1)`,
+          `SELECT org_id FROM rootset_control.memberships WHERE user_id=$1`,
           [session.user.id],
         )
       ).rows[0];
@@ -817,7 +800,7 @@ export class IdentityService {
     if (match) {
       const locator = (
         await this.config.pool.query(
-          `SELECT org_id FROM rootset_control.key_locator($1)`,
+          `SELECT org_id FROM rootset_control.api_keys WHERE id=$1`,
           [match[1]],
         )
       ).rows[0];
@@ -1534,27 +1517,17 @@ export class IdentityService {
       `UPDATE rootset_control.users SET authentication_version=authentication_version+1 WHERE id=$1`,
       [userId],
     );
-    const memberships = await client.query(
-      `SELECT * FROM rootset_control.memberships_for_user($1)`,
+    await client.query(
+      `SELECT set_config('rootset.org_id',coalesce((SELECT id FROM rootset_control.organisations),''),true)`,
+    );
+    await client.query(
+      `UPDATE rootset_control.api_keys SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`,
       [userId],
     );
-    for (const m of memberships.rows) {
-      await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
-        m.org_id,
-      ]);
-      await client.query(
-        `UPDATE rootset_control.api_keys SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`,
-        [userId],
-      );
-      const exists = await client.query(
-        `SELECT to_regclass('rootset_control.oauth_grants') present`,
-      );
-      if (exists.rows[0].present)
-        await client.query(
-          `UPDATE rootset_control.oauth_grants SET revoked_at=now() WHERE user_id=$1 AND org_id=$2 AND revoked_at IS NULL`,
-          [userId, m.org_id],
-        );
-    }
+    await client.query(
+      `UPDATE rootset_control.oauth_grants SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`,
+      [userId],
+    );
     await client.query(`SELECT set_config('rootset.org_id',$1,true)`, [
       originalContext,
     ]);
@@ -1699,14 +1672,6 @@ export class IdentityService {
             scope,
             personal: definition.personal,
             orgId: actor.orgId,
-            databaseId:
-              typeof normalizedInput.databaseId === "string"
-                ? normalizedInput.databaseId
-                : undefined,
-            tableId:
-              typeof normalizedInput.tableId === "string"
-                ? normalizedInput.tableId
-                : undefined,
           });
       }
       if (operation === "beginAccountAction") {
@@ -1729,8 +1694,6 @@ export class IdentityService {
         assertAccess(actor, {
           scope: "rows:read",
           personal: true,
-          databaseId: table.database_id,
-          tableId: String(normalizedInput.tableId),
         });
       }
       const result = await runMutation(
@@ -1843,12 +1806,7 @@ export class IdentityService {
         personal();
         const preferences = parse(PreferencesSchema, {
           ...(await this.readPreferences(client, actor.userId!)),
-          ...parse(
-            PreferencesSchema.partial(),
-            normalizePreferenceAliases(
-              parse(PreferencesInputSchema.partial(), input),
-            ),
-          ),
+          ...parse(PreferencesSchema.partial(), input),
         });
         await client.query(
           `INSERT INTO rootset_control.user_preferences(user_id,timezone,locale,date_format,time_format,theme) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id) DO UPDATE SET timezone=$2,locale=$3,date_format=$4,time_format=$5,theme=$6,updated_at=now()`,
@@ -1884,15 +1842,12 @@ export class IdentityService {
       case "previewPreferences": {
         const data = parse(
             z.strictObject({
-              preferences: PreferencesInputSchema,
+              preferences: PreferencesSchema,
               value: DateTimeSchema,
             }),
             input,
           ),
-          p = parse(
-            PreferencesSchema,
-            normalizePreferenceAliases(data.preferences),
-          );
+          p = data.preferences;
         return {
           utc: new Date(data.value).toISOString(),
           displayed: createDateTimeFormatter({ ...p, timeZone: p.timezone })(
@@ -2168,8 +2123,6 @@ export class IdentityService {
         assertAccess(actor, {
           scope: "rows:read",
           personal: true,
-          databaseId: table.database_id,
-          tableId,
         });
         if (operation === "getViewPreferences") {
           const row = (
@@ -2278,10 +2231,7 @@ export class IdentityService {
       `SELECT timezone,locale,date_format "dateFormat",time_format "timeFormat",theme FROM rootset_control.user_preferences WHERE user_id=$1`,
       [userId],
     );
-    return parse(
-      PreferencesSchema,
-      normalizePreferenceAliases(r.rows[0] ?? defaultPreferences),
-    );
+    return parse(PreferencesSchema, r.rows[0] ?? defaultPreferences);
   }
   private checkActionAuthority(
     actor: Actor,
@@ -2302,9 +2252,6 @@ export class IdentityService {
       assertAccess(actor, {
         scope: "rows:write",
         personal: true,
-        databaseId: input.databaseId as string,
-        tableId: input.tableId as string,
-        level: "edit",
       });
     } else if (["createPersonalKey", "rotatePersonalKey"].includes(operation))
       assertAccess(actor, { scope: "keys:manage", personal: true });
@@ -2317,30 +2264,21 @@ export class IdentityService {
     else if (operation === "deleteDatabase")
       assertAccess(actor, {
         scope: "databases:manage",
-        databaseId: input.databaseId as string,
-        level: "manage",
       });
     else if (operation === "deleteTable")
       assertAccess(actor, {
         scope: "tables:manage",
-        databaseId: input.databaseId as string,
-        tableId: input.tableId as string,
-        level: "manage",
       });
     else if (
       ["setHistoryRetentionPolicy", "archiveHistory"].includes(operation)
     )
       assertAccess(actor, {
         scope: "schema:manage",
-        databaseId: input.databaseId as string,
-        tableId: input.tableId as string,
-        level: "manage",
         roles: ["admin"],
       });
     else if (operation === "restoreBackup")
       assertAccess(actor, {
         scope: "backups:manage",
-        databaseId: input.databaseId as string,
         roles: ["admin"],
       });
     else assertAccess(actor, { scope: "account:security", personal: true });
@@ -2758,7 +2696,7 @@ export class IdentityService {
     const parsedId = IdSchema.safeParse(id);
     if (!parsedId.success) notFound();
     const locator = await this.config.pool.query(
-      `SELECT org_id FROM rootset_control.invitation_locator($1)`,
+      `SELECT org_id FROM rootset_control.invitations WHERE id=$1`,
       [id],
     );
     if (!locator.rows[0]) notFound();

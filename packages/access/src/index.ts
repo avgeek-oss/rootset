@@ -1,4 +1,9 @@
-import { RootsetError, type Actor, type Role } from "@rootset/contracts";
+import {
+  scopeNames,
+  RootsetError,
+  type Actor,
+  type Role,
+} from "@rootset/contracts";
 export type { Actor, Role } from "@rootset/contracts";
 
 export class AccessError extends RootsetError {
@@ -8,31 +13,7 @@ export class AccessError extends RootsetError {
   }
 }
 
-export const ALL_SCOPES = [
-  "org:read",
-  "org:manage",
-  "members:read",
-  "members:manage",
-  "profile:manage",
-  "account:security",
-  "keys:manage",
-  "databases:read",
-  "databases:manage",
-  "tables:read",
-  "tables:manage",
-  "schema:manage",
-  "rows:read",
-  "rows:write",
-  "history:read",
-  "imports:write",
-  "exports:read",
-  "backups:read",
-  "backups:manage",
-  "jobs:read",
-  "jobs:cancel",
-  "jobs:retry",
-  "installation:manage",
-] as const;
+export const ALL_SCOPES = Object.freeze([...scopeNames, "installation:manage"]);
 
 const personalScopes = new Set([
   "profile:manage",
@@ -63,9 +44,6 @@ export function assertAccess(
   requirement: {
     scope: string;
     orgId?: string;
-    databaseId?: string;
-    tableId?: string;
-    level?: "read" | "edit" | "manage";
     roles?: Role[];
     personal?: boolean;
   },

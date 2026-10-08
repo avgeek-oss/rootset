@@ -2591,7 +2591,7 @@ export class TableStorage {
   ): Promise<Raw> {
     const row = (
       await c.query<Raw>(
-        "SELECT a.*,f.state AS artifact_state,f.purpose,f.target_id,f.checksum,f.byte_length,f.encryption_key_id FROM rootset_control.history_archives a JOIN rootset_control.artifacts f ON f.id=a.artifact_id AND f.org_id=a.org_id WHERE a.id=$1 AND a.org_id=$2 AND a.table_id=$3 AND a.job_id=$4 FOR UPDATE OF a",
+        "SELECT a.*,f.state AS artifact_state,f.purpose,f.target_id,f.checksum,f.byte_length FROM rootset_control.history_archives a JOIN rootset_control.artifacts f ON f.id=a.artifact_id AND f.org_id=a.org_id WHERE a.id=$1 AND a.org_id=$2 AND a.table_id=$3 AND a.job_id=$4 FOR UPDATE OF a",
         [id(archiveId), a.orgId, id(tableId), id(jobId)],
       )
     ).rows[0];
@@ -2617,7 +2617,6 @@ export class TableStorage {
       m.artifactId !== row.artifact_id ||
       m.checksum !== row.checksum ||
       m.byteLength !== Number(row.byte_length) ||
-      m.encryptionKeyId !== row.encryption_key_id ||
       !m.verifiedAt ||
       !m.fingerprint ||
       !Number.isSafeInteger(m.cellCount) ||
@@ -5123,7 +5122,6 @@ export interface HistoryArchiveManifest {
   artifactId: string;
   checksum: string;
   byteLength: number;
-  encryptionKeyId: string;
   fingerprint: string;
   interpretations: unknown[];
   verifiedAt: string;

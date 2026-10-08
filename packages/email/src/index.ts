@@ -22,13 +22,13 @@ export function encryptProtected(
     );
   const iv = randomBytes(12),
     cipher = createCipheriv("aes-256-gcm", key, iv);
-  cipher.setAAD(Buffer.from("rootset:v1:primary"));
+  cipher.setAAD(Buffer.from("rootset:v1"));
   const ciphertext = Buffer.concat([
     cipher.update(JSON.stringify(value), "utf8"),
     cipher.final(),
   ]);
   return [
-    "primary",
+    "v1",
     iv.toString("base64url"),
     cipher.getAuthTag().toString("base64url"),
     ciphertext.toString("base64url"),
@@ -38,8 +38,14 @@ export function decryptProtected<T>(
   value: string,
   config: EncryptionConfig,
 ): T {
-  const [keyId, iv, tag, ciphertext, ...extra] = value.split(":");
-  if (!keyId || !iv || !tag || ciphertext === undefined || extra.length)
+  const [version, iv, tag, ciphertext, ...extra] = value.split(":");
+  if (
+    version !== "v1" ||
+    !iv ||
+    !tag ||
+    ciphertext === undefined ||
+    extra.length
+  )
     throw new RootsetError(
       "CONFIGURATION_INVALID",
       "Protected data is invalid",
@@ -68,7 +74,7 @@ export function decryptProtected<T>(
       500,
     );
   const decipher = createDecipheriv("aes-256-gcm", key, ivBytes);
-  decipher.setAAD(Buffer.from(`rootset:v1:${keyId}`));
+  decipher.setAAD(Buffer.from("rootset:v1"));
   decipher.setAuthTag(tagBytes);
   return JSON.parse(
     Buffer.concat([
@@ -149,11 +155,6 @@ export const emailTemplates = {
     title: "Backup needs attention",
     body: "Your database backup did not complete successfully. Review its status and retry after resolving the reported issue.",
     action: "View backups",
-  },
-  "operator-access-changed": {
-    subject: "Your Rootset operator access changed",
-    title: "Installation operator access changed",
-    body: "Your installation operator changed your installation authority through the deployment CLI. This authority is separate from your organisation role. Contact your operator if you did not expect this change.",
   },
 } as const;
 export type EmailTemplate = keyof typeof emailTemplates;

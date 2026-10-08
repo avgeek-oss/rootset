@@ -134,17 +134,8 @@ export type updatePreferencesInput = {
     | "short-month-day-year"
     | "year-month-day"
     | "day-month-year"
-    | "month-day-year"
-    | "YYYY-MM-DD"
-    | "DD/MM/YYYY"
-    | "MM/DD/YYYY";
-  timeFormat?:
-    | "24-hour"
-    | "12-hour"
-    | "24-hour-seconds"
-    | "12-hour-seconds"
-    | "24h"
-    | "12h";
+    | "month-day-year";
+  timeFormat?: "24-hour" | "12-hour" | "24-hour-seconds" | "12-hour-seconds";
   theme?: "system" | "light" | "dark";
 };
 export type updatePreferencesOutput = {
@@ -184,17 +175,8 @@ export type previewPreferencesInput = {
       | "short-month-day-year"
       | "year-month-day"
       | "day-month-year"
-      | "month-day-year"
-      | "YYYY-MM-DD"
-      | "DD/MM/YYYY"
-      | "MM/DD/YYYY";
-    timeFormat:
-      | "24-hour"
-      | "12-hour"
-      | "24-hour-seconds"
-      | "12-hour-seconds"
-      | "24h"
-      | "12h";
+      | "month-day-year";
+    timeFormat: "24-hour" | "12-hour" | "24-hour-seconds" | "12-hour-seconds";
     theme: "system" | "light" | "dark";
   };
   value: string;

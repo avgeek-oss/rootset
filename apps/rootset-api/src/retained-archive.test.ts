@@ -170,7 +170,6 @@ export async function runNativeRetainedArchiveRegression(
       idempotencySecret: randomBytes(32).toString("hex"),
       metadataPaging: new MetadataPaging(randomBytes(32).toString("hex")),
       artifacts: input.artifactConfig,
-      organisationIds: async () => [owner.orgId],
     },
     authorise: (actor, operation, target) =>
       core!.authorise(actor, operation, { ...target }),

@@ -18,40 +18,6 @@ export const defaultDateTimePreferences = {
 } as const;
 export type DateFormat = (typeof dateFormatOptions)[number]["id"];
 export type TimeFormat = (typeof timeFormatOptions)[number]["id"];
-export const legacyDateFormatAliases = {
-  "YYYY-MM-DD": "year-month-day",
-  "DD/MM/YYYY": "day-month-year",
-  "MM/DD/YYYY": "month-day-year",
-} as const;
-export const legacyTimeFormatAliases = {
-  "24h": "24-hour",
-  "12h": "12-hour",
-} as const;
-
-export function normalizePreferenceAliases(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const input = value as Record<string, unknown>;
-  const dates: Record<string, string> = legacyDateFormatAliases;
-  const times: Record<string, string> = legacyTimeFormatAliases;
-  return {
-    ...input,
-    ...(typeof input.dateFormat === "string"
-      ? {
-          dateFormat: Object.hasOwn(dates, input.dateFormat)
-            ? dates[input.dateFormat]
-            : input.dateFormat,
-        }
-      : {}),
-    ...(typeof input.timeFormat === "string"
-      ? {
-          timeFormat: Object.hasOwn(times, input.timeFormat)
-            ? times[input.timeFormat]
-            : input.timeFormat,
-        }
-      : {}),
-  };
-}
-
 export function isTimeZone(value: string) {
   if (!value || value.length > 100 || /^[+-]/.test(value)) return false;
   try {

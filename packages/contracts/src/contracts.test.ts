@@ -38,7 +38,7 @@ import {
   generateCoverageInventory,
   generateMcpTools,
   generateOpenApi,
-  getRuntimeOperation,
+  getOperation,
   limits,
   newId,
   operationMap,
@@ -118,13 +118,13 @@ test("unsupported organisation, resource grant, account deletion and team-key op
   const client = generateClientSource();
   for (const name of removed) {
     assert.equal(operationMap[name], undefined);
-    assert.throws(() => getRuntimeOperation(name), /Unknown Rootset operation/);
+    assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
   assert.equal(operations.length, 89);
   assert.equal(tools.length, operations.length);
   for (const operation of operations)
-    assert.equal(getRuntimeOperation(operation.id), operation);
+    assert.equal(getOperation(operation.id), operation);
   assert(!JSON.stringify(generateOpenApi()).includes('"team_key"'));
   assert.equal(
     AccountActionTypeSchema.safeParse("delete_account").success,

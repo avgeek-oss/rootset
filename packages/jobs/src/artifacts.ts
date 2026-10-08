@@ -498,7 +498,6 @@ export class ArtifactStore {
     } = {},
   ): Promise<ArtifactRecord> {
     const objectKey = `rootset/${actor.orgId}/${target.type}/${target.id}/${job?.id ?? newId()}/${job?.lease_token ?? "direct"}/${purpose}/${newId()}`;
-    const keyId = "primary";
     const key = this.encryptionKey;
     const iv = randomBytes(12);
     const expiresAt =
@@ -525,8 +524,8 @@ export class ArtifactStore {
       }
       const result = await client.query<ArtifactRecord>(
         `INSERT INTO rootset_control.artifacts
-        (id,org_id,job_id,requester_id,target_type,target_id,purpose,object_key,state,format,media_type,encryption_key_id,iv,metadata,expires_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'uploading',$9,$10,$11,$12,$13,$14)
+        (id,org_id,job_id,requester_id,target_type,target_id,purpose,object_key,state,format,media_type,iv,metadata,expires_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'uploading',$9,$10,$11,$12,$13)
         RETURNING *`,
         [
           newId(),
@@ -539,7 +538,6 @@ export class ArtifactStore {
           objectKey,
           format,
           mediaType,
-          keyId,
           iv.toString("base64"),
           metadata,
           expiresAt,
@@ -851,8 +849,7 @@ export class ArtifactStore {
       !artifact.checksum ||
       !artifact.ciphertext_checksum ||
       !artifact.iv ||
-      !artifact.tag ||
-      !artifact.encryption_key_id
+      !artifact.tag
     )
       throw new RootsetError(
         "BACKUP_UNVERIFIED",

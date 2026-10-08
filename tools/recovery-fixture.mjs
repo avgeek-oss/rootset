@@ -131,7 +131,6 @@ try {
     rowId: row.id,
     actionId,
     artifactId: artifact.id,
-    keyId: artifact.encryption_key_id,
     markerSha256: createHash("sha256").update(marker).digest("hex"),
     plaintextSha256: createHash("sha256").update(bytes).digest("hex"),
     plaintextBytes: bytes.length,
@@ -154,7 +153,6 @@ try {
       orgId,
       artifactId: artifact.id,
       plaintextBytes: bytes.length,
-      keyId: artifact.encryption_key_id,
     }),
   );
 } finally {

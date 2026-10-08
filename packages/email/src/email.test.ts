@@ -15,6 +15,9 @@ test("protected payloads round-trip with the installation key and reject wrong k
   };
   const encrypted = encryptProtected(input, encryption);
   assert.equal(encrypted.includes("protected"), false);
+  assert.throws(() =>
+    decryptProtected(encrypted.replace(/^v1:/, "v2:"), encryption),
+  );
   assert.deepEqual(decryptProtected(encrypted, encryption), input);
   assert.throws(() => decryptProtected(`${encrypted}x`, encryption));
   assert.throws(() =>

@@ -7,7 +7,6 @@ import {
   JobSchema,
   JsonValueSchema,
   PreferencesSchema,
-  PreferencesInputSchema,
   QueryResultSchema,
   RoleSchema,
   RowSchema,
@@ -74,7 +73,6 @@ export interface OperationDefinition {
   outputSchema: z.ZodType;
   description: string;
   tags: string[];
-  auditEvent: string | null;
   errors: string[];
   successStatus: number;
   example: Record<string, unknown>;
@@ -204,7 +202,6 @@ function operation(
           ? "organisation"
           : "none",
     tags: [group],
-    auditEvent: readOnly ? null : id,
     errors: [
       "VALIDATION_FAILED",
       "UNAUTHENTICATED",
@@ -302,7 +299,7 @@ operation(
   "PATCH",
   "/v1/me/preferences",
   ["profile:manage"],
-  PreferencesInputSchema.partial(),
+  PreferencesSchema.partial(),
   PreferencesSchema,
   "Update timezone, locale, format or theme preferences.",
   { personal: true },
@@ -330,7 +327,7 @@ operation(
   "/v1/me/preferences/preview",
   [],
   z.strictObject({
-    preferences: PreferencesInputSchema,
+    preferences: PreferencesSchema,
     value: DateTimeSchema,
   }),
   z.strictObject({

@@ -85,14 +85,11 @@ export async function createRuntime(
           identity.recordRepairIntent(client, actor, intent),
         authoriseHistoryPolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
-          const table = await storage.getTable(current, target.tableId);
+          await storage.getTable(current, target.tableId);
           for (const scope of ["history:read", "schema:manage"])
             assertAccess(current, {
               scope,
               orgId: current.orgId,
-              ...target,
-              databaseId: table.databaseId,
-              level: scope === "schema:manage" ? "manage" : "read",
               roles: ["admin"],
             });
           return current;
@@ -104,12 +101,6 @@ export async function createRuntime(
           encryptionKey: config.encryptionKey,
         },
         baseURL: config.baseURL,
-        organisationIds: async () =>
-          (
-            await ddlPool.query<{ org_id: string }>(
-              "SELECT id AS org_id FROM rootset_control.maintenance_org_directory()",
-            )
-          ).rows.map((r) => r.org_id),
         outbox: identity.emailOutbox,
         reconcileOperation: (job) =>
           withOrg(pool, job.org_id, async (client) => {

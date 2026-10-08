@@ -1034,7 +1034,6 @@ test(
       artifactId,
       checksum: "a".repeat(64),
       byteLength: 1234,
-      encryptionKeyId: "test-key",
       fingerprint: "fixture-storage-native-range-fingerprint",
       interpretations: metadata!.interpretations,
       verifiedAt: new Date().toISOString(),
@@ -1052,7 +1051,7 @@ test(
         ],
       );
       await c.query(
-        "INSERT INTO rootset_control.artifacts(id,org_id,job_id,requester_id,target_type,target_id,purpose,object_key,state,format,media_type,byte_length,checksum,encryption_key_id,expires_at) VALUES($1::varchar(26),$2,$3,$4,'table',$5,'history-archive',$1::text,'ready','jsonl','application/x-ndjson',$6,$7,$8,'9999-12-31')",
+        "INSERT INTO rootset_control.artifacts(id,org_id,job_id,requester_id,target_type,target_id,purpose,object_key,state,format,media_type,byte_length,checksum,expires_at) VALUES($1::varchar(26),$2,$3,$4,'table',$5,'history-archive',$1::text,'ready','jsonl','application/x-ndjson',$6,$7,'9999-12-31')",
         [
           artifactId,
           actor.orgId,
@@ -1061,7 +1060,6 @@ test(
           table.id,
           manifest.byteLength,
           manifest.checksum,
-          manifest.encryptionKeyId,
         ],
       );
       await c.query(

@@ -79,11 +79,7 @@ export class DurableQueue {
       job.kind === "backup" &&
       job.target_type === "database" &&
       job.input.backupRuntimeSource === "installation";
-    return [
-      job.input,
-      durableInput(job.input),
-      ...(manualRuntime ? [durableInput(job.input, true)] : []),
-    ].some((input) => digest(input) === job.input_digest);
+    return digest(durableInput(job.input, manualRuntime)) === job.input_digest;
   }
 
   async enqueue(
@@ -231,37 +227,11 @@ export class DurableQueue {
             [actor.orgId, requesterId, operationId, idempotencyKey],
           )
         ).rows[0];
-      const existingTarget = existing && {
-        type: existing.target_type,
-        id: existing.target_id,
-      };
-      const legacyAuthentic =
-        existing &&
-        existingTarget &&
-        (existing.input_digest ===
-          digestInput(existing.input, existingTarget) ||
-          existing.input_digest ===
-            digestInput(durableInput(existing.input), existingTarget));
-      const markedPolicyRuntime =
-        manualRuntime &&
-        existing?.kind === "backup" &&
-        existing.input.backupRuntimeSource === "installation";
-      const legacyIncoming = { ...persistedInput };
-      delete legacyIncoming.backupRuntimeSource;
       const matches =
         existing &&
-        existingTarget &&
-        (!manualRuntime || existing.kind === "backup") &&
-        (existing.input_digest === digest ||
-          (legacyAuthentic &&
-            (digestInput(
-              durableInput(existing.input, markedPolicyRuntime),
-              existingTarget,
-            ) === digest ||
-              (manualRuntime &&
-                !Object.hasOwn(existing.input, "backupRuntimeSource") &&
-                digestInput(durableInput(existing.input), existingTarget) ===
-                  digestInput(durableInput(legacyIncoming))))));
+        this.authenticInput(existing) &&
+        existing.input_digest === digest &&
+        (!manualRuntime || existing.kind === "backup");
       if (!matches)
         throw new RootsetError(
           "IDEMPOTENCY_CONFLICT",

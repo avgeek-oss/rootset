@@ -94,72 +94,72 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 457,
+          "line": 456,
           "title": "V1-07 V1-24: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1165,
+          "line": 1164,
           "title": "V1-07 V1-24: metadata cursors bind request limits, filters and current membership"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1197,
+          "line": 1196,
           "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1341,
+          "line": 1340,
           "title": "V1-07 V1-24 V1-25 V1-30: upload admission and artifact retrieval enforce declared bytes, checksum, expiry and current access"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1882,
+          "line": 1881,
           "title": "V1-07 V1-24 V1-25 V1-30: same-origin streaming upload preserves exact replay, bounded source checks and current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2100,
+          "line": 2099,
           "title": "V1-07 V1-24 V1-25: authority loss between committed import batches stops further mutations with an exact partial outcome"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2133,
+          "line": 2132,
           "title": "V1-07 V1-24 V1-27: committed verified backup reconciles after a completion crash without reusing revoked authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2509,
+          "line": 2508,
           "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2637,
+          "line": 2636,
           "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2794,
+          "line": 2793,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2863,
+          "line": 2862,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3110,
+          "line": 3109,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3576,
-          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings"
+          "line": 3559,
+          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3809,
+          "line": 3802,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
@@ -311,17 +311,17 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2264,
+          "line": 2263,
           "title": "V1-17 V1-24 V1-30: queued backup deletion defers effects until commit, resumes object checkpoints and reconciles a real SIGKILL after final publication"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2637,
+          "line": 2636,
           "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3809,
+          "line": 3802,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
@@ -369,7 +369,7 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 392,
+          "line": 391,
           "title": "V1-18 V1-25: exact unique-rule upsert updates existing rows and rejects absent explicit row IDs"
         },
         {
@@ -430,17 +430,17 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3110,
+          "line": 3109,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3576,
-          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings"
+          "line": 3559,
+          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3809,
+          "line": 3802,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         },
         {
@@ -493,22 +493,22 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1573,
+          "line": 1572,
           "title": "V1-21 V1-24 V1-27 V1-30: verified archive survives interrupted purge and database backup embeds complete cold history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1767,
+          "line": 1766,
           "title": "V1-21 V1-27 V1-30: corrupt history archive is refused before gap publication or any hot deletion"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2509,
+          "line": 2508,
           "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3110,
+          "line": 3109,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
@@ -559,12 +559,12 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2863,
+          "line": 2862,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2981,
+          "line": 2980,
           "title": "V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover"
         },
         {
@@ -582,132 +582,132 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 313,
+          "line": 312,
           "title": "V1-24 V1-25: import commit interruption resumes exact rows/history with leading zeros"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 350,
+          "line": 349,
           "title": "V1-24 V1-25: partial large import reports exact rejected record while atomic import rolls back"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 457,
+          "line": 456,
           "title": "V1-07 V1-24: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 570,
+          "line": 569,
           "title": "V1-24 V1-25: cancel after committed batch exposes partial progress and retry resumes without duplication"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 704,
+          "line": 703,
           "title": "V1-24 V1-25: SIGKILL after a committed import batch recovers under a new worker lease"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 807,
+          "line": 806,
           "title": "V1-24 V1-28: replacement requires approval and resumes after durable cutover with target identity intact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 943,
+          "line": 942,
           "title": "V1-24 V1-28: cancelled replacement releases the owning barrier and retry takes a fresh recovery snapshot"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1133,
+          "line": 1132,
           "title": "V1-24 V1-25: invalid JSONL lines are reported at their exact line and later valid records remain importable"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1165,
+          "line": 1164,
           "title": "V1-07 V1-24: metadata cursors bind request limits, filters and current membership"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1197,
+          "line": 1196,
           "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1341,
+          "line": 1340,
           "title": "V1-07 V1-24 V1-25 V1-30: upload admission and artifact retrieval enforce declared bytes, checksum, expiry and current access"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1573,
+          "line": 1572,
           "title": "V1-21 V1-24 V1-27 V1-30: verified archive survives interrupted purge and database backup embeds complete cold history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1748,
+          "line": 1747,
           "title": "V1-24 V1-27: cancelling a queued committed backup returns its durable success"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1882,
+          "line": 1881,
           "title": "V1-07 V1-24 V1-25 V1-30: same-origin streaming upload preserves exact replay, bounded source checks and current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2100,
+          "line": 2099,
           "title": "V1-07 V1-24 V1-25: authority loss between committed import batches stops further mutations with an exact partial outcome"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2133,
+          "line": 2132,
           "title": "V1-07 V1-24 V1-27: committed verified backup reconciles after a completion crash without reusing revoked authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2174,
+          "line": 2173,
           "title": "V1-24 V1-27 V1-28 V1-30: terminal recovery-backup failure aborts replacement and releases its target write barrier"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2264,
+          "line": 2263,
           "title": "V1-17 V1-24 V1-30: queued backup deletion defers effects until commit, resumes object checkpoints and reconciles a real SIGKILL after final publication"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2509,
+          "line": 2508,
           "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2637,
+          "line": 2636,
           "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2794,
+          "line": 2793,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2863,
+          "line": 2862,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2981,
+          "line": 2980,
           "title": "V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3110,
+          "line": 3109,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3576,
-          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings"
+          "line": 3559,
+          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3809,
+          "line": 3802,
           "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
         }
       ]
@@ -720,92 +720,92 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 313,
+          "line": 312,
           "title": "V1-24 V1-25: import commit interruption resumes exact rows/history with leading zeros"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 350,
+          "line": 349,
           "title": "V1-24 V1-25: partial large import reports exact rejected record while atomic import rolls back"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 392,
+          "line": 391,
           "title": "V1-18 V1-25: exact unique-rule upsert updates existing rows and rejects absent explicit row IDs"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 421,
+          "line": 420,
           "title": "V1-25: filtered snapshot export has canonical quoted content and encrypted storage"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 556,
+          "line": 555,
           "title": "V1-25: dry run validates upload duplicates without committing rows"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 570,
+          "line": 569,
           "title": "V1-24 V1-25: cancel after committed batch exposes partial progress and retry resumes without duplication"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 704,
+          "line": 703,
           "title": "V1-24 V1-25: SIGKILL after a committed import batch recovers under a new worker lease"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1025,
+          "line": 1024,
           "title": "V1-25: strict numeric lexemes preserve finite floats and reject rounded fractional integers or unsafe JSON numbers"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1087,
+          "line": 1086,
           "title": "V1-25: rejected dry-run records do not reserve tuples in another unique rule"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1133,
+          "line": 1132,
           "title": "V1-24 V1-25: invalid JSONL lines are reported at their exact line and later valid records remain importable"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1197,
+          "line": 1196,
           "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1284,
+          "line": 1283,
           "title": "V1-25: CSV roundtrip distinguishes null, empty text, literal null markers and backslashes"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1341,
+          "line": 1340,
           "title": "V1-07 V1-24 V1-25 V1-30: upload admission and artifact retrieval enforce declared bytes, checksum, expiry and current access"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1525,
+          "line": 1524,
           "title": "V1-25 V1-27 V1-30: last verified recovery point is protected, corrupted artifact and missing recovery key cannot restore"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1882,
+          "line": 1881,
           "title": "V1-07 V1-24 V1-25 V1-30: same-origin streaming upload preserves exact replay, bounded source checks and current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2100,
+          "line": 2099,
           "title": "V1-07 V1-24 V1-25: authority loss between committed import batches stops further mutations with an exact partial outcome"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2794,
+          "line": 2793,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2863,
+          "line": 2862,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
         },
         {
@@ -823,17 +823,17 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 505,
+          "line": 504,
           "title": "V1-26 V1-27 V1-28: backup upload interruption resumes isolated restore verification and new restore preserves rows/history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 596,
+          "line": 595,
           "title": "V1-26: concurrent row writes continue while schema DDL waits through extraction"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2509,
+          "line": 2508,
           "title": "V1-07 V1-21 V1-24 V1-26: history policy, archive detail and manual backup lists obey strict contracts and current role authority"
         },
         {
@@ -851,52 +851,52 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 505,
+          "line": 504,
           "title": "V1-26 V1-27 V1-28: backup upload interruption resumes isolated restore verification and new restore preserves rows/history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1469,
+          "line": 1468,
           "title": "V1-27 V1-30: isolated verification cleanup failure is observable and retry removes the namespace before success"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1525,
+          "line": 1524,
           "title": "V1-25 V1-27 V1-30: last verified recovery point is protected, corrupted artifact and missing recovery key cannot restore"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1573,
+          "line": 1572,
           "title": "V1-21 V1-24 V1-27 V1-30: verified archive survives interrupted purge and database backup embeds complete cold history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1748,
+          "line": 1747,
           "title": "V1-24 V1-27: cancelling a queued committed backup returns its durable success"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1767,
+          "line": 1766,
           "title": "V1-21 V1-27 V1-30: corrupt history archive is refused before gap publication or any hot deletion"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2133,
+          "line": 2132,
           "title": "V1-07 V1-24 V1-27: committed verified backup reconciles after a completion crash without reusing revoked authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2174,
+          "line": 2173,
           "title": "V1-24 V1-27 V1-28 V1-30: terminal recovery-backup failure aborts replacement and releases its target write barrier"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2981,
+          "line": 2980,
           "title": "V1-23 V1-24 V1-27: slow immutable history read precedes the native verification snapshot and interrupted snapshot clients recover"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3110,
+          "line": 3109,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         }
       ]
@@ -909,27 +909,27 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 505,
+          "line": 504,
           "title": "V1-26 V1-27 V1-28: backup upload interruption resumes isolated restore verification and new restore preserves rows/history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 807,
+          "line": 806,
           "title": "V1-24 V1-28: replacement requires approval and resumes after durable cutover with target identity intact"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 943,
+          "line": 942,
           "title": "V1-24 V1-28: cancelled replacement releases the owning barrier and retry takes a fresh recovery snapshot"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2174,
+          "line": 2173,
           "title": "V1-24 V1-27 V1-28 V1-30: terminal recovery-backup failure aborts replacement and releases its target write barrier"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 3110,
+          "line": 3109,
           "title": "V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits preserve admitted request and current child-job attribution without rewriting copied history"
         }
       ]
@@ -949,52 +949,52 @@
       "testSources": [
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1197,
+          "line": 1196,
           "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1341,
+          "line": 1340,
           "title": "V1-07 V1-24 V1-25 V1-30: upload admission and artifact retrieval enforce declared bytes, checksum, expiry and current access"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1469,
+          "line": 1468,
           "title": "V1-27 V1-30: isolated verification cleanup failure is observable and retry removes the namespace before success"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1525,
+          "line": 1524,
           "title": "V1-25 V1-27 V1-30: last verified recovery point is protected, corrupted artifact and missing recovery key cannot restore"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1573,
+          "line": 1572,
           "title": "V1-21 V1-24 V1-27 V1-30: verified archive survives interrupted purge and database backup embeds complete cold history"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1767,
+          "line": 1766,
           "title": "V1-21 V1-27 V1-30: corrupt history archive is refused before gap publication or any hot deletion"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 1882,
+          "line": 1881,
           "title": "V1-07 V1-24 V1-25 V1-30: same-origin streaming upload preserves exact replay, bounded source checks and current authority"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2174,
+          "line": 2173,
           "title": "V1-24 V1-27 V1-28 V1-30: terminal recovery-backup failure aborts replacement and releases its target write barrier"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2264,
+          "line": 2263,
           "title": "V1-17 V1-24 V1-30: queued backup deletion defers effects until commit, resumes object checkpoints and reconciles a real SIGKILL after final publication"
         },
         {
           "path": "packages/jobs/src/integration.ts",
-          "line": 2794,
+          "line": 2793,
           "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
         }
       ]

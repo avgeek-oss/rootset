@@ -101,7 +101,6 @@ console.log(
   JSON.stringify({
     event: "recovery_prepared",
     directory,
-    keyIds: record.keyIds,
   }),
 );
 if (!process.argv.includes("--run")) process.exit(0);
@@ -379,13 +378,16 @@ try {
     unavailable = 0;
   for (const row of protectedRows) {
     try {
-      const [id, iv, tag, ciphertext] = row.payload_encrypted.split(":");
+      const [version, iv, tag, ciphertext, ...extra] =
+        row.payload_encrypted.split(":");
+      if (version !== "v1" || extra.length)
+        throw new Error("Unsupported protected data format");
       const decipher = createDecipheriv(
         "aes-256-gcm",
         Buffer.from(encryptionKey ?? "", "hex"),
         Buffer.from(iv, "base64url"),
       );
-      decipher.setAAD(Buffer.from("rootset:v1:" + id));
+      decipher.setAAD(Buffer.from("rootset:v1"));
       decipher.setAuthTag(Buffer.from(tag, "base64url"));
       JSON.parse(
         Buffer.concat([

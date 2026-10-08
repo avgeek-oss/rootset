@@ -5,5 +5,4 @@ export * from "./query";
 export * from "./decoder";
 export * from "./resources";
 export * from "./operations";
-export * from "./runtime-operations";
 export * from "./generation";

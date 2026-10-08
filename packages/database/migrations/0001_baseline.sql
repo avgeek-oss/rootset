@@ -325,12 +325,6 @@ BEGIN
 END $_$;
 
 
-CREATE FUNCTION rootset_control.invitation_locator(invitation_hash text) RETURNS TABLE(org_id character varying)
-    LANGUAGE sql
-    SET search_path TO 'pg_catalog'
-    SET "TimeZone" TO 'UTC'
-    AS $$ SELECT org_id FROM rootset_control.invitations WHERE id=invitation_hash; $$;
-
 
 CREATE FUNCTION rootset_control.json_depth(v jsonb) RETURNS integer
     LANGUAGE plpgsql IMMUTABLE STRICT
@@ -344,25 +338,6 @@ BEGIN
 END $$;
 
 
-CREATE FUNCTION rootset_control.key_locator(key_id text) RETURNS TABLE(org_id character varying)
-    LANGUAGE sql
-    SET search_path TO 'pg_catalog'
-    SET "TimeZone" TO 'UTC'
-    AS $$ SELECT org_id FROM rootset_control.api_keys WHERE id=key_id; $$;
-
-
-CREATE FUNCTION rootset_control.maintenance_org_directory() RETURNS TABLE(id text)
-    LANGUAGE sql STABLE
-    SET search_path TO 'pg_catalog'
-    SET "TimeZone" TO 'UTC'
-    AS $$ SELECT o.id::text FROM rootset_control.organisations o $$;
-
-
-CREATE FUNCTION rootset_control.memberships_for_user(identity_user_id text) RETURNS TABLE(id character varying, org_id character varying, user_id character varying, role text, version bigint, name character varying)
-    LANGUAGE sql
-    SET search_path TO 'pg_catalog'
-    SET "TimeZone" TO 'UTC'
-    AS $$ SELECT m.id,m.org_id,m.user_id,m.role,m.version,o.name FROM rootset_control.memberships m JOIN rootset_control.organisations o ON o.id=m.org_id WHERE m.user_id=identity_user_id $$;
 
 
 CREATE FUNCTION rootset_control.new_ulid() RETURNS character varying
@@ -532,12 +507,6 @@ BEGIN
 END $$;
 
 
-CREATE FUNCTION rootset_control.worker_org_directory() RETURNS TABLE(id text)
-    LANGUAGE sql STABLE
-    SET search_path TO 'pg_catalog'
-    SET "TimeZone" TO 'UTC'
-    AS $$ SELECT o.id::text FROM rootset_control.organisations o $$;
-
 
 SET LOCAL default_tablespace = '';
 
@@ -612,7 +581,6 @@ CREATE TABLE rootset_control.artifacts (
     ciphertext_length bigint,
     checksum text,
     ciphertext_checksum text,
-    encryption_key_id text,
     iv text,
     tag text,
     expected_checksum text,

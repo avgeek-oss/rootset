@@ -6,7 +6,7 @@ import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { writeFile } from "node:fs/promises";
 import {
   canonicalJson,
-  getRuntimeOperation,
+  getOperation,
   IdSchema,
   JobAcceptedSchema,
   newId,
@@ -55,28 +55,6 @@ export * from "./backups.js";
 export * from "./imports.js";
 export * from "./archives.js";
 
-const scopes: Record<string, string[]> = {
-  prepareImportUpload: ["imports:write"],
-  validateImport: ["imports:write"],
-  importRows: ["imports:write", "rows:write"],
-  exportRows: ["exports:read", "rows:read"],
-  listBackups: ["backups:read"],
-  getBackup: ["backups:read"],
-  createBackup: ["backups:manage"],
-  deleteBackup: ["backups:manage"],
-  previewRestore: ["backups:manage"],
-  restoreBackup: ["backups:manage", "databases:manage"],
-  listJobs: ["jobs:read"],
-  getJob: ["jobs:read"],
-  cancelJob: ["jobs:cancel"],
-  retryJob: ["jobs:retry"],
-  getUsage: ["org:read"],
-  getHistoryRetentionPolicy: ["history:read"],
-  setHistoryRetentionPolicy: ["history:read", "schema:manage"],
-  archiveHistory: ["history:read", "schema:manage"],
-  listHistoryArchives: ["history:read"],
-  getHistoryArchive: ["history:read"],
-};
 function repairReason(
   operationId: string,
   input: Record<string, unknown>,
@@ -288,7 +266,7 @@ export class JobsService {
       if (!inputTarget.repair) return actor;
     }
     const required = [
-      ...(scopes[operationId] ?? []),
+      ...getOperation(operationId).scopes,
       ...(inputTarget.repair ? ["rows:write", "installation:manage"] : []),
     ];
     for (const scope of required)
@@ -417,8 +395,7 @@ export class JobsService {
         409,
       );
     if (
-      !getRuntimeOperation(job.operation_id).inputSchema.safeParse(projected)
-        .success
+      !getOperation(job.operation_id).inputSchema.safeParse(projected).success
     )
       throw new RootsetError(
         "IDEMPOTENCY_CONFLICT",
@@ -564,8 +541,7 @@ export class JobsService {
         "This operation does not admit a durable job",
         500,
       );
-    const parsedInput =
-      getRuntimeOperation(operationId).inputSchema.safeParse(input);
+    const parsedInput = getOperation(operationId).inputSchema.safeParse(input);
     if (!parsedInput.success)
       throw new RootsetError(
         "VALIDATION_FAILED",
@@ -724,7 +700,7 @@ export class JobsService {
         async () => {
           const value = await work(client);
           const parsed =
-            getRuntimeOperation(operationId).outputSchema.safeParse(value);
+            getOperation(operationId).outputSchema.safeParse(value);
           if (!parsed.success)
             throw new RootsetError(
               "JOB_FAILED",
@@ -1014,8 +990,7 @@ export class JobsService {
       operationTarget.tableId ?? operationTarget.databaseId ?? actor.orgId;
     const repair = repairReason(operationId, input);
     if (repair !== undefined) {
-      const parsed =
-        getRuntimeOperation(operationId).inputSchema.safeParse(input);
+      const parsed = getOperation(operationId).inputSchema.safeParse(input);
       if (!parsed.success)
         throw new RootsetError(
           "VALIDATION_FAILED",
@@ -2468,19 +2443,14 @@ export class JobsService {
       );
     };
     await heartbeat("starting");
-    const organisationIds =
-      this.config.organisationIds ??
-      (async () =>
-        (
-          await this.queue.workerPool.query<{ id: string }>(
-            "SELECT id FROM rootset_control.maintenance_org_directory()",
-          )
-        ).rows.map((row) => row.id));
-    const concurrency = Math.min(8, 2);
-    const workers = Array.from({ length: concurrency }, async (_, index) => {
+    const workers = Array.from({ length: 2 }, async (_, index) => {
       while (!options.signal?.aborted) {
         try {
-          const orgs = await organisationIds();
+          const orgId = (
+            await this.queue.workerPool.query<{ id: string }>(
+              "SELECT id FROM rootset_control.organisations",
+            )
+          ).rows[0]?.id;
           let worked = false;
           let pollError: unknown;
           const activity = async (
@@ -2506,15 +2476,11 @@ export class JobsService {
               );
             }
           };
-          for (const orgId of orgs) {
-            if (options.signal?.aborted) break;
+          if (orgId && !options.signal?.aborted) {
             if (index === 0)
-              await activity("lifecycle_scheduler", orgId, async () => {});
-            if (index === 0)
-              if (index === 0)
-                await activity("history_scheduler", orgId, async () => {
-                  await this.scheduleHistoryDue(orgId);
-                });
+              await activity("history_scheduler", orgId, async () => {
+                await this.scheduleHistoryDue(orgId);
+              });
             if (index === 0)
               await activity("artifact_cleanup", orgId, async () => {
                 await this.cleanupArtifacts(orgId);

@@ -59,10 +59,6 @@ export interface JobsConfig {
   notificationStatus?: (
     deliveryId: string,
   ) => Promise<"pending" | "sent" | "failed">;
-  authorisePolicy?: (
-    actor: Actor,
-    target: { databaseId: string },
-  ) => Promise<Actor>;
   metadataPaging?: {
     read(
       actor: Actor,
@@ -92,7 +88,6 @@ export interface JobsConfig {
   pollMilliseconds?: number;
   importBatchSize?: number;
   maxAttempts?: number;
-  organisationIds?: () => Promise<string[]>;
   outbox?: { deliverNext(): Promise<boolean> };
   notify?: (event: {
     orgId: string;
@@ -199,7 +194,6 @@ export interface ArtifactRecord {
   ciphertext_length: string | null;
   checksum: string | null;
   ciphertext_checksum: string | null;
-  encryption_key_id: string | null;
   iv: string | null;
   tag: string | null;
   expected_checksum: string | null;

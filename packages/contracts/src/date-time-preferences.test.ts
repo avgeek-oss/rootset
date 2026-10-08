@@ -7,10 +7,9 @@ import {
   defaultDateTimePreferences,
   formatDisplayTime,
   isTimeZone,
-  normalizePreferenceAliases,
   timeFormatOptions,
 } from "./date-time-preferences";
-import { PreferencesInputSchema, PreferencesSchema } from "./models";
+import { PreferencesSchema } from "./models";
 import { DateSchema, DateTimeSchema } from "./values";
 
 const stored = {
@@ -59,37 +58,23 @@ test("display preferences offer all Towbar formats with canonical defaults", () 
   assert.equal(formatDisplayTime("12:05:06.123", "12-hour"), "12:05 PM");
 });
 
-test("legacy display aliases preserve meaning without weakening canonical output", () => {
-  for (const [dateFormat, canonical] of [
-    ["YYYY-MM-DD", "year-month-day"],
-    ["DD/MM/YYYY", "day-month-year"],
-    ["MM/DD/YYYY", "month-day-year"],
-  ]) {
-    for (const [timeFormat, clock] of [
-      ["24h", "24-hour"],
-      ["12h", "12-hour"],
-    ]) {
-      const input = { ...stored, dateFormat, timeFormat };
-      assert.ok(PreferencesInputSchema.safeParse(input).success);
-      assert.equal(PreferencesSchema.safeParse(input).success, false);
-      assert.deepEqual(
-        PreferencesSchema.parse(normalizePreferenceAliases(input)),
-        { ...stored, dateFormat: canonical, timeFormat: clock },
-      );
-      assert.equal(input.dateFormat, dateFormat);
-    }
-  }
-  for (const value of ["constructor", "toString", "__proto__", "invalid"]) {
-    assert.deepEqual(
-      normalizePreferenceAliases({ dateFormat: value, timeFormat: value }),
-      { dateFormat: value, timeFormat: value },
-    );
+test("display preferences reject obsolete aliases and unknown formats", () => {
+  for (const dateFormat of [
+    "YYYY-MM-DD",
+    "DD/MM/YYYY",
+    "MM/DD/YYYY",
+    "constructor",
+    "invalid",
+  ])
     assert.equal(
-      PreferencesInputSchema.safeParse({ ...stored, dateFormat: value })
-        .success,
+      PreferencesSchema.safeParse({ ...stored, dateFormat }).success,
       false,
     );
-  }
+  for (const timeFormat of ["24h", "12h", "constructor", "invalid"])
+    assert.equal(
+      PreferencesSchema.safeParse({ ...stored, timeFormat }).success,
+      false,
+    );
 });
 
 test("timezone and domain UTC validation stay strict while display converts", () => {
@@ -106,7 +91,7 @@ test("timezone and domain UTC validation stay strict while display converts", ()
   ]) {
     assert.equal(isTimeZone(zone), false);
     assert.equal(
-      PreferencesInputSchema.safeParse({ ...stored, timezone: zone }).success,
+      PreferencesSchema.safeParse({ ...stored, timezone: zone }).success,
       false,
     );
   }

@@ -40,7 +40,6 @@ export interface BackupManifest {
   rows: BackupEntry[];
   history: BackupEntry;
   archiveReferences: JsonValue[];
-  encryptionKeyId: string;
   rowCount: number;
   historyCount: number;
   completion: "extracted";
@@ -418,7 +417,6 @@ export class BackupRunner {
                 ...reference,
                 embedded: true,
               })) as unknown as JsonValue[],
-              encryptionKeyId: "primary",
               rowCount,
               historyCount,
               completion: "extracted",

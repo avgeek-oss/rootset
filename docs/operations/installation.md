@@ -74,6 +74,12 @@ or `BYPASSRLS` privileges. The local profile provisions this user automatically.
 Rootset does not require separate application, identity or DDL credentials.
 Organisation context and product permissions still apply to API and MCP calls.
 
+The worker serves this installation's single organisation. One operation catalog
+defines API, MCP and background-job permissions. Resource lookups validate the
+requested database and table before access; there is no separate resource-grant
+or access-level configuration. Preferences accept the date/time format IDs
+listed by the API and shown in the UI, without older format aliases.
+
 The existing core memory caps are PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB and
 web 1 GiB, totalling 8 GiB. Each combined memory/swap cap equals its memory cap,
 so swap adds no headroom. Node heap limits leave native/buffer room. Record CPU,
@@ -109,7 +115,8 @@ through `ROOTSET_OAUTH_CLIENTS`.
 Retain the application secret and encryption key across restart, and include
 both in protected recovery copies. Authentication and cursor signing keys are
 derived internally from the application secret. There is no keyring or
-installation-wide key-rotation selector. Passwords are hashed locally; sign-in
+installation-wide key-rotation selector. Artifacts and backup/history manifests use this
+single key without a key identifier or key-selection scheme. Passwords are hashed locally; sign-in
 has fixed internal work limits and does not depend on a password breach-check
 service. Restart API and worker after changing environment settings.
 

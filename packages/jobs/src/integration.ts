@@ -74,7 +74,6 @@ const config: JobsConfig = {
     encryptionKey:
       process.env.ROOTSET_ENCRYPTION_KEY ?? randomBytes(32).toString("base64"),
   },
-  organisationIds: async () => [actor.orgId],
   failpoint: async (point, jobId) => {
     await hook?.(point, jobId);
     if (failPoint === point) {
@@ -3172,7 +3171,7 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
       },
     )) as { jobId: string };
     assert.equal(replayed.jobId, admitted.jobId);
-    const legacyReplay = async (
+    const durableReplay = async (
       operationId: string,
       id: string,
       businessInput: Record<string, unknown>,
@@ -3183,22 +3182,6 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
           id,
         ])
       ).rows[0]!;
-      const legacyDigest = createHash("sha256")
-        .update(
-          stableStringify({
-            actor: stored.requester_id,
-            orgId: stored.org_id,
-            operationId: stored.operation_id,
-            target: { type: stored.target_type, id: stored.target_id },
-            input: stored.input,
-          }),
-        )
-        .digest("hex");
-      assert.notEqual(legacyDigest, stored.input_digest);
-      await owner.query(
-        "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
-        [id, legacyDigest],
-      );
       const expired = await owner.query(
         "UPDATE rootset_control.control_mutation_replays SET expires_at=now()-interval '1 second' WHERE org_id=$1 AND operation_id=$2 AND outcome->>'jobId'=$3 RETURNING operation_id",
         [actor.orgId, operationId, id],
@@ -3217,7 +3200,7 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
         )
       ).rows[0]!;
       assert.deepEqual(retained.input, stored.input);
-      assert.equal(retained.input_digest, legacyDigest);
+      assert.equal(retained.input_digest, stored.input_digest);
       assert.equal(retained.state, stored.state);
       assert.deepEqual(retained.result, stored.result);
       await owner.query(
@@ -3225,7 +3208,7 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
         [actor.orgId, operationId, id],
       );
       const corruptedDigest = "0".repeat(64);
-      assert.notEqual(legacyDigest, corruptedDigest);
+      assert.notEqual(stored.input_digest, corruptedDigest);
       await owner.query(
         "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
         [id, corruptedDigest],
@@ -3245,11 +3228,11 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
       } finally {
         await owner.query(
           "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
-          [id, legacyDigest],
+          [id, stored.input_digest],
         );
       }
     };
-    await legacyReplay(
+    await durableReplay(
       "createBackup",
       admitted.jobId,
       { databaseId: database.id },
@@ -3295,7 +3278,7 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
       },
     )) as { jobId: string };
     assert.equal(restoreReplay.jobId, newRestore.jobId);
-    await legacyReplay(
+    await durableReplay(
       "restoreBackup",
       newRestore.jobId,
       {
@@ -3573,7 +3556,7 @@ test("V1-07 V1-20 V1-21 V1-24 V1-27 V1-28: durable restore lifecycle audits pres
   }
 });
 
-test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, authenticated legacy input and all other business/security/target bindings", async () => {
+test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings", async () => {
   const database = await storage.createDatabase(actor, {
     name: `Generic replay ${newId()}`,
   });
@@ -3678,13 +3661,23 @@ test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserv
     [accepted.jobId, legacyDigest],
   );
   await expire();
-  const legacy = (await service.enqueueOperation(actor, "countRows", input, {
-    idempotencyKey: key,
-    requestId: newId(),
-    source: "mcp",
-  })) as { jobId: string };
-  assert.equal(legacy.jobId, accepted.jobId);
-  assert.equal((await read()).input_digest, legacyDigest);
+  try {
+    await assert.rejects(
+      () =>
+        service.enqueueOperation(actor, "countRows", input, {
+          idempotencyKey: key,
+          requestId: newId(),
+          source: "mcp",
+        }),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+  } finally {
+    await owner.query(
+      "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
+      [accepted.jobId, original.input_digest],
+    );
+  }
   await expire();
   await assert.rejects(
     () =>
@@ -3770,7 +3763,7 @@ test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserv
   } finally {
     await owner.query(
       "UPDATE rootset_control.jobs SET input_digest=$2 WHERE id=$1",
-      [accepted.jobId, legacyDigest],
+      [accepted.jobId, original.input_digest],
     );
   }
   currentAccess = false;
@@ -3791,7 +3784,7 @@ test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserv
   assert.equal(executions, 1);
   const retained = await read();
   assert.deepEqual(retained.input, original.input);
-  assert.equal(retained.input_digest, legacyDigest);
+  assert.equal(retained.input_digest, original.input_digest);
   assert.equal(retained.state, original.state);
   assert.deepEqual(retained.result, original.result);
   assert.equal(
