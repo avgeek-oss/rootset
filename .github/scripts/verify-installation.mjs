@@ -233,6 +233,14 @@ try {
   assert.equal(role.superuser, false);
   assert.equal(role.bypassRls, false);
   report.checks.runtimeRoleRestricted = true;
+  assert.equal(
+    sql(
+      "SELECT rolpassword IS NULL FROM pg_authid WHERE rolname='postgres'",
+      "postgres",
+    ),
+    true,
+  );
+  report.checks.bundledAdminPasswordDisabled = true;
   for (const service of ["api", "worker"]) {
     compose(
       "exec",
