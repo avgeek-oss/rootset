@@ -107,21 +107,14 @@ export async function runNativeRetainedArchiveRegression(
 ) {
   const { fixture: db, config, constructors, mode } = input;
   assert(/^rootset_verify_[a-z0-9]+$/.test(db.name));
-  const rolePools = [db.owner, db.app, db.ddl, db.identity],
-    variables = [
-      "ROOTSET_TEST_DATABASE_URL",
-      "ROOTSET_TEST_DATABASE_URL",
-      "ROOTSET_TEST_DATABASE_URL",
-      "ROOTSET_TEST_DATABASE_URL",
-    ];
-  const environment: Record<string, string | undefined> = {
-    CI: process.env.CI,
-  };
-  rolePools.forEach((pool, i) => {
-    assert(pool.options.connectionString);
-    environment[variables[i]!] = pool.options.connectionString;
-  });
-  const bound = nativeTestDatabaseURLs(environment);
+  const rolePools = [db.owner, db.app, db.ddl, db.identity];
+  const bound = rolePools.map(
+    (pool) =>
+      nativeTestDatabaseURLs({
+        CI: process.env.CI,
+        ROOTSET_TEST_DATABASE_URL: pool.options.connectionString,
+      })[0]!,
+  );
   assert(bound.every((url) => url.pathname === "/" + db.name));
   assert.equal(
     Number(
@@ -698,8 +691,8 @@ test(
     try {
       await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
       created = true;
-      for (const url of urls) {
-        const target = new URL(url);
+      for (let index = 0; index < 4; index++) {
+        const target = new URL(urls[0]!);
         target.pathname = "/" + name;
         pools.push(createPool(target.toString(), 4));
       }
