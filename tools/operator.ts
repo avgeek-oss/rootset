@@ -22,7 +22,7 @@ if (
   let pool: ReturnType<typeof createPool> | undefined;
   try {
     const config = loadConfig();
-    pool = createPool(config.identityDatabaseURL, 3);
+    pool = createPool(config.databaseURL, 3);
     const identity = new IdentityService({
       ...config,
       pool,

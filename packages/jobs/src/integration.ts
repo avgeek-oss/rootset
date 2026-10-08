@@ -26,7 +26,7 @@ import { runMutation } from "@rootset/idempotency";
 
 if (!process.env.ROOTSET_TEST_DATABASE_URL)
   throw new Error(
-    "Real PostgreSQL fixture required: set ROOTSET_TEST_DATABASE_URL, ROOTSET_TEST_APP_DATABASE_URL, ROOTSET_TEST_DDL_DATABASE_URL and S3 variables",
+    "Real PostgreSQL fixture required: set ROOTSET_TEST_DATABASE_URL and S3 variables",
   );
 class JobsService extends BaseJobsService {
   override execute(
@@ -71,12 +71,8 @@ const config: JobsConfig = {
     bucket: process.env.ROOTSET_S3_BUCKET!,
     accessKeyId: process.env.ROOTSET_S3_ACCESS_KEY!,
     secretAccessKey: process.env.ROOTSET_S3_SECRET_KEY!,
-    activeKeyId: process.env.ROOTSET_ENCRYPTION_KEY_ID ?? "integration",
-    encryptionKeys: {
-      [process.env.ROOTSET_ENCRYPTION_KEY_ID ?? "integration"]:
-        process.env.ROOTSET_ENCRYPTION_KEY ??
-        randomBytes(32).toString("base64"),
-    },
+    encryptionKey:
+      process.env.ROOTSET_ENCRYPTION_KEY ?? randomBytes(32).toString("base64"),
   },
   organisationIds: async () => [actor.orgId],
   failpoint: async (point, jobId) => {
@@ -713,13 +709,7 @@ test("V1-24 V1-25: SIGKILL after a committed import batch recovers under a new w
   const childEnv = { ...process.env };
   for (const variable of [
     "ROOTSET_TEST_DATABASE_URL",
-    "ROOTSET_TEST_APP_DATABASE_URL",
-    "ROOTSET_TEST_DDL_DATABASE_URL",
-    "ROOTSET_TEST_IDENTITY_DATABASE_URL",
     "ROOTSET_DATABASE_URL",
-    "ROOTSET_DDL_DATABASE_URL",
-    "ROOTSET_IDENTITY_DATABASE_URL",
-    "ROOTSET_MIGRATION_DATABASE_URL",
   ]) {
     if (childEnv[variable]) {
       const url = new URL(childEnv[variable]!);
@@ -1553,15 +1543,14 @@ test("V1-25 V1-27 V1-30: last verified recovery point is protected, corrupted ar
       ...config,
       artifacts: {
         ...config.artifacts,
-        activeKeyId: "rotated",
-        encryptionKeys: { rotated: randomBytes(32).toString("base64") },
+        encryptionKey: randomBytes(32).toString("base64"),
       },
     },
   });
   await assert.rejects(
     missing.backups.load(actor, backupId),
     (error) =>
-      error instanceof RootsetError && error.code === "CONFIGURATION_INVALID",
+      error instanceof RootsetError && error.code === "BACKUP_UNVERIFIED",
   );
   await jobs.artifacts.client.send(
     new PutObjectCommand({

@@ -2,7 +2,7 @@ import { createPool, withOrg } from "@rootset/database";
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const owner = createPool(process.env.ROOTSET_TEST_DATABASE_URL!, 2);
-const worker = createPool(process.env.ROOTSET_TEST_DDL_DATABASE_URL!, 2);
+const worker = createPool(process.env.ROOTSET_TEST_DATABASE_URL!, 2);
 const endpoints = [
   process.env.ROOTSET_S3_ENDPOINT,
   "http://127.0.0.1:59010",

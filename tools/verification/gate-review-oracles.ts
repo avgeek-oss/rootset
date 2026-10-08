@@ -114,7 +114,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-29",
-    "Full-installation recovery restores SQL role privileges, identity/control/data state, a nonempty object set and retained encryption keys on a separate target without altering the source.",
+    "Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source.",
   ],
   [
     "V1-30",

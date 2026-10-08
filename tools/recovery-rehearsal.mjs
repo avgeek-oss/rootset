@@ -66,14 +66,7 @@ await writeFile(
 );
 const retained = Object.fromEntries(
   Object.entries(process.env).filter(([name]) =>
-    [
-      "ROOTSET_AUTH_SECRET",
-      "ROOTSET_KEY_HASH_SECRET",
-      "ROOTSET_CURSOR_SECRET",
-      "ROOTSET_ENCRYPTION_KEY",
-      "ROOTSET_ENCRYPTION_KEYS",
-      "ROOTSET_ENCRYPTION_KEY_ID",
-    ].includes(name),
+    ["ROOTSET_SECRET", "ROOTSET_ENCRYPTION_KEY"].includes(name),
   ),
 );
 await writeFile(
@@ -91,9 +84,6 @@ const record = {
   restoredContainer: restoredName,
   restoredPort,
   postgresImage: image,
-  keyIds: process.env.ROOTSET_ENCRYPTION_KEYS
-    ? Object.keys(JSON.parse(process.env.ROOTSET_ENCRYPTION_KEYS))
-    : [process.env.ROOTSET_ENCRYPTION_KEY_ID ?? "primary"],
   status: "prepared",
   limitations: [
     "This recovery result does not complete the current V1 checklist",
@@ -379,12 +369,7 @@ try {
       JSON.stringify(before) === JSON.stringify(target)
     );
   });
-  const keys = process.env.ROOTSET_ENCRYPTION_KEYS
-    ? JSON.parse(process.env.ROOTSET_ENCRYPTION_KEYS)
-    : {
-        [process.env.ROOTSET_ENCRYPTION_KEY_ID ?? "primary"]:
-          process.env.ROOTSET_ENCRYPTION_KEY,
-      };
+  const encryptionKey = process.env.ROOTSET_ENCRYPTION_KEY;
   const protectedRows = (
     await restoredPool.query(
       "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE payload_encrypted<>'' UNION ALL SELECT payload_encrypted FROM rootset_control.account_actions WHERE payload_encrypted<>''",
@@ -397,7 +382,7 @@ try {
       const [id, iv, tag, ciphertext] = row.payload_encrypted.split(":");
       const decipher = createDecipheriv(
         "aes-256-gcm",
-        Buffer.from(keys[id] ?? "", "hex"),
+        Buffer.from(encryptionKey ?? "", "hex"),
         Buffer.from(iv, "base64url"),
       );
       decipher.setAAD(Buffer.from("rootset:v1:" + id));

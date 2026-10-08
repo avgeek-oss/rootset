@@ -160,7 +160,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
       [orgId],
     );
     await fixture.owner.query(
-      "CREATE SCHEMA replay_test; CREATE TABLE replay_test.effects(id varchar(26) PRIMARY KEY,operation text NOT NULL); GRANT USAGE ON SCHEMA replay_test TO rootset_identity; GRANT INSERT ON replay_test.effects TO rootset_identity",
+      "CREATE SCHEMA replay_test; CREATE TABLE replay_test.effects(id varchar(26) PRIMARY KEY,operation text NOT NULL)",
     );
     const input = {
       email: "invited@example.test",

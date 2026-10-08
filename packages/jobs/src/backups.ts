@@ -418,7 +418,7 @@ export class BackupRunner {
                 ...reference,
                 embedded: true,
               })) as unknown as JsonValue[],
-              encryptionKeyId: this.artifacts.config.activeKeyId,
+              encryptionKeyId: "primary",
               rowCount,
               historyCount,
               completion: "extracted",

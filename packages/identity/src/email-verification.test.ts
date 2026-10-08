@@ -10,19 +10,18 @@ import { createIdentityService } from "./index";
 const origin = "http://localhost:6310";
 test(
   "public verification has uniform acknowledgements, private budgets and session-bound personal resends",
-  { skip: !process.env.ROOTSET_TEST_IDENTITY_DATABASE_URL },
+  { skip: !process.env.ROOTSET_TEST_DATABASE_URL },
   async (t) => {
     const fixture = await isolatedDatabase();
     t.after(() => fixture.close());
     const config = {
       pool: fixture.identity,
       baseURL: origin,
-      passwordPolicy: { breachCheck: false },
+
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),
-      encryptionKeys: { test: randomBytes(32).toString("base64") },
-      activeEncryptionKeyId: "test",
+      encryptionKey: randomBytes(32).toString("base64"),
     };
     const service = createIdentityService(config);
     const ownerEmail = "admin@example.test";

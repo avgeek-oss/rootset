@@ -12,8 +12,8 @@ process.once(
     artifacts: ArtifactConfig;
     pauseAt?: string;
   }) => {
-    const pool = createPool(process.env.ROOTSET_TEST_APP_DATABASE_URL!, 3);
-    const ddlPool = createPool(process.env.ROOTSET_TEST_DDL_DATABASE_URL!, 3);
+    const pool = createPool(process.env.ROOTSET_TEST_DATABASE_URL!, 3);
+    const ddlPool = createPool(process.env.ROOTSET_TEST_DATABASE_URL!, 3);
     const storage = new TableStorage({
       pool,
       ddlPool,

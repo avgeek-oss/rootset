@@ -23,9 +23,9 @@ export function testPools(): {
 } {
   return {
     owner: createPool(required("ROOTSET_TEST_DATABASE_URL"), 4),
-    app: createPool(required("ROOTSET_TEST_APP_DATABASE_URL"), 10),
-    ddl: createPool(required("ROOTSET_TEST_DDL_DATABASE_URL"), 4),
-    identity: createPool(required("ROOTSET_TEST_IDENTITY_DATABASE_URL"), 4),
+    app: createPool(required("ROOTSET_TEST_DATABASE_URL"), 10),
+    ddl: createPool(required("ROOTSET_TEST_DATABASE_URL"), 4),
+    identity: createPool(required("ROOTSET_TEST_DATABASE_URL"), 4),
   };
 }
 

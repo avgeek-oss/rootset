@@ -17,18 +17,17 @@ const responseCookies = (response: Response) =>
     .join("; ");
 test(
   "V1-06 AUTH-03 AUTH-04 passkey crypto, password gates, bound fresh proof and one-use recovery",
-  { skip: !process.env.ROOTSET_TEST_IDENTITY_DATABASE_URL },
+  { skip: !process.env.ROOTSET_TEST_DATABASE_URL },
   async (t) => {
     const fixture = await isolatedDatabase();
     const config = {
       pool: fixture.identity,
       baseURL: origin,
-      passwordPolicy: { breachCheck: false },
+
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),
-      encryptionKeys: { test: randomBytes(32).toString("base64") },
-      activeEncryptionKeyId: "test",
+      encryptionKey: randomBytes(32).toString("base64"),
     };
     const service = createIdentityService(config);
     service.setPaging(new MetadataPaging(randomBytes(32).toString("hex")));

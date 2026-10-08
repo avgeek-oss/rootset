@@ -81,11 +81,9 @@ buckets, foreign origins, API-key denial, session isolation, timing, concurrent
 requests and private delivery limits. `invitation-security.test.ts` exercises
 link authority, email-code expiry and attempts, invitation-bound password proof,
 concurrent consumption and revocation/last-Admin eligibility before account
-creation. `password-policy.test.ts` checks the privacy-preserving breached-password
-range request, strict padded responses, fail-closed outages and the bounded FIFO
-password-work queue. Production enables breach checking by default; offline
-synthetic fixtures disable the network lookup explicitly while policy tests
-exercise its behavior with controlled responses.
+creation. `password-policy.test.ts` checks salted password hashing, verification and the
+bounded FIFO password-work queue. Password handling has no external breach-check
+service or operator tuning variables.
 
 The human-approved rename from Editor to Member changes the role name, not its
 capabilities. Role matrix tests, live-role credentials, browser guards and

@@ -132,7 +132,7 @@ test(
   "native cancellation: real application-role reads, HTTP disconnect, races and pool recovery",
   { timeout: 90000 },
   async (t) => {
-    // No .env loader: the admitted executor supplies only four protected disposable URLs.
+    // The admitted executor supplies one protected disposable database URL.
     const urls = nativeTestDatabaseURLs(process.env);
     const name = `rootset_cancel_${newId().toLowerCase()}`;
     const admin = createPool(urls[0]!.toString(), 1);
@@ -141,7 +141,8 @@ test(
     try {
       await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
       created = true;
-      const [owner, app, ddl, identity] = urls.map((url) => {
+      const [owner, app, ddl, identity] = Array.from({ length: 4 }, () => {
+        const url = urls[0]!;
         const target = new URL(url);
         target.pathname = `/${name}`;
         const pool = createPool(target.toString(), 4);
@@ -154,7 +155,7 @@ test(
         (await app.query("SHOW statement_timeout")).rows[0].statement_timeout,
         "10s",
       );
-      assert.notEqual(
+      assert.equal(
         (await app.query("SELECT current_user AS role")).rows[0].role,
         (await owner.query("SELECT current_user AS role")).rows[0].role,
       );

@@ -2476,10 +2476,7 @@ export class JobsService {
             "SELECT id FROM rootset_control.maintenance_org_directory()",
           )
         ).rows.map((row) => row.id));
-    const concurrency = Math.min(
-      8,
-      Math.max(1, this.config.workerConcurrency ?? 2),
-    );
+    const concurrency = Math.min(8, 2);
     const workers = Array.from({ length: concurrency }, async (_, index) => {
       while (!options.signal?.aborted) {
         try {

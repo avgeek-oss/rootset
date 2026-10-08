@@ -71,14 +71,10 @@ Keep verified email/password sign-in, password reset, passkeys, passkey recovery
 are bounded, single-use and protected at rest. Rate-limit authentication and
 approval attempts; errors must not reveal unrelated account existence.
 
-Passwords contain 15–1,024 characters and use salted credential hashes. New
-passwords undergo the same breached-password check as Towbar: send only the first
-five SHA-1 characters to the padded range endpoint, compare suffixes locally and
-fail closed if the response is unavailable, malformed or too large. The lookup
-has a five-second deadline. Hash/verify work shares a bounded FIFO gate: two
-active operations and sixteen waiting by default, configurable by deployment
-environment. Overflow returns a retryable 503. Offline test fixtures disable the
-external lookup explicitly; production enables it by default.
+Passwords contain 15–1,024 characters and use salted credential hashes.
+Hash/verify work shares a fixed bounded FIFO gate: two active operations and
+sixteen waiting. Overflow returns a retryable 503. There is no external password
+breach lookup or installation setting for password-work concurrency.
 
 Public resend takes only a normalized email and returns a neutral acknowledgement
 for unknown, verified and unverified accounts, with a common 500 ms response
@@ -206,8 +202,8 @@ read time. The feed is independent of whether the email has been delivered.
 
 Notification events carry the organisation, stable event ID, type, occurred time,
 created time and a bounded domain payload. Receipts are keyed by organisation,
-user and event. The identity runtime alone can insert them; native ownership and
-row-level security protect both tables. Live membership and verification checks
+user and event. The identity service publishes them after checking current
+authority; forced row-level security applies to both tables. Live membership and verification checks
 apply to listing and marking, including personal keys and consented OAuth.
 Removing membership retains historical receipts while denying further access.
 

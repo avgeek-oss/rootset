@@ -1,36 +1,27 @@
 # Keys and account recovery
 
-Keep secrets outside Git and logs. Protect the encryption-key ring separately
-from PostgreSQL/artifacts; a valid encrypted backup is unusable without its key.
-Keep retained configuration and recovery copies under the same protection.
+Keep `ROOTSET_SECRET` and `ROOTSET_ENCRYPTION_KEY` outside Git and logs. Preserve
+protected configuration separately from database and artifact backups.
 
-## Encryption keys
+## Encryption key
 
-`ROOTSET_ENCRYPTION_KEYS` maps key IDs to 64 hexadecimal characters (32 random
-bytes). `ROOTSET_ENCRYPTION_KEY_ID` selects the active entry. A single-key
-configuration can use `ROOTSET_ENCRYPTION_KEY`. Ciphertext stores its key ID;
-readers must fail explicitly when the matching retained key is unavailable.
+`ROOTSET_ENCRYPTION_KEY` is one 32-byte key encoded as 64 hexadecimal characters.
+It protects email/action payloads and stored artifacts. Keep its original value
+for the lifetime of the installation and its recovery copies. A replacement
+key cannot decrypt existing data. Rootset does not support a keyring or an
+automatic re-encryption/rotation workflow.
 
-1. Generate a new key with local secret tooling and a new ID. Add it to the
-   protected ring without removing keys referenced by data or recovery copies.
-2. Keep the old active ID while every API/worker replica receives the expanded
-   ring. Verify old encrypted records/artifacts still read correctly.
-3. Select the new active ID on every replica. Create and read back a new encrypted
-   artifact, then verify isolated restore of both old and new artifacts.
-4. Retain the old key until measured inventory and recovery retention show no
-   remaining reference. Rotation does not automatically re-encrypt old data.
+Lost-key, authentication-tag and checksum failures are explicit failures. They
+must never be treated as successful empty reads. Recover the original key
+before resuming reads or restore.
 
-If a key is lost, recover its original value. A different value with the same ID
-cannot decrypt old ciphertext. Missing-key/decryption failures are explicit
-operational failures, never successful empty reads.
+## Application secret
 
-## Authentication and key-hash secrets
-
-Preserve `ROOTSET_AUTH_SECRET`, `ROOTSET_KEY_HASH_SECRET` and
-`ROOTSET_CURSOR_SECRET` across restart. Changing them can invalidate sessions/
-factors, personal-key verification or cursors. Plan the resulting access changes,
-provide replacement personal keys if needed and verify old/new behavior. Do not
-promise seamless rotation where there is no versioned verification ring.
+`ROOTSET_SECRET` supplies initial setup access and the persistent root material
+for authentication, personal-key hashing and cursor signing. Rootset derives
+separate keys for those purposes internally. Preserve the same value across
+restarts. Changing it can invalidate sessions, personal keys and pagination
+cursors; it does not replace the encryption key.
 
 Personal keys inherit live Admin/Member/Viewer membership. Rotation, expiry,
 revocation, demotion and membership removal must affect further requests, waiting

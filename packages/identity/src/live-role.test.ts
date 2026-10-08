@@ -85,12 +85,12 @@ function fixture() {
   const service = new IdentityService({
     pool,
     baseURL: "http://localhost:6300",
-    passwordPolicy: { breachCheck: false },
+
     secret: randomBytes(32).toString("hex"),
     bootstrapSecret: randomBytes(32).toString("hex"),
     keyHashSecret: randomBytes(32).toString("hex"),
-    encryptionKeys: { test: Buffer.alloc(32, 7).toString("base64") },
-    activeEncryptionKeyId: "test",
+    encryptionKey: Buffer.alloc(32, 7).toString("base64"),
+
     authoriseRepair: async () => undefined,
   });
   const actor: Actor = {

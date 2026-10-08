@@ -9,9 +9,9 @@ returns a retryable dependency error rather than publishing another effect.
 The receipt key binds the organisation, principal kind and ID, user, credential,
 client and operation. HMACs protect the supplied idempotency key and canonical
 input, including password-bearing account-action input. Raw inputs and raw
-idempotency keys are never stored. Keep the installation's key-hash secret stable
-across restart and disaster recovery; it is distinct from the rotatable protected
-payload encryption keyring.
+idempotency keys are never stored. Keep `ROOTSET_SECRET` stable across restart and disaster recovery. Rootset derives
+the journal signing key from this application secret. Encrypted payloads use the
+separate `ROOTSET_ENCRYPTION_KEY`.
 
 Equivalent input returns the same stored JSON outcome. Reusing a key with changed
 input returns `IDEMPOTENCY_CONFLICT`. Top-level approval identifiers do not change

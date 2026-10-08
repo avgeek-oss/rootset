@@ -25,8 +25,8 @@ test("BACKUP terminal notifications resolve verified recipients and report actua
     const ciphertextKey = randomBytes(32).toString("base64");
     const emailConfig = {
       ...config,
-      encryptionKeys: { fixture: ciphertextKey },
-      activeEncryptionKeyId: "fixture",
+      encryptionKey: ciphertextKey,
+
       smtp: {
         host: config.smtp.host,
         port: config.smtp.port,

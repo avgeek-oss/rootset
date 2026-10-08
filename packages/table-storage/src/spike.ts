@@ -9,8 +9,8 @@ if (process.env.NODE_ENV === "production")
   );
 for (const key of [
   "ROOTSET_TEST_DATABASE_URL",
-  "ROOTSET_TEST_APP_DATABASE_URL",
-  "ROOTSET_TEST_DDL_DATABASE_URL",
+  "ROOTSET_TEST_DATABASE_URL",
+  "ROOTSET_TEST_DATABASE_URL",
 ])
   if (!process.env[key])
     throw new Error(
@@ -28,8 +28,8 @@ const target = (key: string): string => {
   return url.toString();
 };
 const owner = createPool(target("ROOTSET_TEST_DATABASE_URL"), 1);
-const app = createPool(target("ROOTSET_TEST_APP_DATABASE_URL"), 4);
-const ddl = createPool(target("ROOTSET_TEST_DDL_DATABASE_URL"), 2);
+const app = createPool(target("ROOTSET_TEST_DATABASE_URL"), 4);
+const ddl = createPool(target("ROOTSET_TEST_DATABASE_URL"), 2);
 const storage = new TableStorage({
   pool: app,
   ddlPool: ddl,

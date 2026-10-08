@@ -27,8 +27,7 @@ import { isolatedDatabase } from "../../../tools/verification/isolated-database"
 
 const ownerURL = process.env.ROOTSET_TEST_DATABASE_URL;
 const identityURL =
-  process.env.ROOTSET_TEST_IDENTITY_DATABASE_URL ??
-  process.env.ROOTSET_IDENTITY_DATABASE_URL;
+  process.env.ROOTSET_TEST_DATABASE_URL ?? process.env.ROOTSET_DATABASE_URL;
 const baseURL = "http://localhost:6300";
 function cookies(response: Response): string {
   return response.headers
@@ -97,12 +96,11 @@ test(
     const config = {
       pool: fixture.identity,
       baseURL,
-      passwordPolicy: { breachCheck: false },
+
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),
-      encryptionKeys: { test: randomBytes(32).toString("base64") },
-      activeEncryptionKeyId: "test",
+      encryptionKey: randomBytes(32).toString("base64"),
     };
     const service = createIdentityService(config);
     const email = `signout-${newId().toLowerCase()}@example.test`;
@@ -269,12 +267,11 @@ test(
       const config = {
         pool,
         baseURL,
-        passwordPolicy: { breachCheck: false },
+
         secret: randomBytes(32).toString("hex"),
         bootstrapSecret: randomBytes(32).toString("hex"),
         keyHashSecret: randomBytes(32).toString("hex"),
-        encryptionKeys: { v1: randomBytes(32).toString("base64") },
-        activeEncryptionKeyId: "v1",
+        encryptionKey: randomBytes(32).toString("base64"),
       };
       const service = createIdentityService(config);
       const execute = (
@@ -1655,12 +1652,11 @@ test(
     const config = {
       pool: fixture.identity,
       baseURL,
-      passwordPolicy: { breachCheck: false },
+
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),
-      encryptionKeys: { test: randomBytes(32).toString("base64") },
-      activeEncryptionKeyId: "test",
+      encryptionKey: randomBytes(32).toString("base64"),
     };
     const service = createIdentityService(config),
       email = `personal-${newId().toLowerCase()}@example.test`,

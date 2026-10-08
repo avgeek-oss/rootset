@@ -7,17 +7,13 @@ import { newId, RootsetError } from "@rootset/contracts";
 import { transaction, type Pool, type PoolClient } from "@rootset/database";
 
 export interface EncryptionConfig {
-  encryptionKeys: Record<string, string>;
-  activeEncryptionKeyId: string;
+  encryptionKey: string;
 }
 export function encryptProtected(
   value: unknown,
   config: EncryptionConfig,
 ): string {
-  const key = Buffer.from(
-    config.encryptionKeys[config.activeEncryptionKeyId] ?? "",
-    "base64",
-  );
+  const key = Buffer.from(config.encryptionKey, "base64");
   if (key.length !== 32)
     throw new RootsetError(
       "CONFIGURATION_INVALID",
@@ -26,13 +22,13 @@ export function encryptProtected(
     );
   const iv = randomBytes(12),
     cipher = createCipheriv("aes-256-gcm", key, iv);
-  cipher.setAAD(Buffer.from(`rootset:v1:${config.activeEncryptionKeyId}`));
+  cipher.setAAD(Buffer.from("rootset:v1:primary"));
   const ciphertext = Buffer.concat([
     cipher.update(JSON.stringify(value), "utf8"),
     cipher.final(),
   ]);
   return [
-    config.activeEncryptionKeyId,
+    "primary",
     iv.toString("base64url"),
     cipher.getAuthTag().toString("base64url"),
     ciphertext.toString("base64url"),
@@ -49,7 +45,7 @@ export function decryptProtected<T>(
       "Protected data is invalid",
       500,
     );
-  const key = Buffer.from(config.encryptionKeys[keyId] ?? "", "base64");
+  const key = Buffer.from(config.encryptionKey, "base64");
   if (key.length !== 32)
     throw new RootsetError(
       "CONFIGURATION_INVALID",

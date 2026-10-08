@@ -186,8 +186,6 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
       webURL: baseURL,
       port: address.port,
       databaseURL: db.app.options.connectionString!,
-      ddlDatabaseURL: db.ddl.options.connectionString!,
-      identityDatabaseURL: db.identity.options.connectionString!,
     };
     const clientId = "rootset-field-matrix",
       redirectUri = "https://client.example/field-matrix";

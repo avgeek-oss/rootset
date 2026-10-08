@@ -6,7 +6,7 @@ import { newId, ActorSchema, type Actor } from "@rootset/contracts";
 import { OAuthService, fetchClientMetadata } from "./index.js";
 
 const databaseURL = process.env.ROOTSET_TEST_DATABASE_URL;
-const identityURL = process.env.ROOTSET_TEST_IDENTITY_DATABASE_URL;
+const identityURL = process.env.ROOTSET_TEST_DATABASE_URL;
 const baseURL = "http://localhost:4310",
   clientId = "test-rootset-client";
 const client = {

@@ -34,7 +34,7 @@ verificationCase(
       const storage = new TableStorage({
         pool: fixture.app,
         ddlPool: fixture.ddl,
-        cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+        cursorSecret: fixtureSecret("ROOTSET_SECRET"),
       });
       const database = await storage.createDatabase(actor, {
         name: "Forced digest collision",

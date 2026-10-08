@@ -7,10 +7,7 @@ import {
 } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import {
-  PasswordPolicy,
-  type PasswordPolicyOptions,
-} from "./password-policy.js";
+import { PasswordPolicy } from "./password-policy.js";
 import {
   passwordSecondFactor,
   completePasskeySecondFactor,
@@ -88,7 +85,6 @@ import {
 export interface IdentityConfig extends EmailConfig {
   webURL?: string;
   pool: Pool;
-  passwordPolicy?: PasswordPolicyOptions;
   secret: string;
   bootstrapSecret: string;
   keyHashSecret: string;
@@ -339,7 +335,7 @@ export class IdentityService {
       baseURL: config.webURL ?? config.baseURL,
       allowedActionOrigins: [new URL(config.baseURL).origin],
     });
-    this.passwords = new PasswordPolicy(config.passwordPolicy);
+    this.passwords = new PasswordPolicy();
     const database = drizzle(config.pool, { schema: identitySchema });
     this.rawAuth = betterAuth({
       appName: "Rootset",

@@ -31,12 +31,7 @@ if (
 const retained = JSON.parse(
   await readFile(join(directory, "protected-keys.json"), "utf8"),
 );
-const keys = retained.ROOTSET_ENCRYPTION_KEYS
-  ? JSON.parse(retained.ROOTSET_ENCRYPTION_KEYS)
-  : {
-      [retained.ROOTSET_ENCRYPTION_KEY_ID ?? "primary"]:
-        retained.ROOTSET_ENCRYPTION_KEY,
-    };
+const encryptionKey = retained.ROOTSET_ENCRYPTION_KEY;
 process.loadEnvFile(join(root, ".env.test"));
 const restoredURL = new URL(process.env.ROOTSET_TEST_DATABASE_URL);
 if (
@@ -83,7 +78,7 @@ try {
       response.Body,
       createWriteStream(path, { flags: "wx", mode: 0o600 }),
     );
-    const key = Buffer.from(keys[artifact.encryption_key_id] ?? "", "hex");
+    const key = Buffer.from(encryptionKey ?? "", "hex");
     if (key.length !== 32)
       throw new Error("A retained artifact encryption key is unavailable");
     const decipher = createDecipheriv(

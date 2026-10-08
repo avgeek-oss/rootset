@@ -64,8 +64,8 @@ test("shipped optional OAuth defaults reach the actual API entrypoint with zero 
     /ROOTSET_OAUTH_CLIENTS:\s*\$\{ROOTSET_OAUTH_CLIENTS:-([^}]*)\}/.exec(
       compose,
     )?.[1];
-  assert.equal(exampleDefault, "[]");
-  assert.equal(composeDefault, exampleDefault);
+  assert.equal(exampleDefault, undefined);
+  assert.equal(composeDefault, "[]");
   const entrypoint = new URL(
     "../../../apps/rootset-api/src/index.ts",
     import.meta.url,
@@ -80,7 +80,7 @@ test("shipped optional OAuth defaults reach the actual API entrypoint with zero 
     ]);
     registerHooks({resolve(specifier,context,next){const source=context.parentURL===${JSON.stringify(entrypoint.href)}?modules.get(specifier):undefined;return source===undefined?next(specifier,context):{url:'data:text/javascript;base64,'+Buffer.from(source).toString('base64'),shortCircuit:true}}});
   `;
-  for (const source of [exampleDefault, composeDefault]) {
+  for (const source of [exampleDefault ?? "[]", composeDefault]) {
     assert.deepEqual(parseConfiguredClients(source), []);
     const child = spawnSync(
       process.execPath,

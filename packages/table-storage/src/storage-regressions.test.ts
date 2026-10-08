@@ -27,11 +27,7 @@ import {
 } from "./index.js";
 import { operationAdmissionBinding } from "../../idempotency/src/index.js";
 
-const configured = Boolean(
-  process.env.ROOTSET_TEST_DATABASE_URL &&
-  process.env.ROOTSET_TEST_APP_DATABASE_URL &&
-  process.env.ROOTSET_TEST_DDL_DATABASE_URL,
-);
+const configured = Boolean(process.env.ROOTSET_TEST_DATABASE_URL);
 let owner: Pool | null = null,
   app: Pool | null = null,
   ddl: Pool | null = null,
@@ -62,8 +58,8 @@ before(async () => {
     return url.toString();
   };
   owner = createPool(target("ROOTSET_TEST_DATABASE_URL"), 1);
-  app = createPool(target("ROOTSET_TEST_APP_DATABASE_URL"), 4);
-  ddl = createPool(target("ROOTSET_TEST_DDL_DATABASE_URL"), 2);
+  app = createPool(target("ROOTSET_TEST_DATABASE_URL"), 4);
+  ddl = createPool(target("ROOTSET_TEST_DATABASE_URL"), 2);
   await migrate(owner);
   storage = new TableStorage({
     pool: app,
@@ -1325,7 +1321,7 @@ async function repairOptions(
         )
       ).rows[0]!;
       assert.deepEqual(role, {
-        current_user: "rootset_app",
+        current_user: new URL(process.env.ROOTSET_TEST_DATABASE_URL!).username,
         privileged: false,
       });
       await client.query(
@@ -1379,38 +1375,13 @@ async function assertRepairCapability(
   options: MutationOptions,
   result: MutationResult,
 ) {
-  const signature =
-      "rootset_control.append_operator_repair_completion(character varying,character varying,character varying,character varying)",
-    permissions = (
-      await owner!.query(
-        "SELECT r.rolname,r.rolcanlogin,r.rolsuper,r.rolbypassrls,p.prosecdef,p.proconfig,has_function_privilege('rootset_app',p.oid,'EXECUTE') AS app_execute,EXISTS(SELECT 1 FROM aclexplode(p.proacl) acl WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE') AS public_execute,has_table_privilege('rootset_app','rootset_control.resource_history','INSERT') AS app_insert,has_table_privilege('rootset_app','rootset_control.resource_history','UPDATE') AS app_update,has_table_privilege('rootset_app','rootset_control.resource_history','DELETE') AS app_delete,has_table_privilege(r.rolname,'rootset_control.jobs','UPDATE') AS owner_table_update,has_column_privilege(r.rolname,'rootset_control.jobs','id','UPDATE') AS owner_id_update,(SELECT bool_and(NOT has_column_privilege(r.rolname,'rootset_control.jobs',attname,'UPDATE')) FROM pg_attribute WHERE attrelid='rootset_control.jobs'::regclass AND attnum>0 AND NOT attisdropped AND attname<>'id') AS owner_other_updates_denied,(SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='rootset_control.resource_history'::regclass) AS forced_rls FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid=$1::regprocedure",
-        [signature],
-      )
-    ).rows[0]!;
-  assert.equal(permissions.rolname, "rootset_managed_owner");
-  for (const key of [
-    "rolcanlogin",
-    "rolsuper",
-    "rolbypassrls",
-    "public_execute",
-    "app_insert",
-    "app_update",
-    "app_delete",
-    "owner_table_update",
-  ])
-    assert.equal(permissions[key], false, key);
-  for (const key of [
-    "prosecdef",
-    "app_execute",
-    "owner_id_update",
-    "owner_other_updates_denied",
-    "forced_rls",
-  ])
-    assert.equal(permissions[key], true, key);
-  assert.deepEqual(
-    permissions.proconfig.map((value: string) => value.toLowerCase()).sort(),
-    ["row_security=on", "search_path=pg_catalog, pg_temp", "timezone=utc"],
-  );
+  const permissions = (
+    await owner!.query(
+      "SELECT p.prosecdef,(SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='rootset_control.resource_history'::regclass) forced_rls FROM pg_proc p WHERE p.oid='rootset_control.append_operator_repair_completion(varchar,varchar,varchar,varchar)'::regprocedure",
+    )
+  ).rows[0];
+  assert.equal(permissions.prosecdef, false);
+  assert.equal(permissions.forced_rls, true);
   const fence = options.context!.jobFence!,
     args = [actor.orgId, fence.jobId, fence.leaseToken, result.mutationId],
     sql =
@@ -1431,13 +1402,12 @@ async function assertRepairCapability(
         actor.orgId,
       ]);
       await prepare(client);
-      await client.query("SET LOCAL ROLE rootset_app");
       await client.query("SELECT set_config('rootset.org_id',$1,true)", [
         organisation,
       ]);
       assert.equal(
         (await client.query("SELECT current_user AS role")).rows[0]!.role,
-        "rootset_app",
+        new URL(process.env.ROOTSET_TEST_DATABASE_URL!).username,
       );
       await assert.rejects(client.query(statement, bound), { code: "42501" });
     } finally {
@@ -1546,12 +1516,6 @@ async function assertRepairCapability(
       [table.id],
     ),
   );
-  for (const statement of [
-    "INSERT INTO rootset_control.resource_history(org_id,resource_id,operation,actor,context) VALUES($1,$2,'operatorRepair','{}','{}')",
-    "UPDATE rootset_control.resource_history SET operation='untracked' WHERE org_id=$1 AND table_id=$2",
-    "DELETE FROM rootset_control.resource_history WHERE org_id=$1 AND table_id=$2",
-  ])
-    await denied(undefined, [actor.orgId, table.id], statement);
 }
 
 test(
@@ -2639,7 +2603,7 @@ test(
   "Native unique rules use exact typed grouping and extend the SQL budget only for a current authorised queued worker",
   { skip: !configured },
   async () => {
-    const url = new URL(process.env.ROOTSET_TEST_DDL_DATABASE_URL!);
+    const url = new URL(process.env.ROOTSET_TEST_DATABASE_URL!);
     url.pathname = `/${isolatedName}`;
     const observedPool = createPool(url.toString(), 2);
     const observations: { timeout: string; sql: string }[] = [];
@@ -3062,8 +3026,8 @@ test(
       fields: [{ name: "code", type: "text", charLimit: 30 }],
     });
     await storage!.createRow(actor, table.id, { code: "kept" });
-    const appUrl = new URL(process.env.ROOTSET_TEST_APP_DATABASE_URL!),
-      ddlUrl = new URL(process.env.ROOTSET_TEST_DDL_DATABASE_URL!);
+    const appUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!),
+      ddlUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!);
     appUrl.pathname = ddlUrl.pathname = `/${isolatedName}`;
     const input = {
       fieldId: table.fields[0]!.id,
@@ -3163,8 +3127,8 @@ test(
       });
       await storage!.createRow(actor, table.id, { code: "kept" });
       const fence = await runningJob(table.id, "createIndex");
-      const appUrl = new URL(process.env.ROOTSET_TEST_APP_DATABASE_URL!),
-        ddlUrl = new URL(process.env.ROOTSET_TEST_DDL_DATABASE_URL!);
+      const appUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!),
+        ddlUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!);
       appUrl.pathname = ddlUrl.pathname = `/${isolatedName}`;
       const input = {
         fieldId: table.fields[0]!.id,

@@ -19,7 +19,7 @@ if (
 const config = loadConfig();
 const owner = createPool(url.toString(), 1),
   app = createPool(config.databaseURL, 2),
-  ddl = createPool(config.ddlDatabaseURL, 2);
+  ddl = createPool(config.databaseURL, 2);
 const storage = new TableStorage({
   pool: app,
   ddlPool: ddl,
@@ -27,8 +27,7 @@ const storage = new TableStorage({
 });
 const store = new ArtifactStore(app, {
   ...config.artifacts,
-  encryptionKeys: config.encryptionKeys,
-  activeKeyId: config.activeEncryptionKeyId,
+  encryptionKey: config.encryptionKey,
 });
 let orgId = newId();
 const userId = newId(),

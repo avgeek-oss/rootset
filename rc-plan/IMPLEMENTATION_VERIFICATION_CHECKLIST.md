@@ -46,7 +46,7 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-26` Backups run only on manual trigger; no scheduling policy or cron endpoint exists. One consistent database snapshot includes schema, rows, rules and retained history during concurrent editing.
 - [ ] `V1-27` A successful backup has encrypted-object readback and an isolated restore comparison of schema, values, revisions, history, constraints and checksums; upload alone stays unverified.
 - [ ] `V1-28` New/replacement restore validates before publication, preserves the original on failed/cancelled cutover and never activates a captured failed rule/index.
-- [ ] `V1-29` Full-installation recovery restores SQL role privileges, identity/control/data state, a nonempty object set and retained encryption keys on a separate target without altering the source.
+- [ ] `V1-29` Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source.
 - [ ] `V1-30` Object/SMTP outage, corruption, missing keys, disk pressure and connection saturation produce truthful failures/retry behavior; retention preserves the last verified recovery point.
 
 ## Browser and performance

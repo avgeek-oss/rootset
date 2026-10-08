@@ -146,28 +146,14 @@ test(
       "member",
     );
     await pool.query("UPDATE rootset_control.memberships SET role='admin'");
-    for (const role of ["rootset_app", "rootset_identity", "rootset_ddl"]) {
-      assert.equal(
-        (
-          await pool.query(
-            "SELECT has_table_privilege($1,'rootset_control.migrations','SELECT') allowed",
-            [role],
-          )
-        ).rows[0].allowed,
-        true,
-        `${role} can inspect the applied baseline`,
-      );
-      assert.equal(
-        (
-          await pool.query(
-            "SELECT has_table_privilege($1,'rootset_control.migrations','UPDATE') allowed",
-            [role],
-          )
-        ).rows[0].allowed,
-        false,
-        `${role} cannot rewrite the applied baseline`,
-      );
-    }
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT has_table_privilege(current_user,'rootset_control.migrations','SELECT') allowed",
+        )
+      ).rows[0].allowed,
+      true,
+    );
     const absent = await pool.query(
       "SELECT table_name,column_name FROM information_schema.columns WHERE table_schema='rootset_control' AND ((table_name='organisations' AND column_name IN('description','state','quota_bytes')) OR (table_name='memberships' AND column_name IN('state','restricted')) OR (table_name='api_keys' AND column_name IN('owner_kind','scopes','targets','unrestricted')) OR (table_name='users' AND column_name='disabled') OR (table_name='fields' AND column_name IN('api_key','label')))",
     );

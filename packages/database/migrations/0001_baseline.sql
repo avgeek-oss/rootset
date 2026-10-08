@@ -1,29 +1,8 @@
 -- Rootset V1 fresh-install baseline. Regenerate this file before the first release.
--- Use pnpm db:migrate with the migration administrator. Existing prelaunch schemas
+-- Use pnpm db:migrate with ROOTSET_DATABASE_URL. Existing prelaunch schemas
 -- are never reset automatically; use a fresh database and preserve their data.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-DO $$
-DECLARE role_name text;
-BEGIN
-  FOREACH role_name IN ARRAY ARRAY['rootset_managed_owner','rootset_identity_definer','rootset_worker_definer','rootset_metrics_definer'] LOOP
-    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=role_name) THEN
-      EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT %s',role_name,CASE WHEN role_name='rootset_managed_owner' THEN 'NOBYPASSRLS' ELSE 'BYPASSRLS' END);
-    END IF;
-  END LOOP;
-  EXECUTE format('GRANT CREATE ON DATABASE %I TO rootset_ddl',current_database());
-END $$;
-DO $$ BEGIN
-  IF NOT pg_has_role('rootset_ddl','rootset_managed_owner','MEMBER') THEN
-    GRANT rootset_managed_owner TO rootset_ddl;
-  END IF;
-  IF NOT pg_has_role('rootset_metrics_definer','pg_read_all_stats','MEMBER') THEN
-    GRANT pg_read_all_stats TO rootset_metrics_definer;
-  END IF;
-END $$;
-
-GRANT EXECUTE ON FUNCTION pg_catalog.pg_ls_waldir() TO rootset_metrics_definer;
-
 SET LOCAL statement_timeout = 0;
 SET LOCAL lock_timeout = 0;
 SET LOCAL idle_in_transaction_session_timeout = 0;
@@ -38,10 +17,16 @@ SET LOCAL row_security = off;
 
 CREATE SCHEMA IF NOT EXISTS rootset_control;
 
-ALTER SCHEMA rootset_control OWNER TO rootset_owner;
+
+-- Each installation has one organisation. Explicit transaction context still
+-- takes precedence, so foreign organisation IDs cannot read or write its rows.
+CREATE FUNCTION rootset_control.current_org_id() RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$ SELECT coalesce(nullif(current_setting('rootset.org_id',true),''),(SELECT id::text FROM rootset_control.organisations)) $$;
 
 CREATE FUNCTION rootset_control.append_operator_repair_completion(organisation_arg character varying, job_arg character varying, lease_arg character varying, mutation_arg character varying) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'pg_temp'
     SET "TimeZone" TO 'UTC'
     SET row_security TO 'on'
@@ -156,7 +141,6 @@ BEGIN
  VALUES(organisation_arg,d.id,t.id,t.id,'operatorRepair',NULL,summary,m.actor,audit_context);
 END $_$;
 
-ALTER FUNCTION rootset_control.append_operator_repair_completion(organisation_arg character varying, job_arg character varying, lease_arg character varying, mutation_arg character varying) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.canonical_json(v jsonb) RETURNS text
     LANGUAGE plpgsql IMMUTABLE STRICT
@@ -176,7 +160,6 @@ BEGIN
  END CASE;
 END $$;
 
-ALTER FUNCTION rootset_control.canonical_json(v jsonb) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.canonical_number(value_arg numeric) RETURNS text
     LANGUAGE plpgsql IMMUTABLE STRICT
@@ -209,10 +192,9 @@ BEGIN
    ||'e'||CASE WHEN exponent_arg>=0 THEN '+' ELSE '' END||exponent_arg::text;
 END $$;
 
-ALTER FUNCTION rootset_control.canonical_number(value_arg numeric) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.canonical_row(record_json jsonb, table_id_arg character varying) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE
     SET search_path TO 'pg_catalog', 'rootset_control'
     AS $$
 DECLARE result jsonb:='{}'; f record;
@@ -223,7 +205,6 @@ BEGIN
  RETURN result;
 END $$;
 
-ALTER FUNCTION rootset_control.canonical_row(record_json jsonb, table_id_arg character varying) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.cell_value(record_json jsonb, f jsonb) RETURNS jsonb
     LANGUAGE plpgsql IMMUTABLE
@@ -240,10 +221,9 @@ BEGIN
  RETURN v;
 END $$;
 
-ALTER FUNCTION rootset_control.cell_value(record_json jsonb, f jsonb) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.enforce_restore_write() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'rootset_control'
     AS $$
 DECLARE database_arg varchar(26); organisation_arg varchar(26);
@@ -259,10 +239,9 @@ BEGIN
  RETURN NULL;
 END $$;
 
-ALTER FUNCTION rootset_control.enforce_restore_write() OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.enforce_row() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'rootset_control'
     SET "TimeZone" TO 'UTC'
     AS $_$
@@ -345,15 +324,13 @@ BEGIN
  IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END $_$;
 
-ALTER FUNCTION rootset_control.enforce_row() OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.invitation_locator(invitation_hash text) RETURNS TABLE(org_id character varying)
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE sql
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
     AS $$ SELECT org_id FROM rootset_control.invitations WHERE id=invitation_hash; $$;
 
-ALTER FUNCTION rootset_control.invitation_locator(invitation_hash text) OWNER TO rootset_identity_definer;
 
 CREATE FUNCTION rootset_control.json_depth(v jsonb) RETURNS integer
     LANGUAGE plpgsql IMMUTABLE STRICT
@@ -366,31 +343,27 @@ BEGIN
  RETURN 0;
 END $$;
 
-ALTER FUNCTION rootset_control.json_depth(v jsonb) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.key_locator(key_id text) RETURNS TABLE(org_id character varying)
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE sql
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
     AS $$ SELECT org_id FROM rootset_control.api_keys WHERE id=key_id; $$;
 
-ALTER FUNCTION rootset_control.key_locator(key_id text) OWNER TO rootset_identity_definer;
 
 CREATE FUNCTION rootset_control.maintenance_org_directory() RETURNS TABLE(id text)
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
     AS $$ SELECT o.id::text FROM rootset_control.organisations o $$;
 
-ALTER FUNCTION rootset_control.maintenance_org_directory() OWNER TO rootset_worker_definer;
 
 CREATE FUNCTION rootset_control.memberships_for_user(identity_user_id text) RETURNS TABLE(id character varying, org_id character varying, user_id character varying, role text, version bigint, name character varying)
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE sql
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
     AS $$ SELECT m.id,m.org_id,m.user_id,m.role,m.version,o.name FROM rootset_control.memberships m JOIN rootset_control.organisations o ON o.id=m.org_id WHERE m.user_id=identity_user_id $$;
 
-ALTER FUNCTION rootset_control.memberships_for_user(identity_user_id text) OWNER TO rootset_identity_definer;
 
 CREATE FUNCTION rootset_control.new_ulid() RETURNS character varying
     LANGUAGE plpgsql
@@ -405,20 +378,17 @@ BEGIN
  RETURN output::varchar(26);
 END $$;
 
-ALTER FUNCTION rootset_control.new_ulid() OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.oauth_grant_active(grant_id text) RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
     AS $$ SELECT EXISTS(SELECT 1 FROM rootset_control.oauth_grants g JOIN rootset_control.users u ON u.id=g.user_id JOIN rootset_control.memberships m ON m.user_id=u.id AND m.org_id=g.org_id WHERE g.id=grant_id AND g.revoked_at IS NULL AND u.email_verified) $$;
 
-ALTER FUNCTION rootset_control.oauth_grant_active(grant_id text) OWNER TO rootset_identity_definer;
 
 CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
-    SET row_security TO 'off'
     SET "TimeZone" TO 'UTC'
     AS $_$
  WITH database_stats AS (
@@ -492,7 +462,7 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
   'databaseBytes',pg_database_size(current_database())::text,
   'temporaryBytes',coalesce(d.temp_bytes,0)::text,
   'temporaryFiles',coalesce(d.temp_files,0)::text,
-  'walDirectoryBytes',(SELECT coalesce(sum(size),0)::text FROM pg_ls_waldir()),
+  'walDirectoryBytes',NULL,
   'walGeneratedBytes',trunc(w.wal_bytes)::text,
   'walRecords',w.wal_records::text,
   'transactionsCommitted',coalesce(d.xact_commit,0)::text,
@@ -510,7 +480,6 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
  ) FROM connection_stats c CROSS JOIN job_stats j CROSS JOIN backup_stats b CROSS JOIN recovery_stats r CROSS JOIN email_stats e CROSS JOIN schema_stats s CROSS JOIN index_stats i CROSS JOIN invalid_index_stats ix CROSS JOIN native_stats n CROSS JOIN table_stats t CROSS JOIN history_stats a CROSS JOIN artifact_stats o CROSS JOIN worker_stats h CROSS JOIN pg_stat_wal w LEFT JOIN database_stats d ON true
 $_$;
 
-ALTER FUNCTION rootset_control.operator_metrics() OWNER TO rootset_metrics_definer;
 
 CREATE FUNCTION rootset_control.preserve_notification_read_time() RETURNS trigger
     LANGUAGE plpgsql
@@ -522,7 +491,6 @@ CREATE FUNCTION rootset_control.preserve_notification_read_time() RETURNS trigge
       RETURN NEW;
     END $$;
 
-ALTER FUNCTION rootset_control.preserve_notification_read_time() OWNER TO rootset_owner;
 
 CREATE FUNCTION rootset_control.track_history_metrics() RETURNS trigger
     LANGUAGE plpgsql
@@ -539,14 +507,12 @@ BEGIN
  END IF;
 END $$;
 
-ALTER FUNCTION rootset_control.track_history_metrics() OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.unique_digest(tuple_arg text) RETURNS text
     LANGUAGE sql IMMUTABLE STRICT
     SET search_path TO 'pg_catalog', 'public'
     AS $$ SELECT encode(public.digest(convert_to(tuple_arg,'UTF8'),'sha256'),'hex') $$;
 
-ALTER FUNCTION rootset_control.unique_digest(tuple_arg text) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.validate_json(v jsonb) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE STRICT
@@ -565,15 +531,13 @@ BEGIN
  RETURN true;
 END $$;
 
-ALTER FUNCTION rootset_control.validate_json(v jsonb) OWNER TO rootset_managed_owner;
 
 CREATE FUNCTION rootset_control.worker_org_directory() RETURNS TABLE(id text)
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
     SET "TimeZone" TO 'UTC'
     AS $$ SELECT o.id::text FROM rootset_control.organisations o $$;
 
-ALTER FUNCTION rootset_control.worker_org_directory() OWNER TO rootset_worker_definer;
 
 SET LOCAL default_tablespace = '';
 
@@ -597,7 +561,6 @@ CREATE TABLE rootset_control.account_actions (
 
 ALTER TABLE ONLY rootset_control.account_actions FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.account_actions OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.api_admissions (
     id text NOT NULL,
@@ -606,7 +569,6 @@ CREATE TABLE rootset_control.api_admissions (
     expires_at timestamp with time zone NOT NULL
 );
 
-ALTER TABLE rootset_control.api_admissions OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.api_keys (
     id character varying(26) NOT NULL,
@@ -625,7 +587,6 @@ CREATE TABLE rootset_control.api_keys (
 
 ALTER TABLE ONLY rootset_control.api_keys FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.api_keys OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.api_rate_windows (
     principal text NOT NULL,
@@ -633,7 +594,6 @@ CREATE TABLE rootset_control.api_rate_windows (
     requests integer NOT NULL
 );
 
-ALTER TABLE rootset_control.api_rate_windows OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.artifacts (
     id character(26) NOT NULL,
@@ -666,7 +626,6 @@ CREATE TABLE rootset_control.artifacts (
 
 ALTER TABLE ONLY rootset_control.artifacts FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.artifacts OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.auth_accounts (
     id character varying(26) NOT NULL,
@@ -684,7 +643,6 @@ CREATE TABLE rootset_control.auth_accounts (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.auth_accounts OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.auth_passkeys (
     id character varying(26) NOT NULL,
@@ -700,7 +658,6 @@ CREATE TABLE rootset_control.auth_passkeys (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.auth_passkeys OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.auth_recovery_codes (
     user_id character varying(26) NOT NULL,
@@ -708,7 +665,6 @@ CREATE TABLE rootset_control.auth_recovery_codes (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.auth_recovery_codes OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.auth_verifications (
     id character varying(26) NOT NULL,
@@ -719,7 +675,6 @@ CREATE TABLE rootset_control.auth_verifications (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.auth_verifications OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.backups (
     id character(26) NOT NULL,
@@ -743,7 +698,6 @@ CREATE TABLE rootset_control.backups (
 
 ALTER TABLE ONLY rootset_control.backups FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.backups OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.bootstrap (
     singleton boolean DEFAULT true NOT NULL,
@@ -755,7 +709,6 @@ CREATE TABLE rootset_control.bootstrap (
     CONSTRAINT bootstrap_singleton_check CHECK (singleton)
 );
 
-ALTER TABLE rootset_control.bootstrap OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.cell_changes (
     id bigint NOT NULL,
@@ -781,7 +734,6 @@ PARTITION BY RANGE (changed_at);
 
 ALTER TABLE ONLY rootset_control.cell_changes FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.cell_changes OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.cell_changes_default (
     id bigint CONSTRAINT cell_changes_id_not_null NOT NULL,
@@ -806,7 +758,6 @@ CREATE TABLE rootset_control.cell_changes_default (
 
 ALTER TABLE ONLY rootset_control.cell_changes_default FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.cell_changes_default OWNER TO rootset_managed_owner;
 
 ALTER TABLE rootset_control.cell_changes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME rootset_control.cell_changes_id_seq
@@ -831,7 +782,6 @@ CREATE TABLE rootset_control.control_mutation_replays (
 
 ALTER TABLE ONLY rootset_control.control_mutation_replays FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.control_mutation_replays OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.databases (
     id character varying(26) NOT NULL,
@@ -849,7 +799,6 @@ CREATE TABLE rootset_control.databases (
 
 ALTER TABLE ONLY rootset_control.databases FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.databases OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.email_changes (
     id character varying(26) NOT NULL,
@@ -861,7 +810,6 @@ CREATE TABLE rootset_control.email_changes (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.email_changes OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.email_outbox (
     id character varying(26) NOT NULL,
@@ -881,7 +829,6 @@ CREATE TABLE rootset_control.email_outbox (
     CONSTRAINT email_outbox_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text])))
 );
 
-ALTER TABLE rootset_control.email_outbox OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.fields (
     id character varying(26) NOT NULL,
@@ -898,7 +845,6 @@ CREATE TABLE rootset_control.fields (
 
 ALTER TABLE ONLY rootset_control.fields FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.fields OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.history_archive_occurrences (
     policy_id character varying(26) NOT NULL,
@@ -909,7 +855,6 @@ CREATE TABLE rootset_control.history_archive_occurrences (
     CONSTRAINT history_archive_occurrences_state_check CHECK ((state = ANY (ARRAY['enqueued'::text, 'skipped_overlap'::text])))
 );
 
-ALTER TABLE rootset_control.history_archive_occurrences OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.history_archives (
     id character varying(26) NOT NULL,
@@ -939,7 +884,6 @@ CREATE TABLE rootset_control.history_archives (
 
 ALTER TABLE ONLY rootset_control.history_archives FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_archives OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.history_gaps (
     id character varying(26) NOT NULL,
@@ -954,7 +898,6 @@ CREATE TABLE rootset_control.history_gaps (
 
 ALTER TABLE ONLY rootset_control.history_gaps FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_gaps OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.history_metrics (
     org_id character varying(26) NOT NULL,
@@ -967,7 +910,6 @@ CREATE TABLE rootset_control.history_metrics (
 
 ALTER TABLE ONLY rootset_control.history_metrics FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_metrics OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.history_retention_policies (
     id character varying(26) NOT NULL,
@@ -991,7 +933,6 @@ CREATE TABLE rootset_control.history_retention_policies (
 
 ALTER TABLE ONLY rootset_control.history_retention_policies FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_retention_policies OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.identity_rate_limits (
     bucket_hash text NOT NULL,
@@ -999,7 +940,6 @@ CREATE TABLE rootset_control.identity_rate_limits (
     expires_at timestamp with time zone NOT NULL
 );
 
-ALTER TABLE rootset_control.identity_rate_limits OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.import_batches (
     job_id character(26) NOT NULL,
@@ -1014,7 +954,6 @@ CREATE TABLE rootset_control.import_batches (
 
 ALTER TABLE ONLY rootset_control.import_batches FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.import_batches OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.import_rejections (
     job_id character(26) NOT NULL,
@@ -1027,7 +966,6 @@ CREATE TABLE rootset_control.import_rejections (
 
 ALTER TABLE ONLY rootset_control.import_rejections FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.import_rejections OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.indexes (
     id character varying(26) NOT NULL,
@@ -1046,7 +984,6 @@ CREATE TABLE rootset_control.indexes (
 
 ALTER TABLE ONLY rootset_control.indexes FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.indexes OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.invitations (
     id character varying(26) NOT NULL,
@@ -1064,7 +1001,6 @@ CREATE TABLE rootset_control.invitations (
 
 ALTER TABLE ONLY rootset_control.invitations FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.invitations OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.jobs (
     id character(26) NOT NULL,
@@ -1101,7 +1037,6 @@ CREATE TABLE rootset_control.jobs (
 
 ALTER TABLE ONLY rootset_control.jobs FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.jobs OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.key_requests (
     actor_id text NOT NULL,
@@ -1115,7 +1050,6 @@ CREATE TABLE rootset_control.key_requests (
 
 ALTER TABLE ONLY rootset_control.key_requests FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.key_requests OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.memberships (
     id character varying(26) NOT NULL,
@@ -1130,7 +1064,6 @@ CREATE TABLE rootset_control.memberships (
 
 ALTER TABLE ONLY rootset_control.memberships FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.memberships OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.mutations (
     id character varying(26) NOT NULL,
@@ -1148,7 +1081,6 @@ CREATE TABLE rootset_control.mutations (
 
 ALTER TABLE ONLY rootset_control.mutations FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.mutations OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.notification_events (
     id character varying(26) NOT NULL,
@@ -1164,7 +1096,6 @@ CREATE TABLE rootset_control.notification_events (
 
 ALTER TABLE ONLY rootset_control.notification_events FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.notification_events OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.notification_receipts (
     org_id character varying(26) NOT NULL,
@@ -1175,7 +1106,6 @@ CREATE TABLE rootset_control.notification_receipts (
 
 ALTER TABLE ONLY rootset_control.notification_receipts FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.notification_receipts OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_clients (
     client_id text NOT NULL,
@@ -1186,7 +1116,6 @@ CREATE TABLE rootset_control.oauth_clients (
     CONSTRAINT oauth_clients_provenance_check CHECK ((provenance = ANY (ARRAY['registered'::text, 'metadata'::text, 'dynamic'::text])))
 );
 
-ALTER TABLE rootset_control.oauth_clients OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_codes (
     digest text NOT NULL,
@@ -1198,7 +1127,6 @@ CREATE TABLE rootset_control.oauth_codes (
     consumed_at timestamp with time zone
 );
 
-ALTER TABLE rootset_control.oauth_codes OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_families (
     id text NOT NULL,
@@ -1209,7 +1137,6 @@ CREATE TABLE rootset_control.oauth_families (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.oauth_families OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_grants (
     id text NOT NULL,
@@ -1223,7 +1150,6 @@ CREATE TABLE rootset_control.oauth_grants (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.oauth_grants OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_requests (
     id text NOT NULL,
@@ -1242,7 +1168,6 @@ CREATE TABLE rootset_control.oauth_requests (
     CONSTRAINT oauth_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'denied'::text])))
 );
 
-ALTER TABLE rootset_control.oauth_requests OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.oauth_tokens (
     digest text NOT NULL,
@@ -1254,7 +1179,6 @@ CREATE TABLE rootset_control.oauth_tokens (
     CONSTRAINT oauth_tokens_kind_check CHECK ((kind = ANY (ARRAY['access'::text, 'refresh'::text])))
 );
 
-ALTER TABLE rootset_control.oauth_tokens OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.operation_outcomes (
     job_id character varying(26) NOT NULL,
@@ -1267,7 +1191,6 @@ CREATE TABLE rootset_control.operation_outcomes (
 
 ALTER TABLE ONLY rootset_control.operation_outcomes FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.operation_outcomes OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.organisations (
     id character varying(26) NOT NULL,
@@ -1278,9 +1201,8 @@ CREATE TABLE rootset_control.organisations (
     CONSTRAINT organisations_singleton_check CHECK (singleton)
 );
 
-ALTER TABLE ONLY rootset_control.organisations FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.organisations OWNER TO rootset_owner;
+
 
 CREATE TABLE rootset_control.query_sessions (
     id character varying(26) NOT NULL,
@@ -1296,7 +1218,6 @@ CREATE TABLE rootset_control.query_sessions (
 
 ALTER TABLE ONLY rootset_control.query_sessions FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.query_sessions OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.resource_history (
     id bigint NOT NULL,
@@ -1315,7 +1236,6 @@ CREATE TABLE rootset_control.resource_history (
 
 ALTER TABLE ONLY rootset_control.resource_history FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.resource_history OWNER TO rootset_managed_owner;
 
 ALTER TABLE rootset_control.resource_history ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME rootset_control.resource_history_id_seq
@@ -1339,7 +1259,6 @@ CREATE TABLE rootset_control.restore_provenance (
 
 ALTER TABLE ONLY rootset_control.restore_provenance FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.restore_provenance OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.restore_publications (
     job_id character(26) NOT NULL,
@@ -1356,7 +1275,6 @@ CREATE TABLE rootset_control.restore_publications (
 
 ALTER TABLE ONLY rootset_control.restore_publications FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.restore_publications OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.restore_write_barriers (
     database_id character varying(26) NOT NULL,
@@ -1367,7 +1285,6 @@ CREATE TABLE rootset_control.restore_write_barriers (
 
 ALTER TABLE ONLY rootset_control.restore_write_barriers FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.restore_write_barriers OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.row_events (
     id bigint NOT NULL,
@@ -1387,7 +1304,6 @@ CREATE TABLE rootset_control.row_events (
 
 ALTER TABLE ONLY rootset_control.row_events FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.row_events OWNER TO rootset_managed_owner;
 
 ALTER TABLE rootset_control.row_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME rootset_control.row_events_id_seq
@@ -1421,7 +1337,6 @@ CREATE TABLE rootset_control.schema_operations (
 
 ALTER TABLE ONLY rootset_control.schema_operations FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.schema_operations OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.sessions (
     id character varying(26) NOT NULL,
@@ -1435,7 +1350,6 @@ CREATE TABLE rootset_control.sessions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-ALTER TABLE rootset_control.sessions OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.tables (
     id character varying(26) NOT NULL,
@@ -1459,7 +1373,6 @@ CREATE TABLE rootset_control.tables (
 
 ALTER TABLE ONLY rootset_control.tables FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.tables OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.unique_buckets (
     rule_id character varying(26) NOT NULL,
@@ -1468,7 +1381,6 @@ CREATE TABLE rootset_control.unique_buckets (
 
 ALTER TABLE ONLY rootset_control.unique_buckets FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.unique_buckets OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.unique_entries (
     rule_id character varying(26) NOT NULL,
@@ -1479,7 +1391,6 @@ CREATE TABLE rootset_control.unique_entries (
 
 ALTER TABLE ONLY rootset_control.unique_entries FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.unique_entries OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.unique_rules (
     id character varying(26) NOT NULL,
@@ -1500,7 +1411,6 @@ CREATE TABLE rootset_control.unique_rules (
 
 ALTER TABLE ONLY rootset_control.unique_rules FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.unique_rules OWNER TO rootset_managed_owner;
 
 CREATE TABLE rootset_control.user_preferences (
     user_id character varying(26) NOT NULL,
@@ -1515,7 +1425,6 @@ CREATE TABLE rootset_control.user_preferences (
     CONSTRAINT user_preferences_time_format_check CHECK ((time_format = ANY (ARRAY['24-hour'::text, '12-hour'::text, '24-hour-seconds'::text, '12-hour-seconds'::text])))
 );
 
-ALTER TABLE rootset_control.user_preferences OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.users (
     id character varying(26) NOT NULL,
@@ -1529,7 +1438,6 @@ CREATE TABLE rootset_control.users (
     CONSTRAINT users_email_check CHECK (((email)::text = lower(TRIM(BOTH FROM email))))
 );
 
-ALTER TABLE rootset_control.users OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.view_preferences (
     user_id character varying(26) NOT NULL,
@@ -1541,7 +1449,6 @@ CREATE TABLE rootset_control.view_preferences (
 
 ALTER TABLE ONLY rootset_control.view_preferences FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.view_preferences OWNER TO rootset_owner;
 
 CREATE TABLE rootset_control.worker_heartbeats (
     id character varying(26) NOT NULL,
@@ -1552,7 +1459,6 @@ CREATE TABLE rootset_control.worker_heartbeats (
     CONSTRAINT worker_heartbeats_state_check CHECK ((state = ANY (ARRAY['starting'::text, 'ready'::text, 'degraded'::text, 'stopped'::text])))
 );
 
-ALTER TABLE rootset_control.worker_heartbeats OWNER TO rootset_owner;
 
 ALTER TABLE ONLY rootset_control.cell_changes ATTACH PARTITION rootset_control.cell_changes_default DEFAULT;
 
@@ -2076,21 +1982,20 @@ ALTER TABLE rootset_control.history_metrics ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.history_retention_policies ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY identity_org_isolation ON rootset_control.account_actions TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.account_actions USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.api_keys TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.api_keys USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.invitations TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.invitations USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.key_requests TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.key_requests USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.memberships TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.memberships USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.notification_events TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.notification_events USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.notification_receipts TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY identity_org_isolation ON rootset_control.notification_receipts USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.organisations TO rootset_identity USING (((id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((id)::text = current_setting('rootset.org_id'::text, true)));
 
 ALTER TABLE rootset_control.import_batches ENABLE ROW LEVEL SECURITY;
 
@@ -2114,59 +2019,59 @@ ALTER TABLE rootset_control.notification_receipts ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.operation_outcomes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY org_isolation ON rootset_control.artifacts USING ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26))) WITH CHECK ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26)));
+CREATE POLICY org_isolation ON rootset_control.artifacts USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.backups USING ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26))) WITH CHECK ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26)));
+CREATE POLICY org_isolation ON rootset_control.backups USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.cell_changes USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.cell_changes USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.databases USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.databases USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.fields USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.fields USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.history_gaps USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.history_gaps USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.import_batches USING ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26))) WITH CHECK ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26)));
+CREATE POLICY org_isolation ON rootset_control.import_batches USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.import_rejections USING ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26))) WITH CHECK ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26)));
+CREATE POLICY org_isolation ON rootset_control.import_rejections USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.indexes USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.indexes USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.jobs USING ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26))) WITH CHECK ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26)));
+CREATE POLICY org_isolation ON rootset_control.jobs USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.mutations USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.mutations USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.query_sessions USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.query_sessions USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.resource_history USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.resource_history USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.restore_provenance USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.restore_provenance USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.restore_publications USING ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26))) WITH CHECK ((org_id = (NULLIF(current_setting('rootset.org_id'::text, true), ''::text))::character(26)));
+CREATE POLICY org_isolation ON rootset_control.restore_publications USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.restore_write_barriers USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.restore_write_barriers USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.row_events USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.row_events USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.schema_operations USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.schema_operations USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.tables USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.tables USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.unique_rules USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+CREATE POLICY org_isolation ON rootset_control.unique_rules USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.control_mutation_replays USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY organisation_boundary ON rootset_control.control_mutation_replays USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.history_archives USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY organisation_boundary ON rootset_control.history_archives USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.history_metrics USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY organisation_boundary ON rootset_control.history_metrics USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.history_retention_policies USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY organisation_boundary ON rootset_control.history_retention_policies USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.operation_outcomes USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY organisation_boundary ON rootset_control.operation_outcomes USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-ALTER TABLE rootset_control.organisations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY partition_organisation_boundary ON rootset_control.cell_changes_default USING (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))) WITH CHECK (((org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)));
+
+CREATE POLICY partition_organisation_boundary ON rootset_control.cell_changes_default USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 ALTER TABLE rootset_control.query_sessions ENABLE ROW LEVEL SECURITY;
 
@@ -2182,15 +2087,15 @@ ALTER TABLE rootset_control.row_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY rule_organisation_boundary ON rootset_control.unique_buckets USING ((EXISTS ( SELECT 1
    FROM rootset_control.unique_rules r
-  WHERE (((r.id)::text = (unique_buckets.rule_id)::text) AND ((r.org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)))))) WITH CHECK ((EXISTS ( SELECT 1
+  WHERE (((r.id)::text = (unique_buckets.rule_id)::text) AND ((r.org_id)::text = (SELECT rootset_control.current_org_id())))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM rootset_control.unique_rules r
-  WHERE (((r.id)::text = (unique_buckets.rule_id)::text) AND ((r.org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))))));
+  WHERE (((r.id)::text = (unique_buckets.rule_id)::text) AND ((r.org_id)::text = (SELECT rootset_control.current_org_id()))))));
 
 CREATE POLICY rule_organisation_boundary ON rootset_control.unique_entries USING ((EXISTS ( SELECT 1
    FROM rootset_control.unique_rules r
-  WHERE (((r.id)::text = (unique_entries.rule_id)::text) AND ((r.org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text)))))) WITH CHECK ((EXISTS ( SELECT 1
+  WHERE (((r.id)::text = (unique_entries.rule_id)::text) AND ((r.org_id)::text = (SELECT rootset_control.current_org_id())))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM rootset_control.unique_rules r
-  WHERE (((r.id)::text = (unique_entries.rule_id)::text) AND ((r.org_id)::text = NULLIF(current_setting('rootset.org_id'::text, true), ''::text))))));
+  WHERE (((r.id)::text = (unique_entries.rule_id)::text) AND ((r.org_id)::text = (SELECT rootset_control.current_org_id()))))));
 
 ALTER TABLE rootset_control.schema_operations ENABLE ROW LEVEL SECURITY;
 
@@ -2204,350 +2109,141 @@ ALTER TABLE rootset_control.unique_rules ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.view_preferences ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY view_preferences_org_isolation ON rootset_control.view_preferences TO rootset_identity USING (((org_id)::text = current_setting('rootset.org_id'::text, true))) WITH CHECK (((org_id)::text = current_setting('rootset.org_id'::text, true)));
+CREATE POLICY view_preferences_org_isolation ON rootset_control.view_preferences USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-GRANT USAGE ON SCHEMA rootset_control TO rootset_identity;
-GRANT USAGE ON SCHEMA rootset_control TO rootset_app;
-GRANT USAGE ON SCHEMA rootset_control TO rootset_ddl;
-GRANT USAGE ON SCHEMA rootset_control TO rootset_managed_owner;
-GRANT USAGE ON SCHEMA rootset_control TO rootset_identity_definer;
-GRANT USAGE ON SCHEMA rootset_control TO rootset_worker_definer;
-GRANT USAGE ON SCHEMA rootset_control TO rootset_metrics_definer;
 
-REVOKE ALL ON FUNCTION rootset_control.append_operator_repair_completion(organisation_arg character varying, job_arg character varying, lease_arg character varying, mutation_arg character varying) FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.append_operator_repair_completion(organisation_arg character varying, job_arg character varying, lease_arg character varying, mutation_arg character varying) TO rootset_app;
 
-REVOKE ALL ON FUNCTION rootset_control.canonical_row(record_json jsonb, table_id_arg character varying) FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.canonical_row(record_json jsonb, table_id_arg character varying) TO rootset_ddl;
 
-REVOKE ALL ON FUNCTION rootset_control.enforce_restore_write() FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.enforce_restore_write() TO rootset_ddl;
 
-REVOKE ALL ON FUNCTION rootset_control.enforce_row() FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.enforce_row() TO rootset_ddl;
 
-REVOKE ALL ON FUNCTION rootset_control.invitation_locator(invitation_hash text) FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.invitation_locator(invitation_hash text) TO rootset_identity;
 
-REVOKE ALL ON FUNCTION rootset_control.key_locator(key_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.key_locator(key_id text) TO rootset_identity;
 
-REVOKE ALL ON FUNCTION rootset_control.maintenance_org_directory() FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.maintenance_org_directory() TO rootset_ddl;
 
-REVOKE ALL ON FUNCTION rootset_control.memberships_for_user(identity_user_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.memberships_for_user(identity_user_id text) TO rootset_identity;
 
-REVOKE ALL ON FUNCTION rootset_control.oauth_grant_active(grant_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.oauth_grant_active(grant_id text) TO rootset_identity;
 
-REVOKE ALL ON FUNCTION rootset_control.operator_metrics() FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.operator_metrics() TO rootset_identity;
 
-REVOKE ALL ON FUNCTION rootset_control.preserve_notification_read_time() FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION rootset_control.worker_org_directory() FROM PUBLIC;
-GRANT ALL ON FUNCTION rootset_control.worker_org_directory() TO rootset_ddl;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.account_actions TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.api_admissions TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.api_admissions TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.api_keys TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.api_keys TO rootset_identity_definer;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.api_keys TO rootset_identity_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.api_rate_windows TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.api_rate_windows TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.artifacts TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.artifacts TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.artifacts TO rootset_worker_definer;
 
-GRANT SELECT(purpose) ON TABLE rootset_control.artifacts TO rootset_metrics_definer;
 
-GRANT SELECT(state) ON TABLE rootset_control.artifacts TO rootset_metrics_definer;
-GRANT SELECT(state) ON TABLE rootset_control.artifacts TO rootset_worker_definer;
 
-GRANT SELECT(ciphertext_length) ON TABLE rootset_control.artifacts TO rootset_metrics_definer;
 
-GRANT SELECT(expires_at) ON TABLE rootset_control.artifacts TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_accounts TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_passkeys TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_recovery_codes TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.auth_verifications TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.backups TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.backups TO rootset_ddl;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.backups TO rootset_worker_definer;
-GRANT SELECT(org_id) ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(database_id) ON TABLE rootset_control.backups TO rootset_metrics_definer;
-GRANT SELECT(database_id) ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(job_id) ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(state) ON TABLE rootset_control.backups TO rootset_metrics_definer;
-GRANT SELECT(state) ON TABLE rootset_control.backups TO rootset_worker_definer;
-GRANT SELECT(state) ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(verified_at) ON TABLE rootset_control.backups TO rootset_metrics_definer;
-GRANT SELECT(verified_at) ON TABLE rootset_control.backups TO rootset_identity;
 
-GRANT SELECT(notification_state) ON TABLE rootset_control.backups TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.bootstrap TO rootset_identity;
 
-GRANT SELECT ON TABLE rootset_control.cell_changes TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.cell_changes TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.cell_changes TO rootset_worker_definer;
 
-GRANT SELECT,USAGE ON SEQUENCE rootset_control.cell_changes_id_seq TO rootset_app;
-GRANT SELECT,USAGE ON SEQUENCE rootset_control.cell_changes_id_seq TO rootset_ddl;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.control_mutation_replays TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.control_mutation_replays TO rootset_ddl;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.control_mutation_replays TO rootset_identity;
 
-GRANT SELECT ON TABLE rootset_control.databases TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.databases TO rootset_ddl;
-GRANT SELECT ON TABLE rootset_control.databases TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.databases TO rootset_identity_definer;
-GRANT SELECT(id) ON TABLE rootset_control.databases TO rootset_metrics_definer;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.databases TO rootset_identity_definer;
 
-GRANT SELECT(state) ON TABLE rootset_control.databases TO rootset_identity_definer;
-GRANT SELECT(state) ON TABLE rootset_control.databases TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.email_changes TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.email_outbox TO rootset_identity;
 
-GRANT SELECT(state) ON TABLE rootset_control.email_outbox TO rootset_metrics_definer;
 
-GRANT SELECT(attempts) ON TABLE rootset_control.email_outbox TO rootset_metrics_definer;
 
-GRANT SELECT(created_at) ON TABLE rootset_control.email_outbox TO rootset_metrics_definer;
 
-GRANT SELECT ON TABLE rootset_control.fields TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.fields TO rootset_ddl;
-GRANT SELECT ON TABLE rootset_control.fields TO rootset_identity;
 
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_archive_occurrences TO rootset_ddl;
 
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_archives TO rootset_app;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_archives TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.history_gaps TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.history_gaps TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.history_gaps TO rootset_worker_definer;
 
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_metrics TO rootset_app;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_metrics TO rootset_ddl;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_metrics TO rootset_identity;
 
-GRANT SELECT(events) ON TABLE rootset_control.history_metrics TO rootset_metrics_definer;
 
-GRANT SELECT(tuple_bytes) ON TABLE rootset_control.history_metrics TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_retention_policies TO rootset_app;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_retention_policies TO rootset_ddl;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.history_retention_policies TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.identity_rate_limits TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.import_batches TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.import_batches TO rootset_ddl;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.import_rejections TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.import_rejections TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.indexes TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.indexes TO rootset_ddl;
 
-GRANT SELECT(state) ON TABLE rootset_control.indexes TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.invitations TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.invitations TO rootset_identity_definer;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.invitations TO rootset_identity_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.jobs TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.jobs TO rootset_ddl;
-GRANT SELECT ON TABLE rootset_control.jobs TO rootset_managed_owner;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.jobs TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.jobs TO rootset_identity;
-GRANT UPDATE(id) ON TABLE rootset_control.jobs TO rootset_managed_owner;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.jobs TO rootset_worker_definer;
-GRANT SELECT(org_id) ON TABLE rootset_control.jobs TO rootset_identity;
 
-GRANT SELECT(actor) ON TABLE rootset_control.jobs TO rootset_identity;
 
-GRANT SELECT(state) ON TABLE rootset_control.jobs TO rootset_worker_definer;
-GRANT SELECT(state) ON TABLE rootset_control.jobs TO rootset_metrics_definer;
 
-GRANT SELECT(attempt) ON TABLE rootset_control.jobs TO rootset_metrics_definer;
 
-GRANT SELECT(lease_until) ON TABLE rootset_control.jobs TO rootset_metrics_definer;
 
-GRANT SELECT(created_at) ON TABLE rootset_control.jobs TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.key_requests TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.memberships TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.memberships TO rootset_identity_definer;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.memberships TO rootset_identity_definer;
 
-GRANT SELECT(user_id) ON TABLE rootset_control.memberships TO rootset_identity_definer;
 
-GRANT SELECT(role) ON TABLE rootset_control.memberships TO rootset_identity_definer;
 
-GRANT SELECT(version) ON TABLE rootset_control.memberships TO rootset_identity_definer;
 
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.mutations TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.mutations TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.mutations TO rootset_worker_definer;
 
-GRANT SELECT,INSERT ON TABLE rootset_control.notification_events TO rootset_identity;
 
-GRANT SELECT,INSERT ON TABLE rootset_control.notification_receipts TO rootset_identity;
 
-GRANT UPDATE(read_at) ON TABLE rootset_control.notification_receipts TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_clients TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_codes TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_families TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_grants TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.oauth_grants TO rootset_identity_definer;
 
-GRANT SELECT(user_id) ON TABLE rootset_control.oauth_grants TO rootset_identity_definer;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.oauth_grants TO rootset_identity_definer;
 
-GRANT SELECT(revoked_at) ON TABLE rootset_control.oauth_grants TO rootset_identity_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_requests TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.oauth_tokens TO rootset_identity;
 
-GRANT SELECT,INSERT ON TABLE rootset_control.operation_outcomes TO rootset_app;
-GRANT SELECT,INSERT ON TABLE rootset_control.operation_outcomes TO rootset_ddl;
-GRANT SELECT,INSERT ON TABLE rootset_control.operation_outcomes TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.organisations TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.organisations TO rootset_identity_definer;
-GRANT SELECT(id) ON TABLE rootset_control.organisations TO rootset_worker_definer;
 
-GRANT SELECT(name) ON TABLE rootset_control.organisations TO rootset_identity_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.query_sessions TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.query_sessions TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.resource_history TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.resource_history TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.resource_history TO rootset_worker_definer;
 
-GRANT SELECT,USAGE ON SEQUENCE rootset_control.resource_history_id_seq TO rootset_app;
-GRANT SELECT,USAGE ON SEQUENCE rootset_control.resource_history_id_seq TO rootset_ddl;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.restore_provenance TO rootset_ddl;
-GRANT SELECT ON TABLE rootset_control.restore_provenance TO rootset_app;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.restore_publications TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.restore_publications TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.restore_write_barriers TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.restore_write_barriers TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.row_events TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.row_events TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.row_events TO rootset_worker_definer;
 
-GRANT SELECT,USAGE ON SEQUENCE rootset_control.row_events_id_seq TO rootset_app;
-GRANT SELECT,USAGE ON SEQUENCE rootset_control.row_events_id_seq TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.schema_operations TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.schema_operations TO rootset_ddl;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.schema_operations TO rootset_worker_definer;
 
-GRANT SELECT(state) ON TABLE rootset_control.schema_operations TO rootset_metrics_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.sessions TO rootset_identity;
 
-GRANT SELECT ON TABLE rootset_control.tables TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.tables TO rootset_ddl;
-GRANT SELECT ON TABLE rootset_control.tables TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.tables TO rootset_identity_definer;
-GRANT SELECT(id) ON TABLE rootset_control.tables TO rootset_metrics_definer;
 
-GRANT SELECT(database_id) ON TABLE rootset_control.tables TO rootset_identity_definer;
-GRANT SELECT(database_id) ON TABLE rootset_control.tables TO rootset_metrics_definer;
 
-GRANT SELECT(org_id) ON TABLE rootset_control.tables TO rootset_identity_definer;
 
-GRANT SELECT(row_count) ON TABLE rootset_control.tables TO rootset_metrics_definer;
 
-GRANT SELECT(state) ON TABLE rootset_control.tables TO rootset_identity_definer;
-GRANT SELECT(state) ON TABLE rootset_control.tables TO rootset_metrics_definer;
 
-GRANT UPDATE(updated_at) ON TABLE rootset_control.tables TO rootset_app;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.unique_buckets TO rootset_ddl;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.unique_entries TO rootset_ddl;
 
-GRANT SELECT ON TABLE rootset_control.unique_rules TO rootset_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.unique_rules TO rootset_ddl;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.user_preferences TO rootset_identity;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.users TO rootset_identity;
 
-GRANT SELECT(id) ON TABLE rootset_control.users TO rootset_identity_definer;
 
-GRANT SELECT(email_verified) ON TABLE rootset_control.users TO rootset_identity_definer;
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE rootset_control.view_preferences TO rootset_identity;
 
-GRANT SELECT ON TABLE rootset_control.worker_heartbeats TO rootset_app;
-GRANT SELECT,INSERT,UPDATE ON TABLE rootset_control.worker_heartbeats TO rootset_ddl;
-GRANT SELECT ON TABLE rootset_control.worker_heartbeats TO rootset_identity;
 
-GRANT SELECT(heartbeat_at) ON TABLE rootset_control.worker_heartbeats TO rootset_metrics_definer;
 
-GRANT SELECT(state) ON TABLE rootset_control.worker_heartbeats TO rootset_metrics_definer;
 
-GRANT SELECT ON TABLE rootset_control.migrations TO rootset_app, rootset_identity, rootset_ddl;
 
 INSERT INTO rootset_control.bootstrap(singleton) VALUES(true);

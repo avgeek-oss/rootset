@@ -29,8 +29,6 @@ test("split public API owns the browser session and accepts only the configured 
     baseURL: apiURL,
     webURL,
     databaseURL: db.app.options.connectionString!,
-    ddlDatabaseURL: db.ddl.options.connectionString!,
-    identityDatabaseURL: db.identity.options.connectionString!,
   };
   let runtime: Awaited<ReturnType<typeof createRuntime>> | undefined;
   try {

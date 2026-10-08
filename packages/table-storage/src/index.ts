@@ -813,15 +813,10 @@ export class TableStorage {
     await c.query(
       `CREATE TABLE ${tablePath(t)} (row_id varchar(26) PRIMARY KEY,org_id varchar(26) NOT NULL CHECK(org_id=${literal(t.orgId)}),row_version bigint NOT NULL DEFAULT 1 CHECK(row_version>0),created_at timestamptz NOT NULL DEFAULT clock_timestamp(),updated_at timestamptz NOT NULL DEFAULT clock_timestamp()${columns ? "," + columns : ""})`,
     );
-    await c.query(`ALTER TABLE ${tablePath(t)} OWNER TO rootset_managed_owner`);
     await c.query(`ALTER TABLE ${tablePath(t)} ENABLE ROW LEVEL SECURITY`);
     await c.query(`ALTER TABLE ${tablePath(t)} FORCE ROW LEVEL SECURITY`);
     await c.query(
-      `CREATE POLICY org_isolation ON ${tablePath(t)} USING(org_id=nullif(current_setting('rootset.org_id',true),'')) WITH CHECK(org_id=nullif(current_setting('rootset.org_id',true),''))`,
-    );
-    await c.query(`GRANT USAGE ON SCHEMA ${q(t.schemaName)} TO rootset_app`);
-    await c.query(
-      `GRANT SELECT,INSERT,UPDATE,DELETE ON ${tablePath(t)} TO rootset_app`,
+      `CREATE POLICY org_isolation ON ${tablePath(t)} USING(org_id=(SELECT rootset_control.current_org_id())) WITH CHECK(org_id=(SELECT rootset_control.current_org_id()))`,
     );
     if (withTrigger) await this.installTrigger(c, t);
   }
@@ -869,9 +864,7 @@ export class TableStorage {
             schemaName,
           ],
         );
-        await c.query(
-          `CREATE SCHEMA ${q(schemaName)} AUTHORIZATION rootset_managed_owner`,
-        );
+        await c.query(`CREATE SCHEMA ${q(schemaName)}`);
         const result = await this.database(c, a, databaseId);
         await this.assertPublication(c, a, input.context);
         await this.finish(c, j.operationId);
@@ -3988,9 +3981,7 @@ export class TableStorage {
             "creating",
           ],
         );
-        await c.query(
-          `CREATE SCHEMA ${q(schemaName)} AUTHORIZATION rootset_managed_owner`,
-        );
+        await c.query(`CREATE SCHEMA ${q(schemaName)}`);
         for (const source of metadata.tables) {
           const tid = newId();
           tableMapping[source.id] = tid;

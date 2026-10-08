@@ -5,7 +5,7 @@ import { newId, RootsetError } from "@rootset/contracts";
 import { Admission } from "./admission.js";
 
 const url =
-  process.env.ROOTSET_TEST_APP_DATABASE_URL ??
+  process.env.ROOTSET_TEST_DATABASE_URL ??
   process.env.ROOTSET_TEST_DATABASE_URL;
 test(
   "PostgreSQL admission enforces shared concurrency, persistent rate counts and expired lease recovery",

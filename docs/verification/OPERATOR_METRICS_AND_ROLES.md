@@ -20,8 +20,8 @@ Restarted process counters are not a lifetime installation total.
 Use aggregate observations without user values, credentials or SQL text. If a
 metric cannot be read or validated, report it unavailable rather than zero.
 Signals should distinguish a stale worker, expired lease, failed schema/index,
-missing recovery point and degraded dependency. Static WAL bytes alone do not
-establish imminent filesystem exhaustion.
+missing recovery point and degraded dependency. WAL directory size is unavailable with the ordinary database credential and is
+reported as null; WAL generation counters remain available.
 
 Keep performance reporting tied to actual PostgreSQL/API/worker/web caps of
 4/1/2/1 GiB, total 8 GiB with no extra swap. Record object/mail fixture resources,
@@ -29,21 +29,22 @@ browser memory, CPU/disk settings and host contention separately.
 
 ## SQL privilege boundary
 
-The fresh baseline creates the required application, identity, trusted DDL and
-managed/fixed-function owner boundaries. Runtime logins must not inherit deployment
-superuser authority or become protected function owners. Ordinary row/history
-writes use restricted roles and enforcement; deployment migration credentials
-stay outside API/worker environments.
+Migrations, API and worker use one ordinary PostgreSQL database owner through
+`ROOTSET_DATABASE_URL`. It has schema/extension creation permission and no
+superuser or `BYPASSRLS` privileges. The baseline creates no extra SQL roles or
+privileged definer functions. The installer provisions the database owner for
+the local profile; an external database supplies its own owner credential.
 
-The DDL service is trusted: authority to alter managed tables includes authority
-to alter their policies/triggers. `NOBYPASSRLS` does not protect against hostile
-use of a table-owner credential. Test ordinary runtime denials and managed
-operations separately, and state that trust boundary when reporting results.
+Forced row-level security respects an explicit transaction organisation. With
+no explicit context, backend identity and maintenance reads use the installation's
+sole organisation. API/MCP entry points independently verify current membership,
+permissions, credential expiry and the requested organisation before operations.
 
-A full recovery must restore the complete SQL membership/ownership/grant graph
-along with database state. A database-only dump does not include cluster roles.
-The former numbered ownership migrations and multi-organisation upgrade suite
-are historical, not a promised upgrade route to the single baseline.
+Database-owner credentials are trusted: their holder can alter schemas, triggers
+and policies. They are not an end-user SQL access interface. Recovery preserves
+database ownership, database/object state, `ROOTSET_SECRET` and
+`ROOTSET_ENCRYPTION_KEY`. Earlier multi-role migrations and upgrade receipts are
+historical, not a promised upgrade route to the fresh-install baseline.
 
 ## Genuine verification
 

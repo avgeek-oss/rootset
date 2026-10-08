@@ -31,8 +31,7 @@ export interface ArtifactConfig {
   accessKeyId: string;
   secretAccessKey: string;
   forcePathStyle?: boolean;
-  encryptionKeys: Record<string, string | Buffer>;
-  activeKeyId: string;
+  encryptionKey: string | Buffer;
   maxUploadBytes?: number;
   maxArtifactBytes?: number;
   artifactLifetimeSeconds?: number;
@@ -89,7 +88,6 @@ export interface JobsConfig {
   workerIdFile?: string;
   artifacts: ArtifactConfig;
   baseURL?: string;
-  workerConcurrency?: number;
   leaseSeconds?: number;
   pollMilliseconds?: number;
   importBatchSize?: number;

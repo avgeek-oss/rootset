@@ -60,7 +60,7 @@ async function poll(check, label) {
   }
   throw new Error(`Timed out waiting for ${label}`);
 }
-function sql(query, role = "rootset_owner") {
+function sql(query, role = "rootset") {
   return JSON.parse(
     compose(
       "exec",
@@ -124,14 +124,8 @@ try {
   const apiURL = `http://127.0.0.1:${apiPort}`;
   content = content
     .replace(/^ROOTSET_WEB_URL=.*$/m, `ROOTSET_WEB_URL=${baseURL}`)
-    .replace(/^ROOTSET_API_URL=.*$/m, `ROOTSET_API_URL=${apiURL}`)
-    .replace(/^ROOTSET_ENCRYPTION_KEY=.*$/m, "ROOTSET_ENCRYPTION_KEY=");
-  content += `\nROOTSET_ENCRYPTION_KEYS=${JSON.stringify({ primary: config.ROOTSET_ENCRYPTION_KEY })}\n`;
+    .replace(/^ROOTSET_API_URL=.*$/m, `ROOTSET_API_URL=${apiURL}`);
   content += `ROOTSET_WEB_PORT=${webPort}\nROOTSET_API_PORT=${apiPort}\nROOTSET_MAIL_UI_PORT=${mailPort}\n`;
-  content = content.replace(
-    /^ROOTSET_PASSWORD_BREACH_CHECK=.*$/m,
-    "ROOTSET_PASSWORD_BREACH_CHECK=false",
-  );
   content += `ROOTSET_RUNTIME_IMAGE=${process.env.ROOTSET_SMOKE_RUNTIME_IMAGE ?? "rootset-runtime:ci"}\n`;
   content += `ROOTSET_WEB_IMAGE=${process.env.ROOTSET_SMOKE_WEB_IMAGE ?? "rootset-web:ci"}\n`;
   if (process.env.ROOTSET_SMOKE_CI_HOST_CPU === "1") {
@@ -233,14 +227,12 @@ try {
   }
   report.checks.nodeHeapLeavesCgroupHeadroom = true;
   report.stage = "runtime_authority";
-  const roles = sql(
-    "SELECT json_agg(json_build_object('name',rolname,'superuser',rolsuper,'bypassRls',rolbypassrls)) FROM pg_roles WHERE rolname IN ('rootset_app','rootset_ddl','rootset_identity')",
+  const role = sql(
+    "SELECT json_build_object('superuser',rolsuper,'bypassRls',rolbypassrls) FROM pg_roles WHERE rolname=current_user",
   );
-  assert.equal(roles.length, 3);
-  assert.ok(roles.every((role) => !role.superuser && !role.bypassRls));
-  report.checks.runtimeRolesRestricted = true;
-  for (const role of ["rootset_app", "rootset_ddl", "rootset_identity"])
-    assert.throws(() => sql("SET ROLE rootset_owner; SELECT true", role));
+  assert.equal(role.superuser, false);
+  assert.equal(role.bypassRls, false);
+  report.checks.runtimeRoleRestricted = true;
   for (const service of ["api", "worker"]) {
     compose(
       "exec",
@@ -248,10 +240,9 @@ try {
       service,
       "node",
       "-e",
-      "if(process.getuid()!==10001||process.env.ROOTSET_MIGRATION_DATABASE_URL||process.env.ROOTSET_OWNER_DB_PASSWORD)process.exit(1)",
+      "if(process.getuid()!==10001||!process.env.ROOTSET_DATABASE_URL||!process.env.ROOTSET_SECRET)process.exit(1)",
     );
   }
-  report.checks.ownerCredentialAbsent = true;
   report.stage = "ciphertext_spool";
   for (const service of ["api", "worker"]) {
     compose(
@@ -306,7 +297,7 @@ try {
     method: "POST",
     headers: { "content-type": "application/json", origin: baseURL },
     body: JSON.stringify({
-      bootstrapSecret: config.ROOTSET_BOOTSTRAP_SECRET,
+      bootstrapSecret: config.ROOTSET_SECRET,
       name: "Installation Reviewer",
       email,
       password: randomBytes(32).toString("base64url"),

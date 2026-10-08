@@ -78,14 +78,14 @@ export async function runPoolRestartFixture() {
     "Native restart fixture requires explicit admission",
   );
   const definitions: [PoolPurpose, string][] = [
-    ["api", "ROOTSET_TEST_APP_DATABASE_URL"],
-    ["admission", "ROOTSET_TEST_APP_DATABASE_URL"],
-    ["ddl", "ROOTSET_TEST_DDL_DATABASE_URL"],
-    ["identity", "ROOTSET_TEST_IDENTITY_DATABASE_URL"],
-    ["worker", "ROOTSET_TEST_APP_DATABASE_URL"],
+    ["api", "ROOTSET_TEST_DATABASE_URL"],
+    ["admission", "ROOTSET_TEST_DATABASE_URL"],
+    ["ddl", "ROOTSET_TEST_DATABASE_URL"],
+    ["identity", "ROOTSET_TEST_DATABASE_URL"],
+    ["worker", "ROOTSET_TEST_DATABASE_URL"],
     ["database", "ROOTSET_TEST_DATABASE_URL"],
   ];
-  const urls = definitions.map(([name, key]) => {
+  const urls = definitions.map(([, key]) => {
     assert(process.env[key], "Protected disposable test URL must be supplied");
     const url = new URL(process.env[key]!);
     assert(["postgres:", "postgresql:"].includes(url.protocol));
@@ -95,18 +95,7 @@ export async function runPoolRestartFixture() {
       "Restart fixture only admits the retained isolated native PostgreSQL port",
     );
     assert(!url.search && !url.hash);
-    const expectedRole =
-      name === "database"
-        ? "rootset_owner"
-        : name === "ddl"
-          ? "rootset_ddl"
-          : name === "identity"
-            ? "rootset_identity"
-            : "rootset_app";
-    assert(
-      url.username === expectedRole,
-      "Disposable role must match its declared pool purpose",
-    );
+    assert(url.username, "Disposable database owner must be supplied");
     return url;
   });
   assert(
@@ -196,8 +185,12 @@ export async function runPoolRestartFixture() {
         async () =>
           (
             await monitor.query<{ active: boolean }>(
-              "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND backend_start=$2::timestamptz AND state='active' AND wait_event='PgSleep' AND usename='rootset_app' AND datname=current_database()) AS active",
-              [activePID, activeBackend.started],
+              "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND backend_start=$2::timestamptz AND state='active' AND wait_event='PgSleep' AND usename=$3 AND datname=current_database()) AS active",
+              [
+                activePID,
+                activeBackend.started,
+                decodeURIComponent(urls[0]!.username),
+              ],
             )
           ).rows[0]?.active === true,
       );

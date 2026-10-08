@@ -280,7 +280,7 @@ export async function finalizeScaleFixture(filename: string): Promise<void> {
   const storage = new TableStorage({
     pool: pools.app,
     ddlPool: pools.ddl,
-    cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+    cursorSecret: fixtureSecret("ROOTSET_SECRET"),
   });
   const client = await pools.owner.connect();
   try {
@@ -399,7 +399,7 @@ export async function seedScaleFixture(destination: string): Promise<void> {
   const storage = new TableStorage({
     pool: pools.app,
     ddlPool: pools.ddl,
-    cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+    cursorSecret: fixtureSecret("ROOTSET_SECRET"),
   });
   const orgId = newId(),
     userId = newId();

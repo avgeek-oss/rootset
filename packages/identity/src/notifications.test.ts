@@ -19,12 +19,11 @@ test("durable notification feed preserves all unread pages, user isolation, immu
     const service = new IdentityService({
       pool: db.identity,
       baseURL: "http://localhost:6300",
-      passwordPolicy: { breachCheck: false },
+
       secret: randomBytes(32).toString("hex"),
       bootstrapSecret: randomBytes(32).toString("hex"),
       keyHashSecret: randomBytes(32).toString("hex"),
-      encryptionKeys: { test: randomBytes(32).toString("base64") },
-      activeEncryptionKeyId: "test",
+      encryptionKey: randomBytes(32).toString("base64"),
     });
     await db.owner.query(
       "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Feed fixture')",
@@ -308,16 +307,6 @@ test("durable notification feed preserves all unread pages, user isolation, immu
             )
           ).rows[0].count,
           before,
-        );
-        await assert.rejects(
-          db.ddl.query(
-            "ALTER TABLE rootset_control.notification_events ADD COLUMN forbidden text",
-          ),
-          { code: "42501" },
-        );
-        await assert.rejects(
-          db.app.query("SELECT * FROM rootset_control.notification_receipts"),
-          { code: "42501" },
         );
       },
     );

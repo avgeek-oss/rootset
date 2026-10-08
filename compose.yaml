@@ -5,20 +5,10 @@ x-runtime-environment: &runtime-environment
   ROOTSET_WEB_URL: ${ROOTSET_WEB_URL:?Run pnpm setup:env and configure the web origin}
   ROOTSET_PORT: 4310
   ROOTSET_HOST: 0.0.0.0
-  ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?Application role URL required}
-  ROOTSET_DDL_DATABASE_URL: ${ROOTSET_DDL_DATABASE_URL:?DDL role URL required}
-  ROOTSET_IDENTITY_DATABASE_URL: ${ROOTSET_IDENTITY_DATABASE_URL:?Identity role URL required}
-  ROOTSET_AUTH_SECRET: ${ROOTSET_AUTH_SECRET:?Persistent auth secret required}
-  ROOTSET_KEY_HASH_SECRET: ${ROOTSET_KEY_HASH_SECRET:?Persistent key hash secret required}
-  ROOTSET_CURSOR_SECRET: ${ROOTSET_CURSOR_SECRET:?Persistent cursor secret required}
-  ROOTSET_BOOTSTRAP_SECRET: ${ROOTSET_BOOTSTRAP_SECRET:?Bootstrap secret required}
-  ROOTSET_PASSWORD_BREACH_CHECK: ${ROOTSET_PASSWORD_BREACH_CHECK:-true}
-  ROOTSET_PASSWORD_VERIFY_CONCURRENCY: ${ROOTSET_PASSWORD_VERIFY_CONCURRENCY:-2}
-  ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT: ${ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT:-16}
+  ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
+  ROOTSET_SECRET: ${ROOTSET_SECRET:?Persistent application secret required}
   ROOTSET_OAUTH_CLIENTS: ${ROOTSET_OAUTH_CLIENTS:-[]}
-  ROOTSET_ENCRYPTION_KEY: ${ROOTSET_ENCRYPTION_KEY:-}
-  ROOTSET_ENCRYPTION_KEYS: ${ROOTSET_ENCRYPTION_KEYS:-}
-  ROOTSET_ENCRYPTION_KEY_ID: ${ROOTSET_ENCRYPTION_KEY_ID:-primary}
+  ROOTSET_ENCRYPTION_KEY: ${ROOTSET_ENCRYPTION_KEY:?Persistent encryption key required}
   ROOTSET_S3_ENDPOINT: ${ROOTSET_S3_ENDPOINT:?Artifact storage endpoint required}
   ROOTSET_S3_REGION: ${ROOTSET_S3_REGION:-us-east-1}
   ROOTSET_S3_BUCKET: ${ROOTSET_S3_BUCKET:?Artifact bucket required}
@@ -31,7 +21,6 @@ x-runtime-environment: &runtime-environment
   ROOTSET_SMTP_USER: ${ROOTSET_SMTP_USER:-}
   ROOTSET_SMTP_PASSWORD: ${ROOTSET_SMTP_PASSWORD:-}
   ROOTSET_EMAIL_FROM: ${ROOTSET_EMAIL_FROM:?Sender required}
-  ROOTSET_WORKER_CONCURRENCY: ${ROOTSET_WORKER_CONCURRENCY:-2}
   ROOTSET_WORKER_ID_FILE: /tmp/rootset-worker-id
   ROOTSET_LOG_LEVEL: ${ROOTSET_LOG_LEVEL:-info}
 
@@ -68,17 +57,14 @@ services:
     memswap_limit: 4g
     cpus: ${ROOTSET_POSTGRES_CPUS:-4}
     environment:
-      POSTGRES_USER: rootset_owner
+      POSTGRES_USER: postgres
       POSTGRES_DB: rootset
-      POSTGRES_PASSWORD: ${ROOTSET_OWNER_DB_PASSWORD:?Owner password required}
-      ROOTSET_APP_DB_PASSWORD: ${ROOTSET_APP_DB_PASSWORD:?Application password required}
-      ROOTSET_DDL_DB_PASSWORD: ${ROOTSET_DDL_DB_PASSWORD:?DDL password required}
-      ROOTSET_IDENTITY_DB_PASSWORD: ${ROOTSET_IDENTITY_DB_PASSWORD:?Identity password required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./infra/postgres-init.sh:/docker-entrypoint-initdb.d/10-rootset.sh:ro
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U rootset_owner -d rootset"]
+      test: [CMD-SHELL, "pg_isready -U rootset -d rootset"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -98,7 +84,7 @@ services:
     security_opt: [no-new-privileges:true]
     command: [node, dist/migrate.mjs]
     environment:
-      ROOTSET_MIGRATION_DATABASE_URL: ${ROOTSET_MIGRATION_DATABASE_URL:?Migration-only owner URL required}
+      ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
       NODE_OPTIONS: --max-old-space-size=768
     mem_limit: 1g
     memswap_limit: 1g

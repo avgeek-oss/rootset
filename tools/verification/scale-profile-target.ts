@@ -54,10 +54,10 @@ export async function openScaleTarget(
       max: 4,
       options: "-c timezone=UTC -c statement_timeout=0",
     }),
-    api: createPool(url("ROOTSET_TEST_APP_DATABASE_URL"), 4),
-    worker: createPool(url("ROOTSET_TEST_APP_DATABASE_URL"), 2),
-    ddl: createPool(url("ROOTSET_TEST_DDL_DATABASE_URL"), 4),
-    identity: createPool(url("ROOTSET_TEST_IDENTITY_DATABASE_URL"), 2),
+    api: createPool(url("ROOTSET_TEST_DATABASE_URL"), 4),
+    worker: createPool(url("ROOTSET_TEST_DATABASE_URL"), 2),
+    ddl: createPool(url("ROOTSET_TEST_DATABASE_URL"), 4),
+    identity: createPool(url("ROOTSET_TEST_DATABASE_URL"), 2),
   };
   const fixture = await loadScaleFixture(manifest),
     actor = fixtureActor(fixture);

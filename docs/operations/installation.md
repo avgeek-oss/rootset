@@ -43,7 +43,7 @@ docker compose --profile local ps
 ```
 
 `setup:env` creates `.env` once with mode 0600. Keep it outside Git and retain an
-encrypted recovery copy. Open `http://localhost:4300`, supply the bootstrap secret
+encrypted recovery copy. Open `http://localhost:4300`, supply `ROOTSET_SECRET` as the setup secret
 privately and verify email to establish the first Admin and single organisation.
 Mailpit at `http://localhost:8025` captures local email. There is no organisation
 chooser or second-organisation setup.
@@ -67,12 +67,12 @@ Web/API/worker run as UID 10001 with dropped capabilities, read-only root
 filesystems and narrow temporary/durable mounts. There is no Docker socket.
 API/worker artifact spools are private durable directories under
 `/var/lib/rootset/artifact-spool`; they are not unbounded heap buffers. Runtime
-services do not receive `ROOTSET_MIGRATION_DATABASE_URL`; the one-shot migration
-service receives deployment migration authority.
-
-Application, identity and trusted DDL credentials have distinct SQL privileges.
-The DDL service may alter managed tables and therefore must be protected as a
-trusted service credential. An Admin membership does not expose SQL credentials.
+services and the one-shot migration service all use `ROOTSET_DATABASE_URL`.
+Use one ordinary PostgreSQL database owner with permission to create schemas
+and the trusted `pgcrypto` and `pg_trgm` extensions. It must not have superuser
+or `BYPASSRLS` privileges. The local profile provisions this user automatically.
+Rootset does not require separate application, identity or DDL credentials.
+Organisation context and product permissions still apply to API and MCP calls.
 
 The existing core memory caps are PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB and
 web 1 GiB, totalling 8 GiB. Each combined memory/swap cap equals its memory cap,
@@ -84,21 +84,34 @@ retains the full five-million-row workload and latency/cache targets.
 
 ## External services and HTTPS
 
-Configure the declared PostgreSQL application/identity/DDL/migration URLs,
-S3-compatible endpoint/bucket/credentials and SMTP endpoint/TLS/sender in the installation `.env` file. These settings have no UI/API override.
-Optional SMTP authentication uses `ROOTSET_SMTP_USER` and
-`ROOTSET_SMTP_PASSWORD`. Restart API and worker after changing their environment.
-Deployment readiness checks dependencies without exposing an account settings page. Do not copy a migration-owner URL into runtime settings. Keep
-persistent authentication, key-hash, cursor and encryption secrets across restarts.
-Test artifact encryption/readback and actual email delivery before relying on
-backups or account recovery.
+Set `ROOTSET_DATABASE_URL` to the database you want Rootset to use. With an
+external PostgreSQL database, omit the local profile and its `POSTGRES_PASSWORD`
+provisioning setting. Configure S3-compatible storage and SMTP for encrypted
+artifacts, verification and recovery email. These services are not configured
+through the UI.
 
-Password policy uses `ROOTSET_PASSWORD_BREACH_CHECK=true` by default. New
-passwords need access to the padded breached-password range service; unavailable
-checks reject the change with a retryable error. `ROOTSET_PASSWORD_VERIFY_CONCURRENCY`
-(default 2) and `ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT` (default 16) bound expensive
-password work. Synthetic offline CI/browser fixtures set breach checking to
-`false` explicitly; that fixture exception is not a production recommendation.
+| Variable                                                                                     | Purpose                                                                                           |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ROOTSET_DATABASE_URL`                                                                       | One PostgreSQL URL for migrations, API and worker.                                                |
+| `ROOTSET_SECRET`                                                                             | Persistent application secret of at least 32 random characters; also used to claim initial setup. |
+| `ROOTSET_ENCRYPTION_KEY`                                                                     | Persistent 32-byte encryption key encoded as 64 hexadecimal characters.                           |
+| `ROOTSET_WEB_URL`, `ROOTSET_API_URL`                                                         | Public UI and API origins.                                                                        |
+| `ROOTSET_S3_ENDPOINT`, `ROOTSET_S3_BUCKET`, `ROOTSET_S3_ACCESS_KEY`, `ROOTSET_S3_SECRET_KEY` | Private S3-compatible artifact storage.                                                           |
+| `ROOTSET_SMTP_HOST`, `ROOTSET_EMAIL_FROM`                                                    | SMTP service and sender.                                                                          |
+
+SMTP port defaults to 587 and TLS defaults to enabled. Set
+`ROOTSET_SMTP_PORT` and `ROOTSET_SMTP_SECURE` to match your provider; set
+`ROOTSET_SMTP_USER` and `ROOTSET_SMTP_PASSWORD` only if it needs authentication.
+S3 region defaults to `us-east-1`; set `ROOTSET_S3_REGION` if your provider
+requires a different region. Public OAuth client preregistration is optional
+through `ROOTSET_OAUTH_CLIENTS`.
+
+Retain the application secret and encryption key across restart, and include
+both in protected recovery copies. Authentication and cursor signing keys are
+derived internally from the application secret. There is no keyring or
+installation-wide key-rotation selector. Passwords are hashed locally; sign-in
+has fixed internal work limits and does not depend on a password breach-check
+service. Restart API and worker after changing environment settings.
 
 Set `ROOTSET_WEB_URL=https://rootset.avgeek.ltd` and
 `ROOTSET_API_URL=https://rootset-api.avgeek.ltd` before passkey enrollment. The

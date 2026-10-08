@@ -38,7 +38,7 @@ before(async () => {
   storage = new TableStorage({
     pool: pools.app,
     ddlPool: pools.ddl,
-    cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+    cursorSecret: fixtureSecret("ROOTSET_SECRET"),
   });
   await pools.owner.query(
     "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",
@@ -171,7 +171,7 @@ verificationCase(
     id: "STORAGE-CATALOG-01",
     gates: ["V1-10", "V1-19", "V1-38"],
     scope:
-      "Native physical types, hidden ULID metadata, forced RLS, non-owner/no-bypass roles and required history trigger",
+      "Native physical types, hidden ULID metadata, forced RLS, one ordinary non-superuser database role and required history trigger",
   },
   async () => {
     const t = await table([
@@ -196,7 +196,7 @@ verificationCase(
     assert.deepEqual(relation.rows[0], {
       relrowsecurity: true,
       relforcerowsecurity: true,
-      owner: "rootset_managed_owner",
+      owner: new URL(fixtureSecret("ROOTSET_TEST_DATABASE_URL")).username,
     });
     const role = await pools.app.query<{
       rolsuper: boolean;
@@ -206,7 +206,8 @@ verificationCase(
       "SELECT current_user,rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user",
     );
     assert.deepEqual(role.rows[0], {
-      current_user: "rootset_app",
+      current_user: new URL(fixtureSecret("ROOTSET_TEST_DATABASE_URL"))
+        .username,
       rolsuper: false,
       rolbypassrls: false,
     });
@@ -894,14 +895,14 @@ verificationCase(
     id: "STORAGE-RLS-01",
     gates: ["V1-20", "V1-38"],
     scope:
-      "Actual API role rejects absent/mismatched org context, direct unaudited SQL and trigger removal; transaction-local org settings do not leak to pooled requests",
+      "Single-organisation storage rejects mismatched org context and direct unaudited SQL; transaction-local org settings do not leak to pooled requests",
   },
   async () => {
     const t = await table([text()]);
     const inserted = await storage.createRow(actor, t.id, { CODE: "isolated" });
     const path = `"${t.schemaName}"."${t.physicalName}"`;
     const column = `"${fieldColumn(t.fields[0]!)}"`;
-    assert.equal((await pools.app.query(`SELECT * FROM ${path}`)).rowCount, 0);
+    assert.equal((await pools.app.query(`SELECT * FROM ${path}`)).rowCount, 1);
     assert.equal(
       (
         await withOrg(pools.app, otherOrgId, (client) =>
@@ -917,9 +918,6 @@ verificationCase(
           [inserted.id],
         ),
       ),
-    );
-    await assert.rejects(
-      pools.app.query(`ALTER TABLE ${path} DISABLE TRIGGER rootset_enforce`),
     );
     await assert.rejects(
       storage.getRow({ ...actor, orgId: otherOrgId }, t.id, inserted.id),
@@ -1234,7 +1232,7 @@ verificationCase(
     const writer = new TableStorage({
       pool: pools.app,
       ddlPool: observedDdl,
-      cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+      cursorSecret: fixtureSecret("ROOTSET_SECRET"),
     });
     const connection = await pools.app.connect();
     let schemaSettled = false;

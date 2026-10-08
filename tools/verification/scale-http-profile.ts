@@ -578,8 +578,6 @@ export async function runHttpProfile(
         ...target.config,
         baseURL: base.origin,
         databaseURL: target.pools.api.options.connectionString!,
-        ddlDatabaseURL: target.pools.ddl.options.connectionString!,
-        identityDatabaseURL: target.pools.identity.options.connectionString!,
       });
       let adminSecret: string, adminKeyId: string;
       try {
@@ -891,8 +889,6 @@ export async function runHttpProfile(
         ...target.config,
         baseURL: base.origin,
         databaseURL: target.pools.api.options.connectionString!,
-        ddlDatabaseURL: target.pools.ddl.options.connectionString!,
-        identityDatabaseURL: target.pools.identity.options.connectionString!,
       });
       let adminSecret: string, adminKeyId: string;
       try {

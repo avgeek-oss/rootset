@@ -35,7 +35,7 @@ export function decodeEncryptionKey(value: string | Buffer): Buffer {
   if (key.length !== 32)
     throw new RootsetError(
       "CONFIGURATION_INVALID",
-      "Artifact encryption keys must decode to 32 bytes",
+      "Artifact encryption key must decode to 32 bytes",
       500,
     );
   return key;
@@ -102,23 +102,12 @@ export class ArtifactStore {
     return removed;
   }
   readonly client: S3Client;
-  readonly keys: Map<string, Buffer>;
+  private readonly encryptionKey: Buffer;
   constructor(
     readonly pool: Pool,
     readonly config: ArtifactConfig,
   ) {
-    this.keys = new Map(
-      Object.entries(config.encryptionKeys).map(([id, key]) => [
-        id,
-        decodeEncryptionKey(key),
-      ]),
-    );
-    if (!this.keys.has(config.activeKeyId))
-      throw new RootsetError(
-        "CONFIGURATION_INVALID",
-        "The active artifact encryption key is unavailable",
-        500,
-      );
+    this.encryptionKey = decodeEncryptionKey(config.encryptionKey);
     this.client = new S3Client({
       region: config.region ?? "us-east-1",
       endpoint: config.endpoint,
@@ -509,8 +498,8 @@ export class ArtifactStore {
     } = {},
   ): Promise<ArtifactRecord> {
     const objectKey = `rootset/${actor.orgId}/${target.type}/${target.id}/${job?.id ?? newId()}/${job?.lease_token ?? "direct"}/${purpose}/${newId()}`;
-    const keyId = this.config.activeKeyId;
-    const key = this.keys.get(keyId)!;
+    const keyId = "primary";
+    const key = this.encryptionKey;
     const iv = randomBytes(12);
     const expiresAt =
       options.expiresAt ??
@@ -870,13 +859,7 @@ export class ArtifactStore {
         "Artifact has not reached a readable verified state",
         409,
       );
-    const key = this.keys.get(artifact.encryption_key_id);
-    if (!key)
-      throw new RootsetError(
-        "CONFIGURATION_INVALID",
-        `Artifact requires encryption key ${artifact.encryption_key_id}; restore the configured recovery key`,
-        503,
-      );
+    const key = this.encryptionKey;
     const temporaryRoot = this.config.tempDirectory ?? tmpdir();
     const space = await statfs(temporaryRoot);
     const reserve = this.config.minimumTempFreeBytes ?? 1024 ** 3;

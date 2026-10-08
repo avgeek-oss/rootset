@@ -18,7 +18,7 @@ Validation spools ciphertext in `ArtifactConfig.tempDirectory` (the operating-sy
 
 Backups capture schema, metadata, rows and retained history under one repeatable-read PostgreSQL snapshot. The shared database schema barrier stays held through extraction, allowing row writes while blocking DDL. The worker releases it before isolated restore verification. A backup reaches `succeeded` only after artifact authentication and an isolated restore whose schema, constraints, row content and history compare successfully. Verification namespaces are removed after comparison; cleanup failure remains visible.
 
-Keep every referenced encryption key in the installation key ring. Rotating the active key changes new artifacts; old artifacts require their original key. An unavailable key fails explicitly. Installation credential recovery is separate from a logical database backup.
+Keep `ROOTSET_ENCRYPTION_KEY` with the installation backup. Replacing it makes existing encrypted artifacts unreadable. Installation credential recovery is separate from a logical database backup.
 
 Manual deletion removes only objects under the owned database/run namespace and protects the final verified recovery point. Replacement restores require a bound approval. A durable, job-owned target write barrier drains existing writers before the current recovery backup and refuses native row DML and schema changes until atomic publication or terminal cancellation/failure. Reads remain available. Retrying after the barrier was released captures a new recovery point. Jobs waiting for that recovery point do not consume their failure retry budget. Staged data stays hidden until validation and atomic publication.
 
@@ -43,10 +43,10 @@ Unit checks:
 pnpm --filter @rootset/jobs test
 ```
 
-The integration suite requires actual PostgreSQL application/DDL roles and S3-compatible storage. From the repository root, load the fixture configuration and run:
+The integration suite requires an actual PostgreSQL database with one owner credential and S3-compatible storage. From the repository root, load the fixture configuration and run:
 
 ```sh
 pnpm exec tsx --env-file=.env.test --test packages/jobs/src/integration.ts
 ```
 
-The suite creates and migrates a disposable PostgreSQL database, supplies its role URLs to child workers, removes its own S3 objects and drops the database on completion. It exercises actual process `SIGKILL` recovery, partial and atomic imports, unique-rule upserts, encrypted exports, stale upload/lease fencing, a database-wide snapshot with concurrent writes between table extraction, approved replacement/cancellation/retry, isolated restore cleanup failure, corruption, key loss, protected recovery points, and verified history archives with interrupted purge and cold history restore. Run it against each supported S3-compatible provider. This suite is one part of the complete release checklist; its passing result does not establish cross-surface, large-scale or browser verification.
+The suite creates and migrates a disposable PostgreSQL database, supplies its one test database URL to child workers, removes its own S3 objects and drops the database on completion. It exercises actual process `SIGKILL` recovery, partial and atomic imports, unique-rule upserts, encrypted exports, stale upload/lease fencing, a database-wide snapshot with concurrent writes between table extraction, approved replacement/cancellation/retry, isolated restore cleanup failure, corruption, key loss, protected recovery points, and verified history archives with interrupted purge and cold history restore. Run it against each supported S3-compatible provider. This suite is one part of the complete release checklist; its passing result does not establish cross-surface, large-scale or browser verification.

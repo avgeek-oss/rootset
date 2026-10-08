@@ -68,8 +68,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       webURL: baseURL,
       port: address.port,
       databaseURL: db.app.options.connectionString!,
-      ddlDatabaseURL: db.ddl.options.connectionString!,
-      identityDatabaseURL: db.identity.options.connectionString!,
     };
     runtime = await createRuntime(config, {
       oauthClients: [

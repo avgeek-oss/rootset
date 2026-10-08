@@ -34,8 +34,15 @@ docker compose --profile local ps
 
 `setup:env` creates the protected `.env` once. Keep it outside Git and retain an
 encrypted recovery copy. Open `http://localhost:4300`, claim setup with the
-bootstrap secret, and establish the first Admin and the installation's single
+value of `ROOTSET_SECRET`, and establish the first Admin and the installation's single
 organisation. Local email is captured at `http://localhost:8025`.
+
+The API and worker use one `ROOTSET_DATABASE_URL`, one `ROOTSET_SECRET` and one
+`ROOTSET_ENCRYPTION_KEY`. The database URL also applies the installation baseline.
+For external PostgreSQL, use an ordinary database owner without superuser or
+BYPASSRLS access. Retain the secret and encryption key across restart and backup.
+See the [environment reference](docs/operations/installation.md#external-services-and-https)
+for S3 and SMTP settings.
 
 The browser calls `http://localhost:4310` directly for authentication, REST,
 OAuth, MCP and artifact transfer. For HTTPS routing, configure

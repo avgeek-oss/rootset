@@ -7,30 +7,19 @@ import {
   emailTemplates,
   renderEmail,
 } from "./index";
-const encryption = {
-  encryptionKeys: { v1: randomBytes(32).toString("base64") },
-  activeEncryptionKeyId: "v1",
-};
-test("KEY-09 protected payloads retain old-key decryption and reject modification", () => {
+const encryption = { encryptionKey: randomBytes(32).toString("base64") };
+test("protected payloads round-trip with the installation key and reject wrong keys or modification", () => {
   const input = {
     actionUrl: "https://rootset.fyi/verify?token=protected",
     name: "Test",
   };
   const encrypted = encryptProtected(input, encryption);
   assert.equal(encrypted.includes("protected"), false);
-  const rotated = {
-    encryptionKeys: {
-      ...encryption.encryptionKeys,
-      v2: randomBytes(32).toString("base64"),
-    },
-    activeEncryptionKeyId: "v2",
-  };
-  assert.deepEqual(decryptProtected(encrypted, rotated), input);
-  assert.throws(() => decryptProtected(`${encrypted}x`, rotated));
+  assert.deepEqual(decryptProtected(encrypted, encryption), input);
+  assert.throws(() => decryptProtected(`${encrypted}x`, encryption));
   assert.throws(() =>
     decryptProtected(encrypted, {
-      encryptionKeys: { v2: rotated.encryptionKeys.v2 },
-      activeEncryptionKeyId: "v2",
+      encryptionKey: randomBytes(32).toString("base64"),
     }),
   );
 });

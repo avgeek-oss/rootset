@@ -1,5 +1,5 @@
 import { createPool, withOrg } from "@rootset/database";
-import { scopeNames, JsonValueSchema } from "@rootset/contracts";
+import { scopeNames, JsonValueSchema, RootsetError } from "@rootset/contracts";
 import { assertAccess } from "@rootset/access";
 import { OperationalObserver } from "@rootset/observability";
 import { IdentityService } from "@rootset/identity";
@@ -16,11 +16,22 @@ export async function createRuntime(
   baseline: Config = loadConfig(),
   options: { oauthClients?: OAuthConfig["clients"] } = {},
 ) {
-  const pool = createPool(baseline.databaseURL, 10, "api"),
-    admissionPool = createPool(baseline.databaseURL, 2, "admission"),
-    ddlPool = createPool(baseline.ddlDatabaseURL, 5, "ddl"),
-    identityPool = createPool(baseline.identityDatabaseURL, 10, "identity");
+  const pool = createPool(baseline.databaseURL, 10, "api");
+  const admissionPool = createPool(baseline.databaseURL, 2, "admission");
+  const ddlPool = pool;
+  const identityPool = createPool(baseline.databaseURL, 4, "identity");
   try {
+    const role = (
+      await pool.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
+        "SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user",
+      )
+    ).rows[0]!;
+    if (role.rolsuper || role.rolbypassrls)
+      throw new RootsetError(
+        "CONFIGURATION_INVALID",
+        "Use an ordinary PostgreSQL database owner without superuser or BYPASSRLS privileges",
+        500,
+      );
     const config = baseline;
     const paging = new MetadataPaging(config.cursorSecret);
     const identity: IdentityService = new IdentityService({
@@ -44,7 +55,6 @@ export async function createRuntime(
       pools: {
         api: pool,
         admission: admissionPool,
-        ddl: ddlPool,
         identity: identityPool,
       },
     });
@@ -91,11 +101,9 @@ export async function createRuntime(
           ...config.artifacts,
           uploadBaseURL: config.baseURL,
           forcePathStyle: true,
-          encryptionKeys: config.encryptionKeys,
-          activeKeyId: config.activeEncryptionKeyId,
+          encryptionKey: config.encryptionKey,
         },
         baseURL: config.baseURL,
-        workerConcurrency: config.workerConcurrency,
         organisationIds: async () =>
           (
             await ddlPool.query<{ org_id: string }>(
@@ -166,18 +174,12 @@ export async function createRuntime(
         await Promise.all([
           pool.end(),
           admissionPool.end(),
-          ddlPool.end(),
           identityPool.end(),
         ]);
       },
     };
   } catch (error) {
-    await Promise.all([
-      pool.end(),
-      admissionPool.end(),
-      ddlPool.end(),
-      identityPool.end(),
-    ]);
+    await Promise.all([pool.end(), admissionPool.end(), identityPool.end()]);
     throw error;
   }
 }

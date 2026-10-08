@@ -91,7 +91,7 @@ export async function benchmarkScaleFixture(
   const storage = new TableStorage({
     pool: pools.app,
     ddlPool: pools.ddl,
-    cursorSecret: fixtureSecret("ROOTSET_CURSOR_SECRET"),
+    cursorSecret: fixtureSecret("ROOTSET_SECRET"),
   });
   const directory = dirname(resolve(filename));
   await mkdir(directory, { recursive: true });

@@ -1,3 +1,4 @@
+import { hkdfSync } from "node:crypto";
 import { z } from "zod";
 
 const secret = z.string().min(32);
@@ -30,44 +31,12 @@ const publicOrigin = url.refine((value) => {
     return false;
   }
 }, "Use an HTTPS or loopback HTTP origin");
-const keyringSchema = z.record(
-  z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
-  z.string().regex(/^[a-fA-F0-9]{64}$/),
-);
-const invalidKeyringMessage =
-  "ROOTSET_ENCRYPTION_KEYS must be a JSON object mapping 1-64 character alphanumeric, underscore or hyphen key IDs to 64 hexadecimal characters";
 const schema = z.object({
   ROOTSET_API_URL: publicOrigin,
   ROOTSET_WEB_URL: publicOrigin,
   ROOTSET_DATABASE_URL: databaseUrl,
-  ROOTSET_DDL_DATABASE_URL: databaseUrl,
-  ROOTSET_IDENTITY_DATABASE_URL: databaseUrl,
-  ROOTSET_AUTH_SECRET: secret,
-  ROOTSET_KEY_HASH_SECRET: secret,
-  ROOTSET_CURSOR_SECRET: secret,
-  ROOTSET_ENCRYPTION_KEY: z.preprocess(
-    (value) => (value === "" ? undefined : value),
-    z
-      .string()
-      .regex(/^[a-fA-F0-9]{64}$/)
-      .optional(),
-  ),
-  ROOTSET_ENCRYPTION_KEYS: z.string().optional(),
-  ROOTSET_ENCRYPTION_KEY_ID: z.string().min(1).default("primary"),
-  ROOTSET_BOOTSTRAP_SECRET: secret,
-  ROOTSET_PASSWORD_BREACH_CHECK: z.enum(["true", "false"]).default("true"),
-  ROOTSET_PASSWORD_VERIFY_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(8)
-    .default(2),
-  ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(16),
+  ROOTSET_SECRET: secret,
+  ROOTSET_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
   ROOTSET_PORT: z.coerce.number().int().min(1).max(65535).default(4310),
   ROOTSET_S3_ENDPOINT: objectStorageUrl,
   ROOTSET_S3_REGION: z.string().default("us-east-1"),
@@ -82,7 +51,6 @@ const schema = z.object({
   ROOTSET_SMTP_SECURE: z.enum(["true", "false"]).default("true"),
   ROOTSET_EMAIL_FROM: z.string().email(),
   ROOTSET_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  ROOTSET_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
@@ -90,46 +58,21 @@ export function loadConfig(
   env: Record<string, string | undefined> = process.env,
 ) {
   const v = schema.parse(env);
-  let decodedKeys: unknown;
-  try {
-    decodedKeys = v.ROOTSET_ENCRYPTION_KEYS
-      ? JSON.parse(v.ROOTSET_ENCRYPTION_KEYS)
-      : v.ROOTSET_ENCRYPTION_KEY
-        ? { [v.ROOTSET_ENCRYPTION_KEY_ID]: v.ROOTSET_ENCRYPTION_KEY }
-        : {};
-  } catch {
-    throw new Error(invalidKeyringMessage);
-  }
-  const parsedKeys = keyringSchema.safeParse(decodedKeys);
-  if (!parsedKeys.success) throw new Error(invalidKeyringMessage);
-  const rawKeys = parsedKeys.data;
-  if (!Object.hasOwn(rawKeys, v.ROOTSET_ENCRYPTION_KEY_ID))
-    throw new Error(
-      "The active encryption key must be present in ROOTSET_ENCRYPTION_KEYS or ROOTSET_ENCRYPTION_KEY",
-    );
-  const encryptionKeys: Record<string, string> = Object.fromEntries(
-    Object.entries(rawKeys).map(([id, key]) => [
-      id,
-      Buffer.from(key, "hex").toString("base64"),
-    ]),
-  );
+  const signingKey = (purpose: string) =>
+    Buffer.from(
+      hkdfSync("sha256", v.ROOTSET_SECRET, "rootset:v1", purpose, 32),
+    ).toString("base64url");
   return {
     baseURL: new URL(v.ROOTSET_API_URL).origin,
     webURL: new URL(v.ROOTSET_WEB_URL).origin,
     databaseURL: v.ROOTSET_DATABASE_URL,
-    ddlDatabaseURL: v.ROOTSET_DDL_DATABASE_URL,
-    identityDatabaseURL: v.ROOTSET_IDENTITY_DATABASE_URL,
-    secret: v.ROOTSET_AUTH_SECRET,
-    bootstrapSecret: v.ROOTSET_BOOTSTRAP_SECRET,
-    passwordPolicy: {
-      breachCheck: v.ROOTSET_PASSWORD_BREACH_CHECK === "true",
-      maximumActive: v.ROOTSET_PASSWORD_VERIFY_CONCURRENCY,
-      maximumWaiting: v.ROOTSET_PASSWORD_VERIFY_QUEUE_LIMIT,
-    },
-    keyHashSecret: v.ROOTSET_KEY_HASH_SECRET,
-    cursorSecret: v.ROOTSET_CURSOR_SECRET,
-    encryptionKeys,
-    activeEncryptionKeyId: v.ROOTSET_ENCRYPTION_KEY_ID,
+    secret: signingKey("auth"),
+    bootstrapSecret: v.ROOTSET_SECRET,
+    keyHashSecret: signingKey("api-keys"),
+    cursorSecret: signingKey("cursors"),
+    encryptionKey: Buffer.from(v.ROOTSET_ENCRYPTION_KEY, "hex").toString(
+      "base64",
+    ),
     port: v.ROOTSET_PORT,
     artifacts: {
       endpoint: v.ROOTSET_S3_ENDPOINT,
@@ -149,6 +92,5 @@ export function loadConfig(
       from: v.ROOTSET_EMAIL_FROM,
     },
     logLevel: v.ROOTSET_LOG_LEVEL,
-    workerConcurrency: v.ROOTSET_WORKER_CONCURRENCY,
   };
 }

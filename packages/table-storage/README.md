@@ -2,7 +2,7 @@
 
 `TableStorage` manages generated PostgreSQL schemas and native typed tables. The control schema stores definitions, schema journals, mutations, history and restore provenance. User rows remain native columns; JSON cells use `jsonb`.
 
-The service accepts an authenticated `Actor` supplied by `@rootset/core`. Core performs scope and current-role checks. Every storage transaction binds the actor's organisation, and native/control RLS enforces that boundary. Runtime row operations use `rootset_app`; schema work uses `rootset_ddl`, which inherits the non-login, non-superuser managed owner. Migration credentials stay outside this package's runtime constructor.
+The service accepts an authenticated `Actor` supplied by `@rootset/core`. Core performs scope and current-role checks. Every storage transaction binds the actor's organisation, and native/control RLS enforces that boundary. Runtime row and schema operations share one ordinary database owner and connection pool. Forced row-level security still applies to native tables; API/MCP callers use the current product role and typed storage operations.
 
 ```ts
 import { TableStorage } from "@rootset/table-storage";
@@ -61,7 +61,7 @@ History retention is optional. `snapshotHistory` extracts a half-open UTC range;
 
 ## Verification
 
-The test environment requires PostgreSQL 18 and configured owner, application and DDL test URLs. Credentials are read from an ignored environment file. The regression suite creates and migrates a disposable database on a loopback service; it uses the real nonowner runtime roles and drops the database after closing its pools. This prevents long test snapshots from interfering with a separate scale fixture.
+The test environment requires PostgreSQL 18 and one configured test database URL. Credentials are read from an ignored environment file. The regression suite creates and migrates a disposable database on a loopback service; it uses the ordinary non-superuser database owner and drops the database after closing its pools. This prevents long test snapshots from interfering with a separate scale fixture.
 
 ```sh
 pnpm exec tsx --env-file=.env.test --test packages/table-storage/src/*.test.ts

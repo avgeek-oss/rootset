@@ -27,22 +27,19 @@ credentials and much installation state. Full recovery needs PostgreSQL state
 and SQL privileges, referenced objects, protected configuration and retained keys.
 
 1. Identify the installation/project, source version, PostgreSQL major, baseline
-   digest, object bucket and key IDs. Retain the existing images and configuration.
+   digest, object bucket and encryption-key recovery copy. Retain the existing images and configuration.
 2. Verify a recent logical backup by encrypted readback and isolated restore.
    Record its data cutoff and validation result; uploaded is not verified.
 3. Stop new changes and let jobs reach safe checkpoints. Stop this installation's
    web/API/worker while keeping PostgreSQL/object storage available for copying.
    Preserve lease, checkpoint and schema-journal state.
 4. Use the PostgreSQL/provider's supported backup procedure in a protected
-   directory (`umask 077`). A database-only `pg_dump` omits cluster roles: retain
-   the complete Rootset login/owner/fixed-function role membership and grant graph.
-   A dedicated-cluster physical backup with WAL preserves that graph together
-   with database state. Shared-cluster procedures must not copy unrelated data
+   directory (`umask 077`). Retain the single database owner credential and ownership information.
+   A dedicated-cluster physical backup with WAL preserves database state. Shared-cluster procedures must not copy unrelated data
    or credentials.
 5. Copy the complete referenced Rootset object set with provider tooling while
    writers remain stopped. Record nonempty inventory, lengths and checksums.
-   Retain protected configuration and every encryption key referenced by data,
-   objects or recovery copies. Encrypt the recovery set and protect its recovery
+   Retain protected configuration and the installation encryption key. Encrypt the recovery set and protect its recovery
    key separately.
 6. Validate the PostgreSQL backup/manifest and object inventory. Mark an interrupted
    copy failed; restart the source only after its copy is complete or safely
@@ -57,7 +54,7 @@ Record only redacted metadata in a shared incident report.
 1. Create a separate installation/project with new volumes, bucket and browser
    origin. Match the recorded PostgreSQL major and Rootset source/schema. Keep
    target web/API/worker stopped and confirm the destination is not the source.
-2. Restore the retained SQL role graph before ownership/grants and database state.
+2. Provision the ordinary database owner, then restore database state and ownership.
    Use PostgreSQL's supported restore/physical recovery procedure, stop on errors
    and preserve the failed target for diagnosis. Do not issue a clean restore
    against an unconfirmed or populated source.

@@ -15,8 +15,6 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
   const runtime = await createRuntime({
     ...loadConfig(),
     databaseURL: db.app.options.connectionString!,
-    ddlDatabaseURL: db.ddl.options.connectionString!,
-    identityDatabaseURL: db.identity.options.connectionString!,
   });
   try {
     const orgId = newId();

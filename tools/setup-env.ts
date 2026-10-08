@@ -7,10 +7,7 @@ const template = await readFile(
 );
 const credential = () => randomBytes(32).toString("hex");
 const replacements: Record<string, string> = {
-  REPLACE_APP_PASSWORD: credential(),
-  REPLACE_DDL_PASSWORD: credential(),
-  REPLACE_IDENTITY_PASSWORD: credential(),
-  REPLACE_OWNER_PASSWORD: credential(),
+  REPLACE_POSTGRES_PASSWORD: credential(),
   REPLACE_OBJECT_ACCESS_KEY: randomBytes(16).toString("hex"),
   REPLACE_OBJECT_SECRET_KEY: credential(),
 };
@@ -23,5 +20,5 @@ output = output
   .replace("GENERATE_32_RANDOM_BYTES_AS_64_HEX_DIGITS", credential());
 await writeFile(".env", output, { flag: "wx", mode: 0o600 });
 console.log(
-  "Created .env with independent random credentials and persistent keys. Keep a protected recovery copy before storing data.",
+  "Created .env with fresh credentials, one application secret and one encryption key. Keep a protected recovery copy before storing data.",
 );

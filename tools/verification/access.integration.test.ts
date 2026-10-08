@@ -62,8 +62,6 @@ before(async () => {
   runtime = await createRuntime({
     ...loadConfig(),
     databaseURL: database.app.options.connectionString!,
-    ddlDatabaseURL: database.ddl.options.connectionString!,
-    identityDatabaseURL: database.identity.options.connectionString!,
   });
   await database.owner.query(
     "INSERT INTO rootset_control.organisations(id,name) VALUES($1,$2)",

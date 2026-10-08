@@ -40,7 +40,7 @@ await build({
 import { readFile } from 'node:fs/promises';
 const id=(await readFile(process.env.ROOTSET_WORKER_ID_FILE ?? '/tmp/rootset-worker-id','utf8')).trim();
 if(!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) throw new Error('Worker heartbeat identity is unavailable');
-const pool=new Pool({connectionString:process.env.ROOTSET_DDL_DATABASE_URL,max:1,connectionTimeoutMillis:3000,options:'-c statement_timeout=3000'});
+const pool=new Pool({connectionString:process.env.ROOTSET_DATABASE_URL,max:1,connectionTimeoutMillis:3000,options:'-c statement_timeout=3000'});
 try { const result=await pool.query("SELECT 1 FROM rootset_control.worker_heartbeats WHERE id=$1 AND state='ready' AND heartbeat_at>now()-interval '30 seconds'",[id]); if(result.rowCount!==1) process.exitCode=1; } finally { await pool.end(); }`,
     resolveDir: root,
     sourcefile: "worker-health.ts",

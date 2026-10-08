@@ -47,8 +47,6 @@ test(
       baseURL: "http://localhost:6313",
       webURL: "http://localhost:6313",
       databaseURL: fixture.app.options.connectionString!,
-      ddlDatabaseURL: fixture.ddl.options.connectionString!,
-      identityDatabaseURL: fixture.identity.options.connectionString!,
     }).catch(async (error) => {
       await fixture.close();
       throw error;
@@ -58,17 +56,14 @@ test(
         fixture.appliedMigrations.includes("0001_baseline.sql"),
         "The isolated fixture must apply the fixed repair completion migration",
       );
-      const permissions = (
-        await fixture.owner.query(
-          "SELECT has_function_privilege('rootset_app','rootset_control.append_operator_repair_completion(varchar,varchar,varchar,varchar)','EXECUTE') AS fixed_append,has_table_privilege('rootset_app','rootset_control.resource_history','INSERT') AS history_insert,has_table_privilege('rootset_app','rootset_control.resource_history','UPDATE') AS history_update,has_table_privilege('rootset_app','rootset_control.resource_history','DELETE') AS history_delete",
-        )
-      ).rows[0];
-      assert.deepEqual(permissions, {
-        fixed_append: true,
-        history_insert: false,
-        history_update: false,
-        history_delete: false,
-      });
+      assert.equal(
+        (
+          await fixture.owner.query(
+            "SELECT prosecdef FROM pg_proc WHERE oid='rootset_control.append_operator_repair_completion(varchar,varchar,varchar,varchar)'::regprocedure",
+          )
+        ).rows[0].prosecdef,
+        false,
+      );
       const service = runtime.identity,
         password = randomBytes(32).toString("base64url"),
         email = `repair-${newId().toLowerCase()}@example.test`;

@@ -20,24 +20,8 @@ export async function isolatedDatabase(): Promise<IsolatedDatabase> {
       "Disposable verification database creation requires a loopback PostgreSQL test service.",
     );
   const name = `rootset_verify_${newId().toLowerCase()}`;
-  const target = (variable: string): string => {
-    const url = new URL(fixtureSecret(variable));
-    if (
-      !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
-      url.port !== source.port
-    )
-      throw new Error(
-        "All verification role URLs must use the same loopback PostgreSQL port.",
-      );
-    url.pathname = `/${name}`;
-    return url.toString();
-  };
-  const urls = {
-    owner: target("ROOTSET_TEST_DATABASE_URL"),
-    app: target("ROOTSET_TEST_APP_DATABASE_URL"),
-    ddl: target("ROOTSET_TEST_DDL_DATABASE_URL"),
-    identity: target("ROOTSET_TEST_IDENTITY_DATABASE_URL"),
-  };
+  const target = new URL(source);
+  target.pathname = `/${name}`;
   const admin = createPool(source.toString(), 1);
   try {
     await admin.query("SET statement_timeout='60s'");
@@ -46,10 +30,10 @@ export async function isolatedDatabase(): Promise<IsolatedDatabase> {
     await admin.end();
     throw error;
   }
-  const owner = createPool(urls.owner, 4),
-    app = createPool(urls.app, 4),
-    ddl = createPool(urls.ddl, 4),
-    identity = createPool(urls.identity, 4);
+  const owner = createPool(target.toString(), 4),
+    app = createPool(target.toString(), 4),
+    ddl = createPool(target.toString(), 4),
+    identity = createPool(target.toString(), 4);
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) return;

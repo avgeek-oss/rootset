@@ -25,7 +25,7 @@ export const DatabaseMetricsSchema = z.strictObject({
   databaseBytes: bytes,
   temporaryBytes: bytes,
   temporaryFiles: bytes,
-  walDirectoryBytes: bytes,
+  walDirectoryBytes: bytes.nullable(),
   walGeneratedBytes: bytes,
   walRecords: bytes,
   transactionsCommitted: bytes,

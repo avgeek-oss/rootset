@@ -64,7 +64,7 @@ try {
       .fill(credentials.ROOTSET_TEST_OWNER_PASSWORD);
     await page
       .getByLabel("Installation setup secret", { exact: true })
-      .fill(config.ROOTSET_BOOTSTRAP_SECRET);
+      .fill(config.ROOTSET_SECRET);
     await page
       .getByRole("button", { name: "Create admin account", exact: true })
       .click();

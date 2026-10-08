@@ -110,9 +110,9 @@ export async function runNativeRetainedArchiveRegression(
   const rolePools = [db.owner, db.app, db.ddl, db.identity],
     variables = [
       "ROOTSET_TEST_DATABASE_URL",
-      "ROOTSET_TEST_APP_DATABASE_URL",
-      "ROOTSET_TEST_DDL_DATABASE_URL",
-      "ROOTSET_TEST_IDENTITY_DATABASE_URL",
+      "ROOTSET_TEST_DATABASE_URL",
+      "ROOTSET_TEST_DATABASE_URL",
+      "ROOTSET_TEST_DATABASE_URL",
     ];
   const environment: Record<string, string | undefined> = {
     CI: process.env.CI,
@@ -676,7 +676,7 @@ test(
       process.env.CI !== "true",
   },
   async (t) => {
-    // The caller supplies only admitted role URLs; there is no environment-file
+    // The caller supplies only the admitted database URL; there is no environment-file
     // loader and no inherited fixture/database/provider data fallback.
     const urls = nativeTestDatabaseURLs(process.env),
       config = loadConfig();
@@ -729,8 +729,7 @@ test(
           artifactConfig: {
             ...config.artifacts,
             forcePathStyle: true,
-            encryptionKeys: config.encryptionKeys,
-            activeKeyId: config.activeEncryptionKeyId,
+            encryptionKey: config.encryptionKey,
           },
         },
         AbortSignal.timeout(120_000),
