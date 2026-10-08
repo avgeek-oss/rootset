@@ -235,7 +235,7 @@ try {
   report.checks.runtimeRoleRestricted = true;
   assert.equal(
     sql(
-      "SELECT rolpassword IS NULL FROM pg_authid WHERE rolname='postgres'",
+      "SELECT to_json(rolpassword IS NULL) FROM pg_authid WHERE rolname='postgres'",
       "postgres",
     ),
     true,
