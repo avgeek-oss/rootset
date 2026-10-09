@@ -10,6 +10,7 @@ the latest 200 changes per existing cell. Deleting a row, field, table, or datab
 V1 uses Admin, Member and Viewer roles. Admins manage people and can delete databases and tables. Members can create and edit databases, tables and fields. Viewers can read data. Browser database deletion requires password/passkey confirmation; authorised API/MCP credentials execute directly.
 SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
 There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
+Each table can have only one unique rule for a given set of fields; selecting the same fields in a different order does not create another rule.
 Personal API keys have Read-only, Edit or Administrative permissions, capped by
 the person's current role. Workspace-owned team keys use the same permissions,
 with admin-only creation, rotation and revocation independent of the creator.

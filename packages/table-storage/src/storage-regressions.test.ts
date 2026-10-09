@@ -2341,22 +2341,131 @@ test(
 );
 
 test(
-  "Rule idempotency replays the exact durable outcome when names share fields and after subsequent rule deletion",
+  "Unique rules reject repeated field sets regardless of order or name without changing schema or indexes",
+  { skip: !configured },
+  async () => {
+    for (const charLimit of [20, 4000]) {
+      const table = await storage!.createTable(actor, databaseId, {
+        name: `Duplicate rule ${charLimit}`,
+        fields: [
+          { name: "code", type: "text", charLimit },
+          { name: "region", type: "text", charLimit: 20 },
+        ],
+      });
+      const fieldIds = table.fields.map((field) => field.id);
+      const input = {
+        fieldIds,
+        expectedSchemaVersion: 1,
+        idempotencyKey: `duplicate-rule-${charLimit}`,
+      };
+      const first = await storage!.createUniqueRule(actor, table.id, input);
+      assert.equal(first.strategy, charLimit === 20 ? "native" : "registry");
+      assert.deepEqual(
+        await storage!.createUniqueRule(actor, table.id, input),
+        first,
+      );
+      for (const selected of [fieldIds, [...fieldIds].reverse()]) {
+        await assert.rejects(
+          storage!.createUniqueRule(actor, table.id, {
+            fieldIds: selected,
+            name: "Another name",
+            expectedSchemaVersion: 2,
+          }),
+          {
+            code: "UNIQUE_CONFLICT",
+            status: 409,
+            message: "A unique rule already exists for these fields.",
+          },
+        );
+      }
+      assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 2);
+      assert.deepEqual(await storage!.listUniqueRules(actor, table.id), [
+        first,
+      ]);
+      assert.equal(
+        (
+          await owner!.query(
+            "SELECT c.oid FROM pg_class c JOIN pg_index i ON i.indexrelid=c.oid WHERE i.indrelid=$1::regclass AND c.relname LIKE 'rsu_%'",
+            [`"${schemaName}"."${table.physicalName}"`],
+          )
+        ).rowCount,
+        charLimit === 20 ? 1 : 0,
+      );
+      await storage!.deleteUniqueRule(actor, table.id, first.id, {
+        expectedSchemaVersion: 2,
+      });
+      const replacement = await storage!.createUniqueRule(actor, table.id, {
+        fieldIds: [...fieldIds].reverse(),
+        expectedSchemaVersion: 3,
+      });
+      assert.notEqual(replacement.id, first.id);
+      assert.deepEqual(await storage!.listUniqueRules(actor, table.id), [
+        replacement,
+      ]);
+    }
+  },
+);
+
+test(
+  "Concurrent unique rule creation publishes only one index for the same field set",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Concurrent rule definitions",
+      fields: [
+        { name: "code", type: "text", charLimit: 20 },
+        { name: "region", type: "text", charLimit: 20 },
+      ],
+    });
+    const fieldIds = table.fields.map((field) => field.id);
+    const results = await Promise.allSettled([
+      storage!.createUniqueRule(actor, table.id, {
+        fieldIds,
+        expectedSchemaVersion: 1,
+      }),
+      storage!.createUniqueRule(actor, table.id, {
+        fieldIds: [...fieldIds].reverse(),
+        expectedSchemaVersion: 1,
+      }),
+    ]);
+    assert.equal(
+      results.filter((result) => result.status === "fulfilled").length,
+      1,
+    );
+    const rejected = results.find((result) => result.status === "rejected");
+    assert.equal(rejected?.reason.code, "SCHEMA_VERSION_CONFLICT");
+    assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 2);
+    assert.equal((await storage!.listUniqueRules(actor, table.id)).length, 1);
+    await assert.rejects(
+      storage!.createUniqueRule(actor, table.id, {
+        fieldIds: [...fieldIds].reverse(),
+        expectedSchemaVersion: 2,
+      }),
+      { code: "UNIQUE_CONFLICT", status: 409 },
+    );
+  },
+);
+
+test(
+  "Rule idempotency replays the exact durable outcome when rules share names and after subsequent rule deletion",
   { skip: !configured },
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
       name: "Exact rule result",
-      fields: [{ name: "code", type: "text", charLimit: 20 }],
+      fields: [
+        { name: "code", type: "text", charLimit: 20 },
+        { name: "other_code", type: "text", charLimit: 20 },
+      ],
     });
     const firstInput = {
-      name: "First named rule",
+      name: "Shared name",
       fieldIds: [table.fields[0]!.id],
       expectedSchemaVersion: 1,
       idempotencyKey: "first-exact-rule",
     };
     const secondInput = {
-      name: "Second named rule",
-      fieldIds: [table.fields[0]!.id],
+      name: "Shared name",
+      fieldIds: [table.fields[1]!.id],
       expectedSchemaVersion: 2,
       idempotencyKey: "second-exact-rule",
     };

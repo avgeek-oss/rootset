@@ -2220,11 +2220,6 @@ export class TableStorage {
       async (c, t, operationId) => {
         const rules = await this.rules(c, t);
         if (
-          rules.filter((r) => r.state === "active").length >=
-          limits.maxUniqueRules
-        )
-          fail("VALIDATION_FAILED", "Unique rule budget exceeded");
-        if (
           !input.fieldIds.length ||
           input.fieldIds.length > limits.maxUniqueFields ||
           new Set(input.fieldIds).size !== input.fieldIds.length
@@ -2233,6 +2228,23 @@ export class TableStorage {
         const fields = input.fieldIds.map((fid) => fieldFor(t, fid));
         if (fields.some((f) => f.type === "json"))
           fail("VALIDATION_FAILED", "JSON uniqueness is outside v1");
+        if (
+          rules.some(
+            (rule) =>
+              rule.fieldIds.length === fields.length &&
+              fields.every((field) => rule.fieldIds.includes(field.id)),
+          )
+        )
+          fail(
+            "UNIQUE_CONFLICT",
+            "A unique rule already exists for these fields.",
+            409,
+          );
+        if (
+          rules.filter((r) => r.state === "active").length >=
+          limits.maxUniqueRules
+        )
+          fail("VALIDATION_FAILED", "Unique rule budget exceeded");
         const strategy = this.nativeFits(fields) ? "native" : "registry";
         ruleId = newId();
         const r: UniqueRule = {

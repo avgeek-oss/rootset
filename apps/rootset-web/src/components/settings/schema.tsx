@@ -822,6 +822,18 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                 toast.danger("Choose at least one field.");
                 return;
               }
+              if (
+                schema.data.uniqueRules.some((rule) => {
+                  const existingFields = rule.fieldIds ?? rule.fields ?? [];
+                  return (
+                    existingFields.length === fieldIds.length &&
+                    fieldIds.every((id) => existingFields.includes(id))
+                  );
+                })
+              ) {
+                toast.danger("A unique rule already exists for these fields.");
+                return;
+              }
               const result = await mutation.run(() =>
                 write<{ jobId?: string }>(
                   `${schema.path}/unique-rules`,
