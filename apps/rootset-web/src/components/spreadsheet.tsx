@@ -46,6 +46,7 @@ import {
 } from "../lib/clipboard-selection";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { DebouncedSave } from "../lib/debounced-save";
+import { CellUndoStack } from "../lib/cell-undo";
 import { CellEditor, formatCellValue } from "./cells";
 import { Dialog } from "./dialog";
 import { useConfirmation } from "./settings/ui";
@@ -197,6 +198,9 @@ export function Spreadsheet({
   const sessionId = useRef<string | undefined>(undefined);
   const cellAttempt = useRef(new MutationAttempt());
   const pasteAttempt = useRef(new MutationAttempt());
+  const undoAttempt = useRef(new MutationAttempt());
+  const undoStack = useRef(new CellUndoStack());
+  const undoing = useRef(false);
   const viewportTiming = useRef<{
     context: string;
     startedAt: number;
@@ -270,6 +274,11 @@ export function Spreadsheet({
     (!windowInfo ||
       windowInfo.schemaVersion === schema.data?.table.schemaVersion) &&
     (schema.data?.table.state ?? table.state) === "active";
+
+  useEffect(() => {
+    undoStack.current.clear();
+    undoAttempt.current.clear();
+  }, [tablePath, schema.data?.table.schemaVersion, accessRevoked, canEdit]);
 
   useEffect(() => {
     if (view.data && !viewSave.hasPending) {
@@ -629,6 +638,9 @@ export function Spreadsheet({
         idempotencyKey: cellAttempt.current.forInput(input),
       });
       const updated = outcome.row;
+      undoStack.current.record(schema.data!.table.schemaVersion, [
+        { before: draft.row, after: updated, fields: [draft.field.name] },
+      ]);
       setRows((previous) =>
         previous.map((row) => (row.id === updated.id ? updated : row)),
       );
@@ -711,9 +723,94 @@ export function Spreadsheet({
     await commitCell(null, { row, field, initialValue: null });
   }
 
+  async function undoChange() {
+    if (saving || undoing.current || draft || !writable) return;
+    const change = undoStack.current.latest;
+    if (!change) {
+      toast("No changes to undo.");
+      return;
+    }
+    undoing.current = true;
+    setSaving(true);
+    try {
+      const input = {
+        orgId,
+        databaseId,
+        tableId: table.id,
+        expectedSchemaVersion: change.schemaVersion,
+        mutations: change.rows.map(({ rowId, expectedVersion, values }) => ({
+          type: "update" as const,
+          rowId,
+          expectedVersion,
+          values,
+        })),
+      };
+      const outcome = await client.operation<{
+        results: { row?: Row }[];
+      }>("mutateRows", input, {
+        idempotencyKey: undoAttempt.current.forInput(input),
+      });
+      const restored = outcome.results.flatMap(({ row }) => (row ? [row] : []));
+      undoStack.current.complete(change, restored);
+      undoAttempt.current.clear();
+      setRows((previous) =>
+        previous.map(
+          (row) => restored.find((next) => next.id === row.id) ?? row,
+        ),
+      );
+      cache.current.clear();
+      if (query.where || query.orderBy?.length) void loadWindow(windowStart);
+      onChanged();
+      toast.success("Last change undone.");
+    } catch (failure) {
+      if (
+        failure instanceof ApiError &&
+        ["ROW_VERSION_CONFLICT", "RESOURCE_NOT_FOUND"].includes(failure.code)
+      ) {
+        undoStack.current.forgetRows(change.rows.map((row) => row.rowId));
+        undoAttempt.current.clear();
+        void loadWindow(windowStart);
+        toast.danger("Cannot undo: a row has changed or been deleted.");
+      } else {
+        if (failure instanceof ApiError) {
+          if (failure.code === "SCHEMA_VERSION_CONFLICT") {
+            undoStack.current.clear();
+            undoAttempt.current.clear();
+            void schema.refetch();
+          } else if ([401, 403].includes(failure.status)) {
+            cache.current.clear();
+            setRows([]);
+            setWindowInfo(null);
+            setSelection(null);
+            setAccessRevoked(true);
+          }
+        }
+        toast.danger(
+          failure instanceof Error
+            ? failure.message
+            : "Could not undo the change.",
+        );
+      }
+    } finally {
+      undoing.current = false;
+      setSaving(false);
+    }
+  }
+
   function onKey(args: CellKeyDownArgs<Row>, event: CellKeyboardEvent) {
     if (args.mode === "EDIT") {
       event.preventGridDefault();
+      return;
+    }
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      !event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "z"
+    ) {
+      event.preventDefault();
+      event.preventGridDefault();
+      if (!event.repeat) void undoChange();
       return;
     }
     const { row, column, rowIdx } = args;
@@ -730,7 +827,7 @@ export function Spreadsheet({
           : null;
       setContextMenu(
         column.key === "__row_number"
-          ? {}
+          ? { row }
           : { row, field: fields.find((field) => field.id === column.key) },
       );
     } else if (
@@ -997,9 +1094,30 @@ export function Spreadsheet({
         })),
         expectedSchemaVersion: schema.data!.table.schemaVersion,
       };
-      await client.operation("mutateRows", input, {
+      const before = rows;
+      const outcome = await client.operation<{
+        results: { row?: Row }[];
+      }>("mutateRows", input, {
         idempotencyKey: pasteAttempt.current.forInput(input),
       });
+      undoStack.current.record(
+        input.expectedSchemaVersion,
+        outcome.results.flatMap(({ row: after }) => {
+          const previous = before.find((row) => row.id === after?.id);
+          const mutation = input.mutations.find(
+            (row) => row.rowId === after?.id,
+          );
+          return after && previous && mutation
+            ? [
+                {
+                  before: previous,
+                  after,
+                  fields: Object.keys(mutation.values),
+                },
+              ]
+            : [];
+        }),
+      );
       setPastePreview(null);
       pasteAttempt.current.clear();
       cache.current.clear();
@@ -1039,6 +1157,7 @@ export function Spreadsheet({
         headers: { "If-Match": `\"${row.id}:${row.version}\"` },
         body: { expectedSchemaVersion: schema.data!.table.schemaVersion },
       });
+      undoStack.current.forgetRows([row.id]);
       cache.current.clear();
       void loadWindow(windowStart);
       onChanged();
@@ -1291,7 +1410,8 @@ export function Spreadsheet({
             Double-click a cell to edit. Right-click for cell actions. Arrow
             keys navigate; Enter or F2 edits; Tab moves across columns; Escape
             cancels. Hold Shift to select a rectangle. Times are UTC. Date-times
-            display in {preferences.timezone}.
+            display in {preferences.timezone}. Command-Z or Control-Z undoes the
+            last saved cell change. Undo is available during this table session.
             {copying && (
               <span role="status"> Preparing selection for copy…</span>
             )}

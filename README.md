@@ -96,3 +96,11 @@ separate release decisions. Adapted material retains its applicable licence and
 source notices.
 
 The table UI loads 200 rows initially and requests more as you scroll. It keeps at most 1,000 loaded rows (and a 32 MiB active window), fetching earlier batches again when you scroll back. React Data Grid renders only visible rows. Resource pages use `/databases/:id` and `/databases/:id/tables/:id`; filters and sorts stay part of the data query. Invalid or failed cell saves show a toast and restore the committed value.
+
+Press Command-Z (Control-Z on Windows/Linux) while the grid is focused to undo
+saved cell edits, null changes and pastes, one action at a time. The current table
+session retains up to 200 undo actions; leaving the table or reloading clears them.
+A paste is undone atomically. Undo uses normal API revision checks and records
+the restored values in cell history. A toast confirms success or explains a
+failure. Text inputs retain their normal unsaved-text undo. Redo and undoing
+deletions or schema changes are not supported.
