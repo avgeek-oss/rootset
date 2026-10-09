@@ -2,7 +2,7 @@
 
 import { Widget } from "@avgeek-oss/design-system/data-display/widget";
 import Link from "next/link";
-import type { Database } from "@rootset/contracts";
+import type { DatabaseSummary } from "@rootset/contracts";
 import {
   ApplicationPage,
   AppShell,
@@ -11,7 +11,7 @@ import {
   QueryLoading,
 } from "@avgeek-oss/design-system";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, Database01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, DatabaseIcon, TableIcon } from "@hugeicons/core-free-icons";
 import { dataHref } from "./settings/navigation";
 
 export function DatabasesPage({
@@ -22,7 +22,7 @@ export function DatabasesPage({
   onCreate,
   onRetry,
 }: {
-  databases: Database[];
+  databases: DatabaseSummary[];
   pending: boolean;
   error: string;
   canCreate: boolean;
@@ -36,7 +36,7 @@ export function DatabasesPage({
         title="Databases"
         titleContent={
           <span className="inline-flex items-center gap-2">
-            <HugeiconsIcon icon={Database01Icon} size={24} aria-hidden />
+            <HugeiconsIcon icon={DatabaseIcon} size={24} aria-hidden />
             Databases
           </span>
         }
@@ -65,10 +65,21 @@ export function DatabasesPage({
                   className="block h-full min-w-0 rounded-2xl no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 >
                   <Widget className="h-full">
-                    <Widget.Content>
+                    <Widget.Content className="flex flex-col gap-5">
                       <h2 className="break-words text-base font-medium">
                         {database.name}
                       </h2>
+                      <dl className="mt-auto grid gap-1">
+                        <dt className="text-xs text-muted">Tables</dt>
+                        <dd className="flex items-center gap-2 text-lg font-medium tabular-nums">
+                          <HugeiconsIcon
+                            icon={TableIcon}
+                            size={20}
+                            aria-hidden
+                          />
+                          {database.tableCount.toLocaleString()}
+                        </dd>
+                      </dl>
                     </Widget.Content>
                   </Widget>
                 </Link>
@@ -77,7 +88,7 @@ export function DatabasesPage({
           </ul>
         ) : (
           <div className="empty-state">
-            <HugeiconsIcon icon={Database01Icon} size={32} aria-hidden />
+            <HugeiconsIcon icon={DatabaseIcon} size={32} aria-hidden />
             <h2>No databases yet</h2>
             <p>
               {canCreate

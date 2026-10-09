@@ -730,7 +730,10 @@ export class RootsetCore {
     switch (id) {
       case "listDatabases":
         return this.paging.paginate(
-          (await s.listDatabases(a)).map(databasePublic),
+          (await s.listDatabases(a)).map((database) => ({
+            ...databasePublic(database),
+            tableCount: database.tableCount,
+          })),
           a,
           {
             resource: "databases",

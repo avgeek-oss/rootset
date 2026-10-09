@@ -8,6 +8,7 @@ import {
 import {
   createCellDraft,
   formatCellValue,
+  formatJsonDraft,
   jsonCellPreview,
   parseCellDraft,
   validateCellDraft,
@@ -363,5 +364,26 @@ describe("draft initialisation and bounded display", () => {
         50,
       ).length,
     ).toBeLessThanOrEqual(50);
+  });
+});
+
+describe("inline JSON formatting", () => {
+  it("expands nested values into readable indentation without changing values", () => {
+    const text = '{"sample":true,"items":[null,0,{"note":"line\\nnext"}]}';
+    const pretty = formatJsonDraft(text);
+    expect(pretty).toContain('\n  "sample": true');
+    expect(JSON.parse(pretty)).toEqual(JSON.parse(text));
+    expect(parseCellDraft(field("json"), draft(pretty))).toEqual(
+      JSON.parse(text),
+    );
+  });
+  it("preserves scalar JSON values", () => {
+    for (const text of ["null", "false", "0", '"text"'])
+      expect(formatJsonDraft(text)).toBe(text);
+  });
+  it("keeps strict validation when formatting", () => {
+    expect(() => formatJsonDraft('{"a":1,"a":2}')).toThrow(/duplicate/i);
+    expect(() => formatJsonDraft("{")).toThrow();
+    expect(() => formatJsonDraft("9007199254740993")).toThrow();
   });
 });

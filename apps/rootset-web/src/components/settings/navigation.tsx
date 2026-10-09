@@ -3,7 +3,13 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Link01Icon,
-  Database01Icon,
+  DatabaseIcon,
+  DatabaseSettingIcon,
+  DatabaseBackupIcon,
+  DatabaseSearchIcon,
+  ColumnsThreeCogIcon,
+  TablePropertiesIcon,
+  FingerPrintIcon,
   Download01Icon,
   Key01Icon,
   BookOpen01Icon,
@@ -11,7 +17,7 @@ import {
   ComputerIcon,
   SecurityCheckIcon,
   Settings01Icon,
-  Table01Icon,
+  TableIcon,
   Upload01Icon,
   UserAccountIcon,
   UserGroupIcon,
@@ -91,19 +97,19 @@ export const settingsIcons = {
   profile: UserAccountIcon,
   preferences: Settings01Icon,
   "email-password": Mail01Icon,
-  passkeys: SecurityCheckIcon,
+  passkeys: FingerPrintIcon,
   sessions: ComputerIcon,
   "api-keys": Key01Icon,
   mcp: BookOpen01Icon,
   organisation: Settings01Icon,
   members: UserGroupIcon,
   "mcp-connections": Link01Icon,
-  database: Settings01Icon,
-  backups: Download01Icon,
-  table: Table01Icon,
-  fields: Table01Icon,
+  database: DatabaseSettingIcon,
+  backups: DatabaseBackupIcon,
+  table: ColumnsThreeCogIcon,
+  fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
-  indexes: Key01Icon,
+  indexes: DatabaseSearchIcon,
   imports: Upload01Icon,
   exports: Download01Icon,
 };
@@ -219,9 +225,7 @@ export function PageNavigation({
     <>
       <SecondaryEntityHeader
         title={title}
-        icon={
-          <HugeiconsIcon icon={tableScope ? Table01Icon : Database01Icon} />
-        }
+        icon={<HugeiconsIcon icon={tableScope ? TableIcon : DatabaseIcon} />}
       >
         {title}
       </SecondaryEntityHeader>
@@ -233,7 +237,7 @@ export function PageNavigation({
             id: tableScope ? "rows" : "tables",
             label: tableScope ? "Rows" : "Tables",
             href: dataHref(databaseId, tableScope ? tableId : null),
-            icon: <HugeiconsIcon icon={Table01Icon} />,
+            icon: <HugeiconsIcon icon={TableIcon} />,
           },
         ]}
       />

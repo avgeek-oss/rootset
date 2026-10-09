@@ -504,6 +504,9 @@ export class TableStorage {
     );
     const d = r.rows[0];
     if (!d) fail("RESOURCE_NOT_FOUND", "Database was not found", 404);
+    return this.databaseRecord(d);
+  }
+  private databaseRecord(d: Raw): DatabaseRecord {
     return {
       id: String(d.id),
       orgId: String(d.org_id),
@@ -884,13 +887,23 @@ export class TableStorage {
       true,
     );
   }
-  async listDatabases(a: Actor): Promise<DatabaseRecord[]> {
+  async listDatabases(
+    a: Actor,
+  ): Promise<(DatabaseRecord & { tableCount: number })[]> {
     return this.run(a, async (c) => {
-      const r = await c.query<{ id: string }>(
-        "SELECT id FROM rootset_control.databases WHERE org_id=$1 AND state='active' ORDER BY created_at,id",
+      const r = await c.query<Raw>(
+        `SELECT d.*,
+          (SELECT count(*) FROM rootset_control.tables t
+           WHERE t.database_id=d.id AND t.org_id=d.org_id
+             AND t.state IN ('active','maintenance')) AS table_count
+         FROM rootset_control.databases d
+         WHERE d.org_id=$1 AND d.state='active' ORDER BY d.created_at,d.id`,
         [a.orgId],
       );
-      return Promise.all(r.rows.map((d) => this.database(c, a, d.id)));
+      return r.rows.map((d) => ({
+        ...this.databaseRecord(d),
+        tableCount: Number(d.table_count),
+      }));
     });
   }
   async getDatabase(a: Actor, databaseId: string): Promise<DatabaseRecord> {

@@ -1,9 +1,18 @@
 "use client";
 
-import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
+import {
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import type { FieldDefinition, JsonValue } from "@rootset/contracts";
 import {
   createCellDraft,
+  formatJsonDraft,
   parseCellDraft,
   validateCellDraft,
   type CellDraft,
@@ -51,6 +60,20 @@ export function CellEditor({
   const [submitting, setSubmitting] = useState(false);
   const submitted = useRef<Promise<boolean> | null>(null);
   const cancelled = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [expandUp, setExpandUp] = useState(false);
+  useLayoutEffect(() => {
+    if (field.type !== "json") return;
+    const cell = formRef.current?.closest('[role="gridcell"]');
+    const grid = cell?.closest('[role="grid"]');
+    if (!cell || !grid) return;
+    const cellBounds = cell.getBoundingClientRect();
+    const gridBounds = grid.getBoundingClientRect();
+    setExpandUp(
+      gridBounds.bottom - cellBounds.top < 240 &&
+        cellBounds.top - gridBounds.top > 240,
+    );
+  }, [field.type]);
   const id = useId();
   const feedbackId = `${id}-feedback`;
   const busy = pending || submitting;
@@ -113,7 +136,8 @@ export function CellEditor({
 
   return (
     <form
-      className="inline-cell-form"
+      ref={formRef}
+      className={`inline-cell-form${field.type === "json" ? " inline-cell-form--json" : ""}${expandUp ? " inline-cell-form--expand-up" : ""}`}
       aria-label={`Edit ${field.name}`}
       lang={locale}
       noValidate
@@ -147,7 +171,7 @@ export function CellEditor({
           event.preventDefault();
           void submit();
         }
-        if (event.key === "Tab") {
+        if (event.key === "Tab" && field.type !== "json") {
           const inputs = event.currentTarget.querySelectorAll(
             "input, textarea, select",
           );
@@ -164,7 +188,11 @@ export function CellEditor({
           event.key === "Enter" &&
           !event.shiftKey &&
           !event.ctrlKey &&
-          !event.metaKey
+          !event.metaKey &&
+          !(event.target instanceof HTMLButtonElement) &&
+          !(
+            field.type === "json" && event.target instanceof HTMLTextAreaElement
+          )
         ) {
           event.preventDefault();
           void submit();
@@ -182,6 +210,46 @@ export function CellEditor({
         describedBy={message ? feedbackId : undefined}
         inline
       />
+      {field.type === "json" && (
+        <div className="inline-json-actions">
+          <Button
+            size="sm"
+            variant="ghost"
+            isDisabled={busy || draft.isNull}
+            onPress={() => {
+              try {
+                change({ ...draft, text: formatJsonDraft(draft.text) });
+                setValidationError(null);
+              } catch (cause) {
+                setValidated(true);
+                setValidationError(
+                  cause instanceof Error ? cause.message : "Enter valid JSON.",
+                );
+              }
+            }}
+          >
+            Format
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            isDisabled={busy}
+            onPress={() => {
+              cancelled.current = true;
+              onCancel();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            type="submit"
+            isDisabled={busy || commitDisabled || hasConflict}
+          >
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      )}
       {message && (
         <p id={feedbackId} className="inline-cell-error" role="alert">
           {message}
@@ -202,7 +270,9 @@ export function CellEditor({
       <span className="sr-only" role="status">
         {busy
           ? "Saving this value…"
-          : "Enter saves; Tab saves and moves; leaving the cell saves; Shift+Enter adds a line; Escape cancels."}
+          : field.type === "json"
+            ? "Enter adds a line; Cmd or Ctrl+Enter saves; leaving the cell saves; Escape cancels."
+            : "Enter saves; Tab saves and moves; leaving the cell saves; Shift+Enter adds a line; Escape cancels."}
       </span>
     </form>
   );

@@ -190,7 +190,17 @@ async function openEditor(page: Page, key: string): Promise<Locator> {
     "font-size",
     gridFont,
   );
-  await expect(dialog.getByRole("button")).toHaveCount(0);
+  if (key === "JSON") {
+    await expect(
+      dialog.getByRole("button", { name: "Format", exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Cancel", exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Save", exact: true }),
+    ).toBeVisible();
+  } else await expect(dialog.getByRole("button")).toHaveCount(0);
   await expect
     .poll(() =>
       dialog.evaluate((element) => element.scrollWidth - element.clientWidth),
@@ -409,8 +419,8 @@ test("eight inline editors commit actual typed canonical values", async ({
   await submitEditor(booleanDialog);
   await expect(booleanDialog).not.toBeVisible();
   await fillAndSave(page, "DATE", "2024-02-29");
-  await fillAndSave(page, "TIME", "08:09:10.125");
-  await fillAndSave(page, "DATETIME", "2026-10-03T14:20:01.25");
+  await fillAndSave(page, "TIME", "08:09");
+  await fillAndSave(page, "DATETIME", "2026-10-03T14:20");
   const jsonDialog = await openEditor(page, "JSON");
   const jsonInput = jsonDialog.getByRole("textbox", {
     name: "JSON",
@@ -427,8 +437,8 @@ test("eight inline editors commit actual typed canonical values", async ({
     FLOAT: -1.25,
     BOOLEAN: true,
     DATE: "2024-02-29",
-    TIME: "08:09:10.125Z",
-    DATETIME: "2026-10-03T14:20:01.250Z",
+    TIME: "08:09:00Z",
+    DATETIME: "2026-10-03T14:20:00.000Z",
     JSON: { list: [true, 0, "x"], nested: null },
   });
   await captureEvidence(page, "eight-types-saved");

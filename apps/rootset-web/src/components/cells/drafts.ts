@@ -25,6 +25,14 @@ export interface CellDraft {
   originalTemporalValue?: string;
 }
 
+export function formatJsonDraft(text: string): string {
+  return JSON.stringify(
+    parseStrictJson(text, { maxBytes: limits.requestBytes }),
+    null,
+    2,
+  );
+}
+
 const numberFormatters = new Map<string, Intl.NumberFormat>();
 
 export type DisplayPreferences = Pick<Preferences, "dateFormat" | "timeFormat">;
@@ -61,7 +69,7 @@ export function createCellDraft(
     };
   switch (field.type) {
     case "json":
-      return { text: canonicalJson(value), isNull: false };
+      return { text: formatJsonDraft(canonicalJson(value)), isNull: false };
     case "date-time":
       return {
         text: utcDateTimeToLocal(String(value), timeZone).slice(0, -7),

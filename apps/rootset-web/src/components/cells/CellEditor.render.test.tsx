@@ -81,6 +81,24 @@ describe("cell editor save boundaries", () => {
     },
   );
 
+  it("expands JSON in the cell and exposes format, save and cancel actions", () => {
+    const html = renderToStaticMarkup(
+      createElement(CellEditor, {
+        field: { ...definition, type: "json" },
+        value: { sample: true, count: 2 },
+        onCommit: () => true,
+        onCancel() {},
+      }),
+    );
+    expect(html).toContain("inline-cell-form--json");
+    expect(html).toContain('rows="8"');
+    expect(html).toContain("Format");
+    expect(html).toContain("Cancel");
+    expect(html).toContain("Save");
+    expect(html).toContain("Enter adds a line");
+    expect(html).toContain("\n  &quot;sample&quot;: true");
+  });
+
   it("keeps a boundary UTC instant editable in the preferred timezone", () => {
     const html = renderToStaticMarkup(
       createElement(CellEditor, {

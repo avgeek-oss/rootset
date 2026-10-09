@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { Skeleton } from "@heroui/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignIcon, Table01Icon } from "@hugeicons/core-free-icons";
+import { PlusSignIcon, TableIcon } from "@hugeicons/core-free-icons";
 import type { Table } from "@rootset/contracts";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { AppShell } from "@avgeek-oss/design-system";
@@ -33,7 +33,7 @@ export function TablesPage({
         <div className="py-5">
           <header className="flex flex-nowrap items-center gap-2">
             <h1 className="inline-flex min-w-0 items-center gap-2 text-xl font-medium">
-              <HugeiconsIcon icon={Table01Icon} size={20} aria-hidden />
+              <HugeiconsIcon icon={TableIcon} size={20} aria-hidden />
               Tables
             </h1>
             {canCreate && (
@@ -99,7 +99,7 @@ export function TablesPage({
           </div>
         ) : !error ? (
           <div className="empty-state">
-            <HugeiconsIcon icon={Table01Icon} size={32} aria-hidden />
+            <HugeiconsIcon icon={TableIcon} size={32} aria-hidden />
             <h2>No tables yet</h2>
             <p>
               {canCreate

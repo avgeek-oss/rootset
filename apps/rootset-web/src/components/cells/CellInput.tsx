@@ -3,6 +3,7 @@
 import { useId } from "react";
 import type { FieldDefinition } from "@rootset/contracts";
 import type { CellDraft } from "./drafts";
+import { ChevronDown } from "../ui/icons";
 import { getLocalDateTimeCandidates } from "./temporal";
 
 export function CellInput({
@@ -68,25 +69,28 @@ export function CellInput({
         </label>
       )}
       {field.type === "boolean" ? (
-        <select
-          {...common}
-          value={draft.isNull ? "null" : draft.text}
-          onChange={(event) =>
-            onChange({
-              text:
-                event.target.value === "null" ? "false" : event.target.value,
-              isNull: event.target.value === "null",
-            })
-          }
-        >
-          {!field.required && <option value="null">Not set (null)</option>}
-          <option value="false">false</option>
-          <option value="true">true</option>
-        </select>
+        <div className="cell-select">
+          <select
+            {...common}
+            value={draft.isNull ? "null" : draft.text}
+            onChange={(event) =>
+              onChange({
+                text:
+                  event.target.value === "null" ? "false" : event.target.value,
+                isNull: event.target.value === "null",
+              })
+            }
+          >
+            {!field.required && <option value="null">Not set (null)</option>}
+            <option value="false">false</option>
+            <option value="true">true</option>
+          </select>
+          <ChevronDown size={14} />
+        </div>
       ) : field.type === "text" || field.type === "json" ? (
         <textarea
           {...common}
-          rows={inline ? 1 : field.type === "json" ? 3 : 2}
+          rows={field.type === "json" ? 8 : inline ? 1 : 2}
           value={draft.isNull ? "" : draft.text}
           onChange={(event) => changeText(event.target.value)}
         />

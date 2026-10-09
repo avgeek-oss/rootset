@@ -253,6 +253,56 @@ verificationCase(
 
 verificationCase(
   {
+    id: "ACCESS-DATABASE-COUNTS-01",
+    gates: ["V1-10"],
+    scope:
+      "Database summaries count active and maintenance tables, omit deleted tables and include empty databases for every readable role",
+  },
+  async () => {
+    const summaryId = idOf(
+      await execute("createDatabase", actors.admin, {
+        orgId,
+        name: "Table count fixture",
+      }),
+    );
+    const count = async (actor: Actor) => {
+      const list = record(await execute("listDatabases", actor, { orgId }));
+      assert.ok(Array.isArray(list.data));
+      return record(list.data.find((item) => idOf(item) === summaryId))
+        .tableCount;
+    };
+    assert.equal(await count(actors.viewer), 0);
+    const tableIds: string[] = [];
+    for (const name of ["Active", "Maintenance", "Deleted"]) {
+      tableIds.push(
+        idOf(
+          record(
+            await execute("createTable", actors.admin, {
+              orgId,
+              databaseId: summaryId,
+              name,
+              fields: [],
+            }),
+          ).table,
+        ),
+      );
+    }
+    assert.equal(await count(actors.viewer), 3);
+    await database.owner.query(
+      "UPDATE rootset_control.tables SET state='maintenance' WHERE id=$1",
+      [tableIds[1]],
+    );
+    await database.owner.query(
+      "UPDATE rootset_control.tables SET state='deleted' WHERE id=$1",
+      [tableIds[2]],
+    );
+    for (const actor of Object.values(actors))
+      assert.equal(await count(actor), 2);
+  },
+);
+
+verificationCase(
+  {
     id: "ACCESS-PERSONAL-01",
     gates: ["V1-07", "V1-05", "V1-17"],
     scope:

@@ -39,6 +39,10 @@ export const DatabaseSchema = z.strictObject({
   ...timestamps,
 });
 export type Database = z.infer<typeof DatabaseSchema>;
+export const DatabaseSummarySchema = DatabaseSchema.extend({
+  tableCount: z.number().int().nonnegative(),
+});
+export type DatabaseSummary = z.infer<typeof DatabaseSummarySchema>;
 export const NotificationSchema = z.strictObject({
   id: IdSchema,
   type: z.enum(["backup.succeeded", "backup.failed", "backup.cancelled"]),

@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Input, Label, TextField } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { Database as DatabaseIcon } from "./ui/icons";
 import { DatabasesPage } from "./databases-page";
 import { RootsetLogo } from "./rootset-logo";
 import { TablesPage } from "./tables-page";
@@ -27,6 +26,7 @@ import {
   ContextSchema,
   IdSchema,
   type Database,
+  type DatabaseSummary,
   type Table,
   type OperatorRepairIntent,
 } from "@rootset/contracts";
@@ -67,7 +67,7 @@ import { ThemeSwitcher } from "@avgeek-oss/design-system/controls/theme-switcher
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Database01Icon,
+  DatabaseIcon,
   Logout01Icon,
   Settings01Icon,
   UserAccountIcon,
@@ -137,7 +137,7 @@ export function RootsetApp() {
     queryKey: ["databases", orgId],
     queryFn: async ({ signal }) =>
       unwrapData(
-        await client.request<Database[] | { data: Database[] }>(
+        await client.request<DatabaseSummary[] | { data: DatabaseSummary[] }>(
           `${resourcePath(orgId!)}/databases`,
           { signal },
         ),
@@ -416,7 +416,7 @@ export function RootsetApp() {
           : selectedTableId,
       ),
     );
-  const icon = (value: typeof Database01Icon) => (
+  const icon = (value: typeof DatabaseIcon) => (
     <HugeiconsIcon
       aria-hidden="true"
       icon={value}
@@ -499,7 +499,7 @@ export function RootsetApp() {
                         id: "databases",
                         label: "Databases",
                         href: "/databases",
-                        icon: Database01Icon,
+                        icon: DatabaseIcon,
                         activePath: resourceScope ? path : "/databases",
                       },
                     ],
@@ -710,7 +710,11 @@ export function RootsetApp() {
                 </div>
               ) : (
                 <section className="empty-state">
-                  <DatabaseIcon size={32} aria-hidden="true" />
+                  <HugeiconsIcon
+                    icon={DatabaseIcon}
+                    size={32}
+                    aria-hidden="true"
+                  />
                   <h1>
                     {canManage
                       ? database

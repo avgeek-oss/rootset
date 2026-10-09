@@ -5135,6 +5135,11 @@
                     "format": "date-time",
                     "description": "UTC instant with mandatory Z and at most three fractional digits.",
                     "examples": ["2024-01-01T12:30:00.000Z"]
+                  },
+                  "tableCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [
@@ -5143,7 +5148,8 @@
                   "name",
                   "state",
                   "createdAt",
-                  "updatedAt"
+                  "updatedAt",
+                  "tableCount"
                 ],
                 "additionalProperties": false
               }

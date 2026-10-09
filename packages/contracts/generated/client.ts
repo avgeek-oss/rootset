@@ -558,6 +558,7 @@ export type listDatabasesOutput = {
       "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
     createdAt: string;
     updatedAt: string;
+    tableCount: number;
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;

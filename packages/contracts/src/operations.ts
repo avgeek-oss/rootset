@@ -30,6 +30,7 @@ import {
   ConnectionSchema,
   ContextSchema,
   DatabaseSchema,
+  DatabaseSummarySchema,
   HistoryPageSchema,
   HistoryRetentionPolicySchema,
   HistoryArchiveSchema,
@@ -612,7 +613,7 @@ operation(
   `${O}/databases`,
   ["databases:read"],
   z.strictObject({ ...org, ...paging }),
-  list(DatabaseSchema),
+  list(DatabaseSummarySchema),
   "List accessible logical databases.",
 );
 operation(
