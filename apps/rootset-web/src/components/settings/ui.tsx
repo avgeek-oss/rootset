@@ -20,7 +20,8 @@ import {
   type ReactNode,
   type FormEvent,
 } from "react";
-import type { SettingsError } from "./api";
+import { showSettingsError, type SettingsError } from "./api";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 
 export function Section({
   title,
@@ -248,49 +249,6 @@ export function Form({
   );
 }
 
-export function Feedback({
-  error,
-  message,
-}: {
-  error?: SettingsError;
-  message?: string;
-}) {
-  const approval =
-    typeof error?.details?.approvalUrl === "string"
-      ? error.details.approvalUrl
-      : undefined;
-  return (
-    <>
-      {error && (
-        <div role="alert" className="settings-feedback settings-feedback-error">
-          <strong>
-            {error.code === "ACCESS_DENIED"
-              ? "Access denied"
-              : error.code === "STEP_UP_REQUIRED"
-                ? "Confirm your identity"
-                : "Request failed"}
-          </strong>
-          <p>{error.message}</p>
-          {approval && (
-            <a href={approval} target="_blank" rel="noopener noreferrer">
-              Review and approve this action
-            </a>
-          )}
-          {error.requestId && <small>Reference: {error.requestId}</small>}
-        </div>
-      )}
-      {message && (
-        <p
-          role="status"
-          className="settings-feedback settings-feedback-success"
-        >
-          {message}
-        </p>
-      )}
-    </>
-  );
-}
-
 export function Loading({
   error,
   retry,
@@ -299,18 +257,12 @@ export function Loading({
   error?: SettingsError;
   retry: () => void;
 }) {
-  return (
-    <>
-      {error && (
-        <>
-          <Feedback error={error} />
-          <Button variant="secondary" onPress={retry}>
-            Try again
-          </Button>
-        </>
-      )}
-    </>
-  );
+  useEffect(() => {
+    if (!error) return;
+    const id = showSettingsError(error, retry);
+    return () => toast.close(id);
+  }, [error, retry]);
+  return null;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

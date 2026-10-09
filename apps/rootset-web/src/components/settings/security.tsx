@@ -19,7 +19,7 @@ import {
   write,
   type AccountActionTicket,
 } from "./api";
-import { DateLabel, Feedback, Loading } from "./ui";
+import { DateLabel, Loading } from "./ui";
 
 interface Completion {
   id: string;
@@ -228,7 +228,6 @@ export function AccountActionApproval({ orgId }: { orgId: string }) {
                       </dd>
                     </dl>
                   )}
-                <Feedback {...mutation} />
               </Modal.Body>
               <Modal.Footer>
                 <Button

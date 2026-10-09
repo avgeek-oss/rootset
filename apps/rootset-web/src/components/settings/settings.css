@@ -46,7 +46,7 @@
   font-size: 14px;
   line-height: 1.6;
 }
-.settings-feedback a {
+.settings-preview a {
   color: var(--accent);
   text-decoration: underline;
 }
@@ -133,29 +133,8 @@
 .settings-record-actions .settings-field {
   width: 140px;
 }
-.settings-feedback {
-  border-radius: 0.7rem;
-  padding: 0.8rem 1rem;
-  margin: 0.5rem 0 1rem;
-  background: var(--surface-secondary);
-  font-size: 0.875rem;
-  line-height: 1.6;
-}
 .settings-feedback-error {
   color: var(--danger);
-  background: var(--danger-soft);
-}
-.settings-feedback-success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-.settings-feedback p {
-  margin: 0.25rem 0;
-}
-.settings-feedback small,
-.settings-preview small {
-  display: block;
-  color: var(--muted);
 }
 .settings-empty {
   color: var(--muted);
@@ -271,7 +250,7 @@
   gap: 8px;
 }
 .field-name-cell {
-  min-width: 200px;
+  min-width: 160px;
 }
 .field-name-cell > span {
   overflow-wrap: anywhere;
@@ -287,11 +266,15 @@
   display: inline-flex;
   color: var(--muted);
 }
+.field-check-no {
+  font-size: 12px;
+  opacity: 0.45;
+}
 .field-check-yes {
   color: var(--success);
 }
 .field-constraints {
-  min-width: 180px;
+  min-width: 132px;
   max-width: 360px;
   overflow-wrap: anywhere;
   white-space: normal;

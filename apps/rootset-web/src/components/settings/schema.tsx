@@ -2,7 +2,10 @@
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useEffect, useMemo, useState } from "react";
-import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
+import {
+  ResourceName,
+  ResourceTable,
+} from "@avgeek-oss/design-system/patterns/resource-table";
 import { Dialog } from "../dialog";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { Check, ChevronDown, ChevronUp } from "../ui/icons";
@@ -19,7 +22,6 @@ import {
 import {
   Choice,
   Empty,
-  Feedback,
   Field,
   Form,
   Loading,
@@ -38,12 +40,7 @@ import {
   type TableSchemaResult,
 } from "./types";
 
-import {
-  fieldDraft,
-  parseFieldDraft,
-  type FieldDraft,
-  type FieldDraftErrors,
-} from "./field-draft";
+import { fieldDraft, parseFieldDraft, type FieldDraft } from "./field-draft";
 
 const EMPTY_SCHEMA: TableSchemaResult = {
   table: { name: "", schemaVersion: 1 },
@@ -84,7 +81,6 @@ export function TableSettings(props: SettingsPanelProps) {
   return (
     <>
       <Loading {...schema} retry={schema.reload} />
-      <Feedback {...mutation} />
       <Section title="Table details">
         <Form
           busy={mutation.busy}
@@ -110,7 +106,7 @@ export function TableSettings(props: SettingsPanelProps) {
         </Form>
       </Section>
       {schema.data.table.state === "maintenance" && (
-        <p role="status" className="settings-feedback">
+        <p role="status" className="settings-muted">
           This table is in read-only maintenance. Existing data remains visible
           while the schema job runs.
         </p>
@@ -131,7 +127,6 @@ export function TableDangerZone(props: SettingsPanelProps) {
   return (
     <>
       <Loading {...schema} retry={schema.reload} />
-      <Feedback {...mutation} />
       <Section
         title="Delete table"
         description="Deleting this table removes access to its rows and fields in Rootset, the API and MCP, and deletes their cell changelogs. You will need to confirm your identity before deletion. This cannot be undone in Rootset."
@@ -179,29 +174,8 @@ export function FieldForm({
   submit: (input: Record<string, unknown>) => Promise<void>;
 }) {
   const [value, setValue] = useState(() => fieldDraft(field));
-  const [errors, setErrors] = useState<FieldDraftErrors>({});
-  const [error, setError] = useState<string>();
   function patch<K extends keyof FieldDraft>(key: K, next: FieldDraft[K]) {
-    const updated = { ...value, [key]: next };
-    setValue(updated);
-    if (Object.keys(errors).length) {
-      const nextErrors = parseFieldDraft(updated).errors ?? {};
-      setErrors(
-        Object.fromEntries(
-          Object.keys(errors).map((field) => [
-            field,
-            nextErrors[field as keyof FieldDraft],
-          ]),
-        ),
-      );
-    }
-  }
-  function validate(...keys: (keyof FieldDraft)[]) {
-    const nextErrors = parseFieldDraft(value).errors ?? {};
-    setErrors((previous) => ({
-      ...previous,
-      ...Object.fromEntries(keys.map((key) => [key, nextErrors[key]])),
-    }));
+    setValue((previous) => ({ ...previous, [key]: next }));
   }
   return (
     <Form
@@ -209,14 +183,17 @@ export function FieldForm({
       submit={field ? "Preview and apply changes" : "Add field"}
       onCancel={onCancel}
       onSubmit={async () => {
-        setError(undefined);
         const parsed = parseFieldDraft(value);
-        setErrors(parsed.errors ?? {});
-        if (!parsed.input) return;
+        if (!parsed.input) {
+          toast.danger(
+            Object.values(parsed.errors)[0] ?? "Check the field definition.",
+          );
+          return;
+        }
         try {
           await submit(parsed.input);
         } catch (reason) {
-          setError(
+          toast.danger(
             reason instanceof Error
               ? reason.message
               : "Check the field definition.",
@@ -228,13 +205,11 @@ export function FieldForm({
         label="Column name"
         value={value.name}
         onChange={(next) => patch("name", next)}
-        onBlur={() => validate("name")}
         required
         minLength={1}
         maxLength={64}
         pattern="[A-Za-z_]+"
-        description="Use 1–64 letters or underscores. Reserved system names are unavailable. This name is the column label and the key used by API requests."
-        error={errors.name}
+        description="Use 1–64 letters or underscores."
       />
       <Choice
         label="Field type"
@@ -242,20 +217,12 @@ export function FieldForm({
         onChange={(next) => patch("type", next as TableField["type"])}
         options={FIELD_TYPES}
       />
-      <Toggle
-        label="Required"
-        selected={value.required}
-        onChange={(next) => patch("required", next)}
-        description="Required fields cannot contain null."
-      />
       {value.type === "text" && (
         <Field
-          error={errors.charLimit}
           label="Maximum characters"
           type="number"
           value={value.charLimit}
           onChange={(next) => patch("charLimit", next)}
-          onBlur={() => validate("charLimit")}
           min={1}
           max={65536}
           required
@@ -264,11 +231,9 @@ export function FieldForm({
       {["integer", "float", "date", "date-time"].includes(value.type) && (
         <div className="settings-inline">
           <Field
-            error={errors.min}
             label="Minimum (inclusive)"
             value={value.min}
             onChange={(next) => patch("min", next)}
-            onBlur={() => validate("min", "max")}
             type={
               value.type === "date"
                 ? "date"
@@ -284,11 +249,9 @@ export function FieldForm({
             }
           />
           <Field
-            error={errors.max}
             label="Maximum (inclusive)"
             value={value.max}
             onChange={(next) => patch("max", next)}
-            onBlur={() => validate("min", "max")}
             type={
               value.type === "date"
                 ? "date"
@@ -301,7 +264,6 @@ export function FieldForm({
         </div>
       )}
       <Choice
-        error={errors.defaultMode}
         label="Default for new rows"
         value={value.defaultMode}
         onChange={(next) => patch("defaultMode", next)}
@@ -323,7 +285,6 @@ export function FieldForm({
             label="Default value"
             value={value.defaultValue}
             onChange={(next) => patch("defaultValue", next)}
-            onBlur={() => validate("defaultValue")}
             type={
               ["integer", "float"].includes(value.type)
                 ? "number"
@@ -342,19 +303,20 @@ export function FieldForm({
                     ? "Enter a valid JSON value."
                     : undefined
             }
-            error={errors.defaultValue}
           />
         ))}
-      {errors.defaultValue && value.type === "boolean" && (
-        <p role="alert" className="settings-feedback-error">
-          {errors.defaultValue}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="settings-feedback-error">
-          {error}
-        </p>
-      )}
+      <div className="settings-inline">
+        <Toggle
+          label="Required"
+          selected={value.required}
+          onChange={(next) => patch("required", next)}
+        />
+        <Toggle
+          label="Nullable"
+          selected={!value.required}
+          onChange={(next) => patch("required", !next)}
+        />
+      </div>
     </Form>
   );
 }
@@ -405,13 +367,13 @@ export function FieldsSettings(props: SettingsPanelProps) {
   const confirmation = useConfirmation();
   const [editing, setEditing] = useState<TableField>();
   const [formOpen, setFormOpen] = useState(false);
-  const [preview, setPreview] = useState<{
+  type FieldPreview = {
     valid?: boolean;
     conflicts?: { message?: string; rowId?: string; fieldId?: string }[];
     requiresJob?: boolean;
     rowCount?: number;
     reportArtifactId?: string;
-  }>();
+  };
   const actions = useMemo(
     () => (
       <Button
@@ -423,7 +385,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
         }
         onPress={() => {
           setEditing(undefined);
-          setPreview(undefined);
           setFormOpen(true);
         }}
       >
@@ -436,8 +397,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
     if (mutation.busy) return;
     setFormOpen(false);
     setEditing(undefined);
-    setPreview(undefined);
-    mutation.clear();
   }
   if (!schema.path) return <Empty>Select a table to manage fields.</Empty>;
   async function apply(input: Record<string, unknown>) {
@@ -468,18 +427,25 @@ export function FieldsSettings(props: SettingsPanelProps) {
       changes,
       conversion: "explicit",
     };
-    const check = await mutation.run(
-      () =>
-        write<NonNullable<typeof preview>>(
-          `${schema.path}/schema/preview`,
-          "POST",
-          { expectedSchemaVersion: schema.data.table.schemaVersion, change },
-        ),
-      "Schema preview complete.",
+    const check = await mutation.run(() =>
+      write<FieldPreview>(`${schema.path}/schema/preview`, "POST", {
+        expectedSchemaVersion: schema.data.table.schemaVersion,
+        change,
+      }),
     );
     if (!check.ok) return;
-    setPreview(check.value);
-    if (check.value.valid === false || check.value.conflicts?.length) return;
+    if (check.value.valid === false || check.value.conflicts?.length) {
+      toast.danger("The field change cannot be applied.", {
+        description: check.value.conflicts
+          ?.map(
+            (conflict) =>
+              conflict.message ??
+              "Existing data violates the field definition.",
+          )
+          .join(" "),
+      });
+      return;
+    }
     if (
       await confirmation.confirm(
         "Apply this field change?",
@@ -504,7 +470,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
         applySchema(result.value);
         setFormOpen(false);
         setEditing(undefined);
-        setPreview(undefined);
       }
     }
   }
@@ -533,7 +498,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
     <>
       <PageSelectionTitle label="Fields" actions={actions} />
       <Loading {...schema} retry={schema.reload} />
-      {!formOpen && <Feedback {...mutation} />}
       {(!schema.loading || schema.data.fields.length > 0) && !schema.error && (
         <ResourceTable
           ariaLabel="Fields"
@@ -574,12 +538,11 @@ export function FieldsSettings(props: SettingsPanelProps) {
                         <ChevronDown />
                       </Button>
                     </div>
-                    <span>{field.name}</span>
+                    <ResourceName name={field.name} description={field.type} />
                   </div>
                 );
               },
             },
-            { key: "type", header: "Type", cell: (field) => field.type },
             {
               key: "required",
               header: "Required",
@@ -595,7 +558,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
               header: "Constraints",
               className: "field-constraints",
               cell: (field) => (
-                <span>{fieldConstraints(field).join(" · ") || "—"}</span>
+                <span>{fieldConstraints(field).join(", ") || "—"}</span>
               ),
             },
             {
@@ -606,12 +569,10 @@ export function FieldsSettings(props: SettingsPanelProps) {
               cell: (field) => (
                 <div className="field-edit-actions">
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     isDisabled={disabled}
                     onPress={() => {
-                      mutation.clear();
                       setEditing(field);
-                      setPreview(undefined);
                       setFormOpen(true);
                     }}
                   >
@@ -665,7 +626,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
           onClose={closeForm}
           closeDisabled={mutation.busy}
         >
-          <Feedback error={mutation.error} />
           <FieldForm
             key={editing?.id ?? "new"}
             field={editing}
@@ -673,27 +633,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
             submit={apply}
             onCancel={closeForm}
           />
-          {preview && (
-            <div className="settings-preview">
-              <p>
-                {preview.valid === false
-                  ? "The change cannot activate."
-                  : preview.requiresJob
-                    ? "This change requires a background job."
-                    : "Preview completed."}
-              </p>
-              {preview.conflicts?.map((conflict, index) => (
-                <p key={index}>
-                  {conflict.message ??
-                    "Existing row violates the proposed field definition."}{" "}
-                  {conflict.rowId && <>Row: {conflict.rowId}</>}
-                </p>
-              ))}
-              {preview.reportArtifactId && (
-                <p>Conflict report artifact: {preview.reportArtifactId}</p>
-              )}
-            </div>
-          )}
         </Dialog>
       )}
       {confirmation.dialog}
@@ -705,7 +644,13 @@ function FieldCheck({ checked }: { checked: boolean }) {
   return (
     <span className={`field-check${checked ? " field-check-yes" : ""}`}>
       <span className="sr-only">{checked ? "Yes" : "No"}</span>
-      {checked ? <Check size={18} /> : <span aria-hidden="true">—</span>}
+      {checked ? (
+        <Check size={18} />
+      ) : (
+        <span className="field-check-no" aria-hidden="true">
+          —
+        </span>
+      )}
     </span>
   );
 }
@@ -733,7 +678,6 @@ export function RulesIndexesSettings(
   return (
     <>
       <Loading {...schema} retry={schema.reload} />
-      <Feedback {...mutation} />
       <Section
         title={props.indexes ? "Create search index" : "Create unique rule"}
         description={

@@ -18,7 +18,6 @@ import {
 import {
   Choice,
   Empty,
-  Feedback,
   Form,
   Loading,
   Record,
@@ -98,7 +97,6 @@ export function JobTracker({
   return (
     <div className="settings-job">
       <Loading {...resource} retry={resource.reload} />
-      <Feedback {...mutation} />
       {resource.data && (
         <>
           <div className="settings-inline">
@@ -324,7 +322,6 @@ export function ImportsSettings(props: SettingsPanelProps) {
   return (
     <>
       <Loading {...schema} retry={schema.reload} />
-      <Feedback {...mutation} />
       <Section
         title="Import source"
         description="Choose CSV or JSONL, then map columns to existing typed fields. Text identifiers and leading zeroes remain text. Large jobs commit checkpointed batches and report rejected rows."
@@ -614,7 +611,6 @@ export function ExportsSettings(props: SettingsPanelProps) {
   return (
     <>
       <Loading {...schema} retry={schema.reload} />
-      <Feedback {...mutation} />
       <Section
         title="Snapshot export"
         description="Exports use one consistent table snapshot. Every temporal value is UTC regardless of your viewing preference. Downloads recheck your current permissions."

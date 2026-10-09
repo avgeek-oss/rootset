@@ -7,6 +7,7 @@ import type {
 import type { z } from "zod";
 import { RootsetClient, browserApiOrigin } from "@rootset/web-client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { resolveSettingsOperation } from "./requests";
 
 const client = new RootsetClient({
@@ -208,40 +209,49 @@ export function useResource<T>(path: string | undefined, initial: T) {
 
 export type MutationResult<T> =
   { ok: true; value: T } | { ok: false; error: SettingsError };
+export function showSettingsError(error: SettingsError, retry?: () => void) {
+  const approval =
+    typeof error.details?.approvalUrl === "string"
+      ? error.details.approvalUrl
+      : undefined;
+  return toast.danger(error.message, {
+    description: error.requestId ? `Reference: ${error.requestId}` : undefined,
+    ...(approval
+      ? {
+          timeout: 0,
+          actionProps: {
+            children: "Confirm identity",
+            onPress: () =>
+              window.open(approval, "_blank", "noopener,noreferrer"),
+          },
+        }
+      : retry
+        ? { timeout: 0, actionProps: { children: "Try again", onPress: retry } }
+        : {}),
+  });
+}
+
 export function useMutation(onChanged?: () => void) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<SettingsError>();
-  const [message, setMessage] = useState<string>();
   const run = async <T>(
     action: () => Promise<T>,
-    success: string,
+    success?: string,
   ): Promise<MutationResult<T>> => {
     setBusy(true);
-    setError(undefined);
-    setMessage(undefined);
     try {
       const value = await action();
-      setMessage(success);
+      if (success) toast.success(success);
       onChanged?.();
       return { ok: true, value };
     } catch (reason) {
       const detail = describeError(reason);
-      setError(detail);
+      showSettingsError(detail);
       return { ok: false, error: detail };
     } finally {
       setBusy(false);
     }
   };
-  return {
-    busy,
-    error,
-    message,
-    run,
-    clear: () => {
-      setError(undefined);
-      setMessage(undefined);
-    },
-  };
+  return { busy, run };
 }
 
 export function organisationPath(orgId: string) {

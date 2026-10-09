@@ -9,15 +9,7 @@ import {
   useResource,
   write,
 } from "./api";
-import {
-  Empty,
-  Feedback,
-  Field,
-  Form,
-  Loading,
-  Section,
-  useConfirmation,
-} from "./ui";
+import { Empty, Field, Form, Loading, Section, useConfirmation } from "./ui";
 import type { SettingsPanelProps } from "./types";
 
 export function DatabaseSettings(props: SettingsPanelProps) {
@@ -45,7 +37,6 @@ export function DatabaseSettings(props: SettingsPanelProps) {
   return (
     <>
       <Loading {...resource} retry={resource.reload} />
-      <Feedback {...mutation} />
       <Section title="Database details">
         <Form
           busy={mutation.busy}
@@ -90,7 +81,6 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
   return (
     <>
       <Loading {...resource} retry={resource.reload} />
-      <Feedback {...mutation} />
       <Section
         title="Delete database"
         description="Deleting this database removes it and all its tables from Rootset. Its rows will no longer be accessible in the app or through the API and MCP, and its cell changelogs will be deleted. You will need to confirm your identity before deletion. Rootset does not provide an undo or restore option."
