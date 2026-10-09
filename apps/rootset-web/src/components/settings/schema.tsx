@@ -1,7 +1,8 @@
 "use client";
 
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
-import { statusColor } from "./status-color";
+import { statusColor, statusIcon, statusLabel } from "./status";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Label, ListBox, Select } from "@heroui/react";
 import { limits } from "@rootset/contracts";
@@ -756,7 +757,12 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                   const status = rule.state ?? rule.status ?? "unknown";
                   return (
                     <Chip color={statusColor(status)}>
-                      <Chip.Label>{status.replaceAll("_", " ")}</Chip.Label>
+                      <HugeiconsIcon
+                        aria-hidden="true"
+                        size={14}
+                        icon={statusIcon(status)}
+                      />
+                      <Chip.Label>{statusLabel(status)}</Chip.Label>
                     </Chip>
                   );
                 },

@@ -1,7 +1,8 @@
 "use client";
 
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
-import { statusColor } from "./status-color";
+import { statusColor, statusIcon, statusLabel } from "./status";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { browserArtifactDownloadPath } from "@rootset/web-client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -93,7 +94,12 @@ export function ExportRequestsTable({
           header: "Status",
           cell: (request) => (
             <Chip color={statusColor(request.state)}>
-              <Chip.Label>{request.state.replaceAll("_", " ")}</Chip.Label>
+              <HugeiconsIcon
+                aria-hidden="true"
+                size={14}
+                icon={statusIcon(request.state)}
+              />
+              <Chip.Label>{statusLabel(request.state)}</Chip.Label>
             </Chip>
           ),
         },
