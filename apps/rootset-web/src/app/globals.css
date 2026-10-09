@@ -239,7 +239,7 @@ h1 {
 }
 .table-filter-inputs {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 152px minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr) 152px minmax(0, 1fr);
   align-items: start;
   gap: 12px;
 }

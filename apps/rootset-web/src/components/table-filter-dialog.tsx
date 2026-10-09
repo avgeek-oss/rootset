@@ -32,12 +32,14 @@ function newCondition(field: FieldDefinition): FilterCondition {
 
 function FilterSelect({
   label,
+  ariaLabel,
   hideLabel,
   value,
   options,
   onChange,
 }: {
   label: string;
+  ariaLabel?: string;
   hideLabel: boolean;
   value: string;
   options: readonly { value: string; label: string }[];
@@ -45,6 +47,7 @@ function FilterSelect({
 }) {
   return (
     <Select
+      aria-label={ariaLabel}
       variant="secondary"
       className="table-filter-field"
       value={value || null}
@@ -177,7 +180,8 @@ export function TableFilterDialog({
                       <div className="table-filter-condition-content">
                         <div className="table-filter-inputs">
                           <FilterSelect
-                            label={`Field ${index + 1}`}
+                            label="Field"
+                            ariaLabel={`Field for condition ${index + 1}`}
                             hideLabel={index > 0}
                             value={condition.fieldId}
                             options={fields.map((entry) => ({
@@ -198,7 +202,8 @@ export function TableFilterDialog({
                             }}
                           />
                           <FilterSelect
-                            label={`Match ${index + 1}`}
+                            label="Match"
+                            ariaLabel={`Match for condition ${index + 1}`}
                             hideLabel={index > 0}
                             value={condition.operator}
                             options={operators.map((operator) => ({
@@ -213,6 +218,7 @@ export function TableFilterDialog({
                             }
                           />
                           <TextField
+                            aria-label={`Value for condition ${index + 1}`}
                             className="table-filter-field"
                             value={needsValue ? condition.value : ""}
                             onChange={(value) =>
@@ -224,7 +230,9 @@ export function TableFilterDialog({
                               className={
                                 index > 0 ? "sr-only" : "table-filter-label"
                               }
-                            >{`Value ${index + 1}`}</Label>
+                            >
+                              Value
+                            </Label>
                             <Input
                               variant="secondary"
                               autoComplete="off"
@@ -251,11 +259,14 @@ export function TableFilterDialog({
                         </div>
                         {condition.operator.startsWith("path") && (
                           <TextField
+                            aria-label={`JSON path for condition ${index + 1}`}
                             className="table-filter-field"
                             value={condition.path}
                             onChange={(path) => update(condition.id, { path })}
                           >
-                            <Label className="table-filter-label">{`JSON path ${index + 1}`}</Label>
+                            <Label className="table-filter-label">
+                              JSON path
+                            </Label>
                             <Input
                               variant="secondary"
                               placeholder='["address", "city"]'
