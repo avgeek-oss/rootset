@@ -67,10 +67,10 @@ beforeEach(() => {
 });
 
 describe("Towbar account component parity", () => {
-  it("combines Gravatar and name in Profile details and keeps email/password separate", () => {
+  it("uses the current shared name-only profile and keeps email/password separate", () => {
     const profile = render(ProfileSettings);
     expect(profile).not.toContain("Appearance");
-    expect(profile).toContain("Gravatar Image");
+    expect(profile).not.toContain("Gravatar Image");
     expect(profile).not.toContain("Click the image to update it on Gravatar.");
     expect(profile).toContain("Profile details");
     expect(profile).toContain("Your Name");

@@ -85,10 +85,13 @@ verificationCase(
         (await connection.query(`SELECT * FROM ${path}`)).rowCount,
         0,
       );
-      await assert.rejects(
-        connection.query(`UPDATE ${path} SET row_version=row_version+1`),
+      assert.equal(
+        (await connection.query(`UPDATE ${path} SET row_version=row_version+1`))
+          .rowCount,
+        0,
       );
     });
+    assert.equal((await storage.getRow(actor, table.id, row.id)).version, "1");
     await assert.rejects(
       storage.getRow({ ...actor, orgId: newId() }, table.id, row.id),
     );

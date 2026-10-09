@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { QueryLoading } from "@avgeek-oss/design-system/patterns/feedback/query-state";
+import { RootsetApp } from "../components/rootset-app";
 import "./globals.css";
 import { Providers } from "../components/providers";
 
@@ -35,7 +37,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <Suspense fallback={<QueryLoading />}>
+            <RootsetApp />
+          </Suspense>
+          {children}
+        </Providers>
       </body>
     </html>
   );

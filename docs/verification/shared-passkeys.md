@@ -1,9 +1,13 @@
 # Shared account settings and passkeys
 
 Rootset consumes Towbar's account, authentication and team patterns from
-`@avgeek-oss/design-system@1.2.7`. Profile, Preferences, Email & Password,
+`@avgeek-oss/design-system@1.2.12`. Profile, Preferences, Email & Password,
 Passkeys, Sessions, API Keys, MCP Connections and MCP Guide use the library's components and
 fixed copy. The secondary sidebar contains only the current settings scope.
+The application shell is mounted in the persistent Next.js root layout.
+Navigating between settings, databases and table views updates the content and
+breadcrumbs without remounting the header, brand or primary navigation. The
+shared sidebar toggle uses the same icon in both states and a 44 px hit area.
 Team details, invitation creation, member editing/removal and invitation
 revocation also use shared patterns. The native `EmailChangeSettings` owns
 verification status, resend cooldown, pending changes and cancellation; the
@@ -12,8 +16,7 @@ application supplies only identity operations and date formatting.
 Account pages use `/settings/<page>` with Account Settings as their breadcrumb
 parent. Team pages use `/team-settings/general` and `/team-settings/members`
 with Team Settings as their parent. Previous team-settings links redirect to
-the canonical routes. Profile details combines the Gravatar image and name
-form in one widget. Date/time preferences keep their searchable options without
+the canonical routes. Profile details contains the shared name form in one widget. Date/time preferences keep their searchable options without
 a preview or explanatory footer.
 
 Sign-in exposes the library's verification-email action only after an

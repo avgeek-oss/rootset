@@ -31,7 +31,6 @@ export function ProfileSettings() {
       <LibraryProfileSettings
         key={profile.data.user.name}
         value={profile.data.user.name}
-        email={profile.data.user.email}
         label="Your Name"
         maxLength={120}
         onSave={async (displayName) => {
