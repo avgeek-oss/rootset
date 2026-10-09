@@ -129,9 +129,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
                 section={
                   activeSection === "organisation"
                     ? "general"
-                    : (activeSection as Parameters<
-                        typeof SettingsPageTitle
-                      >[0]["section"])
+                    : activeSection === "team-api-keys"
+                      ? "api-keys"
+                      : (activeSection as Parameters<
+                          typeof SettingsPageTitle
+                        >[0]["section"])
                 }
               />
             }
