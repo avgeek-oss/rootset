@@ -69,6 +69,10 @@ describe("context settings navigation", () => {
       "/team-settings/general",
     );
     expect(settingsHref("members", context)).toBe("/team-settings/members");
+    expect(settingsHref("team-api-keys", context)).toBe(
+      "/team-settings/api-keys",
+    );
+    expect(settingsNavigationGroups("team", "viewer")).toEqual([]);
     expect(settingsHref("fields", context)).toBe(
       "/databases/db/tables/table/settings/fields",
     );

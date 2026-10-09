@@ -23,6 +23,7 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "inviteMember",
   "cancelInvitation",
   "revokePersonalKey",
+  "revokeTeamKey",
   "changePassword",
   "changeEmail",
   "signOutEverywhere",

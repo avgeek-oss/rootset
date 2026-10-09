@@ -54,6 +54,31 @@ describe("account component bindings", () => {
       await api.post("/v1/core/settings/api-keys/personal", input),
     ).toEqual({ token: null });
   });
+  it("creates and revokes workspace-owned keys through team operations", async () => {
+    vi.mocked(read).mockResolvedValue({
+      organisation: { id: "installation" },
+      principal: { role: "admin" },
+    });
+    vi.mocked(performAction).mockResolvedValue({ secret: "team-token" });
+    const input = {
+      name: "Automation",
+      access: "read",
+      includeAdmin: false,
+      expiresAt: null,
+    };
+    expect(
+      await api.post("/v1/core/settings/api-keys/team", input, {
+        "Idempotency-Key": "team-request",
+      }),
+    ).toEqual({ token: "team-token" });
+    expect(performAction).toHaveBeenCalledWith(
+      "createTeamKey",
+      { ...input, orgId: "installation" },
+      { idempotencyKey: "team-request" },
+    );
+    await api.delete("/v1/core/settings/api-keys/team/key");
+    expect(write).toHaveBeenCalledWith("/orgs/installation/keys/key", "DELETE");
+  });
   it("revokes a connection through its connection endpoint", async () => {
     vi.mocked(read).mockResolvedValue([{ id: "grant" }]);
     await api.delete("/v1/core/settings/api-keys/personal/grant");

@@ -16,7 +16,7 @@ completion credit for the revised model.
 3. Align contracts, handlers and UI with one field `name` matching
    `/^[A-Za-z_]+$/`, length 1–64. Use it as the label and JSON row key while
    preserving stable IDs, values, query behavior and history through renames.
-4. Regenerate REST/client/MCP contracts. Keep personal-key role inheritance and
+4. Regenerate REST/client/MCP contracts. Keep personal-key permission ceilings, workspace-owned team keys and
    OAuth PKCE/operation consent; remove resource selectors and obsolete operations.
 5. Remove backup scheduling and installation overrides from the catalog and SQL.
    Remove database backup/restore and keep operation progress; remove the standalone jobs

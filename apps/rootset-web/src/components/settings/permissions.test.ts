@@ -4,6 +4,7 @@ import { canOpenSettings, SECTION_LABELS } from "./types";
 const management = [
   "organisation",
   "members",
+  "team-api-keys",
   "database",
   "database-danger-zone",
   "table",

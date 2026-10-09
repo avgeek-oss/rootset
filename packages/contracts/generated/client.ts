@@ -437,12 +437,13 @@ export type cancelInvitationOutput = { deleted: boolean; mutationId?: string };
 export type listPersonalKeysInput = Record<string, never>;
 export type listPersonalKeysOutput = {
   data: {
+    scope: "personal" | "team";
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
     orgId: string;
     name: string;
-    userId: string;
+    userId: string | null;
     prefix: string;
     createdAt: string;
     expiresAt: string | null;
@@ -462,12 +463,13 @@ export type createPersonalKeyInput = {
 };
 export type createPersonalKeyOutput = {
   key: {
+    scope: "personal" | "team";
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
     orgId: string;
     name: string;
-    userId: string;
+    userId: string | null;
     prefix: string;
     createdAt: string;
     expiresAt: string | null;
@@ -488,12 +490,13 @@ export type rotatePersonalKeyInput = {
 };
 export type rotatePersonalKeyOutput = {
   key: {
+    scope: "personal" | "team";
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
     orgId: string;
     name: string;
-    userId: string;
+    userId: string | null;
     prefix: string;
     createdAt: string;
     expiresAt: string | null;
@@ -505,6 +508,85 @@ export type rotatePersonalKeyOutput = {
 };
 export type revokePersonalKeyInput = { id: string };
 export type revokePersonalKeyOutput = { deleted: boolean; mutationId?: string };
+export type listTeamKeysInput = {
+  orgId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listTeamKeysOutput = {
+  data: {
+    scope: "personal" | "team";
+    access: "read" | "edit";
+    includeAdmin: boolean;
+    id: string;
+    orgId: string;
+    name: string;
+    userId: string | null;
+    prefix: string;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createTeamKeyInput = {
+  orgId: string;
+  name: string;
+  access: "read" | "edit";
+  includeAdmin: boolean;
+  expiresAt: string | null;
+  approvalId?: string;
+};
+export type createTeamKeyOutput = {
+  key: {
+    scope: "personal" | "team";
+    access: "read" | "edit";
+    includeAdmin: boolean;
+    id: string;
+    orgId: string;
+    name: string;
+    userId: string | null;
+    prefix: string;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  };
+  secret?: string;
+  replayed?: boolean;
+};
+export type rotateTeamKeyInput = {
+  orgId: string;
+  id: string;
+  overlapSeconds?: number;
+  name?: string;
+  access?: "read" | "edit";
+  includeAdmin?: boolean;
+  expiresAt?: string | null;
+  approvalId?: string;
+};
+export type rotateTeamKeyOutput = {
+  key: {
+    scope: "personal" | "team";
+    access: "read" | "edit";
+    includeAdmin: boolean;
+    id: string;
+    orgId: string;
+    name: string;
+    userId: string | null;
+    prefix: string;
+    createdAt: string;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastUsedAt: string | null;
+  };
+  secret?: string;
+  replayed?: boolean;
+};
+export type revokeTeamKeyInput = { orgId: string; id: string };
+export type revokeTeamKeyOutput = { deleted: boolean; mutationId?: string };
 export type getSecurityStatusInput = Record<string, never>;
 export type getSecurityStatusOutput = {
   twoFactorEnabled: boolean;
@@ -4520,6 +4602,26 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
+  listTeamKeys: {
+    path: "/v1/orgs/{orgId}/keys",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createTeamKey: {
+    path: "/v1/orgs/{orgId}/keys",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  rotateTeamKey: {
+    path: "/v1/orgs/{orgId}/keys/{id}/rotate",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  revokeTeamKey: {
+    path: "/v1/orgs/{orgId}/keys/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
   getSecurityStatus: {
     path: "/v1/me/security",
     method: "GET",
@@ -5059,6 +5161,46 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<revokePersonalKeyOutput>;
+  }
+  listTeamKeys(
+    input: listTeamKeysInput,
+    options?: CallOptions,
+  ): Promise<listTeamKeysOutput> {
+    return this.call(
+      "listTeamKeys",
+      input,
+      options,
+    ) as Promise<listTeamKeysOutput>;
+  }
+  createTeamKey(
+    input: createTeamKeyInput,
+    options?: CallOptions,
+  ): Promise<createTeamKeyOutput> {
+    return this.call(
+      "createTeamKey",
+      input,
+      options,
+    ) as Promise<createTeamKeyOutput>;
+  }
+  rotateTeamKey(
+    input: rotateTeamKeyInput,
+    options?: CallOptions,
+  ): Promise<rotateTeamKeyOutput> {
+    return this.call(
+      "rotateTeamKey",
+      input,
+      options,
+    ) as Promise<rotateTeamKeyOutput>;
+  }
+  revokeTeamKey(
+    input: revokeTeamKeyInput,
+    options?: CallOptions,
+  ): Promise<revokeTeamKeyOutput> {
+    return this.call(
+      "revokeTeamKey",
+      input,
+      options,
+    ) as Promise<revokeTeamKeyOutput>;
   }
   getSecurityStatus(
     input: getSecurityStatusInput,

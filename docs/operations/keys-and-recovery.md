@@ -18,9 +18,9 @@ before resuming artifact reads.
 ## Application secret
 
 `ROOTSET_SECRET` supplies initial setup access and the persistent root material
-for authentication, personal-key hashing and cursor signing. Rootset derives
+for authentication, API-key hashing and cursor signing. Rootset derives
 separate keys for those purposes internally. Preserve the same value across
-restarts. Changing it can invalidate sessions, personal keys and pagination
+restarts. Changing it can invalidate sessions, API keys and pagination
 cursors; it does not replace the encryption key.
 
 Personal API keys require a name, permissions and expiry. Choose Read-only for
@@ -37,3 +37,23 @@ expiry, demotion and membership removal affect new requests, waiting work and
 replay. Restricted keys cannot create more powerful keys or OAuth grants.
 OAuth retains approved operations intersected with the person's current role;
 reconnecting cannot restore revoked or removed authority.
+
+## Team API keys
+
+Administrators create and revoke team API keys under **Team Settings → API Keys**.
+Team keys use the same required name, Read-only/Edit/Administrative permissions
+and expiry choices as personal keys. Their secret appears only once.
+
+A team key belongs to the workspace, with no user-account owner. It continues
+working if its creator is demoted or leaves. Any current administrator can list,
+rotate or revoke it. Rotation preserves its permissions and expiry unless changed.
+Team keys cannot access personal profiles, security settings, personal keys or
+OAuth consent, and cannot create or manage credentials. REST and MCP apply the
+same permission ceiling; revocation and expiry invalidate new requests and
+waiting jobs. Use personal keys when automation should follow a person's live
+membership, and team keys for shared integrations.
+
+Team-key management uses `listTeamKeys`, `createTeamKey`, `rotateTeamKey` and
+`revokeTeamKey` at `/v1/orgs/{orgId}/keys`. Creation and rotation require an
+`Idempotency-Key`, and their secrets are omitted from replayed results. A team
+key can authenticate to the public `/mcp` endpoint with `Authorization: Bearer`.

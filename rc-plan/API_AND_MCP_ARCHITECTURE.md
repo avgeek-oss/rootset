@@ -13,12 +13,14 @@ request. Enforce Admin, Member and Viewer capabilities from the
 its real database/table even within a single organisation; an unrelated ID must
 not authorize the wrong parent.
 
-Personal REST keys inherit current role permissions and have no selected-operation
-or resource whitelist. OAuth MCP credentials additionally require approved
-operations. Operation consent has no database/table selection. Member removal,
-demotion and credential revocation apply before new effects and before replay of
-stored results. Sessions, REST keys and MCP tokens keep their distinct audiences;
-a transport/session identifier never replaces authentication.
+Personal keys use explicit Read-only, Edit or Administrative permission ceilings
+intersected with live membership. Team keys use the same ceilings independently
+of their creator's membership, with admin-only management and no personal account
+authority. Both key types authenticate REST and MCP. OAuth credentials require
+approved operations intersected with live membership. Operation consent has no
+database/table selection. Revocation and expiry apply before new effects and
+replay. Sessions remain browser-only; a transport identifier never replaces
+authentication.
 
 ## Transport
 

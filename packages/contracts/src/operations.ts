@@ -558,6 +558,63 @@ operation(
   { personal: true },
 );
 operation(
+  "listTeamKeys",
+  "list_team_keys",
+  "GET",
+  `${O}/keys`,
+  ["team-keys:manage"],
+  z.strictObject({ ...org, ...paging }),
+  list(KeyMetadataSchema),
+  "List metadata for workspace-owned API keys. Administrators only.",
+  { minimumRole: "admin", personal: true },
+);
+operation(
+  "createTeamKey",
+  "create_team_key",
+  "POST",
+  `${O}/keys`,
+  ["team-keys:manage"],
+  z
+    .strictObject({ ...org, ...keyInput })
+    .refine((input) => !input.includeAdmin || input.access === "edit", {
+      message: "Administrative keys require edit access",
+    }),
+  KeyCreatedSchema,
+  "Create a workspace-owned API key with explicit permissions and expiry; the secret appears once and access is independent of its creator.",
+  { minimumRole: "admin", personal: true, stepUp: "conditional" },
+);
+operation(
+  "rotateTeamKey",
+  "rotate_team_key",
+  "POST",
+  `${O}/keys/{id}/rotate`,
+  ["team-keys:manage"],
+  z.strictObject({
+    ...org,
+    id: IdSchema,
+    overlapSeconds: z.number().int().min(0).max(86400).optional(),
+    name: names.name.optional(),
+    access: z.enum(["read", "edit"]).optional(),
+    includeAdmin: z.boolean().optional(),
+    expiresAt: DateTimeSchema.nullable().optional(),
+    ...approval,
+  }),
+  KeyCreatedSchema,
+  "Rotate a workspace API key with bounded overlap; preserve permissions and expiry unless explicitly changed. Administrators only.",
+  { minimumRole: "admin", personal: true, stepUp: "conditional" },
+);
+operation(
+  "revokeTeamKey",
+  "revoke_team_key",
+  "DELETE",
+  `${O}/keys/{id}`,
+  ["team-keys:manage"],
+  z.strictObject({ ...org, id: IdSchema }),
+  deleted,
+  "Revoke a workspace-owned API key. Administrators only.",
+  { minimumRole: "admin", personal: true },
+);
+operation(
   "getSecurityStatus",
   "get_security_status",
   "GET",

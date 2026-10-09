@@ -5,7 +5,7 @@ import {
   TableCellDescription,
 } from "@avgeek-oss/design-system/data-display/table-cell-text";
 
-type KeyScope = "personal";
+type KeyScope = "personal" | "team";
 type KeyAccess = "read" | "edit";
 type KeyPermissionMode = "full-admin" | "scoped-admin" | "standard";
 import { useAccess } from "./adapter";
@@ -150,11 +150,12 @@ function Choice({
   );
 }
 
-export type KeyStoreSection = "personal-keys" | "mcp-connections" | "mcp";
+export type KeyStoreSection =
+  "personal-keys" | "team-keys" | "mcp-connections" | "mcp";
 export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
-  const scope: KeyScope = "personal";
+  const scope: KeyScope = section === "team-keys" ? "team" : "personal";
   const endpoint = `${baseEndpoint}/${scope}`;
-  const isKeyPage = section === "personal-keys";
+  const isKeyPage = section === "personal-keys" || section === "team-keys";
   const query = useApiQuery<KeySettings>(
     isKeyPage || section === "mcp-connections" ? endpoint : null,
   );
@@ -193,6 +194,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
   );
   const sectionLabels: Record<KeyStoreSection, string> = {
     "personal-keys": "API Keys",
+    "team-keys": "API Keys",
     "mcp-connections": "MCP Connections",
     mcp: "MCP Guide",
   };
@@ -317,7 +319,11 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
             items={apiKeys}
             getRowKey={(key) => key.id}
             emptyTitle="No API keys yet"
-            emptyDescription="Create an API key for your scripts or apps."
+            emptyDescription={
+              scope === "team"
+                ? "Create an API key for scripts or apps used by your team."
+                : "Create an API key for your scripts or apps."
+            }
           />
         ) : (
           <McpConnectionsSettings
@@ -508,7 +514,11 @@ function CreateKey({
           required
           disabled={busy}
           maxLength={120}
-          placeholder="e.g. Cursor on my Mac"
+          placeholder={
+            scope === "team"
+              ? "e.g. Shared automation"
+              : "e.g. Cursor on my Mac"
+          }
           variant="secondary"
           autoComplete="off"
         />

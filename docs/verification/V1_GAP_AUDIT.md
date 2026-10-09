@@ -19,7 +19,7 @@ until every behavior is reviewed. Acceptance remains false.
 
 The JSON audit/evidence plans now use `V1-01`–`V1-40`. Earlier candidate records are
 historical. Removed
-organisation/Owner/grant/team-key/lifecycle/upgrade requirements must not block
+organisation/Owner/grant/lifecycle/upgrade requirements must not block
 this V1, and their prior passes must not substitute for retained requirements.
 Use ordinary logs,
 manual/native comparisons and browser/benchmark reports to complete the current

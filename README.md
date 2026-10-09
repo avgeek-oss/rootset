@@ -11,7 +11,9 @@ V1 uses Admin, Member and Viewer roles. Admins manage people, schema and recover
 SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
 There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
 Personal API keys have Read-only, Edit or Administrative permissions, capped by
-the person's current role. OAuth connections add approved operations to that
+the person's current role. Workspace-owned team keys use the same permissions,
+with admin-only creation, rotation and revocation independent of the creator.
+OAuth connections add approved operations to that
 current authority. Field definitions have one `name`
 property, used both as the UI label and the JSON row key. Required is the only
 nullability setting: optional fields allow null and default to null unless a

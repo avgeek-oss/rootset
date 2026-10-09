@@ -161,10 +161,6 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     "updateGrants",
     "queryOrganisationAudit",
     "deleteAccount",
-    "listTeamKeys",
-    "createTeamKey",
-    "rotateTeamKey",
-    "revokeTeamKey",
     "listBackups",
     "getBackup",
     "createBackup",
@@ -187,7 +183,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 70);
+  assert.equal(operations.length, 74);
   assert.equal(getOperation("createRow").readOnly, false);
   assert(
     operations.every((operation) =>
@@ -873,7 +869,7 @@ test("catalog covers every named baseline MCP operation with unique routes and s
   );
   assert.equal(operationMap.queryRows!.readOnly, true);
   assert.equal(operationMap.createRow!.readOnly, false);
-  assert.equal(operationMap.createTeamKey, undefined);
+  assert.equal(operationMap.createTeamKey!.minimumRole, "admin");
   for (const id of ["listIndexes", "createIndex", "deleteIndex"])
     assert.equal(operationMap[id], undefined);
   assert.equal(
@@ -1188,7 +1184,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 70);
+  assert.equal(operations.length, 74);
   const api = generateOpenApi() as {
     paths: Record<
       string,
@@ -1552,7 +1548,6 @@ test("personal keys have explicit permission ceilings and all actors use support
     { targets: [] },
     { unrestricted: true },
     { operator: true },
-    { kind: "team_key" },
     { role: "owner" },
   ])
     assert.equal(ActorSchema.safeParse({ ...actor, ...extra }).success, false);
@@ -1586,6 +1581,7 @@ test("personal keys have explicit permission ceilings and all actors use support
     name: "Automation",
     access: "read",
     includeAdmin: false,
+    scope: "personal",
     prefix: "rs_key_",
     createdAt: "2026-10-05T00:00:00.000Z",
     expiresAt: null,
@@ -1593,6 +1589,15 @@ test("personal keys have explicit permission ceilings and all actors use support
     lastUsedAt: null,
   };
   assert.equal(KeyMetadataSchema.safeParse(key).success, true);
+  assert.equal(
+    KeyMetadataSchema.safeParse({ ...key, scope: "team", userId: null })
+      .success,
+    true,
+  );
+  for (const id of []) {
+    assert.equal(operationMap[id]!.minimumRole, "admin");
+    assert.equal(operationMap[id]!.personal, true);
+  }
   for (const extra of [
     { ownerKind: "team" },
     { scopes: [] },

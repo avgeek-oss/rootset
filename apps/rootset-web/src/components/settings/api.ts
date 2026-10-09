@@ -61,6 +61,8 @@ export async function performAction<T = unknown>(
     signOutEverywhere: "sign_out_everywhere",
     createPersonalKey: "create_key",
     rotatePersonalKey: "rotate_key",
+    createTeamKey: "create_key",
+    rotateTeamKey: "rotate_key",
     deleteDatabase: "delete_database",
     deleteTable: "delete_table",
   };

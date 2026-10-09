@@ -130,6 +130,20 @@ async function loadAccount(path: string): Promise<unknown> {
         })),
       };
     }
+    case "/v1/core/settings/api-keys/team": {
+      const context = await read<Context>("/context");
+      const keys = await read<ApiKey[]>(
+        `/orgs/${context.organisation?.id}/keys`,
+      );
+      return {
+        keys: accountKeyRows(keys, [], "admin").map((key) => ({
+          ...key,
+          scope: "team",
+        })),
+        apiUrl: `${browserApiOrigin()}/v1`,
+        mcpUrl: `${browserApiOrigin()}/mcp`,
+      };
+    }
     case "/v1/core/settings/api-keys/personal": {
       const [keys, connections, context] = await Promise.all([
         read<ApiKey[]>("/me/keys"),
@@ -233,6 +247,22 @@ async function mutate(
       });
     if (path.startsWith("/v1/core/sessions/"))
       return write(`/me/sessions/${path.split("/").at(-1)}`, "DELETE");
+    if (path === "/v1/core/settings/api-keys/team") {
+      const context = await read<Context>("/context");
+      const result = await performAction<{ secret?: string }>(
+        "createTeamKey",
+        { ...values, orgId: context.organisation?.id },
+        { idempotencyKey: headers?.["Idempotency-Key"] },
+      );
+      return { token: result.secret ?? null };
+    }
+    if (path.startsWith("/v1/core/settings/api-keys/team/")) {
+      const context = await read<Context>("/context");
+      return write(
+        `/orgs/${context.organisation?.id}/keys/${path.split("/").at(-1)}`,
+        "DELETE",
+      );
+    }
     if (path === "/v1/core/settings/api-keys/personal") {
       const context = await read<Context>("/context");
       const result = await performAction<{ secret?: string }>(

@@ -66,6 +66,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     organisation: OrganisationSettings,
     members: MembersSettings,
     "api-keys": PersonalKeysSettings,
+    "team-api-keys": TeamKeysSettings,
     "mcp-connections": ConnectionsSettings,
     profile: ProfileSettings,
     preferences: PreferencesSettings,
@@ -151,6 +152,10 @@ export function SettingsPanel(props: SettingsPanelProps) {
       </RelativeTimeProvider>
     </PageSelectionContext.Provider>
   );
+}
+
+function TeamKeysSettings() {
+  return <ApiMcpSettings section="team-keys" />;
 }
 
 function PersonalKeysSettings() {

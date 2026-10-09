@@ -111,11 +111,13 @@ export function RootsetApp() {
     route.section ??
     (teamSection === "general"
       ? "organisation"
-      : teamSection === "members"
-        ? "members"
-        : path.startsWith("/settings/")
-          ? path.split("/")[2]
-          : null);
+      : teamSection === "api-keys"
+        ? "team-api-keys"
+        : teamSection === "members"
+          ? "members"
+          : path.startsWith("/settings/")
+            ? path.split("/")[2]
+            : null);
   const settings = resolveSettingsSection(section ?? null);
   useEffect(() => {
     if (parameters.has("databaseId"))

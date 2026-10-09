@@ -106,12 +106,17 @@ and revocation metadata. Show the random secret once and retain only its keyed
 hash and redacted metadata. The default expiry remains 90 days; an Admin can
 approve a non-expiring key. Rotation uses a bounded overlap before revocation.
 
-Keys inherit the person's current role across this installation. They do not
-contain selected operations or database/table whitelists. An Admin key loses
-Admin permissions when its person becomes Member or Viewer. A removed person,
-expired key or revoked key cannot read, mutate or recover a previously cached
-response using that credential. Every person manages their own personal keys;
-there are no team/service keys.
+Personal keys have Read-only, Edit or Administrative permission ceilings,
+intersected with the person's live role. They do not contain selected operations
+or database/table whitelists. Demotion or removal invalidates excess authority.
+Every person manages their own personal keys.
+
+Team keys belong to the workspace and have no user owner. Only current admins
+can create, list, rotate or revoke them. They have the same name, permission and
+expiry inputs, remain valid when the creator leaves, and cannot access personal
+account operations or manage credentials. Both REST and MCP enforce their stored
+permission ceiling, expiry and revocation. Rotation preserves permissions and
+expiry unless changed; secret values are shown once and omitted on replay.
 
 ## OAuth and MCP
 

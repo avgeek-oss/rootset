@@ -26,6 +26,7 @@ import {
   ALL_SCOPES,
   keyRole,
   keyScopes,
+  teamKeyScopes,
   assertAccess,
   roleAllows,
   type Actor,
@@ -153,6 +154,8 @@ const businessInput = (
 const keyIssuanceOperations = new Set([
   "createPersonalKey",
   "rotatePersonalKey",
+  "createTeamKey",
+  "rotateTeamKey",
 ]);
 const safeEqual = (a: string, b: string): boolean => {
   const x = Buffer.from(a),
@@ -162,11 +165,12 @@ const safeEqual = (a: string, b: string): boolean => {
 const notFound = (): never => {
   throw new RootsetError("RESOURCE_NOT_FOUND", "Resource was not found", 404);
 };
-const keyFields = `access,include_admin,id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
+const keyFields = `scope,access,include_admin,id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
 const mapKey = (r: Record<string, unknown>, orgId: string) => ({
   id: r.id,
   orgId,
   name: r.name,
+  scope: r.scope,
   access: r.access,
   includeAdmin: r.include_admin,
   userId: r.user_id,
@@ -212,6 +216,8 @@ const sensitiveOperations = new Set([
   "signOutEverywhere",
   "createPersonalKey",
   "rotatePersonalKey",
+  "createTeamKey",
+  "rotateTeamKey",
   "deleteDatabase",
   "deleteTable",
   "updateMember",
@@ -259,6 +265,8 @@ const actionTypes: Record<string, string> = {
   removeMember: "remove_member",
   createPersonalKey: "create_key",
   rotatePersonalKey: "rotate_key",
+  createTeamKey: "create_key",
+  rotateTeamKey: "rotate_key",
   deleteDatabase: "delete_database",
   deleteTable: "delete_table",
   mutateRows: "operator_repair",
@@ -675,6 +683,28 @@ export class IdentityService {
     transactionClient?: PoolClient,
   ): Promise<Actor> {
     const hydrate = async (client: PoolClient): Promise<Actor> => {
+      if (actor.kind === "team_key") {
+        const key = (
+          await client.query(
+            `SELECT k.access,k.include_admin FROM rootset_control.api_keys k JOIN rootset_control.organisations o ON o.id=k.org_id AND o.singleton WHERE k.id=$1 AND k.org_id=$2 AND k.scope='team' AND k.user_id IS NULL AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now())`,
+            [actor.credentialId ?? actor.id, actor.orgId],
+          )
+        ).rows[0];
+        if (!key)
+          throw new RootsetError(
+            "UNAUTHENTICATED",
+            "Credential is unavailable",
+            401,
+          );
+        return {
+          kind: "team_key",
+          id: actor.id,
+          credentialId: actor.credentialId ?? actor.id,
+          orgId: actor.orgId,
+          role: keyRole("admin", key.access, key.include_admin),
+          scopes: teamKeyScopes(key.access, key.include_admin),
+        };
+      }
       const membership = (
         await client.query(
           `SELECT m.role,m.version,u.email_verified FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id JOIN rootset_control.organisations o ON o.id=m.org_id AND o.singleton WHERE m.org_id=$1 AND m.user_id=$2`,
@@ -710,7 +740,7 @@ export class IdentityService {
       if (actor.kind === "personal_key") {
         const key = (
           await client.query(
-            `SELECT access,include_admin FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
+            `SELECT access,include_admin FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND scope='personal' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
             [actor.credentialId ?? actor.id, actor.orgId, actor.userId],
           )
         ).rows[0];
@@ -817,18 +847,18 @@ export class IdentityService {
       )
         return null;
       const actor = await this.refreshActor({
-        kind: "personal_key",
+        kind: candidate.scope === "team" ? "team_key" : "personal_key",
         id: candidate.id,
         credentialId: candidate.id,
         orgId: candidate.org_id,
-        userId: candidate.user_id,
+        ...(candidate.user_id ? { userId: candidate.user_id } : {}),
         role: "viewer",
         scopes: [],
       });
       await withOrg(this.config.pool, actor.orgId, (client) =>
         client.query(
-          `UPDATE rootset_control.api_keys SET last_used_at=now() WHERE id=$1 AND user_id=$2`,
-          [candidate.id, actor.userId],
+          `UPDATE rootset_control.api_keys SET last_used_at=now() WHERE id=$1 AND org_id=$2`,
+          [candidate.id, actor.orgId],
         ),
       );
       return actor;
@@ -2058,16 +2088,36 @@ export class IdentityService {
           actor,
           operation,
           input,
-          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND user_id=$2`,
+          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND user_id=$2 AND scope='personal'`,
           [actor.orgId, actor.userId],
+          (row) => mapKey(row, actor.orgId),
+        );
+      }
+      case "listTeamKeys": {
+        assertAccess(actor, {
+          scope: "team-keys:manage",
+          roles: ["admin"],
+          personal: true,
+        });
+        return this.page(
+          client,
+          actor,
+          operation,
+          input,
+          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND scope='team'`,
+          [actor.orgId],
           (row) => mapKey(row, actor.orgId),
         );
       }
       case "createPersonalKey":
       case "rotatePersonalKey":
+      case "createTeamKey":
+      case "rotateTeamKey":
         return this.createOrRotateKey(client, operation, actor, input, context);
       case "revokePersonalKey":
         return this.revokeKey(client, actor, input);
+      case "revokeTeamKey":
+        return this.revokeKey(client, actor, input, "team");
       case "getSecurityStatus": {
         security();
         const factor = (
@@ -2239,6 +2289,12 @@ export class IdentityService {
       });
     } else if (["createPersonalKey", "rotatePersonalKey"].includes(operation))
       assertAccess(actor, { scope: "keys:manage", personal: true });
+    else if (["createTeamKey", "rotateTeamKey"].includes(operation))
+      assertAccess(actor, {
+        scope: "team-keys:manage",
+        roles: ["admin"],
+        personal: true,
+      });
     else if (["updateMember", "removeMember"].includes(operation))
       assertAccess(actor, {
         scope: "members:manage",
@@ -3109,8 +3165,13 @@ export class IdentityService {
       if (
         !(
           await client.query(
-            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3`,
-            [id, actor.orgId, actor.userId],
+            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope=$4 AND ($4='team' OR user_id=$3)`,
+            [
+              id,
+              actor.orgId,
+              actor.userId,
+              operation.endsWith("TeamKey") ? "team" : "personal",
+            ],
           )
         ).rowCount
       )
@@ -3125,7 +3186,12 @@ export class IdentityService {
     input: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<unknown> {
-    assertAccess(actor, { scope: "keys:manage", personal: true });
+    const scope = operation.endsWith("TeamKey") ? "team" : "personal";
+    assertAccess(actor, {
+      scope: scope === "team" ? "team-keys:manage" : "keys:manage",
+      ...(scope === "team" ? { roles: ["admin" as const] } : {}),
+      personal: true,
+    });
     if (!context.idempotencyKey)
       throw new RootsetError(
         "VALIDATION_FAILED",
@@ -3157,8 +3223,8 @@ export class IdentityService {
         throw new RootsetError("VALIDATION_FAILED", "Key id is required");
       old = (
         await client.query(
-          `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL FOR UPDATE`,
-          [data.id, actor.orgId, actor.userId],
+          `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope=$4 AND ($4='team' OR user_id=$3) AND revoked_at IS NULL FOR UPDATE`,
+          [data.id, actor.orgId, actor.userId, scope],
         )
       ).rows[0];
       if (!old) notFound();
@@ -3219,11 +3285,11 @@ export class IdentityService {
     const id = newId(),
       secret = `rst_${id}_${randomBytes(32).toString("base64url")}`;
     const result = await client.query(
-      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from,access,include_admin) VALUES($1,$2,$3,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING ${keyFields}`,
+      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from,access,include_admin,scope) VALUES($1,$2,$3,$11,$4,$5,$6,$7,$8,$9,$10,$12) RETURNING ${keyFields}`,
       [
         id,
         actor.orgId,
-        actor.userId,
+        scope === "team" ? null : actor.userId,
         name,
         this.hashSecret(secret),
         `rst_${id}`,
@@ -3231,13 +3297,15 @@ export class IdentityService {
         old?.id ?? null,
         access,
         includeAdmin,
+        actor.userId,
+        scope,
       ],
     );
     const metadata = mapKey(result.rows[0]!, actor.orgId);
     if (old)
       await client.query(
-        `UPDATE rootset_control.api_keys SET revoked_at=CASE WHEN $2=0 THEN now() ELSE NULL END,expires_at=CASE WHEN $2>0 THEN LEAST(COALESCE(expires_at,'infinity'::timestamptz),now()+($2 * interval '1 second')) ELSE expires_at END WHERE id=$1 AND user_id=$3`,
-        [old.id, data.overlapSeconds, actor.userId],
+        `UPDATE rootset_control.api_keys SET revoked_at=CASE WHEN $2=0 THEN now() ELSE NULL END,expires_at=CASE WHEN $2>0 THEN LEAST(COALESCE(expires_at,'infinity'::timestamptz),now()+($2 * interval '1 second')) ELSE expires_at END WHERE id=$1 AND org_id=$3`,
+        [old.id, data.overlapSeconds, actor.orgId],
       );
     await client.query(
       `UPDATE rootset_control.key_requests SET result=$5 WHERE actor_id=$1 AND org_id=$2 AND operation=$3 AND key=$4`,
@@ -3255,14 +3323,19 @@ export class IdentityService {
     client: PoolClient,
     actor: Actor,
     input: Record<string, unknown>,
+    scope: "personal" | "team" = "personal",
   ): Promise<unknown> {
-    assertAccess(actor, { scope: "keys:manage", personal: true });
+    assertAccess(actor, {
+      scope: scope === "team" ? "team-keys:manage" : "keys:manage",
+      ...(scope === "team" ? { roles: ["admin" as const] } : {}),
+      personal: true,
+    });
     const id = parse(IdSchema, input.id);
     if (
       !(
         await client.query(
-          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND org_id=$2 AND user_id=$3 RETURNING id`,
-          [id, actor.orgId, actor.userId],
+          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND org_id=$2 AND scope=$4 AND ($4='team' OR user_id=$3) RETURNING id`,
+          [id, actor.orgId, actor.userId, scope],
         )
       ).rowCount
     )

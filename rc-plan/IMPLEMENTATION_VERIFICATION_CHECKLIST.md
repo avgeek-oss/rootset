@@ -18,7 +18,7 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-04` Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema; SMTP/S3 configuration is read only from the deployment environment.
 - [ ] `V1-05` Invitations and member role/removal flows work, protect the last Admin, and have no organisation switcher or removed lifecycle fields.
 - [ ] `V1-06` Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.
-- [ ] `V1-07` Personal keys inherit current role without operation/resource selectors; demotion, member removal, expiry and revocation affect existing and waiting requests and replay.
+- [ ] `V1-07` Personal key permissions are capped by live membership; workspace-owned team keys have admin-only management and cannot access personal accounts. Verify REST/MCP permission ceilings, rotation, revocation, expiry, creator departure, waiting requests and replay.
 - [ ] `V1-08` OAuth PKCE, redirect/state/issuer/audience, code replay, refresh reuse, revocation and operation consent work with a real MCP client; no database/table selections remain.
 
 ## Contracts and storage

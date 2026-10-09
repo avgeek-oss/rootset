@@ -831,11 +831,11 @@ export function createApp(deps: ApiDependencies) {
         403,
       );
     const actor = await deps.identity.resolveActor(request, "mcp");
-    if (!actor || !["oauth", "personal_key"].includes(actor.kind))
+    if (!actor || !["oauth", "personal_key", "team_key"].includes(actor.kind))
       return errorResponse(
         new RootsetError(
           "UNAUTHENTICATED",
-          "A personal API key or MCP-resource OAuth bearer token is required.",
+          "An API key or MCP-resource OAuth bearer token is required.",
           401,
         ),
         c.get("requestId"),

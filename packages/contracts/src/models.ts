@@ -218,7 +218,7 @@ export type FieldType = z.infer<typeof FieldTypeSchema>;
 export const RoleSchema = z.enum(["admin", "member", "viewer"]);
 export type Role = z.infer<typeof RoleSchema>;
 export const ActorSchema = z.strictObject({
-  kind: z.enum(["session", "personal_key", "oauth", "operator"]),
+  kind: z.enum(["session", "personal_key", "team_key", "oauth", "operator"]),
   id: z.string().min(1),
   orgId: IdSchema,
   userId: IdSchema.optional(),

@@ -8,7 +8,7 @@ and verification are in progress; acceptance remains false.
 
 One installation contains one organisation, enforced by a SQL singleton
 constraint. People use Admin, Member or Viewer membership roles. Admin includes
-installation management. Personal keys inherit the person's live role; OAuth
+installation management. Personal keys have explicit permission ceilings capped by live membership; workspace-owned team keys have admin-only management. OAuth
 connections retain PKCE and operation consent without resource selections.
 
 Logical databases contain typed PostgreSQL tables with row revisions, cell
@@ -20,8 +20,7 @@ the internal field ID and prior history.
 
 V1 excludes separate Owner/installation-operator authority, organisation
 switching or deletion, ownership transfer, descriptions, organisation quotas,
-active-member/deleted-account flags, organisation-wide audit, resource grants and
-team keys. Personal keys have no selected-operation or resource whitelist.
+active-member/deleted-account flags, organisation-wide audit, resource grants. Personal and team keys have no selected-operation or resource whitelist.
 Database backup/restore, UI row creation, storage admission policies, editable installation tuning,
 SMTP/object storage forms, test-email delivery and a standalone Background Jobs
 screen are also excluded. Provider configuration comes only from `.env`.

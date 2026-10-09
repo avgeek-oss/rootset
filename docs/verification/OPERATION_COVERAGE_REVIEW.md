@@ -31,7 +31,7 @@ the MCP server URL, not a database/table permission chooser.
 
 Test demotion, membership removal, expiry/revocation and consent changes on
 existing credentials, waiting jobs and replay. Resolve the real nested parents
-before authority checks. There are no Owner, team-key, resource-grant,
+before authority checks. Team keys require explicit permission/expiry inputs, admin-only management, creator-independent access and no personal identity. There are no Owner, resource-grant,
 organisation-deletion or account-deletion coverage requirements.
 
 Fields expose one `name` of 1–64 ASCII letters/underscores, no digits. Verify

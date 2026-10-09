@@ -107,12 +107,13 @@ export const InvitationSchema = z.strictObject({
   createdAt: DateTimeSchema,
 });
 export const KeyMetadataSchema = z.strictObject({
+  scope: z.enum(["personal", "team"]),
   access: z.enum(["read", "edit"]),
   includeAdmin: z.boolean(),
   id: IdSchema,
   orgId: IdSchema,
   name: AccountNameSchema,
-  userId: IdSchema,
+  userId: IdSchema.nullable(),
   prefix: z.string(),
   createdAt: DateTimeSchema,
   expiresAt: DateTimeSchema.nullable(),

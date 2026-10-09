@@ -494,11 +494,13 @@ CREATE TABLE rootset_control.api_admissions (
 
 
 CREATE TABLE rootset_control.api_keys (
+    scope text NOT NULL DEFAULT 'personal' CHECK (scope IN ('personal', 'team')),
     access text NOT NULL CHECK (access IN ('read', 'edit')),
     include_admin boolean NOT NULL CHECK (NOT include_admin OR access = 'edit'),
     id character varying(26) NOT NULL,
     org_id character varying(26) NOT NULL,
-    user_id character varying(26) NOT NULL,
+    user_id character varying(26),
+    CONSTRAINT api_keys_owner CHECK ((scope = 'personal' AND user_id IS NOT NULL) OR (scope = 'team' AND user_id IS NULL)),
     creator_user_id character varying(26),
     name character varying(120) NOT NULL,
     secret_hash text NOT NULL,

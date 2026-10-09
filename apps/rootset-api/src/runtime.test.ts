@@ -13,6 +13,7 @@ import { loadConfig } from "@rootset/core/config";
 import {
   getOperation,
   KeyCreatedSchema,
+  RootsetError,
   newId,
   operations,
   generateClientSource,
@@ -717,6 +718,390 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       403,
       newId(),
       editKey.secret,
+    );
+    await t.test(
+      "Team keys are workspace-owned, admin-managed and permission-limited across REST and MCP",
+      async () => {
+        const creatorId = newId(),
+          creatorSession = newId();
+        await db.owner.query(
+          `INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,'Team key creator',$2,true)`,
+          [creatorId, `team-${creatorId.toLowerCase()}@example.test`],
+        );
+        await db.owner.query(
+          `INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,'admin')`,
+          [newId(), orgId, creatorId],
+        );
+        await db.owner.query(
+          `INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 hour',now())`,
+          [creatorSession, creatorId, newId()],
+        );
+        const creator = {
+          kind: "session" as const,
+          id: creatorSession,
+          userId: creatorId,
+          orgId,
+          role: "admin" as const,
+          scopes: [],
+          authenticatedAt: Date.now(),
+        };
+        const keys = [];
+        for (const [access, includeAdmin] of [
+          ["read", false],
+          ["edit", false],
+          ["edit", true],
+        ] as const) {
+          const input = {
+            orgId,
+            name: `Team ${access} ${includeAdmin}`,
+            access,
+            includeAdmin,
+            expiresAt: "2030-01-01T00:00:00.000Z",
+          };
+          const key = KeyCreatedSchema.parse(
+            await runtime!.core.execute("createTeamKey", creator, input, {
+              surface: "browser",
+              idempotencyKey: newId(),
+            }),
+          );
+          assert.equal(key.key.scope, "team");
+          assert.equal(key.key.userId, null);
+          keys.push(key);
+        }
+        const [readTeam, editTeam, adminTeam] = keys;
+        for (const role of ["member", "viewer"]) {
+          await db.owner.query(
+            `UPDATE rootset_control.memberships SET role=$2,version=version+1 WHERE user_id=$1`,
+            [creatorId, role],
+          );
+          for (const [operation, input] of [
+            ["listTeamKeys", { orgId }],
+            [
+              "createTeamKey",
+              {
+                orgId,
+                name: "Denied member team key",
+                access: "read",
+                includeAdmin: false,
+                expiresAt: null,
+              },
+            ],
+            ["rotateTeamKey", { orgId, id: keys[0]!.key.id }],
+            ["revokeTeamKey", { orgId, id: keys[0]!.key.id }],
+          ] as const) {
+            await assert.rejects(
+              () =>
+                runtime!.core.execute(operation, creator, input, {
+                  surface: "browser",
+                  idempotencyKey: newId(),
+                }),
+              (error) => error instanceof RootsetError && error.status === 403,
+            );
+          }
+        }
+        // Departure revokes personal authority, while workspace credentials stay valid.
+        await db.owner.query(
+          `DELETE FROM rootset_control.memberships WHERE user_id=$1`,
+          [creatorId],
+        );
+        for (const team of keys) {
+          const principal = await runtime!.identity.resolveActor(
+            new Request(`${baseURL}/v1/context`, {
+              headers: { Authorization: `Bearer ${team!.secret}` },
+            }),
+          );
+          assert.equal(principal!.kind, "team_key");
+          assert.equal(principal!.userId, undefined);
+          await call(
+            "queryRows",
+            { ...ids, query: {} },
+            "rest",
+            undefined,
+            newId(),
+            team!.secret,
+          );
+          await call("getProfile", {}, "rest", 403, newId(), team!.secret);
+          await call(
+            "listTeamKeys",
+            { orgId },
+            "rest",
+            403,
+            newId(),
+            team!.secret,
+          );
+          await call(
+            "listPersonalKeys",
+            {},
+            "rest",
+            403,
+            newId(),
+            team!.secret,
+          );
+        }
+        await call(
+          "createRow",
+          {
+            ...ids,
+            expectedSchemaVersion: 1,
+            values: { NAME: "Denied team read" },
+          },
+          "rest",
+          403,
+          newId(),
+          readTeam!.secret,
+        );
+        const added = await call(
+          "createRow",
+          {
+            ...ids,
+            expectedSchemaVersion: 1,
+            values: { NAME: "Team edit allowed" },
+          },
+          "rest",
+          undefined,
+          newId(),
+          editTeam!.secret,
+        );
+        await call(
+          "deleteRow",
+          {
+            ...ids,
+            rowId: added.row.id,
+            expectedSchemaVersion: 1,
+            expectedVersion: added.row.version,
+          },
+          "rest",
+          undefined,
+          newId(),
+          editTeam!.secret,
+        );
+        await call(
+          "createDatabase",
+          { orgId, name: "Team edit cannot manage" },
+          "rest",
+          403,
+          newId(),
+          editTeam!.secret,
+        );
+        const organisation = await call("getOrganisation", { orgId });
+        await call(
+          "updateOrganisation",
+          { orgId, name: organisation.name },
+          "rest",
+          undefined,
+          newId(),
+          adminTeam!.secret,
+        );
+        for (const team of [readTeam!, editTeam!, adminTeam!]) {
+          const client = new Client({ name: "Team key fixture", version: "1" });
+          try {
+            await client.connect(
+              new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
+                requestInit: {
+                  headers: { Authorization: `Bearer ${team.secret}` },
+                },
+              }),
+            );
+            assert.notEqual(
+              (
+                await client.callTool({
+                  name: "rootset_query_rows",
+                  arguments: { ...ids, query: {} },
+                })
+              ).isError,
+              true,
+            );
+            if (team === editTeam) {
+              const added = await client.callTool({
+                name: "rootset_create_row",
+                arguments: {
+                  ...ids,
+                  expectedSchemaVersion: 1,
+                  values: { NAME: "Team MCP write" },
+                  idempotencyKey: newId(),
+                },
+              });
+              assert.notEqual(added.isError, true);
+              const row = getOperation("createRow").outputSchema.parse(
+                added.structuredContent,
+              ) as { row: { id: string; version: string } };
+              assert.notEqual(
+                (
+                  await client.callTool({
+                    name: "rootset_delete_row",
+                    arguments: {
+                      ...ids,
+                      rowId: row.row.id,
+                      expectedSchemaVersion: 1,
+                      expectedVersion: row.row.version,
+                      idempotencyKey: newId(),
+                    },
+                  })
+                ).isError,
+                true,
+              );
+            }
+            if (team === adminTeam) {
+              assert.notEqual(
+                (
+                  await client.callTool({
+                    name: "rootset_update_organisation",
+                    arguments: {
+                      orgId,
+                      name: organisation.name,
+                      idempotencyKey: newId(),
+                    },
+                  })
+                ).isError,
+                true,
+              );
+              continue;
+            }
+            await assert.rejects(
+              () =>
+                client.callTool({
+                  name: "rootset_create_database",
+                  arguments: { orgId, name: "Denied team MCP" },
+                }),
+              (error) =>
+                error instanceof StreamableHTTPError && error.code === 403,
+            );
+            if (team === readTeam)
+              await assert.rejects(
+                () =>
+                  client.callTool({
+                    name: "rootset_create_row",
+                    arguments: {
+                      ...ids,
+                      expectedSchemaVersion: 1,
+                      values: { NAME: "Denied MCP team read" },
+                    },
+                  }),
+                (error) =>
+                  error instanceof StreamableHTTPError && error.code === 403,
+              );
+          } finally {
+            await client.close();
+          }
+        }
+        const exported = await call(
+          "exportRows",
+          { ...ids, format: "jsonl" },
+          "rest",
+          undefined,
+          newId(),
+          readTeam!.secret,
+        );
+        let job = await call(
+          "getJob",
+          { orgId, id: exported.jobId },
+          "rest",
+          undefined,
+          newId(),
+          readTeam!.secret,
+        );
+        for (
+          let attempt = 0;
+          attempt < 10 && ["queued", "running"].includes(job.state);
+          attempt++
+        ) {
+          await runtime!.jobs.runOnce(orgId);
+          job = await call(
+            "getJob",
+            { orgId, id: exported.jobId },
+            "rest",
+            undefined,
+            newId(),
+            readTeam!.secret,
+          );
+        }
+        assert.equal(job.state, "succeeded", JSON.stringify(job.error ?? {}));
+        const artifact = await call(
+          "getArtifact",
+          { orgId, id: job.result.artifactId },
+          "rest",
+          undefined,
+          newId(),
+          readTeam!.secret,
+        );
+        assert.equal(
+          (
+            await request(
+              new URL(artifact.downloadUrl).pathname,
+              "GET",
+              undefined,
+              { token: readTeam!.secret },
+            )
+          ).status,
+          200,
+        );
+        const listed = await call("listTeamKeys", { orgId });
+        assert.equal(
+          listed.data.filter((key: { scope: string }) => key.scope === "team")
+            .length,
+          3,
+        );
+        assert.equal(
+          (await call("listPersonalKeys", {})).data.some(
+            (key: { id: string }) => key.id === readTeam!.key.id,
+          ),
+          false,
+        );
+        // A different administrator can rotate and revoke keys after the creator leaves.
+        const rotationId = newId();
+        const rotated = await call(
+          "rotateTeamKey",
+          { orgId, id: readTeam!.key.id },
+          "browser",
+          undefined,
+          rotationId,
+        );
+        assert.equal(rotated.key.scope, "team");
+        assert.equal(rotated.key.access, "read");
+        assert.equal(rotated.key.includeAdmin, false);
+        assert.equal(rotated.key.expiresAt, readTeam!.key.expiresAt);
+        const replay = await call(
+          "rotateTeamKey",
+          { orgId, id: readTeam!.key.id },
+          "browser",
+          undefined,
+          rotationId,
+        );
+        assert.equal(replay.replayed, true);
+        assert.equal(replay.secret, undefined);
+        await call(
+          "queryRows",
+          { ...ids, query: {} },
+          "rest",
+          401,
+          newId(),
+          readTeam!.secret,
+        );
+        await call("revokePersonalKey", { id: rotated.key.id }, "browser", 404);
+        await call("revokeTeamKey", { orgId, id: key.key.id }, "browser", 404);
+        await call("revokeTeamKey", { orgId, id: rotated.key.id });
+        await call(
+          "queryRows",
+          { ...ids, query: {} },
+          "rest",
+          401,
+          newId(),
+          rotated.secret,
+        );
+        await db.owner.query(
+          `UPDATE rootset_control.api_keys SET expires_at=now()-interval '1 second' WHERE id=$1`,
+          [editTeam!.key.id],
+        );
+        await call(
+          "queryRows",
+          { ...ids, query: {} },
+          "rest",
+          401,
+          newId(),
+          editTeam!.secret,
+        );
+        await call("revokeTeamKey", { orgId, id: adminTeam!.key.id });
+      },
     );
     const editedRow = await call(
       "createRow",

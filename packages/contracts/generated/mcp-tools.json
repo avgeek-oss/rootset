@@ -3848,6 +3848,7 @@
               "items": {
                 "type": "object",
                 "properties": {
+                  "scope": { "type": "string", "enum": ["personal", "team"] },
                   "access": { "type": "string", "enum": ["read", "edit"] },
                   "includeAdmin": { "type": "boolean" },
                   "id": {
@@ -3864,8 +3865,13 @@
                     "maxLength": 120
                   },
                   "userId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
                   },
                   "prefix": { "type": "string" },
                   "createdAt": {
@@ -3913,6 +3919,7 @@
                   }
                 },
                 "required": [
+                  "scope",
                   "access",
                   "includeAdmin",
                   "id",
@@ -4078,6 +4085,7 @@
             "key": {
               "type": "object",
               "properties": {
+                "scope": { "type": "string", "enum": ["personal", "team"] },
                 "access": { "type": "string", "enum": ["read", "edit"] },
                 "includeAdmin": { "type": "boolean" },
                 "id": {
@@ -4090,8 +4098,13 @@
                 },
                 "name": { "type": "string", "minLength": 1, "maxLength": 120 },
                 "userId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
                 },
                 "prefix": { "type": "string" },
                 "createdAt": {
@@ -4139,6 +4152,7 @@
                 }
               },
               "required": [
+                "scope",
                 "access",
                 "includeAdmin",
                 "id",
@@ -4296,6 +4310,7 @@
             "key": {
               "type": "object",
               "properties": {
+                "scope": { "type": "string", "enum": ["personal", "team"] },
                 "access": { "type": "string", "enum": ["read", "edit"] },
                 "includeAdmin": { "type": "boolean" },
                 "id": {
@@ -4308,8 +4323,13 @@
                 },
                 "name": { "type": "string", "minLength": 1, "maxLength": 120 },
                 "userId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
                 },
                 "prefix": { "type": "string" },
                 "createdAt": {
@@ -4357,6 +4377,7 @@
                 }
               },
               "required": [
+                "scope",
                 "access",
                 "includeAdmin",
                 "id",
@@ -4482,6 +4503,809 @@
         }
       },
       "required": ["id", "idempotencyKey"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "deleted": { "type": "boolean" },
+            "mutationId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "required": ["deleted"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.fyi/jsonRequestMaxBytes": 8388608,
+      "rootset.fyi/jsonReadTimeoutMs": 10000,
+      "rootset.fyi/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "PERSONAL_IDENTITY_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_list_team_keys",
+    "title": "listTeamKeys",
+    "description": "List metadata for workspace-owned API keys. Administrators only.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 25000 },
+        "cursor": {
+          "anyOf": [
+            { "type": "string", "maxLength": 131200 },
+            { "type": "null" }
+          ]
+        }
+      },
+      "required": ["orgId"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "scope": { "type": "string", "enum": ["personal", "team"] },
+                  "access": { "type": "string", "enum": ["read", "edit"] },
+                  "includeAdmin": { "type": "boolean" },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "orgId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "userId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "prefix": { "type": "string" },
+                  "createdAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                    "format": "date-time",
+                    "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                    "examples": ["2024-01-01T12:30:00.000Z"]
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                        "format": "date-time",
+                        "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                        "examples": ["2024-01-01T12:30:00.000Z"]
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "revokedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                        "format": "date-time",
+                        "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                        "examples": ["2024-01-01T12:30:00.000Z"]
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "lastUsedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                        "format": "date-time",
+                        "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                        "examples": ["2024-01-01T12:30:00.000Z"]
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": [
+                  "scope",
+                  "access",
+                  "includeAdmin",
+                  "id",
+                  "orgId",
+                  "name",
+                  "userId",
+                  "prefix",
+                  "createdAt",
+                  "expiresAt",
+                  "revokedAt",
+                  "lastUsedAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "nextCursor": { "type": ["string", "null"] },
+            "hasMore": { "type": "boolean" }
+          },
+          "required": ["data"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.fyi/jsonRequestMaxBytes": 8388608,
+      "rootset.fyi/jsonReadTimeoutMs": 10000,
+      "rootset.fyi/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "PERSONAL_IDENTITY_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_create_team_key",
+    "title": "createTeamKey",
+    "description": "Create a workspace-owned API key with explicit permissions and expiry; the secret appears once and access is independent of its creator.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "access": { "type": "string", "enum": ["read", "edit"] },
+        "includeAdmin": { "type": "boolean" },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+              "format": "date-time",
+              "description": "UTC instant with mandatory Z and at most three fractional digits.",
+              "examples": ["2024-01-01T12:30:00.000Z"]
+            },
+            { "type": "null" }
+          ]
+        },
+        "approvalId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "orgId",
+        "name",
+        "access",
+        "includeAdmin",
+        "expiresAt",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "object",
+              "properties": {
+                "scope": { "type": "string", "enum": ["personal", "team"] },
+                "access": { "type": "string", "enum": ["read", "edit"] },
+                "includeAdmin": { "type": "boolean" },
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "orgId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+                "userId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "prefix": { "type": "string" },
+                "createdAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                  "format": "date-time",
+                  "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                  "examples": ["2024-01-01T12:30:00.000Z"]
+                },
+                "expiresAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "revokedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "lastUsedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "scope",
+                "access",
+                "includeAdmin",
+                "id",
+                "orgId",
+                "name",
+                "userId",
+                "prefix",
+                "createdAt",
+                "expiresAt",
+                "revokedAt",
+                "lastUsedAt"
+              ],
+              "additionalProperties": false
+            },
+            "secret": { "type": "string" },
+            "replayed": { "type": "boolean" }
+          },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.fyi/jsonRequestMaxBytes": 8388608,
+      "rootset.fyi/jsonReadTimeoutMs": 10000,
+      "rootset.fyi/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "PERSONAL_IDENTITY_REQUIRED",
+        "STEP_UP_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_rotate_team_key",
+    "title": "rotateTeamKey",
+    "description": "Rotate a workspace API key with bounded overlap; preserve permissions and expiry unless explicitly changed. Administrators only.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+        "overlapSeconds": { "type": "integer", "minimum": 0, "maximum": 86400 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "access": { "type": "string", "enum": ["read", "edit"] },
+        "includeAdmin": { "type": "boolean" },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+              "format": "date-time",
+              "description": "UTC instant with mandatory Z and at most three fractional digits.",
+              "examples": ["2024-01-01T12:30:00.000Z"]
+            },
+            { "type": "null" }
+          ]
+        },
+        "approvalId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": ["orgId", "id", "idempotencyKey"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "object",
+              "properties": {
+                "scope": { "type": "string", "enum": ["personal", "team"] },
+                "access": { "type": "string", "enum": ["read", "edit"] },
+                "includeAdmin": { "type": "boolean" },
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "orgId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+                "userId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "prefix": { "type": "string" },
+                "createdAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                  "format": "date-time",
+                  "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                  "examples": ["2024-01-01T12:30:00.000Z"]
+                },
+                "expiresAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "revokedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "lastUsedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "scope",
+                "access",
+                "includeAdmin",
+                "id",
+                "orgId",
+                "name",
+                "userId",
+                "prefix",
+                "createdAt",
+                "expiresAt",
+                "revokedAt",
+                "lastUsedAt"
+              ],
+              "additionalProperties": false
+            },
+            "secret": { "type": "string" },
+            "replayed": { "type": "boolean" }
+          },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.fyi/jsonRequestMaxBytes": 8388608,
+      "rootset.fyi/jsonReadTimeoutMs": 10000,
+      "rootset.fyi/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "PERSONAL_IDENTITY_REQUIRED",
+        "STEP_UP_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_revoke_team_key",
+    "title": "revokeTeamKey",
+    "description": "Revoke a workspace-owned API key. Administrators only.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": ["orgId", "id", "idempotencyKey"],
       "additionalProperties": false
     },
     "outputSchema": {

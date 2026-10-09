@@ -56,6 +56,15 @@ export function keyScopes(
   return roleScopes("member").filter((scope) => !personalScopes.has(scope));
 }
 
+export function teamKeyScopes(
+  access: "read" | "edit",
+  includeAdmin: boolean,
+): string[] {
+  return keyScopes(access, includeAdmin).filter(
+    (scope) => !personalScopes.has(scope) && scope !== "team-keys:manage",
+  );
+}
+
 export function assertAccess(
   actor: Actor,
   requirement: {
@@ -85,7 +94,9 @@ export function assertAccess(
       "Your role does not allow this operation",
     );
   if (
-    (actor.kind === "oauth" || actor.kind === "personal_key") &&
+    (actor.kind === "oauth" ||
+      actor.kind === "personal_key" ||
+      actor.kind === "team_key") &&
     !actor.scopes.includes(requirement.scope)
   )
     throw new AccessError(
@@ -101,7 +112,9 @@ export function assertDelegation(actor: Actor, scopes: string[]): void {
     scopes.some(
       (scope) =>
         !roleAllows(actor.role, scope) ||
-        ((actor.kind === "oauth" || actor.kind === "personal_key") &&
+        ((actor.kind === "oauth" ||
+          actor.kind === "personal_key" ||
+          actor.kind === "team_key") &&
           !actor.scopes.includes(scope)),
     )
   )

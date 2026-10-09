@@ -8,6 +8,7 @@ export type SettingsSection =
   | "organisation"
   | "members"
   | "api-keys"
+  | "team-api-keys"
   | "profile"
   | "preferences"
   | "email-password"
@@ -189,6 +190,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   organisation: "General",
   members: "Members",
   "api-keys": "API Keys",
+  "team-api-keys": "API Keys",
   profile: "Profile",
   preferences: "Preferences",
   "email-password": "Email & Password",
@@ -206,6 +208,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
+  "team-api-keys",
   "organisation",
   "members",
   "database",

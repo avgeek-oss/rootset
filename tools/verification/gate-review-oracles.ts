@@ -26,7 +26,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-07",
-    "Personal keys have read-only, edit or administrative ceilings intersected with current role; demotion, member removal, expiry and revocation affect existing and waiting requests and replay.",
+    "Personal keys have read-only, edit or administrative ceilings intersected with current role; demotion, member removal, expiry and revocation affect existing and waiting requests and replay. Team keys use the same ceilings independently of their creator, with admin-only management and no personal account authority.",
   ],
   [
     "V1-08",

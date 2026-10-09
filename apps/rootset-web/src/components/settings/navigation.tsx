@@ -35,7 +35,10 @@ export const settingsGroups = {
     { title: "Security", sections: ["email-password", "passkeys", "sessions"] },
     { title: "API & MCP", sections: ["api-keys", "mcp-connections", "mcp"] },
   ],
-  team: [{ title: "Account", sections: ["organisation", "members"] }],
+  team: [
+    { title: "Account", sections: ["organisation", "members"] },
+    { title: "API & MCP", sections: ["team-api-keys"] },
+  ],
   database: [
     { title: "Settings", sections: ["database", "database-danger-zone"] },
   ],
@@ -76,7 +79,7 @@ export function settingsHref(
 ) {
   const scope = settingsScope(section);
   if (scope === "team")
-    return `/team-settings/${section === "organisation" ? "general" : section}`;
+    return `/team-settings/${section === "organisation" ? "general" : section === "team-api-keys" ? "api-keys" : section}`;
   if (scope === "account") return `/settings/${section}`;
   const base = dataHref(
     context.databaseId,
@@ -130,6 +133,7 @@ export const settingsIcons = {
   passkeys: FingerPrintIcon,
   sessions: ComputerIcon,
   "api-keys": Key01Icon,
+  "team-api-keys": Key01Icon,
   mcp: BookOpen01Icon,
   organisation: Settings01Icon,
   members: UserGroupIcon,
