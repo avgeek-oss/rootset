@@ -2979,7 +2979,7 @@ test(
   "Cell history keeps exactly the latest 200 changes per cell across typed mutations and no-ops",
   { skip: !configured },
   async () => {
-    const table = await storage!.createTable(actor, databaseId, {
+    let table = await storage!.createTable(actor, databaseId, {
       name: "Bounded cell history",
       fields: [
         { name: "value", type: "integer" },
@@ -3110,6 +3110,62 @@ test(
     assert.equal(converted.data[0]!.new_value, 7);
     assert.equal(converted.data.at(-1)!.operation, "conversion");
     assert.equal(converted.data.at(-1)!.new_value, "205");
+
+    await storage!.deleteRow(actor, table.id, peer.id, {
+      expectedVersion: (await storage!.getRow(actor, table.id, peer.id))
+        .version,
+    });
+    assert.equal(
+      (await storage!.cellHistory(actor, table.id, peer.id, fieldId)).data
+        .length,
+      0,
+    );
+    table = await storage!.getTable(actor, table.id);
+    await storage!.deleteField(actor, table.id, fieldId, {
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    await assert.rejects(
+      storage!.cellHistory(actor, table.id, row.id, fieldId),
+      { code: "RESOURCE_NOT_FOUND" },
+    );
+    assert.equal(
+      (await storage!.queryHistory(actor, table.id, { fieldId })).data.length,
+      0,
+    );
+    table = await storage!.getTable(actor, table.id);
+    await storage!.deleteTable(actor, table.id, {
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    await assert.rejects(storage!.queryHistory(actor, table.id), {
+      code: "RESOURCE_NOT_FOUND",
+    });
+    const remaining = await withOrg(app!, actor.orgId, (client) =>
+      client.query(
+        "SELECT count(*)::int AS count FROM rootset_control.cell_changes WHERE table_id=$1",
+        [table.id],
+      ),
+    );
+    assert.equal(remaining.rows[0]!.count, 0);
+
+    const deletedDatabase = await storage!.createDatabase(actor, {
+      name: "Deleted history",
+    });
+    const deletedTable = await storage!.createTable(actor, deletedDatabase.id, {
+      name: "Deleted history",
+      fields: [{ name: "value", type: "text" }],
+    });
+    await storage!.createRow(actor, deletedTable.id, { value: "saved" });
+    await storage!.deleteDatabase(actor, deletedDatabase.id);
+    await assert.rejects(storage!.queryHistory(actor, deletedTable.id), {
+      code: "RESOURCE_NOT_FOUND",
+    });
+    const databaseHistory = await withOrg(app!, actor.orgId, (client) =>
+      client.query(
+        "SELECT count(*)::int AS count FROM rootset_control.cell_changes WHERE database_id=$1",
+        [deletedDatabase.id],
+      ),
+    );
+    assert.equal(databaseHistory.rows[0]!.count, 0);
 
     const removed = await owner!.query(
       "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN ('history_archives','history_archive_occurrences','history_retention_policies','history_gaps','row_events')",

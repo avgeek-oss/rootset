@@ -144,9 +144,7 @@ async function setPreferences(page: Page, patch: Partial<Preferences>) {
 }
 
 async function showTable(page: Page) {
-  await page.goto(
-    `/?databaseId=${fixture.databaseId}&tableId=${schema.table.id}`,
-  );
+  await page.goto(`/databases/${fixture.databaseId}/tables/${schema.table.id}`);
   await expect(
     page.getByRole("grid", { name: `${tableName} spreadsheet` }),
   ).toBeVisible();
@@ -448,49 +446,27 @@ test("eight inline editors commit actual typed canonical values", async ({
   });
 });
 
-test("required fields and bounds keep invalid drafts without committing", async ({
+test("invalid values toast and restore the saved cell without committing", async ({
   page,
 }) => {
   annotate("UI-04", "UI-06", "FLD-03", "FLD-13");
   const before = await readRow(page);
-  const integerDialog = await openEditor(page, "INTEGER");
-  await expect(
-    integerDialog.getByRole("checkbox", { name: "Clear cell (null)" }),
-  ).toHaveCount(0);
-  const integerInput = integerDialog.getByLabel("INTEGER", { exact: true });
-  await integerInput.fill("");
-  await submitEditor(integerDialog);
-  await expect(integerDialog.getByRole("alert")).toContainText("whole number");
-  await expect(integerInput).toHaveValue("");
-  await (await cell(page, "NAME")).click();
-  await expect(integerDialog).toBeVisible();
-  expect((await readRow(page)).version).toBe(before.version);
-  await integerInput.fill("1000001");
-  await submitEditor(integerDialog);
-  await expect(integerDialog.getByRole("alert")).toContainText("maximum");
-  await expect(integerInput).toHaveValue("1000001");
-  await integerInput.press("Escape");
-  const textDialog = await openEditor(page, "NAME");
-  await textDialog.getByLabel("NAME", { exact: true }).fill("😀".repeat(25));
-  await submitEditor(textDialog);
-  await expect(textDialog.getByRole("alert")).toContainText("character limit");
-  await expect(textDialog.getByLabel("NAME", { exact: true })).toHaveValue(
-    "😀".repeat(25),
-  );
-  await textDialog.getByLabel("NAME", { exact: true }).press("Escape");
-  expect((await readRow(page)).version).toBe(before.version);
-  await expect(
-    api(page).operation("updateRow", {
-      ...target(),
-      rowId: before.id,
-      expectedVersion: before.version,
-      expectedSchemaVersion: schema.table.schemaVersion,
-      values: { INTEGER: null },
-    }),
-  ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  for (const [key, value, message] of [
+    ["INTEGER", "40hj", /whole number/],
+    ["INTEGER", "1000001", /maximum/],
+    ["NAME", "😀".repeat(25), /character limit/],
+  ] as const) {
+    const editor = await openEditor(page, key);
+    await editor.getByLabel(key, { exact: true }).fill(value);
+    await submitEditor(editor);
+    await expect(editor).not.toBeVisible();
+    await expect(page.getByText(message).first()).toBeVisible();
+    await expect(await cell(page, key)).toHaveText(String(before.values[key]));
+    expect((await readRow(page)).version).toBe(before.version);
+  }
 });
 
-test("server uniqueness rejection retains the typed draft and leaves history unchanged", async ({
+test("server uniqueness rejection toasts, restores the saved value, and leaves history unchanged", async ({
   page,
 }) => {
   annotate("UI-06", "ROW-09");
@@ -503,34 +479,30 @@ test("server uniqueness rejection retains the typed draft and leaves history unc
       limit: 200,
     });
   const priorHistory = await history();
-  const dialog = await openEditor(page, "NAME");
-  const input = dialog.getByLabel("NAME", { exact: true });
-  await input.fill(String(duplicateRow.values.NAME));
-  const response = await saveResponse(page, () => submitEditor(dialog));
+  const editor = await openEditor(page, "NAME");
+  await editor
+    .getByLabel("NAME", { exact: true })
+    .fill(String(duplicateRow.values.NAME));
+  const response = await saveResponse(page, () => submitEditor(editor));
   expect(response.status()).toBe(409);
   expect((await response.json()).error.code).toBe("UNIQUE_CONFLICT");
-  await expect(input).toHaveValue("Taken");
-  await expect(dialog.getByRole("alert")).toContainText(
-    /unique|duplicate|already exists/i,
-  );
-  await expect(input).toBeEnabled();
+  await expect(editor).not.toBeVisible();
+  await expect(
+    page.getByText(/unique|duplicate|already exists/i).first(),
+  ).toBeVisible();
+  await expect(await cell(page, "NAME")).toHaveText(String(before.values.NAME));
   expect((await readRow(page)).version).toBe(before.version);
   expect((await history()).data).toEqual(priorHistory.data);
-  await captureEvidence(page, "server-rejection-preserved-draft");
-  await input.fill("Recovered");
-  await submitEditor(dialog);
-  await expect(dialog).not.toBeVisible();
-  expect((await readRow(page)).values.NAME).toBe("Recovered");
+  await captureEvidence(page, "server-rejection-restored-cell");
 });
 
-test("real concurrent row changes require explicit conflict review before retry", async ({
+test("concurrent row changes restore the current committed value without retry controls", async ({
   page,
 }) => {
   annotate("UI-06", "ROW-06");
   const before = await readRow(page);
-  const dialog = await openEditor(page, "NAME");
-  const input = dialog.getByLabel("NAME", { exact: true });
-  await input.fill("My draft");
+  const editor = await openEditor(page, "NAME");
+  await editor.getByLabel("NAME", { exact: true }).fill("My draft");
   await api(page).operation("updateRow", {
     ...target(),
     rowId: before.id,
@@ -538,78 +510,13 @@ test("real concurrent row changes require explicit conflict review before retry"
     expectedSchemaVersion: schema.table.schemaVersion,
     values: { NAME: "Other editor" },
   });
-  const response = await saveResponse(page, () => submitEditor(dialog));
+  const response = await saveResponse(page, () => submitEditor(editor));
   expect(response.status()).toBe(409);
   expect((await response.json()).error.code).toBe("ROW_VERSION_CONFLICT");
-  await expect(input).toHaveValue("My draft");
-  await expect(
-    dialog.getByText(/Current committed value: Other editor/),
-  ).toBeVisible();
-  const conflictedVersion = (await readRow(page)).version;
-  await input.press("Enter");
-  expect((await readRow(page)).version).toBe(conflictedVersion);
-  await captureEvidence(page, "row-conflict-preserved-draft");
-  await dialog
-    .getByRole("button", {
-      name: "Keep my draft and retry against the current version",
-    })
-    .click();
-  await expect(input).toHaveValue("My draft");
-  await submitEditor(dialog);
-  await expect(dialog).not.toBeVisible();
-  expect((await readRow(page)).values.NAME).toBe("My draft");
-
-  const beforeMatchingConflict = await readRow(page);
-  const matchingEditor = await openEditor(page, "NAME");
-  await matchingEditor
-    .getByLabel("NAME", { exact: true })
-    .fill("Already current");
-  await api(page).operation("updateRow", {
-    ...target(),
-    rowId: beforeMatchingConflict.id,
-    expectedVersion: beforeMatchingConflict.version,
-    expectedSchemaVersion: schema.table.schemaVersion,
-    values: { NAME: "Already current" },
-  });
-  await submitEditor(matchingEditor);
-  await matchingEditor
-    .getByRole("button", {
-      name: "Keep my draft and retry against the current version",
-    })
-    .click();
-  await submitEditor(matchingEditor);
-  await expect(matchingEditor).not.toBeVisible();
-  await expect(await cell(page, "NAME")).toHaveText("Already current");
-
-  const current = await readRow(page);
-  await (await cell(page, "FLOAT")).click({ button: "right" });
-  await api(page).operation("updateRow", {
-    ...target(),
-    rowId: current.id,
-    expectedVersion: current.version,
-    expectedSchemaVersion: schema.table.schemaVersion,
-    values: { FLOAT: 23 },
-  });
-  const nullResponse = await saveResponse(page, () =>
-    page.getByRole("menuitem", { name: "Set to null", exact: true }).click(),
-  );
-  expect(nullResponse.status()).toBe(409);
-  const nullEditor = page.getByRole("group", {
-    name: "Edit FLOAT",
-    exact: true,
-  });
-  await expect(
-    nullEditor.getByText(/Current committed value: 23/),
-  ).toBeVisible();
-  await expect(nullEditor.getByLabel("FLOAT", { exact: true })).toHaveValue("");
-  await nullEditor
-    .getByRole("button", {
-      name: "Keep my draft and retry against the current version",
-    })
-    .click();
-  await submitEditor(nullEditor);
-  await expect(nullEditor).not.toBeVisible();
-  expect((await readRow(page)).values.FLOAT).toBeNull();
+  await expect(editor).not.toBeVisible();
+  await expect(await cell(page, "NAME")).toHaveText("Other editor");
+  expect((await readRow(page)).values.NAME).toBe("Other editor");
+  await captureEvidence(page, "row-conflict-restored-cell");
 });
 
 test("pending real database work disables repeated save and cancel", async ({
@@ -767,27 +674,34 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   expect(current.values.DATETIME).toBe("2026-11-01T06:30:00.000Z");
 });
 
-test("JSON validates strictly, invalid drafts stay visible, and previews stay bounded", async ({
+test("JSON validation toasts and restores the saved value; previews stay bounded", async ({
   page,
 }) => {
   annotate("UI-17", "FLD-11");
   const preview = await cell(page, "JSON", wideRow.id);
   expect((await preview.innerText()).length).toBeLessThanOrEqual(160);
   expect(await preview.innerText()).toContain("…");
-  const dialog = await openEditor(page, "JSON");
-  const input = dialog.getByRole("textbox", { name: "JSON", exact: true });
-  await expect(input).toBeVisible();
-  await input.fill('{"key":1,"key":2}');
-  await submitEditor(dialog);
-  await expect(dialog.getByRole("alert")).toContainText(/duplicate/i);
-  await expect(input).toHaveValue('{"key":1,"key":2}');
-  await captureEvidence(page, "json-validation-preserved-draft");
-  await input.fill("9007199254740993");
-  await submitEditor(dialog);
-  await expect(dialog.getByRole("alert")).toContainText(/safe integer/i);
-  await input.fill('{"list":[1,null,false]}');
-  await submitEditor(dialog);
-  await expect(dialog).not.toBeVisible();
+  const before = await readRow(page);
+  for (const [invalid, message] of [
+    ['{"key":1,"key":2}', /duplicate/i],
+    ["9007199254740993", /safe integer/i],
+  ] as const) {
+    const editor = await openEditor(page, "JSON");
+    await editor
+      .getByRole("textbox", { name: "JSON", exact: true })
+      .fill(invalid);
+    await submitEditor(editor);
+    await expect(editor).not.toBeVisible();
+    await expect(page.getByText(message).first()).toBeVisible();
+    expect((await readRow(page)).values.JSON).toEqual(before.values.JSON);
+    expect((await readRow(page)).version).toBe(before.version);
+  }
+  const editor = await openEditor(page, "JSON");
+  await editor
+    .getByRole("textbox", { name: "JSON", exact: true })
+    .fill('{"list":[1,null,false]}');
+  await submitEditor(editor);
+  await expect(editor).not.toBeVisible();
   expect((await readRow(page)).values.JSON).toEqual({ list: [1, null, false] });
 });
 
@@ -884,18 +798,10 @@ test("V1-27 compact rows select on click, edit on double-click, and expose heade
   await expect(
     page.getByRole("menu", { name: "Cell actions", exact: true }),
   ).not.toBeVisible();
-  await page
-    .getByRole("button", { name: "Row navigation", exact: true })
-    .click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Go to row", exact: true }).click();
-  const jump = page.getByRole("dialog", { name: "Go to row", exact: true });
-  await jump
-    .getByRole("textbox", { name: "Row number", exact: true })
-    .fill("2");
-  await jump.getByRole("button", { name: "Go to row", exact: true }).click();
   await expect(
-    page
-      .getByRole("grid")
-      .locator(`[role="row"][aria-rowindex="2"] > [aria-colindex="1"]`),
-  ).toHaveText("2");
+    page.getByRole("button", { name: "Row navigation", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("menuitem", { name: "Go to row", exact: true }),
+  ).toHaveCount(0);
 });

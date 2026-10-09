@@ -11,19 +11,18 @@ const definition: FieldDefinition = {
 };
 
 describe("cell editor save boundaries", () => {
-  it("requires review even when the conflicting committed value is empty text", () => {
+  it("does not reserve space for inline errors or conflict controls", () => {
     const html = renderToStaticMarkup(
       createElement(CellEditor, {
         field: definition,
-        value: "draft",
-        onCommit: () => true,
+        value: "saved",
+        onCommit: () => false,
         onCancel() {},
-        conflict: "",
       }),
     );
-    expect(html).toContain("The row changed before this value was saved.");
-    expect(html).toContain("(empty text)");
-    expect(html).toContain("draft");
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain("inline-cell-error");
+    expect(html).not.toContain("Your draft is kept");
   });
 
   it("retains an initial keyboard draft separately from a populated server value", () => {

@@ -27,7 +27,6 @@ export function DatabaseSettings(props: SettingsPanelProps) {
   const resource = useResource<{
     name: string;
     description?: string | null;
-    state: string;
   } | null>(path, null);
   const mutation = useMutation(() => {
     resource.reload();
@@ -47,10 +46,7 @@ export function DatabaseSettings(props: SettingsPanelProps) {
     <>
       <Loading {...resource} retry={resource.reload} />
       <Feedback {...mutation} />
-      <Section
-        title="Database details"
-        description={`State: ${resource.data.state}`}
-      >
+      <Section title="Database details">
         <Form
           busy={mutation.busy}
           onSubmit={async () => {
@@ -97,7 +93,7 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
       <Feedback {...mutation} />
       <Section
         title="Delete database"
-        description="Deleting this database removes it and all its tables from Rootset. Its rows will no longer be accessible in the app or through the API and MCP. You will need to confirm your identity before deletion. Rootset does not provide an undo or restore option."
+        description="Deleting this database removes it and all its tables from Rootset. Its rows will no longer be accessible in the app or through the API and MCP, and its cell changelogs will be deleted. You will need to confirm your identity before deletion. Rootset does not provide an undo or restore option."
       >
         <Button
           variant="danger-soft"

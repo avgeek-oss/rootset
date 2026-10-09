@@ -6565,7 +6565,7 @@
       "delete": {
         "operationId": "deleteTable",
         "tags": ["schema"],
-        "summary": "Start approved table deletion, preserving retained history metadata.",
+        "summary": "Start approved table deletion, removing its rows and cell history.",
         "parameters": [
           {
             "name": "orgId",
@@ -11824,7 +11824,7 @@
       "delete": {
         "operationId": "deleteRow",
         "tags": ["data"],
-        "summary": "Delete a row with If-Match revision, retained history and released live capacity.",
+        "summary": "Delete a row with If-Match revision, remove its cell history and release live capacity.",
         "parameters": [
           {
             "name": "orgId",
@@ -12921,7 +12921,7 @@
       "get": {
         "operationId": "getCellHistory",
         "tags": ["data"],
-        "summary": "Read one cell history including retained deleted-row/field events.",
+        "summary": "Read the latest 200 saved changes for an existing cell.",
         "parameters": [
           {
             "name": "orgId",

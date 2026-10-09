@@ -21,7 +21,12 @@ import { useResource } from "./api";
 import { OrganisationSettings, MembersSettings } from "./accounts";
 import { PreferencesSettings } from "./preferences";
 import { AccountActionApproval } from "./security";
-import { FieldsSettings, RulesIndexesSettings, TableSettings } from "./schema";
+import {
+  FieldsSettings,
+  RulesIndexesSettings,
+  TableSettings,
+  TableDangerZone,
+} from "./schema";
 import { ImportsSettings, ExportsSettings } from "./jobs";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
@@ -71,6 +76,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     database: DatabaseSettings,
     "database-danger-zone": DatabaseDangerZone,
     table: TableSettings,
+    "table-danger-zone": TableDangerZone,
     fields: FieldsSettings,
     rules: RulesIndexesSettings,
     indexes: RulesIndexesSettings,
@@ -80,6 +86,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const Component = components[activeSection];
   const tableSections = [
     "table",
+    "table-danger-zone",
     "fields",
     "rules",
     "indexes",

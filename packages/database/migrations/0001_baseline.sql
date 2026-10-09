@@ -296,12 +296,15 @@ BEGIN
  END LOOP;
  FOR f IN SELECT id,definition FROM rootset_control.fields WHERE table_id=tab.id AND state='active' LOOP
    prev:=coalesce(old_cells->f.id,'null'::jsonb); v:=coalesce(new_cells->f.id,'null'::jsonb);
-   IF prev IS DISTINCT FROM v THEN
+   IF TG_OP<>'DELETE' AND prev IS DISTINCT FROM v THEN
      INSERT INTO rootset_control.cell_changes(org_id,database_id,table_id,row_id,field_id,mutation_id,old_value,new_value,field_definition,old_version,new_version,operation,actor,context)
      VALUES(tab.org_id,tab.database_id,tab.id,rid,f.id,mutation.id,prev,v,f.definition,oldrev,newrev,lower(TG_OP),mutation.actor,mutation.context);
    END IF;
  END LOOP;
- IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+ IF TG_OP='DELETE' THEN
+   DELETE FROM rootset_control.cell_changes WHERE org_id=tab.org_id AND table_id=tab.id AND row_id=rid;
+   RETURN OLD;
+ ELSE RETURN NEW; END IF;
 END $_$;
 
 

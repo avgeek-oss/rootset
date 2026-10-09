@@ -681,7 +681,7 @@ operation(
   ["tables:manage"],
   z.strictObject({ ...table, ...expected, ...approval }),
   JobAcceptedSchema,
-  "Start approved table deletion, preserving retained history metadata.",
+  "Start approved table deletion, removing its rows and cell history.",
   { stepUp: "required", job: true, successStatus: 202 },
 );
 operation(
@@ -978,7 +978,7 @@ operation(
     expectedVersion: VersionSchema,
   }),
   deleted,
-  "Delete a row with If-Match revision, retained history and released live capacity.",
+  "Delete a row with If-Match revision, remove its cell history and release live capacity.",
 );
 const rowMutation = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("create"), values }),
@@ -1091,7 +1091,7 @@ operation(
   ["history:read"],
   z.strictObject({ ...table, rowId: IdSchema, fieldId: IdSchema, ...paging }),
   HistoryPageSchema,
-  "Read one cell history including retained deleted-row/field events.",
+  "Read the latest 200 saved changes for an existing cell.",
 );
 operation(
   "queryHistory",

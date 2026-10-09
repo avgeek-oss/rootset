@@ -78,11 +78,11 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-20",
-    "Inserts/edits/deletes/imports/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.",
+    "Inserts/edits/imports/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.",
   ],
   [
     "V1-21",
-    "Row/field deletion, field renames and retained table/database history remain interpretable and obey current role; each cell retains only its latest 200 saved changes; no-op and failed writes add no entry.",
+    "Field renames preserve interpretable history; deletion of a row, field, table or database removes its corresponding cell changelogs for every role; each existing cell retains only its latest 200 saved changes; no-op and failed writes add no entry.",
   ],
   [
     "V1-22",
@@ -106,7 +106,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-27",
-    "The browser provides filters and inline edits without an Add row button, row-creation modal or backup navigation.",
+    "The browser provides filters and inline edits, automatically loads batches during scrolling, uses path-based resource URLs, and restores committed values with a toast on failed edits. There is no Add row button, row-creation modal, Go to row action or backup navigation.",
   ],
   [
     "V1-28",

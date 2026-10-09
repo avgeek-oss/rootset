@@ -47,6 +47,11 @@ export class RowWindowCache {
       this.bytes -= oldest[1].bytes;
     }
   }
+  cursorAfter(end: number): string | null {
+    for (const window of this.windows.values())
+      if (window.start + window.rows.length === end) return window.nextCursor;
+    return null;
+  }
   clear() {
     this.windows.clear();
     this.bytes = 0;

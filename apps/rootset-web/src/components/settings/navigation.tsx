@@ -42,7 +42,10 @@ export const settingsGroups = {
     { title: "Settings", sections: ["database", "database-danger-zone"] },
   ],
   table: [
-    { title: "Settings", sections: ["table", "fields", "rules", "indexes"] },
+    {
+      title: "Settings",
+      sections: ["table", "fields", "rules", "indexes", "table-danger-zone"],
+    },
     { title: "Data", sections: ["imports", "exports"] },
   ],
 } satisfies Record<
@@ -73,26 +76,49 @@ export function settingsHref(
   section: SettingsSection,
   context: { databaseId?: string | null; tableId?: string | null },
 ) {
-  const parameters = new URLSearchParams();
   const scope = settingsScope(section);
-  if ((scope === "database" || scope === "table") && context.databaseId)
-    parameters.set("databaseId", context.databaseId);
-  if (scope === "table" && context.tableId)
-    parameters.set("tableId", context.tableId);
-  const query = parameters.toString();
-  const path =
-    scope === "team"
-      ? `/team-settings/${section === "organisation" ? "general" : section}`
-      : `/settings/${section}`;
-  return `${path}${query ? `?${query}` : ""}`;
+  if (scope === "team")
+    return `/team-settings/${section === "organisation" ? "general" : section}`;
+  if (scope === "account") return `/settings/${section}`;
+  const base = dataHref(
+    context.databaseId,
+    scope === "table" ? context.tableId : null,
+  );
+  const page =
+    section === "database" || section === "table"
+      ? "general"
+      : section.endsWith("danger-zone")
+        ? "danger-zone"
+        : section;
+  return `${base}/settings/${page}`;
 }
 
 export function dataHref(databaseId?: string | null, tableId?: string | null) {
-  const parameters = new URLSearchParams();
-  if (databaseId) parameters.set("databaseId", databaseId);
-  if (tableId) parameters.set("tableId", tableId);
-  const query = parameters.toString();
-  return `/${query ? `?${query}` : ""}`;
+  if (!databaseId) return "/";
+  return `/databases/${encodeURIComponent(databaseId)}${tableId ? `/tables/${encodeURIComponent(tableId)}` : ""}`;
+}
+
+export function resourceRoute(path: string) {
+  const parts = path.split("/").filter(Boolean);
+  const databaseId = parts[0] === "databases" ? (parts[1] ?? null) : null;
+  const tableId =
+    databaseId && parts[2] === "tables" ? (parts[3] ?? null) : null;
+  const settingsIndex = tableId ? 4 : 2;
+  const page =
+    databaseId && parts[settingsIndex] === "settings"
+      ? parts[settingsIndex + 1]
+      : null;
+  const section =
+    page === "general"
+      ? tableId
+        ? "table"
+        : "database"
+      : page === "danger-zone"
+        ? tableId
+          ? "table-danger-zone"
+          : "database-danger-zone"
+        : page;
+  return { databaseId, tableId, section };
 }
 
 export const settingsIcons = {
@@ -109,6 +135,7 @@ export const settingsIcons = {
   database: DatabaseSettingIcon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
+  "table-danger-zone": Delete02Icon,
   fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
   indexes: DatabaseSearchIcon,
@@ -155,7 +182,7 @@ export function settingsNavigationGroups(
             : SECTION_LABELS[item],
           href: settingsHref(item, context),
           icon: settingsIcons[item],
-          destructive: item === "database-danger-zone",
+          destructive: item.endsWith("danger-zone"),
         })),
     }))
     .filter((group) => group.items.length > 0);

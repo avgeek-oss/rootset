@@ -47,6 +47,7 @@ import { SettingsPanel, type SettingsSection } from "./settings";
 import { resolveSettingsSection, SECTION_LABELS } from "./settings/types";
 import {
   dataHref,
+  resourceRoute,
   settingsHref,
   settingsScope,
   PageNavigation,
@@ -59,6 +60,7 @@ import {
   SidebarAccountMenu,
   useTheme,
 } from "@avgeek-oss/design-system";
+import { RouteProvider } from "@avgeek-oss/design-system/hooks/route-context";
 import { AppShellBreadcrumb } from "@avgeek-oss/design-system/layouts/app-shell-breadcrumb";
 import { usePersistentAppSidebar } from "@avgeek-oss/design-system/layouts/app-shell";
 import { SecondarySidebarLayout } from "@avgeek-oss/design-system/navigation/secondary-sidebar";
@@ -99,20 +101,30 @@ export function RootsetApp() {
   const [savingTheme, setSavingTheme] = useState(false);
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
-  const databaseId = parameters.get("databaseId");
-  const tableId = parameters.get("tableId");
+  const route = resourceRoute(path);
+  const databaseId = route.databaseId ?? parameters.get("databaseId");
+  const tableId = route.tableId ?? parameters.get("tableId");
   const teamSection = path.startsWith("/team-settings/")
     ? path.split("/")[2]
     : null;
   const section =
-    teamSection === "general"
+    route.section ??
+    (teamSection === "general"
       ? "organisation"
       : teamSection === "members"
         ? "members"
         : path.startsWith("/settings/")
           ? path.split("/")[2]
-          : null;
+          : null);
   const settings = resolveSettingsSection(section ?? null);
+  useEffect(() => {
+    if (parameters.has("databaseId"))
+      router.replace(
+        settings
+          ? settingsHref(settings, { databaseId, tableId })
+          : dataHref(databaseId, tableId),
+      );
+  }, [parameters, router, settings, databaseId, tableId]);
   const [create, setCreate] = useState<"database" | "table" | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -410,7 +422,9 @@ export function RootsetApp() {
     router.push(
       dataHref(
         selectedDatabaseId,
-        settings && settingsScope(settings) === "database"
+        settings &&
+          (settingsScope(settings) === "database" ||
+            settings === "table-danger-zone")
           ? null
           : selectedTableId,
       ),
@@ -437,7 +451,7 @@ export function RootsetApp() {
   const resourceScope =
     !settings || ["database", "table"].includes(settingsScope(settings));
   return (
-    <>
+    <RouteProvider pathname={path} navigate={(href) => router.push(href)}>
       <a href="#table-content" className="skip-link">
         Skip to content
       </a>
@@ -620,7 +634,25 @@ export function RootsetApp() {
                   ? { label: "Team Settings", href: "/team-settings/general" }
                   : { label: "Rootset", href: "/" },
               ...(settings
-                ? [{ label: SECTION_LABELS[settings] }]
+                ? [
+                    ...(selectedDatabaseId
+                      ? [
+                          {
+                            label: database?.name ?? "Database",
+                            href: dataHref(selectedDatabaseId),
+                          },
+                        ]
+                      : []),
+                    ...(selectedTableId
+                      ? [
+                          {
+                            label: table?.name ?? "Table",
+                            href: dataHref(selectedDatabaseId, selectedTableId),
+                          },
+                        ]
+                      : []),
+                    { label: SECTION_LABELS[settings] },
+                  ]
                 : [
                     {
                       label: database?.name ?? "Databases",
@@ -701,9 +733,7 @@ export function RootsetApp() {
                 />
               ) : databases.isPending ||
                 (selectedDatabaseId && tables.isPending) ? (
-                <div className="grid-skeleton" role="status">
-                  Loading databases and tables…
-                </div>
+                <div className="grid-skeleton" role="status"></div>
               ) : (
                 <section className="empty-state">
                   <HugeiconsIcon
@@ -780,7 +810,7 @@ export function RootsetApp() {
           </form>
         </Dialog>
       )}
-    </>
+    </RouteProvider>
   );
 }
 

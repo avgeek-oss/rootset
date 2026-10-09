@@ -603,9 +603,7 @@ verificationCase(
       inserted.id,
       t.fields[0]!.id,
     );
-    assert.equal(deleted.data.at(-1)?.operation, "delete");
-    assert.equal(deleted.data.at(-1)?.old_value, "b");
-    assert.equal(deleted.data.at(-1)?.new_value, null);
+    assert.equal(deleted.data.length, 0);
     assert.equal((await storage.getTable(actor, t.id)).rowCount, 0);
   },
 );
@@ -830,7 +828,7 @@ verificationCase(
     id: "STORAGE-SCHEMA-01",
     gates: ["V1-12", "V1-19", "V1-20", "V1-21"],
     scope:
-      "Schema versions reject stale writers; rename/reorder retain field identity; invalid populated bounds roll back; deleted field history survives",
+      "Schema versions reject stale writers; rename/reorder retain field identity; invalid populated bounds roll back; deleted field history is removed",
   },
   async () => {
     const t = await table([
@@ -871,13 +869,15 @@ verificationCase(
       idempotencyKey: key(),
     });
     assert.equal(removed.fields.length, 1);
-    const history = await storage.cellHistory(
-      actor,
-      t.id,
-      inserted.id,
-      t.fields[0]!.id,
+    await assert.rejects(
+      storage.cellHistory(actor, t.id, inserted.id, t.fields[0]!.id),
+      code("RESOURCE_NOT_FOUND"),
     );
-    assert.equal(history.data[0]?.new_value, "retained");
+    assert.equal(
+      (await storage.queryHistory(actor, t.id, { fieldId: t.fields[0]!.id }))
+        .data.length,
+      0,
+    );
     const recreated = await storage.createField(actor, t.id, {
       ...text(),
       expectedSchemaVersion: 3,

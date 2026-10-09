@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,7 +21,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
-import { NumberField, Label, Dropdown, Tooltip } from "@heroui/react";
+import { Dropdown, Tooltip } from "@heroui/react";
 import { Filter, Columns3 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
@@ -35,6 +36,7 @@ import {
   type Table,
   type TableSchemaResult,
 } from "@rootset/contracts";
+import { mergeScrollWindow } from "../lib/scroll-window";
 import { RowWindowCache } from "../lib/window-cache";
 import { parseTsvCells, type TsvCell } from "../lib/clipboard";
 import { parsePastedCell } from "../lib/pasted-cell";
@@ -69,10 +71,6 @@ interface CellDraft {
   field: FieldDefinition;
   initialInput?: string;
   initialValue?: JsonValue;
-  error?: string;
-  conflict?: string;
-  schemaConflict?: boolean;
-  notice?: string;
 }
 const rowHeight = 32;
 const windowLimit = 200;
@@ -158,14 +156,24 @@ export function Spreadsheet({
   );
   const [filterCombination, setFilterCombination] =
     useState<FilterCombination>("and");
-  const [jump, setJump] = useState(1);
-  const [jumpVisible, setJumpVisible] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     row?: Row;
     field?: FieldDefinition;
   } | null>(null);
   const contextAnchor = useRef<Element | null>(null);
   const gridRef = useRef<DataGridHandle>(null);
+  const gridContainer = useRef<HTMLDivElement>(null);
+  const scrollOffset = useRef<number | null>(null);
+  const fetchingWindow = useRef(false);
+  const tailCursor = useRef<string | null>(null);
+  const [hasNextWindow, setHasNextWindow] = useState(false);
+  useLayoutEffect(() => {
+    if (scrollOffset.current === null) return;
+    const grid =
+      gridContainer.current?.querySelector<HTMLElement>('[role="grid"]');
+    if (grid) grid.scrollTop = scrollOffset.current;
+    scrollOffset.current = null;
+  }, [rows]);
   const closeEditor = useRef<(() => void) | null>(null);
   const submitEditor = useRef<(() => Promise<boolean>) | null>(null);
   const extendSelection = useRef(false);
@@ -241,12 +249,6 @@ export function Spreadsheet({
   });
   const staleResults = !!windowInfo && displayedNavigation !== navigationDigest;
   const fields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
-  const currentTotal =
-    windowInfo?.window?.total ?? (!query.where ? table.rowCount : undefined);
-  const canJump =
-    Number.isSafeInteger(jump) &&
-    jump >= 1 &&
-    (currentTotal === undefined || jump <= currentTotal);
   const writable =
     canEdit &&
     !accessRevoked &&
@@ -342,46 +344,115 @@ export function Spreadsheet({
     async (
       position: number | "first" | "middle" | "last" = "first",
       cursor?: string | null,
+      direction?: "next" | "previous",
     ) => {
+      if (direction && fetchingWindow.current) return;
+      fetchingWindow.current = true;
       abort.current?.abort();
       const controller = new AbortController();
       abort.current = controller;
       const key = `${table.id}:${schema.data?.table.schemaVersion}:${queryDigest}:${String(position)}:${cursor ?? ""}`;
       const cached = cache.current.get(key);
-      if (cached && typeof position === "number") {
+      if (cached && !direction && typeof position === "number") {
         setRows(cached.rows);
         setWindowStart(cached.start);
       }
       setLoading(true);
       setError(null);
       try {
-        const response = await client.request<WindowResult>(
-          `/tables/${table.id}/windows/query`,
-          {
-            method: "POST",
-            body: {
-              orgId,
-              databaseId,
-              query: {
-                ...query,
-                limit: windowLimit,
-                ...(cursor ? { cursor } : {}),
-              },
-              position: position === 0 ? "first" : position,
-              ...(sessionId.current ? { sessionId: sessionId.current } : {}),
-            },
-            signal: controller.signal,
-          },
-        );
+        const requestLimit =
+          direction === "previous" && typeof position === "number"
+            ? Math.min(windowLimit, currentStart.current - position)
+            : windowLimit;
+        let response: WindowResult =
+          direction === "next" && cursor
+            ? await client.operation<QueryResult>(
+                "queryRows",
+                {
+                  orgId,
+                  databaseId,
+                  tableId: table.id,
+                  query: { ...query, limit: requestLimit, cursor },
+                },
+                { signal: controller.signal },
+              )
+            : await client.request<WindowResult>(
+                `/tables/${table.id}/windows/query`,
+                {
+                  method: "POST",
+                  body: {
+                    orgId,
+                    databaseId,
+                    query: {
+                      ...query,
+                      limit: requestLimit,
+                      ...(cursor ? { cursor } : {}),
+                    },
+                    position: position === 0 ? "first" : position,
+                    ...(sessionId.current
+                      ? { sessionId: sessionId.current }
+                      : {}),
+                  },
+                  signal: controller.signal,
+                },
+              );
         if (controller.signal.aborted) return;
         setAccessRevoked(false);
         const start =
           response.window?.start ??
           (typeof position === "number" ? position : 0);
-        sessionId.current = response.window?.sessionId;
-        setRows(response.data);
-        setWindowStart(start);
-        setJump(start + 1);
+        if (direction === "previous") {
+          const needed = Math.min(requestLimit, currentStart.current - start);
+          while (response.data.length < needed && response.page.nextCursor) {
+            const page = await client.operation<QueryResult>(
+              "queryRows",
+              {
+                orgId,
+                databaseId,
+                tableId: table.id,
+                query: {
+                  ...query,
+                  limit: needed - response.data.length,
+                  cursor: response.page.nextCursor,
+                },
+              },
+              { signal: controller.signal },
+            );
+            response = {
+              ...response,
+              data: [...response.data, ...page.data],
+              page: page.page,
+            };
+          }
+          if (controller.signal.aborted) return;
+        }
+        if (response.window?.sessionId)
+          sessionId.current = response.window.sessionId;
+        const previousRows = currentRows.current;
+        const merged = direction
+          ? mergeScrollWindow(
+              currentRows.current,
+              currentStart.current,
+              response.data,
+              start,
+              direction,
+            )
+          : { rows: response.data, start, offset: 0, trimmed: 0 };
+        if (direction) {
+          const grid =
+            gridContainer.current?.querySelector<HTMLElement>('[role="grid"]');
+          scrollOffset.current = Math.max(
+            0,
+            (grid?.scrollTop ?? 0) + merged.offset * rowHeight,
+          );
+        }
+        currentRows.current = merged.rows;
+        currentStart.current = merged.start;
+        setRows(merged.rows);
+        setWindowStart(merged.start);
+        if (!direction || direction === "next")
+          setHasNextWindow(response.page.hasMore);
+        else if (merged.trimmed) setHasNextWindow(true);
         setWindowInfo(response);
         if (response.schemaVersion !== schema.data?.table.schemaVersion)
           void schema.refetch();
@@ -390,10 +461,10 @@ export function Spreadsheet({
         );
         const selected = currentSelection.current;
         if (selected) {
-          const firstId = currentRows.current[selected.row]?.id;
-          const lastId = currentRows.current[selected.endRow]?.id;
-          const first = response.data.findIndex((row) => row.id === firstId);
-          const last = response.data.findIndex((row) => row.id === lastId);
+          const firstId = previousRows[selected.row]?.id;
+          const lastId = previousRows[selected.endRow]?.id;
+          const first = merged.rows.findIndex((row) => row.id === firstId);
+          const last = merged.rows.findIndex((row) => row.id === lastId);
           const nextSelection =
             first < 0 || last < 0
               ? null
@@ -419,7 +490,10 @@ export function Spreadsheet({
           rows: response.data,
           nextCursor: response.page.nextCursor,
         });
-        gridRef.current?.scrollToCell({ rowIdx: 0 });
+        tailCursor.current = cache.current.cursorAfter(
+          merged.start + merged.rows.length,
+        );
+        if (!direction) gridRef.current?.scrollToCell({ rowIdx: 0 });
         setAnnouncement(
           `Loaded ${response.data.length} rows starting at row ${start + 1}. Results are live.`,
         );
@@ -438,15 +512,7 @@ export function Spreadsheet({
           setWindowInfo(null);
           setSelection(null);
           setAccessRevoked(true);
-          setDraft((previous) =>
-            previous
-              ? {
-                  ...previous,
-                  error:
-                    "Your access changed. This draft has not been saved; restore access before retrying.",
-                }
-              : null,
-          );
+          setDraft(null);
         }
         if (!(failure instanceof Error && failure.name === "AbortError"))
           setError(
@@ -455,7 +521,10 @@ export function Spreadsheet({
               : "Rows could not be loaded",
           );
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          fetchingWindow.current = false;
+          setLoading(false);
+        }
       }
     },
     [
@@ -494,7 +563,7 @@ export function Spreadsheet({
   useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
   async function leaveEditor(action: () => void) {
     if (saving) return;
-    if (draft && !(await submitEditor.current?.())) return;
+    if (draft) await submitEditor.current?.();
     action();
   }
 
@@ -516,16 +585,13 @@ export function Spreadsheet({
 
   async function commitCell(value: JsonValue, target = draft) {
     const draft = target;
-    if (!draft || saving || draft.schemaConflict) return false;
+    if (!draft || saving) return false;
     if (!writable) {
-      setDraft({
-        ...draft,
-        error: "This table is currently read-only. Your draft is still here.",
-      });
+      toast.danger("This table is currently read-only.");
+      setDraft(null);
       return false;
     }
     if (
-      !draft.error &&
       rows.find((row) => row.id === draft.row.id)?.version ===
         draft.row.version &&
       JSON.stringify(value) ===
@@ -601,35 +667,26 @@ export function Spreadsheet({
             rowId: draft.row.id,
           });
         } catch {
-          /* The original mutation error remains visible if access has been revoked. */
+          /* Keep the last loaded value when the current row cannot be read. */
         }
       }
-      setDraft((retained) => {
-        const previous = retained ?? draft;
-        return {
-          ...previous,
-          error:
-            failure instanceof Error
-              ? failure.message
-              : "The value could not be saved",
-          schemaConflict:
-            failure instanceof ApiError &&
-            failure.code === "SCHEMA_VERSION_CONFLICT",
-          ...(current
-            ? {
-                conflict: formatCellValue(
-                  previous.field,
-                  current.values[previous.field.name] ?? null,
-                  {
-                    timeZone: preferences.timezone,
-                    locale: preferences.locale,
-                  },
-                ),
-                row: current,
-              }
-            : {}),
-        };
-      });
+      if (current)
+        setRows((previous) =>
+          previous.map((row) => (row.id === current!.id ? current! : row)),
+        );
+      setDraft(null);
+      cellAttempt.current.clear();
+      cache.current.clear();
+      toast.danger(
+        failure instanceof Error
+          ? failure.message
+          : "The value could not be saved.",
+      );
+      if (
+        failure instanceof ApiError &&
+        failure.code === "SCHEMA_VERSION_CONFLICT"
+      )
+        void schema.refetch();
       return false;
     } finally {
       setSaving(false);
@@ -637,15 +694,7 @@ export function Spreadsheet({
   }
 
   async function setCellNull(row: Row, field: FieldDefinition) {
-    const saved = await commitCell(null, { row, field, initialValue: null });
-    if (saved) return;
-    const rowIdx = rows.findIndex((candidate) => candidate.id === row.id);
-    const idx = fields.findIndex((candidate) => candidate.id === field.id) + 1;
-    if (rowIdx >= 0 && idx > 0)
-      gridRef.current?.setActivePosition(
-        { rowIdx, idx },
-        { enableEditor: true },
-      );
+    await commitCell(null, { row, field, initialValue: null });
   }
 
   function onKey(args: CellKeyDownArgs<Row>, event: CellKeyboardEvent) {
@@ -1018,8 +1067,8 @@ export function Spreadsheet({
           locale={preferences.locale}
           onCommit={async (value, move) => {
             const saved = await commitCell(value);
+            onClose?.();
             if (saved) {
-              onClose?.();
               if (move) {
                 let row = editingRow;
                 let column =
@@ -1042,69 +1091,7 @@ export function Spreadsheet({
             onClose?.();
           }}
           pending={saving}
-          commitDisabled={draft.schemaConflict}
-          error={draft.error}
-          conflict={draft.conflict}
         />
-        {draft.conflict !== undefined && (
-          <Button
-            variant="secondary"
-            onPress={() =>
-              setDraft((previous) =>
-                previous
-                  ? { ...previous, conflict: undefined, error: undefined }
-                  : null,
-              )
-            }
-          >
-            Keep my draft and retry against the current version
-          </Button>
-        )}
-        {draft.notice && (
-          <p className="notice" role="status">
-            {draft.notice}
-          </p>
-        )}
-        {draft.schemaConflict && (
-          <Button
-            variant="secondary"
-            isDisabled={saving || schema.isFetching}
-            onPress={() => {
-              void schema.refetch().then((result) => {
-                const current = result.data?.fields.find(
-                  (field) => field.id === draft.field.id,
-                );
-                if (!current || current.type !== draft.field.type) {
-                  setDraft((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          error: current
-                            ? `This field now uses ${current.type}. Your draft remains here. Cancel explicitly and reopen the cell to use its new editor.`
-                            : "This field has been removed. Your draft remains here; cancel explicitly after copying any values you need.",
-                        }
-                      : null,
-                  );
-                  return;
-                }
-                setDraft((previous) =>
-                  previous
-                    ? {
-                        ...previous,
-                        field: current,
-                        schemaConflict: false,
-                        notice:
-                          "The current schema is loaded. Review its validation, then save your retained draft.",
-                        error: undefined,
-                      }
-                    : null,
-                );
-              });
-            }}
-          >
-            Reload schema and review draft
-          </Button>
-        )}
       </div>
     ) : null;
   }
@@ -1118,45 +1105,6 @@ export function Spreadsheet({
       width: 52,
       frozen: true,
       resizable: false,
-      renderHeaderCell: ({ tabIndex }) => (
-        <button
-          type="button"
-          aria-label="Row navigation"
-          aria-haspopup="menu"
-          tabIndex={tabIndex}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            const anchor = event.currentTarget;
-            leaveEditor(() => {
-              contextAnchor.current = anchor;
-              setContextMenu({});
-            });
-          }}
-          onClick={(event) => {
-            const anchor = event.currentTarget;
-            leaveEditor(() => {
-              contextAnchor.current = anchor;
-              setContextMenu({});
-            });
-          }}
-          onKeyDown={(event) => {
-            if (
-              event.key === "ContextMenu" ||
-              (event.shiftKey && event.key === "F10")
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-              const anchor = event.currentTarget;
-              leaveEditor(() => {
-                contextAnchor.current = anchor;
-                setContextMenu({});
-              });
-            }
-          }}
-        >
-          #
-        </button>
-      ),
       renderCell: ({ rowIdx }) => windowStart + rowIdx + 1,
     },
     ...fields.map((field, index): Column<Row> => ({
@@ -1300,9 +1248,7 @@ export function Spreadsheet({
           </Button>
         </div>
       ) : schema.isPending ? (
-        <div className="grid-skeleton" role="status">
-          Loading table schema…
-        </div>
+        <div className="grid-skeleton" role="status"></div>
       ) : !fields.length ? (
         <div className="empty-state">
           <Columns3 size={30} />
@@ -1329,6 +1275,7 @@ export function Spreadsheet({
           </div>
           <div
             className="grid-container"
+            ref={gridContainer}
             onMouseDownCapture={(event) => {
               if (
                 draft &&
@@ -1360,6 +1307,34 @@ export function Spreadsheet({
               defaultColumnOptions={{
                 resizable: view.isSuccess && !accessRevoked,
               }}
+              onScroll={(event) => {
+                if (
+                  fetchingWindow.current ||
+                  draft ||
+                  saving ||
+                  staleResults ||
+                  accessRevoked ||
+                  error
+                )
+                  return;
+                const grid = event.currentTarget;
+                if (
+                  grid.scrollHeight - grid.scrollTop - grid.clientHeight <
+                    rowHeight * 12 &&
+                  hasNextWindow
+                )
+                  void loadWindow(
+                    windowStart + rows.length,
+                    tailCursor.current,
+                    "next",
+                  );
+                else if (grid.scrollTop < rowHeight * 6 && windowStart > 0)
+                  void loadWindow(
+                    Math.max(0, windowStart - windowLimit),
+                    null,
+                    "previous",
+                  );
+              }}
               onCellMouseDown={(args, event) => {
                 extendSelection.current = event.shiftKey;
                 if (draft) {
@@ -1382,7 +1357,7 @@ export function Spreadsheet({
                   contextAnchor.current = anchor;
                   setContextMenu(
                     column.key === "__row_number"
-                      ? {}
+                      ? { row }
                       : {
                           row,
                           field: fields.find(
@@ -1434,7 +1409,7 @@ export function Spreadsheet({
                 noRowsFallback: (
                   <div className="empty-state">
                     {loading
-                      ? "Loading rows…"
+                      ? null
                       : query.where
                         ? "No rows match this filter."
                         : "This table has no rows yet."}
@@ -1460,13 +1435,12 @@ export function Spreadsheet({
         >
           <Dropdown.Popover triggerRef={contextAnchor} placement="bottom start">
             <Dropdown.Menu
-              aria-label={contextMenu.field ? "Cell actions" : "Row navigation"}
+              aria-label={contextMenu.field ? "Cell actions" : "Row actions"}
               autoFocus="first"
               onAction={(key) => {
                 const current = contextMenu;
                 setContextMenu(null);
-                if (key === "jump") setJumpVisible(true);
-                else if (
+                if (
                   key === "null" &&
                   current.row &&
                   current.field &&
@@ -1497,56 +1471,13 @@ export function Spreadsheet({
                   )}
                 </>
               ) : (
-                <Dropdown.Item
-                  id="jump"
-                  isDisabled={loading || currentTotal === 0}
-                >
-                  Go to row
+                <Dropdown.Item id="delete" isDisabled={!writable || saving}>
+                  Delete row
                 </Dropdown.Item>
               )}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
-      )}
-      {jumpVisible && (
-        <Dialog title="Go to row" onClose={() => setJumpVisible(false)}>
-          <form
-            className="form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canJump || loading) return;
-              setJumpVisible(false);
-              void loadWindow(jump - 1);
-            }}
-          >
-            <NumberField
-              variant="secondary"
-              value={jump}
-              onChange={setJump}
-              minValue={1}
-              maxValue={
-                currentTotal === undefined
-                  ? undefined
-                  : Math.max(1, currentTotal)
-              }
-              step={1}
-              formatOptions={{ useGrouping: false }}
-            >
-              <Label>Row number</Label>
-              <NumberField.Group>
-                <NumberField.Input autoComplete="off" autoFocus />
-              </NumberField.Group>
-            </NumberField>
-            <div className="action-row">
-              <Button variant="secondary" onPress={() => setJumpVisible(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" isDisabled={loading || !canJump}>
-                Go to row
-              </Button>
-            </div>
-          </form>
-        </Dialog>
       )}
       {history && (
         <CellHistory

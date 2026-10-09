@@ -7057,7 +7057,7 @@
   {
     "name": "rootset_delete_table",
     "title": "deleteTable",
-    "description": "Start approved table deletion, preserving retained history metadata.",
+    "description": "Start approved table deletion, removing its rows and cell history.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -16296,7 +16296,7 @@
   {
     "name": "rootset_delete_row",
     "title": "deleteRow",
-    "description": "Delete a row with If-Match revision, retained history and released live capacity.",
+    "description": "Delete a row with If-Match revision, remove its cell history and release live capacity.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -17235,7 +17235,7 @@
   {
     "name": "rootset_get_cell_history",
     "title": "getCellHistory",
-    "description": "Read one cell history including retained deleted-row/field events.",
+    "description": "Read the latest 200 saved changes for an existing cell.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",

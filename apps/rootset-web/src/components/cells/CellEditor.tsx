@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type Ref,
 } from "react";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import type { FieldDefinition, JsonValue } from "@rootset/contracts";
 import {
@@ -28,9 +28,6 @@ export interface CellEditorProps {
   timeZone?: string;
   locale?: string;
   pending?: boolean;
-  commitDisabled?: boolean;
-  error?: string | null;
-  conflict?: string | null;
   initialInput?: string;
 }
 
@@ -43,9 +40,6 @@ export function CellEditor({
   timeZone = "UTC",
   locale = "en-GB",
   pending = false,
-  commitDisabled = false,
-  error,
-  conflict,
   initialInput,
 }: CellEditorProps) {
   const [draft, setDraft] = useState<CellDraft>(() => {
@@ -54,9 +48,6 @@ export function CellEditor({
       ? initial
       : { text: initialInput, isNull: false };
   });
-  const [validated, setValidated] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submitted = useRef<Promise<boolean> | null>(null);
   const cancelled = useRef(false);
@@ -74,15 +65,7 @@ export function CellEditor({
         cellBounds.top - gridBounds.top > 240,
     );
   }, [field.type]);
-  const id = useId();
-  const feedbackId = `${id}-feedback`;
   const busy = pending || submitting;
-  const hasConflict = conflict !== undefined && conflict !== null;
-  const message =
-    validationError ??
-    submissionError ??
-    error ??
-    (hasConflict ? "The row changed before this value was saved." : null);
   const extendedCalendar =
     field.type === "date-time" && /^(?:0000|10000)-/.test(draft.text);
   const canFocus =
@@ -91,39 +74,38 @@ export function CellEditor({
 
   function change(next: CellDraft) {
     setDraft(next);
-    setSubmissionError(null);
-    if (validated) setValidationError(validateCellDraft(field, next, timeZone));
   }
 
-  function validate() {
-    setValidated(true);
-    const result = validateCellDraft(field, draft, timeZone);
-    setValidationError(result);
-    return result;
+  function reject(message: string) {
+    cancelled.current = true;
+    toast.danger(message);
+    onCancel();
+    return false;
   }
 
   function submit(move?: -1 | 1): Promise<boolean> {
     if (submitted.current) return submitted.current;
-    if (
-      cancelled.current ||
-      busy ||
-      commitDisabled ||
-      hasConflict ||
-      validate()
-    )
-      return Promise.resolve(false);
+    if (cancelled.current || busy) return Promise.resolve(false);
+    const invalid = validateCellDraft(field, draft, timeZone);
+    if (invalid) return Promise.resolve(reject(invalid));
     setSubmitting(true);
-    setSubmissionError(null);
     submitted.current = (async () => {
       try {
-        return await onCommit(parseCellDraft(field, draft, timeZone), move);
+        const saved = await onCommit(
+          parseCellDraft(field, draft, timeZone),
+          move,
+        );
+        if (!saved) {
+          cancelled.current = true;
+          onCancel();
+        }
+        return saved;
       } catch (cause) {
-        setSubmissionError(
+        return reject(
           cause instanceof Error
             ? cause.message
-            : "The value could not be saved. Your draft is kept here.",
+            : "The value could not be saved.",
         );
-        return false;
       } finally {
         submitted.current = null;
         setSubmitting(false);
@@ -205,9 +187,7 @@ export function CellEditor({
         onChange={change}
         timeZone={timeZone}
         disabled={busy}
-        invalid={!!message}
         autoFocus={canFocus}
-        describedBy={message ? feedbackId : undefined}
         inline
       />
       {field.type === "json" && (
@@ -219,10 +199,8 @@ export function CellEditor({
             onPress={() => {
               try {
                 change({ ...draft, text: formatJsonDraft(draft.text) });
-                setValidationError(null);
               } catch (cause) {
-                setValidated(true);
-                setValidationError(
+                reject(
                   cause instanceof Error ? cause.message : "Enter valid JSON.",
                 );
               }
@@ -241,25 +219,10 @@ export function CellEditor({
           >
             Cancel
           </Button>
-          <Button
-            size="sm"
-            type="submit"
-            isDisabled={busy || commitDisabled || hasConflict}
-          >
+          <Button size="sm" type="submit" isDisabled={busy}>
             {busy ? "Saving…" : "Save"}
           </Button>
         </div>
-      )}
-      {message && (
-        <p id={feedbackId} className="inline-cell-error" role="alert">
-          {message}
-        </p>
-      )}
-      {hasConflict && (
-        <p className="inline-cell-feedback">
-          Current committed value: {conflict === "" ? "(empty text)" : conflict}
-          . Your draft is kept.
-        </p>
       )}
       {extendedCalendar && (
         <p className="inline-cell-feedback">

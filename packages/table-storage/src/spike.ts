@@ -155,7 +155,7 @@ try {
   assert.equal(
     (await storage.cellHistory(actor, table.id, row.id, table.fields[1]!.id))
       .data.length,
-    3,
+    0,
   );
   console.log(
     JSON.stringify({
@@ -169,7 +169,7 @@ try {
         "native-uniqueness",
         "query-projection",
         "window",
-        "deleted-row-history",
+        "deleted-row-history-removal",
         "non-owner-app-and-DDL-roles",
       ],
     }),

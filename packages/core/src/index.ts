@@ -251,13 +251,10 @@ export class RootsetCore {
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
       typeof input.tableId === "string" ? input.tableId : undefined;
-    const history =
-        operationId === "getCellHistory" || operationId === "queryHistory",
-      destructiveReplay =
-        operationId === "deleteDatabase" || operationId === "deleteTable";
-    let archived = false;
+    const destructiveReplay =
+      operationId === "deleteDatabase" || operationId === "deleteTable";
     if (tableId) {
-      const table = await (history || destructiveReplay
+      const table = await (destructiveReplay
         ? this.options.storage.getArchivedTable(actor, tableId)
         : this.options.storage.getTable(actor, tableId));
       if (databaseId && table.databaseId !== databaseId)
@@ -267,20 +264,12 @@ export class RootsetCore {
           404,
         );
       databaseId = table.databaseId;
-      archived = table.state === "deleted";
     }
     if (databaseId) {
-      const database = await (history || destructiveReplay
+      await (destructiveReplay
         ? this.options.storage.getArchivedDatabase(actor, databaseId)
         : this.options.storage.getDatabase(actor, databaseId));
-      archived = archived || database.state === "deleted";
     }
-    if (history && archived && actor.role !== "admin")
-      throw new RootsetError(
-        "RESOURCE_NOT_FOUND",
-        "Retained history was not found",
-        404,
-      );
     for (const scope of op.scopes) {
       assertAccess(actor, {
         scope,

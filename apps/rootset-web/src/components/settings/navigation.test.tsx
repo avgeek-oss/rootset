@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dataHref,
+  resourceRoute,
   settingsGroups,
   settingsHref,
   settingsScope,
@@ -69,9 +70,42 @@ describe("context settings navigation", () => {
     );
     expect(settingsHref("members", context)).toBe("/team-settings/members");
     expect(settingsHref("fields", context)).toBe(
-      "/settings/fields?databaseId=db&tableId=table",
+      "/databases/db/tables/table/settings/fields",
     );
-    expect(dataHref("db", "table")).toBe("/?databaseId=db&tableId=table");
+    expect(dataHref("db", "table")).toBe("/databases/db/tables/table");
+  });
+  it("round trips resource pages and separates destructive settings", () => {
+    for (const section of [
+      "database",
+      "database-danger-zone",
+      "table",
+      "table-danger-zone",
+      "fields",
+      "imports",
+      "exports",
+    ] as const) {
+      const route = resourceRoute(
+        settingsHref(section, { databaseId: "db", tableId: "table" }),
+      );
+      expect(route.section).toBe(section);
+      expect(route.databaseId).toBe("db");
+      expect(route.tableId).toBe(
+        section.startsWith("database") ? null : "table",
+      );
+    }
+    expect(resourceRoute("/")).toEqual({
+      databaseId: null,
+      tableId: null,
+      section: null,
+    });
+    expect(
+      settingsNavigationGroups("table", "admin", {
+        databaseId: "db",
+        tableId: "table",
+      })
+        .flatMap((g) => g.items)
+        .find((i) => i.id === "table-danger-zone")?.destructive,
+    ).toBe(true);
   });
   it("keeps database settings separate from table and account settings", () => {
     const groups = settingsNavigationGroups("database", "admin", {
@@ -86,7 +120,7 @@ describe("context settings navigation", () => {
       .flatMap((group) => group.items)
       .find((item) => item.id === "database-danger-zone");
     expect(danger?.destructive).toBe(true);
-    expect(danger?.href).toBe("/settings/database-danger-zone?databaseId=db");
+    expect(danger?.href).toBe("/databases/db/settings/danger-zone");
     for (const item of groups.flatMap((group) => group.items))
       expect(item.href).not.toContain("tableId");
   });

@@ -124,16 +124,13 @@ credential retains current authority. Conflicts and failed/rolled-back writes
 create no committed cell history.
 
 Database history enforcement compares old/new cells. Insert records initial
-non-null values; delete records former values to null. The event type distinguishes deletion from clearing.
+non-null values. Deleting a row removes its cell changelogs in that same transaction; clearing a nullable cell records the former value to null.
 Each event records stable row/field IDs, typed before/after values and definitions,
 revisions, person/credential/client attribution, request/mutation/source and UTC
 time, without authentication material. Same-value updates add no cell event.
 Imports, conversions and Admin corrections preserve these same guarantees.
 
-History entries cannot be edited through the API and remain interpretable after row/
-field deletion or rename. Retained table/database metadata supports Admin history
-management after deletion. Current live role and OAuth operation consent govern
-reads and artifact downloads; personal keys add no resource whitelist. V1 has no
+History entries cannot be edited through the API and remain interpretable after a field rename. Deleting a row, field, table or database removes the corresponding cell changelogs; deleted-cell history is unavailable to every role, including Admin. Current live role and OAuth operation consent govern reads and writes. There is no separate
 organisation audit resource or organisation deletion workflow.
 
 History keeps the latest 200 saved changes per cell, including initial populated
@@ -157,8 +154,7 @@ history stays staged until one cutover publishes generation, schema and mutation
 Before cutover the old generation is authoritative; failure preserves it. After
 cutover recovery must not repeat cells/history. Concurrent index creation has
 separate transaction/cleanup behavior; an invalid physical index is never ready.
-Deleting a field requires explicit handling of dependent rules/indexes and retains
-its historical definition.
+Deleting a field requires explicit handling of dependent rules/indexes and removes its cell changelogs.
 
 ## Queries and windows
 

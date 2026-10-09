@@ -64,7 +64,7 @@ export function TableSettings(props: SettingsPanelProps) {
     schema.reload();
     props.onChanged?.();
   });
-  const confirmation = useConfirmation();
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   useEffect(() => {
@@ -77,10 +77,7 @@ export function TableSettings(props: SettingsPanelProps) {
     <>
       <Loading {...schema} retry={schema.reload} />
       <Feedback {...mutation} />
-      <Section
-        title="Table details"
-        description={`Schema revision ${schema.data.table.schemaVersion} · ${schema.data.table.state ?? "active"}`}
-      >
+      <Section title="Table details">
         <Form
           busy={mutation.busy}
           onSubmit={async () => {
@@ -110,9 +107,26 @@ export function TableSettings(props: SettingsPanelProps) {
           while the schema job runs.
         </p>
       )}
+    </>
+  );
+}
+
+export function TableDangerZone(props: SettingsPanelProps) {
+  const schema = useSchema(props);
+  const mutation = useMutation(() => {
+    props.onChanged?.();
+    props.onClose();
+  });
+  const confirmation = useConfirmation();
+  if (!schema.path)
+    return <Empty>Select a table to manage its settings.</Empty>;
+  return (
+    <>
+      <Loading {...schema} retry={schema.reload} />
+      <Feedback {...mutation} />
       <Section
         title="Delete table"
-        description="Deleting a table starts a durable job and requires identity approval. Administrators can still view the latest 200 saved changes per cell after deletion."
+        description="Deleting this table removes access to its rows and fields in Rootset, the API and MCP, and deletes their cell changelogs. You will need to confirm your identity before deletion. This cannot be undone in Rootset."
       >
         <Button
           variant="danger-soft"
@@ -121,7 +135,7 @@ export function TableSettings(props: SettingsPanelProps) {
             if (
               await confirmation.confirm(
                 "Delete this table?",
-                `Delete ${name || "this table"}? This removes normal data access and cannot be undone in Rootset.`,
+                `Delete ${schema.data.table.name || "this table"}? Its rows and fields will no longer be accessible, and its cell changelogs will be deleted.`,
                 "Delete table",
               )
             )
@@ -526,7 +540,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                   if (
                     await confirmation.confirm(
                       "Remove this field?",
-                      `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its retained history remains interpretable.`,
+                      `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
                       "Remove field",
                     )
                   )

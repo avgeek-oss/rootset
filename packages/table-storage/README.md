@@ -51,7 +51,7 @@ Spreadsheet windows fetch at most 200 rows. Numeric position zero uses the first
 
 ## Retained history
 
-Rootset automatically retains the latest 200 saved changes for each cell. Each entry records its previous value, new value, actor, source and UTC timestamp. Older entries are deleted in the same transaction as the next change; there is no retention policy, archive job or cold storage. Equal assignments and rolled-back writes do not add history.
+Rootset automatically retains the latest 200 saved changes for each cell. Each entry records its previous value, new value, actor, source and UTC timestamp. Older entries are deleted in the same transaction as the next change; there is no retention policy, archive job or cold storage. Equal assignments and rolled-back writes do not add history. Deleting a row, field, table, or database removes the corresponding cell history in the same transaction. Administrators cannot retrieve deleted-cell changelogs.
 
 The PostgreSQL history trigger covers native row writes, imports and field conversions. API and MCP history operations read the same retained entries as the dashboard cell changelog. Pagination preserves complete entries within the response byte budget.
 

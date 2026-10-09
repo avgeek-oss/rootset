@@ -870,6 +870,10 @@ export class TableStorage {
           "UPDATE rootset_control.tables SET state='deleted',deleted_at=now() WHERE database_id=$1",
           [d.id],
         );
+        await c.query(
+          "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND database_id=$2",
+          [a.orgId, d.id],
+        );
         await this.audit(
           c,
           a,
@@ -1050,6 +1054,10 @@ export class TableStorage {
       "table.delete",
       options,
       async (c, t) => {
+        await c.query(
+          "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND table_id=$2",
+          [a.orgId, t.id],
+        );
         await c.query(
           "UPDATE rootset_control.tables SET state='deleted',deleted_at=now() WHERE id=$1",
           [t.id],
@@ -1309,6 +1317,10 @@ export class TableStorage {
         );
         await c.query(
           `ALTER TABLE ${tablePath(t)} DROP COLUMN ${q(fieldColumn(f))}`,
+        );
+        await c.query(
+          "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND table_id=$2 AND field_id=$3",
+          [a.orgId, t.id, f.id],
         );
         for (const [position, remaining] of t.fields
           .filter((other) => other.id !== f.id)
@@ -1886,9 +1898,9 @@ export class TableStorage {
     hasMore: boolean;
   }> {
     const fid = await this.run(a, async (c) => {
-      const t = await this.table(c, a, tableId, false, true);
+      const t = await this.table(c, a, tableId);
       const fields = await c.query<Raw>(
-        "SELECT id FROM rootset_control.fields WHERE table_id=$1 AND (id=$2 OR name=$2) ORDER BY state LIMIT 1",
+        "SELECT id FROM rootset_control.fields WHERE table_id=$1 AND (id=$2 OR name=$2) AND state='active' LIMIT 1",
         [t.id, fieldId],
       );
       const fid = String(
@@ -1918,7 +1930,7 @@ export class TableStorage {
     hasMore: boolean;
   }> {
     return this.run(a, async (c) => {
-      const t = await this.table(c, a, tableId, false, true);
+      const t = await this.table(c, a, tableId);
       const limit = input.limit ?? 200;
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > limits.queryRows)
         fail("VALIDATION_FAILED", "History limit must be 1–25000");

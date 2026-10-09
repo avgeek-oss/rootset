@@ -5,7 +5,7 @@
 Rootset is self-hosted structured storage for one organisation. Create logical
 databases and typed tables, edit records in a spreadsheet, and use the same data
 through REST or OAuth-protected MCP. PostgreSQL stores values, revisions and
-the latest 200 changes per cell. The project domain is `rootset.fyi`.
+the latest 200 changes per existing cell. Deleting a row, field, table, or database removes its cell changelogs. The project domain is `rootset.fyi`.
 
 V1 uses Admin, Member and Viewer roles. Admins manage people, schema and recovery with deployment readiness checked separately.
 SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP or imports; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
@@ -94,3 +94,5 @@ Record remaining full-scale work in the [verification guide](docs/verification/R
 Source/image publication, production deployment and production health are
 separate release decisions. Adapted material retains its applicable licence and
 source notices.
+
+The table UI loads 200 rows initially and requests more as you scroll. It keeps at most 1,000 loaded rows (and a 32 MiB active window), fetching earlier batches again when you scroll back. React Data Grid renders only visible rows. Resource pages use `/databases/:id` and `/databases/:id/tables/:id`; filters and sorts stay part of the data query. Invalid or failed cell saves show a toast and restore the committed value.
