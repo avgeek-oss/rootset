@@ -163,6 +163,18 @@ export function Spreadsheet({
   const contextAnchor = useRef<Element | null>(null);
   const gridRef = useRef<DataGridHandle>(null);
   const gridContainer = useRef<HTMLDivElement>(null);
+  const resizingColumn = useRef(false);
+  const resizeScrollLimit = useRef<number | null>(null);
+  function releaseResizeSpace(grid: HTMLElement) {
+    if (
+      !resizingColumn.current &&
+      resizeScrollLimit.current !== null &&
+      grid.scrollLeft <= resizeScrollLimit.current
+    ) {
+      grid.style.removeProperty("--rs-resize-scroll-width");
+      resizeScrollLimit.current = null;
+    }
+  }
   const scrollOffset = useRef<number | null>(null);
   const fetchingWindow = useRef(false);
   const tailCursor = useRef<string | null>(null);
@@ -1281,6 +1293,37 @@ export function Spreadsheet({
           <div
             className="grid-container"
             ref={gridContainer}
+            onPointerDownCapture={(event) => {
+              const target = event.target;
+              if (
+                !(target instanceof HTMLElement) ||
+                !target.closest('[role="columnheader"]') ||
+                getComputedStyle(target).cursor !== "col-resize"
+              )
+                return;
+              const grid = gridRef.current?.element;
+              if (!grid) return;
+              // Preserve the scroll range so shrinking at the right edge cannot move the handle.
+              resizingColumn.current = true;
+              grid.style.setProperty(
+                "--rs-resize-scroll-width",
+                `${grid.scrollWidth}px`,
+              );
+            }}
+            onLostPointerCapture={() => {
+              if (!resizingColumn.current) return;
+              resizingColumn.current = false;
+              const grid = gridRef.current?.element;
+              if (!grid) return;
+              const naturalWidth = getComputedStyle(grid)
+                .gridTemplateColumns.split(" ")
+                .reduce((sum, width) => sum + parseFloat(width), 0);
+              resizeScrollLimit.current = Math.max(
+                0,
+                Math.ceil(naturalWidth) - grid.clientWidth,
+              );
+              releaseResizeSpace(grid);
+            }}
             onMouseDownCapture={(event) => {
               if (
                 draft &&
@@ -1313,6 +1356,7 @@ export function Spreadsheet({
                 resizable: view.isSuccess && !accessRevoked,
               }}
               onScroll={(event) => {
+                releaseResizeSpace(event.currentTarget);
                 if (
                   fetchingWindow.current ||
                   draft ||
