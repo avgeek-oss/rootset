@@ -8,7 +8,7 @@ export interface FieldDraft {
   charLimit: string;
   min: string;
   max: string;
-  defaultMode: string;
+  defaultMode: "null" | "value";
   defaultValue: string;
   defaultBoolean: boolean;
 }
@@ -28,7 +28,9 @@ export function fieldDraft(field?: TableField): FieldDraft {
         ? field.default === null
           ? "null"
           : "value"
-        : "none",
+        : field?.required
+          ? "value"
+          : "null",
     defaultValue:
       field && field.default !== undefined && field.default !== null
         ? field.type === "json"
@@ -60,6 +62,12 @@ export function parseFieldDraft(
           : value[bound];
   if (value.defaultMode === "null") result.default = null;
   if (value.defaultMode === "value") {
+    if (
+      value.required &&
+      value.type !== "boolean" &&
+      !value.defaultValue.trim()
+    )
+      errors.defaultValue = "Enter a default value for this required field.";
     if (["integer", "float"].includes(value.type) && !value.defaultValue.trim())
       errors.defaultValue = "Enter a default value.";
     try {

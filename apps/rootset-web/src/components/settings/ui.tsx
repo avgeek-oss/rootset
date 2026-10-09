@@ -221,19 +221,26 @@ export function Form({
   onSubmit,
   submit = "Save changes",
   onCancel,
+  noValidate = false,
 }: {
   children: ReactNode;
   busy: boolean;
   onSubmit: () => void | Promise<void>;
   submit?: string;
   onCancel?: () => void;
+  noValidate?: boolean;
 }) {
   function submitForm(event: FormEvent) {
     event.preventDefault();
     if (!busy) void onSubmit();
   }
   return (
-    <form className="settings-form" onSubmit={submitForm} aria-busy={busy}>
+    <form
+      className="settings-form"
+      onSubmit={submitForm}
+      aria-busy={busy}
+      noValidate={noValidate}
+    >
       <fieldset disabled={busy}>{children}</fieldset>
       <div className="settings-actions">
         {onCancel && (

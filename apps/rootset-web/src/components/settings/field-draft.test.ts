@@ -70,7 +70,7 @@ describe("field definition form", () => {
         ?.defaultMode,
     ).toBeTruthy();
   });
-  it("keeps false, zero, empty text and JSON null distinct from an absent default", () => {
+  it("keeps false, zero and empty text as literal defaults and starts optional fields at null", () => {
     expect(
       parseFieldDraft({
         ...text,
@@ -99,7 +99,44 @@ describe("field definition form", () => {
         defaultValue: "null",
       }).input?.default,
     ).toBeNull();
-    expect(parseFieldDraft(text).input).not.toHaveProperty("default");
+    expect(fieldDraft().defaultMode).toBe("null");
+    expect(parseFieldDraft(text).input?.default).toBeNull();
+  });
+  it("requires a valid literal default when a required field is configured in the UI", () => {
+    expect(
+      fieldDraft({
+        id: "01J00000000000000000000000",
+        name: "COUNT",
+        type: "integer",
+        required: true,
+      }).defaultMode,
+    ).toBe("value");
+    expect(
+      parseFieldDraft({
+        ...text,
+        required: true,
+        defaultMode: "value",
+        defaultValue: "",
+      }).errors?.defaultValue,
+    ).toBeTruthy();
+    expect(
+      parseFieldDraft({
+        ...text,
+        required: true,
+        type: "integer",
+        defaultMode: "value",
+        defaultValue: "0",
+      }).input?.default,
+    ).toBe(0);
+    expect(
+      parseFieldDraft({
+        ...text,
+        required: true,
+        type: "boolean",
+        defaultMode: "value",
+        defaultBoolean: false,
+      }).input?.default,
+    ).toBe(false);
   });
   it("renders one editable associated name control and preserves constraints while pending", () => {
     const html = renderToStaticMarkup(
@@ -116,6 +153,9 @@ describe("field definition form", () => {
     expect(html).not.toContain(">API key<");
     expect(html).not.toContain(">Label<");
     expect(html).toContain("Maximum characters");
+    expect(html).not.toContain("Nullable");
+    expect(html).not.toContain("No explicit default");
+    expect(html).toContain('noValidate=""');
     expect(html).toMatch(/<label[^>]+for=/);
     expect(html).toMatch(/<fieldset[^>]*disabled/);
   });

@@ -12,7 +12,11 @@ SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP or impor
 There is no standalone Background Jobs page or storage admission policy.
 Personal API keys inherit the person's current role; OAuth connections add
 approved operations to that current authority. Field definitions have one `name`
-property, used both as the UI label and the JSON row key.
+property, used both as the UI label and the JSON row key. Required is the only
+nullability setting: optional fields allow null and default to null unless a
+literal default is supplied. The field editor requires a valid non-null literal
+default for required fields; new rows must receive a valid value or use that
+default.
 
 The [current V1 plan](rc-plan/README.md) and its
 [verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) define

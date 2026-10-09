@@ -181,6 +181,7 @@ export function FieldForm({
     <Form
       busy={busy}
       submit={field ? "Preview and apply changes" : "Add field"}
+      noValidate
       onCancel={onCancel}
       onSubmit={async () => {
         const parsed = parseFieldDraft(value);
@@ -263,26 +264,29 @@ export function FieldForm({
           />
         </div>
       )}
-      <Choice
-        label="Default for new rows"
-        value={value.defaultMode}
-        onChange={(next) => patch("defaultMode", next)}
-        options={[
-          { value: "none", label: "No explicit default" },
-          { value: "null", label: "Null" },
-          { value: "value", label: "A literal value" },
-        ]}
-      />
+      {!value.required && (
+        <Choice
+          label="Default for new rows"
+          value={value.defaultMode}
+          onChange={(next) =>
+            patch("defaultMode", next as FieldDraft["defaultMode"])
+          }
+          options={[
+            { value: "null", label: "Null" },
+            { value: "value", label: "A literal value" },
+          ]}
+        />
+      )}
       {value.defaultMode === "value" &&
         (value.type === "boolean" ? (
           <Toggle
-            label="Default value"
+            label={value.required ? "Default for new rows" : "Default value"}
             selected={value.defaultBoolean}
             onChange={(next) => patch("defaultBoolean", next)}
           />
         ) : (
           <Field
-            label="Default value"
+            label={value.required ? "Default for new rows" : "Default value"}
             value={value.defaultValue}
             onChange={(next) => patch("defaultValue", next)}
             type={
@@ -293,6 +297,7 @@ export function FieldForm({
                   : "text"
             }
             multiline={value.type === "json"}
+            required={value.required}
             step={value.type === "float" ? "any" : 1}
             description={
               value.type === "time"
@@ -305,18 +310,17 @@ export function FieldForm({
             }
           />
         ))}
-      <div className="settings-inline">
-        <Toggle
-          label="Required"
-          selected={value.required}
-          onChange={(next) => patch("required", next)}
-        />
-        <Toggle
-          label="Nullable"
-          selected={!value.required}
-          onChange={(next) => patch("required", !next)}
-        />
-      </div>
+      <Toggle
+        label="Required"
+        selected={value.required}
+        onChange={(required) =>
+          setValue((previous) => ({
+            ...previous,
+            required,
+            defaultMode: required ? "value" : previous.defaultMode,
+          }))
+        }
+      />
     </Form>
   );
 }
@@ -547,11 +551,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
               key: "required",
               header: "Required",
               cell: (field) => <FieldCheck checked={Boolean(field.required)} />,
-            },
-            {
-              key: "nullable",
-              header: "Nullable",
-              cell: (field) => <FieldCheck checked={!field.required} />,
             },
             {
               key: "constraints",
