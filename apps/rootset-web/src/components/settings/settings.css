@@ -251,9 +251,11 @@
 }
 .field-name-cell {
   min-width: 160px;
+  gap: 16px;
 }
 .field-name-cell > span {
   overflow-wrap: anywhere;
+  font-weight: 500;
 }
 .field-order-actions {
   flex-shrink: 0;
