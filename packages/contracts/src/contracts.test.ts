@@ -57,6 +57,20 @@ import {
 } from "./index";
 
 const id = "01K6J7B8000000000000000000";
+test("exports accept only CSV or JSONL and reject partial-table selectors", () => {
+  const schema = getOperation("exportRows").inputSchema;
+  const input = { orgId: id, databaseId: id, tableId: id, format: "csv" };
+  for (const format of ["csv", "jsonl"])
+    assert.equal(schema.safeParse({ ...input, format }).success, true);
+  for (const extra of [
+    { query: { select: ["NAME"] } },
+    { query: { where: { field: "NAME", op: "eq", value: "one" } } },
+    { spreadsheetSafe: true },
+    { format: "xlsx" },
+  ])
+    assert.equal(schema.safeParse({ ...input, ...extra }).success, false);
+});
+
 test("shared account and team name limits stay separate from resource names", () => {
   assert.equal(AccountNameSchema.parse(`  ${"N".repeat(120)}  `).length, 120);
   for (const [operation, input] of Object.entries({

@@ -45,9 +45,15 @@ try {
   );
   expect(signed.ok()).toBe(true);
   await page.goto(
-    `/settings/exports?organisationId=${fixture.orgId}&databaseId=${fixture.databaseId}&tableId=${fixture.tableId}`,
+    `/databases/${fixture.databaseId}/tables/${fixture.tableId}/settings/export-requests`,
   );
-  await expect(page.locator(".settings-header h1")).toHaveText("Export rows");
+  await expect(
+    page.getByRole("heading", { name: "Export Requests", exact: true }),
+  ).toHaveText("Export Requests");
+  await page
+    .getByRole("button", { name: "Create export request", exact: true })
+    .first()
+    .click();
   const queuedResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -90,7 +96,8 @@ try {
   expect(artifactResponse.ok()).toBe(true);
   const artifact = await artifactResponse.json();
   await page
-    .getByRole("button", { name: "Download result", exact: true })
+    .getByRole("button", { name: "Download", exact: true })
+    .last()
     .click();
   const download = await Promise.race([
     downloadPromise,
@@ -112,7 +119,7 @@ try {
   );
   expect(bytes.toString("utf8")).toContain("NAME");
   report.checks.push({
-    name: "Actual Download result control starts an authenticated browser download with exact artifact length and SHA256",
+    name: "Actual Download control starts an authenticated browser download with exact artifact length and SHA256",
     status: "passed",
     byteLength: bytes.byteLength,
     artifactId: artifact.id,

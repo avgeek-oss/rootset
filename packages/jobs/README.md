@@ -6,6 +6,8 @@ Each claim has a fencing token. Heartbeats extend the lease, and every committed
 
 Cancellation, retry and asynchronous operation creation use shared mutation receipts. The receipt, operation effects and any consumed approval commit in the same organisation transaction. Receipts bind the current principal, credential, operation, input and an idempotency key of 8–255 characters using the installation's persistent key-hash secret. Current resource authority is checked before replay, including the original job target.
 
+Export Requests list retained requests with their format, status, row count and download action. Each request exports the entire table; API and MCP inputs accept only the file format, without field selection or row filters.
+
 CSV and JSONL exports preserve typed values, leading-zero text, UTC timestamps and nulls. CSV uses `\N` for null, quotes empty text and escapes leading backslashes.
 
 Artifacts use authenticated AES-256-GCM encryption and SHA-256 checksums. Each worker lease writes a distinct immutable object key, so an expired worker cannot overwrite its successor's artifact. Downloads authenticate the caller, recheck current target access, authenticate the encrypted object and verify checksums before serving plaintext. Temporary verification files contain ciphertext with mode `0600`; plaintext is streamed only after the complete object validates. The download URL never contains an API key.

@@ -139,6 +139,7 @@ export interface Job {
   id: string;
   type?: string;
   kind?: string;
+  format?: "csv" | "jsonl";
   state: string;
   stage?: string;
   progress?: { completed: number; total?: number; unit?: string };
@@ -149,6 +150,7 @@ export interface Job {
   error?: { code?: string; message: string } | string;
   result?: {
     artifactId?: string;
+    rowCount?: number;
     rejected?: number;
     inserted?: number;
     updated?: number;
@@ -192,7 +194,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "table-danger-zone": "Danger Zone",
   fields: "Fields",
   rules: "Unique rules",
-  exports: "Export rows",
+  exports: "Export Requests",
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
@@ -219,6 +221,7 @@ export function resolveSettingsSection(
   value: string | null,
 ): SettingsSection | null {
   const aliases: Record<string, SettingsSection> = {
+    "export-requests": "exports",
     security: "passkeys",
     "2fa": "passkeys",
     keys: "api-keys",

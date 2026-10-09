@@ -449,6 +449,4 @@ export const ViewPreferencesResultSchema = z.strictObject({
 });
 export const ExportSpecSchema = z.strictObject({
   format: z.enum(["csv", "jsonl"]),
-  query: QuerySpecSchema.optional(),
-  spreadsheetSafe: z.boolean().optional(),
 });

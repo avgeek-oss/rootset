@@ -1,47 +1,35 @@
 "use client";
 
-import { ProgressBar } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { browserArtifactDownloadPath } from "@rootset/web-client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
+import { Dialog } from "../dialog";
+import { PageSelectionTitle } from "./account/page-selection-title";
+import { RelativeTime } from "./account/last-synced-time";
 import {
   organisationPath,
   read,
+  readRaw,
   tablePath,
   useMutation,
   useResource,
   write,
 } from "./api";
-import {
-  Choice,
-  Empty,
-  Form,
-  Loading,
-  Section,
-  Status,
-  Toggle,
-  useConfirmation,
-} from "./ui";
-import { JobResultDetails } from "./job-result";
-import type {
-  Artifact,
-  Job,
-  SettingsPanelProps,
-  TableSchemaResult,
-} from "./types";
+import { Choice, Empty, Form, Loading, Status } from "./ui";
+import type { Artifact, Job, SettingsPanelProps } from "./types";
 
-const ACTIVE_STATES = [
-  "queued",
-  "running",
-  "snapshotting",
-  "uploading",
-  "verifying",
-];
 interface JobAccepted {
   jobId: string;
   state: string;
   statusUrl: string;
 }
+interface ExportPage {
+  data: Job[];
+  nextCursor: string | null;
+}
+const active = (job: Job) => ["queued", "running"].includes(job.state);
 
 async function downloadArtifact(orgId: string, artifactId: string) {
   const artifact = await read<Artifact>(
@@ -49,7 +37,7 @@ async function downloadArtifact(orgId: string, artifactId: string) {
   );
   if (!artifact.downloadUrl)
     throw new Error(
-      "The artifact download is not ready. Retry after the job succeeds.",
+      "The export download is not ready. Try again after the request succeeds.",
     );
   window.open(
     browserArtifactDownloadPath(orgId, artifactId),
@@ -58,149 +46,100 @@ async function downloadArtifact(orgId: string, artifactId: string) {
   );
 }
 
-export function JobTracker({
-  orgId,
-  jobId,
-  onTerminal,
+export function ExportRequestsTable({
+  requests,
+  busy,
+  onDownload,
+  onCancel,
+  onRetry,
+  emptyAction,
 }: {
-  orgId: string;
-  jobId: string;
-  onTerminal?: (job: Job) => void;
+  requests: Job[];
+  busy: boolean;
+  onDownload: (artifactId: string) => void;
+  onCancel: (job: Job) => void;
+  onRetry: (job: Job) => void;
+  emptyAction?: ReactNode;
 }) {
-  const resource = useResource<Job | null>(
-    `${organisationPath(orgId)}/jobs/${jobId}`,
-    null,
-  );
-  const mutation = useMutation(resource.reload);
-  const confirmation = useConfirmation();
-  const active = resource.data && ACTIVE_STATES.includes(resource.data.state);
-  useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(resource.reload, 2000);
-    return () => clearInterval(timer);
-  }, [active, resource.reload]);
-  const notified = useRef("");
-  useEffect(() => {
-    if (
-      resource.data &&
-      !ACTIVE_STATES.includes(resource.data.state) &&
-      notified.current !== `${resource.data.id}:${resource.data.state}`
-    ) {
-      notified.current = `${resource.data.id}:${resource.data.state}`;
-      onTerminal?.(resource.data);
-    }
-  }, [resource.data, onTerminal]);
   return (
-    <div className="settings-job">
-      <Loading {...resource} retry={resource.reload} />
-      {resource.data && (
-        <>
-          <div className="settings-inline">
-            <strong>{resource.data.kind ?? resource.data.type ?? "Job"}</strong>
-            <Status value={resource.data.state} />
-          </div>
-          {resource.data.stage && <p>{resource.data.stage}</p>}
-          {active && (
-            <ProgressBar
-              aria-label="Job progress"
-              value={resource.data.progress?.completed ?? 0}
-              maxValue={resource.data.progress?.total ?? 100}
-              isIndeterminate={!resource.data.progress?.total}
-            >
-              <ProgressBar.Track>
-                <ProgressBar.Fill />
-              </ProgressBar.Track>
-            </ProgressBar>
-          )}
-          {resource.data.progress && (
-            <p className="settings-muted">
-              {resource.data.progress.completed.toLocaleString()}
-              {resource.data.progress.total !== undefined && (
-                <> / {resource.data.progress.total.toLocaleString()}</>
-              )}{" "}
-              {resource.data.progress.unit}
-            </p>
-          )}
-          {resource.data.error && (
-            <p role="alert" className="settings-feedback-error">
-              {typeof resource.data.error === "string"
-                ? resource.data.error
-                : resource.data.error.message}
-            </p>
-          )}
-          {resource.data.state === "partially_completed" && (
-            <p role="status">
-              Some batches committed. Review the rejected rows and committed
-              counts before retrying.
-            </p>
-          )}
-          {resource.data.result && (
-            <JobResultDetails
-              result={resource.data.result}
-              openArtifact={(id) => {
-                void mutation.run(
-                  () => downloadArtifact(orgId, id),
-                  "Download opened.",
-                );
-              }}
-            />
-          )}
-          <div className="settings-actions">
-            {active && (
-              <Button
-                variant="danger-soft"
-                isDisabled={mutation.busy}
-                onPress={async () => {
-                  if (
-                    await confirmation.confirm(
-                      "Cancel job?",
-                      "Rootset stops the job at a safe checkpoint.",
-                      "Cancel job",
-                    )
-                  )
-                    await mutation.run(
-                      () =>
-                        write(
-                          `${organisationPath(orgId)}/jobs/${jobId}/cancel`,
-                          "POST",
-                        ),
-                      "Cancellation requested.",
-                    );
-                }}
-              >
-                Cancel job
-              </Button>
-            )}
-            {["failed", "cancelled", "partially_completed"].includes(
-              resource.data.state,
-            ) && (
-              <Button
-                variant="secondary"
-                isDisabled={mutation.busy}
-                onPress={() =>
-                  mutation
-                    .run(
-                      () =>
-                        write(
-                          `${organisationPath(orgId)}/jobs/${jobId}/retry`,
-                          "POST",
-                        ),
-                      "Retry requested.",
-                    )
-                    .then(() => undefined)
-                }
-              >
-                Retry job
-              </Button>
-            )}
-            <Button variant="ghost" onPress={resource.reload}>
-              Refresh status
-            </Button>
-          </div>
-        </>
-      )}
-      {confirmation.dialog}
-    </div>
+    <ResourceTable
+      ariaLabel="Export Requests"
+      items={requests}
+      getRowKey={(request) => request.id}
+      mobileLayout="stacked"
+      emptyTitle="No export requests yet"
+      emptyDescription="Create a request to download every row and field as CSV or JSONL."
+      emptyAction={emptyAction}
+      columns={[
+        {
+          key: "requested",
+          header: "Requested",
+          cell: (request) => (
+            <RelativeTime label="Requested" value={request.createdAt} />
+          ),
+        },
+        {
+          key: "format",
+          header: "File format",
+          cell: (request) =>
+            request.format?.toUpperCase() ?? (
+              <span className="field-empty">—</span>
+            ),
+        },
+        {
+          key: "status",
+          header: "Status",
+          cell: (request) => <Status value={request.state} />,
+        },
+        {
+          key: "rows",
+          header: "Rows",
+          cell: (request) =>
+            typeof request.result?.rowCount === "number" ? (
+              request.result.rowCount.toLocaleString()
+            ) : (
+              <span className="field-empty">—</span>
+            ),
+        },
+        {
+          key: "actions",
+          header: "Actions",
+          headerClassName: "text-right",
+          mobileFullWidth: true,
+          cell: (request) => (
+            <div className="field-edit-actions">
+              {request.state === "succeeded" && request.result?.artifactId && (
+                <Button
+                  variant="secondary"
+                  isDisabled={busy}
+                  onPress={() => onDownload(request.result!.artifactId!)}
+                >
+                  Download
+                </Button>
+              )}
+              {active(request) && (
+                <Button
+                  variant="danger-soft"
+                  isDisabled={busy}
+                  onPress={() => onCancel(request)}
+                >
+                  Cancel
+                </Button>
+              )}
+              {["failed", "cancelled"].includes(request.state) && (
+                <Button
+                  variant="secondary"
+                  isDisabled={busy}
+                  onPress={() => onRetry(request)}
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
+          ),
+        },
+      ]}
+    />
   );
 }
 
@@ -209,76 +148,164 @@ export function ExportsSettings(props: SettingsPanelProps) {
     props.databaseId && props.tableId
       ? tablePath(props.orgId, props.databaseId, props.tableId)
       : undefined;
-  const schema = useResource<TableSchemaResult | null>(
-    path ? `${path}/schema` : undefined,
-    null,
+  const [cursors, setCursors] = useState<string[]>([]);
+  const cursor = cursors.at(-1);
+  const query = new URLSearchParams({
+    kind: "export",
+    tableId: props.tableId ?? "",
+    limit: "50",
+  });
+  if (cursor) query.set("cursor", cursor);
+  const requests = useResource<ExportPage>(
+    path ? `${organisationPath(props.orgId)}/jobs?${query}` : undefined,
+    { data: [], nextCursor: null },
+    readRaw,
   );
-  const mutation = useMutation();
+  const mutation = useMutation(requests.reload);
+  const pendingRequests = useRef(new Set<string>());
+  const [formOpen, setFormOpen] = useState(false);
   const [format, setFormat] = useState("csv");
-  const [spreadsheetSafe, setSpreadsheetSafe] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [jobId, setJobId] = useState("");
-  if (!path) return <Empty>Select a table to export rows.</Empty>;
+  const hasActive = requests.data.data.some(active);
+  useEffect(() => {
+    if (!hasActive) return;
+    const timer = setInterval(requests.reload, 2000);
+    return () => clearInterval(timer);
+  }, [hasActive, requests.reload]);
+  useEffect(() => {
+    for (const request of requests.data.data) {
+      if (!pendingRequests.current.has(request.id) || active(request)) continue;
+      pendingRequests.current.delete(request.id);
+      if (request.state === "succeeded")
+        toast.success("Export ready to download.");
+      else if (request.state === "failed")
+        toast.danger(
+          (typeof request.error === "string"
+            ? request.error
+            : request.error?.message) ?? "Export request failed.",
+        );
+    }
+  }, [requests.data]);
+  const actions = useMemo(
+    () => (
+      <Button
+        isDisabled={mutation.busy}
+        onPress={() => {
+          setFormat("csv");
+          setFormOpen(true);
+        }}
+      >
+        Create export request
+      </Button>
+    ),
+    [mutation.busy],
+  );
+  if (!path) return <Empty>Select a table to create export requests.</Empty>;
   return (
     <>
-      <Loading {...schema} retry={schema.reload} />
-      <Section
-        title="Snapshot export"
-        description="Exports use one consistent table snapshot. Every temporal value is UTC regardless of your viewing preference. Downloads recheck your current permissions."
-      >
-        <Form
-          busy={mutation.busy}
-          submit="Start export"
-          onSubmit={async () => {
-            const result = await mutation.run(
-              () =>
-                write<JobAccepted>(`${path}/exports`, "POST", {
-                  format,
-                  spreadsheetSafe: format === "csv" && spreadsheetSafe,
-                  query: selected.length ? { select: selected } : {},
-                }),
-              "Export queued. Download is available after the job succeeds.",
-            );
-            if (result.ok) setJobId(result.value.jobId);
-          }}
-        >
-          <Choice
-            label="File format"
-            value={format}
-            onChange={setFormat}
-            options={["csv", "jsonl"]}
-          />
-          {format === "csv" && (
-            <Toggle
-              label="Spreadsheet-safe CSV"
-              selected={spreadsheetSafe}
-              onChange={setSpreadsheetSafe}
-              description="Explicitly escape formula-like values for spreadsheet viewing. Stored data is unchanged."
+      <PageSelectionTitle label="Export Requests" actions={actions} />
+      <Loading {...requests} retry={requests.reload} />
+      {(!requests.loading || requests.data.data.length > 0) &&
+        !requests.error && (
+          <>
+            <ExportRequestsTable
+              requests={requests.data.data}
+              busy={mutation.busy}
+              emptyAction={actions}
+              onDownload={(id) => {
+                void mutation.run(
+                  () => downloadArtifact(props.orgId, id),
+                  "Download opened.",
+                );
+              }}
+              onRetry={async (job) => {
+                const result = await mutation.run(
+                  () =>
+                    write<JobAccepted>(
+                      `${organisationPath(props.orgId)}/jobs/${job.id}/retry`,
+                      "POST",
+                    ),
+                  "Export request queued again.",
+                );
+                if (result.ok) pendingRequests.current.add(result.value.jobId);
+              }}
+              onCancel={(job) => {
+                void mutation.run(
+                  () =>
+                    write(
+                      `${organisationPath(props.orgId)}/jobs/${job.id}/cancel`,
+                      "POST",
+                    ),
+                  "Export cancellation requested.",
+                );
+              }}
             />
-          )}
-          <fieldset className="settings-scope-list">
-            <legend>Fields to export (none selected means all fields)</legend>
-            {schema.data?.fields.map((field) => (
-              <Toggle
-                key={field.id}
-                label={`${field.name} (${field.type})`}
-                selected={selected.includes(field.name)}
-                onChange={(include) =>
-                  setSelected((previous) =>
-                    include
-                      ? [...previous, field.name]
-                      : previous.filter((value) => value !== field.name),
-                  )
-                }
-              />
-            ))}
-          </fieldset>
-        </Form>
-      </Section>
-      {jobId && (
-        <Section title="Export job">
-          <JobTracker orgId={props.orgId} jobId={jobId} />
-        </Section>
+            {(cursors.length > 0 || requests.data.nextCursor) && (
+              <div className="settings-actions">
+                <Button
+                  variant="secondary"
+                  isDisabled={
+                    !cursors.length || requests.loading || mutation.busy
+                  }
+                  onPress={() =>
+                    setCursors((previous) => previous.slice(0, -1))
+                  }
+                >
+                  Previous requests
+                </Button>
+                <Button
+                  variant="secondary"
+                  isDisabled={
+                    !requests.data.nextCursor ||
+                    requests.loading ||
+                    mutation.busy
+                  }
+                  onPress={() => {
+                    if (requests.data.nextCursor)
+                      setCursors((previous) => [
+                        ...previous,
+                        requests.data.nextCursor!,
+                      ]);
+                  }}
+                >
+                  Next requests
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      {formOpen && (
+        <Dialog
+          title="Create export request"
+          onClose={() => setFormOpen(false)}
+          closeDisabled={mutation.busy}
+        >
+          <Form
+            busy={mutation.busy}
+            submit="Start export"
+            onCancel={() => setFormOpen(false)}
+            onSubmit={async () => {
+              const result = await mutation.run(
+                () => write<JobAccepted>(`${path}/exports`, "POST", { format }),
+                "Export request queued.",
+              );
+              if (result.ok) {
+                pendingRequests.current.add(result.value.jobId);
+                setFormOpen(false);
+                setCursors([]);
+              }
+            }}
+          >
+            <Choice
+              label="File format"
+              value={format}
+              onChange={setFormat}
+              options={[
+                { value: "csv", label: "CSV" },
+                { value: "jsonl", label: "JSONL" },
+              ]}
+            />
+          </Form>
+        </Dialog>
       )}
     </>
   );

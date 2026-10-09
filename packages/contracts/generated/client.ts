@@ -3514,44 +3514,6 @@ export type exportRowsInput = {
   databaseId: string;
   tableId: string;
   format: "csv" | "jsonl";
-  query?: {
-    select?: string[];
-    where?:
-      | {
-          field: string;
-          op:
-            | "eq"
-            | "ne"
-            | "lt"
-            | "lte"
-            | "gt"
-            | "gte"
-            | "between"
-            | "in"
-            | "isNull"
-            | "isNotNull"
-            | "prefix"
-            | "contains"
-            | "iContains"
-            | "pathExists"
-            | "pathEq"
-            | "jsonContains";
-          value?:
-            | null
-            | boolean
-            | number
-            | string
-            | unknown[]
-            | Record<string, unknown>;
-          path?: (string | number)[];
-        }
-      | { and: JsonValue[] }
-      | { or: JsonValue[] };
-    orderBy?: { field: string; direction: "asc" | "desc" }[];
-    limit?: number;
-    cursor?: string | null;
-  };
-  spreadsheetSafe?: boolean;
 };
 export type exportRowsOutput = {
   jobId: string;
@@ -3598,6 +3560,7 @@ export type listJobsOutput = {
     orgId: string;
     kind: string;
     operationId: string;
+    format?: "csv" | "jsonl";
     state:
       | "queued"
       | "running"
@@ -3633,6 +3596,7 @@ export type getJobOutput = {
   orgId: string;
   kind: string;
   operationId: string;
+  format?: "csv" | "jsonl";
   state:
     | "queued"
     | "running"
@@ -3665,6 +3629,7 @@ export type cancelJobOutput = {
   orgId: string;
   kind: string;
   operationId: string;
+  format?: "csv" | "jsonl";
   state:
     | "queued"
     | "running"

@@ -156,7 +156,7 @@ Deleting a field requires explicit handling of dependent unique rules and remove
 
 ## Queries and windows
 
-One typed AST drives REST, MCP, the grid and exports. Resolve fields by current
+One typed AST drives REST, MCP and the grid. Resolve fields by current
 name or stable ID through metadata. Bind values as SQL parameters; identifiers
 and operators come from internal allowlists. Raw SQL is outside V1.
 
@@ -184,6 +184,6 @@ jump/loading behavior.
 
 ## Exports
 
-CSV/JSONL exports hold a schema barrier through extraction, use a consistent snapshot and return typed UTC data with checksums. Downloads recheck authority and never put reusable keys in URLs.
+Export Requests always export every row and field; the creation modal asks only for CSV or JSONL. CSV/JSONL exports hold a schema barrier through extraction, use a consistent snapshot and return typed UTC data with checksums. Downloads recheck authority and never put reusable keys in URLs.
 
 Row creation is available through REST and MCP. The browser edits existing rows inline and has no Add row action. Rootset does not provide database backup or restore operations. Use the PostgreSQL/provider tooling described in the [recovery runbook](../docs/operations/upgrade-and-recovery.md) for installation recovery.

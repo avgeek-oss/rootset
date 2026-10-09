@@ -17701,7 +17701,7 @@
   {
     "name": "rootset_export_rows",
     "title": "exportRows",
-    "description": "Start a consistent snapshot CSV/JSONL export with checksummed artifacts.",
+    "description": "Start a complete-table snapshot export in CSV or JSONL, including every row and field, with checksummed artifacts.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -17719,43 +17719,6 @@
           "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
         },
         "format": { "type": "string", "enum": ["csv", "jsonl"] },
-        "query": {
-          "type": "object",
-          "properties": {
-            "select": {
-              "maxItems": 200,
-              "type": "array",
-              "items": { "type": "string", "minLength": 1, "maxLength": 64 }
-            },
-            "where": { "$ref": "#/$defs/__schema0" },
-            "orderBy": {
-              "maxItems": 8,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "field": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "direction": { "type": "string", "enum": ["asc", "desc"] }
-                },
-                "required": ["field", "direction"],
-                "additionalProperties": false
-              }
-            },
-            "limit": { "type": "integer", "minimum": 1, "maximum": 25000 },
-            "cursor": {
-              "anyOf": [
-                { "type": "string", "minLength": 1, "maxLength": 131200 },
-                { "type": "null" }
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "spreadsheetSafe": { "type": "boolean" },
         "idempotencyKey": {
           "type": "string",
           "minLength": 8,
@@ -17770,89 +17733,7 @@
         "format",
         "idempotencyKey"
       ],
-      "additionalProperties": false,
-      "$defs": {
-        "__schema0": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "field": { "type": "string", "minLength": 1, "maxLength": 64 },
-                "op": {
-                  "type": "string",
-                  "enum": [
-                    "eq",
-                    "ne",
-                    "lt",
-                    "lte",
-                    "gt",
-                    "gte",
-                    "between",
-                    "in",
-                    "isNull",
-                    "isNotNull",
-                    "prefix",
-                    "contains",
-                    "iContains",
-                    "pathExists",
-                    "pathEq",
-                    "jsonContains"
-                  ]
-                },
-                "value": {
-                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
-                  "anyOf": [
-                    { "type": "null" },
-                    { "type": "boolean" },
-                    { "type": "number" },
-                    { "type": "string" },
-                    { "type": "array", "items": {} },
-                    { "type": "object", "additionalProperties": {} }
-                  ]
-                },
-                "path": {
-                  "maxItems": 32,
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      { "type": "string", "maxLength": 1024 },
-                      { "type": "integer", "minimum": 0, "maximum": 2147483647 }
-                    ]
-                  }
-                }
-              },
-              "required": ["field", "op"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "and": {
-                  "minItems": 1,
-                  "maxItems": 100,
-                  "type": "array",
-                  "items": { "$ref": "#/$defs/__schema0" }
-                }
-              },
-              "required": ["and"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "or": {
-                  "minItems": 1,
-                  "maxItems": 100,
-                  "type": "array",
-                  "items": { "$ref": "#/$defs/__schema0" }
-                }
-              },
-              "required": ["or"],
-              "additionalProperties": false
-            }
-          ]
-        }
-      }
+      "additionalProperties": false
     },
     "outputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18183,6 +18064,7 @@
                   },
                   "kind": { "type": "string" },
                   "operationId": { "type": "string" },
+                  "format": { "type": "string", "enum": ["csv", "jsonl"] },
                   "state": {
                     "type": "string",
                     "enum": [
@@ -18441,6 +18323,7 @@
             },
             "kind": { "type": "string" },
             "operationId": { "type": "string" },
+            "format": { "type": "string", "enum": ["csv", "jsonl"] },
             "state": {
               "type": "string",
               "enum": [
@@ -18698,6 +18581,7 @@
             },
             "kind": { "type": "string" },
             "operationId": { "type": "string" },
+            "format": { "type": "string", "enum": ["csv", "jsonl"] },
             "state": {
               "type": "string",
               "enum": [

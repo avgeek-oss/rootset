@@ -416,6 +416,7 @@ export const JobSchema = z.strictObject({
   orgId: IdSchema,
   kind: z.string(),
   operationId: z.string(),
+  format: z.enum(["csv", "jsonl"]).optional(),
   state: JobStateSchema,
   stage: z.string().optional(),
   databaseId: IdSchema.optional(),

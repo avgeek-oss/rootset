@@ -86,6 +86,7 @@ function jobView(job: JobRecord): Record<string, unknown> {
     orgId: job.org_id,
     kind: job.kind,
     operationId: job.operation_id,
+    ...(job.kind === "export" ? { format: job.input.format } : {}),
     state: job.state,
     stage: job.stage,
     ...(job.target_type === "table"
@@ -1089,7 +1090,7 @@ export class JobsService {
         const source = await this.storage.snapshotTable!(
           actor,
           table.id,
-          (job.input.query as Record<string, unknown>) ?? {},
+          {},
           client,
         );
         const format = String(job.input.format);
@@ -1098,7 +1099,6 @@ export class JobsService {
             "VALIDATION_FAILED",
             "Export format must be csv or jsonl",
           );
-        const spreadsheetSafe = job.input.spreadsheetSafe === true;
         let rowCount = 0;
         const fields = source.table.fields;
         const checkCurrent = async () => {
@@ -1133,12 +1133,6 @@ export class JobsService {
                         text.startsWith("\\")
                       )
                         text = `\\${text}`;
-                      if (
-                        spreadsheetSafe &&
-                        typeof value === "string" &&
-                        /^[=+\-@\t\r]/.test(text)
-                      )
-                        text = `'${text}`;
                       return text;
                     }),
                   ],
@@ -1158,9 +1152,7 @@ export class JobsService {
           records(),
           {
             schemaVersion: table.schemaVersion,
-            query: job.input.query ?? {},
             snapshot: "repeatable_read",
-            spreadsheetSafe,
           },
           { beforePublish: checkCurrent },
         );

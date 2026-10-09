@@ -182,20 +182,19 @@ after(async () => {
   }
 });
 
-test("V1-25: filtered snapshot export has canonical quoted content and encrypted storage", async () => {
+test("V1-25: complete-table snapshot export has canonical quoted content and encrypted storage", async () => {
   const started = (await jobs.execute(
     "exportRows",
     actor,
     {
       tableId: table.id,
       format: "csv",
-      query: { where: { field: "code", op: "eq", value: "00001" } },
     },
     { idempotencyKey: newId() },
   )) as { jobId: string };
   const completed = await terminal(started.jobId);
   assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
-  assert.equal(completed.result?.rowCount, 1);
+  assert.equal(completed.result?.rowCount, 3);
   const artifact = await jobs.artifacts.get(
     actor,
     String(completed.result?.artifactId),
@@ -211,10 +210,46 @@ test("V1-25: filtered snapshot export has canonical quoted content and encrypted
   const download = await jobs.downloadArtifact(actor, artifact.id);
   let content = "";
   for await (const chunk of download.stream) content += String(chunk);
+  assert.ok(content.startsWith("code,name,active,instant,payload\n"));
+  for (const code of ["00001", "00002", "00003"])
+    assert.ok(content.includes(code));
   assert.match(content, /00001,"Name, one",true,2026-10-02T01:00:00.000Z/);
   assert.equal(
     download.checksum,
     createHash("sha256").update(content).digest("hex"),
+  );
+});
+
+test("JSONL export includes every row and field and exposes its format in request history", async () => {
+  const started = (await jobs.execute("exportRows", actor, {
+    tableId: table.id,
+    format: "jsonl",
+  })) as { jobId: string };
+  const completed = await terminal(started.jobId);
+  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
+  const download = await jobs.downloadArtifact(
+    actor,
+    String(completed.result?.artifactId),
+  );
+  let content = "";
+  for await (const chunk of download.stream) content += String(chunk);
+  const rows = content
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  assert.equal(rows.length, 3);
+  for (const row of rows)
+    assert.deepEqual(
+      Object.keys(row).sort(),
+      table.fields.map((field) => field.name).sort(),
+    );
+  const page = (await jobs.execute("listJobs", actor, {
+    kind: "export",
+    tableId: table.id,
+  })) as { data: { id: string; format?: string }[] };
+  assert.equal(
+    page.data.find((job) => job.id === started.jobId)?.format,
+    "jsonl",
   );
 });
 

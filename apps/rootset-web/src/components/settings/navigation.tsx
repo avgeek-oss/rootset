@@ -87,7 +87,9 @@ export function settingsHref(
       ? "general"
       : section.endsWith("danger-zone")
         ? "danger-zone"
-        : section;
+        : section === "exports"
+          ? "export-requests"
+          : section;
   return `${base}/settings/${page}`;
 }
 
@@ -115,7 +117,9 @@ export function resourceRoute(path: string) {
         ? tableId
           ? "table-danger-zone"
           : "database-danger-zone"
-        : page;
+        : page === "export-requests"
+          ? "exports"
+          : page;
   return { databaseId, tableId, section };
 }
 

@@ -72,6 +72,11 @@ describe("context settings navigation", () => {
     expect(settingsHref("fields", context)).toBe(
       "/databases/db/tables/table/settings/fields",
     );
+    expect(SECTION_LABELS.exports).toBe("Export Requests");
+    expect(resolveSettingsSection("export-requests")).toBe("exports");
+    expect(settingsHref("exports", context)).toBe(
+      "/databases/db/tables/table/settings/export-requests",
+    );
     expect(dataHref("db", "table")).toBe("/databases/db/tables/table");
   });
   it("round trips resource pages and separates destructive settings", () => {

@@ -1091,11 +1091,9 @@ operation(
   z.strictObject({
     ...table,
     format: z.enum(["csv", "jsonl"]),
-    query: QuerySpecSchema.optional(),
-    spreadsheetSafe: z.boolean().optional(),
   }),
   JobAcceptedSchema,
-  "Start a consistent snapshot CSV/JSONL export with checksummed artifacts.",
+  "Start a complete-table snapshot export in CSV or JSONL, including every row and field, with checksummed artifacts.",
   { minimumRole: "viewer", job: true, successStatus: 202 },
 );
 operation(

@@ -69,7 +69,7 @@ Tables overview, adapted from Mill's Boards page with responsive widget cards
 showing table names and row counts. Creating tables belongs to that page.
 Selecting a card opens the table's Rows page, with its own secondary sidebar:
 Table → Rows, Settings → General/Fields/Unique rules, and Data →
-Export rows. The database breadcrumb returns to the Tables overview.
+Export Requests. The database breadcrumb returns to the Tables overview.
 Use Towbar's resource-heading typography for database and table names and omit
 a settings button beside the sidebar title.
 

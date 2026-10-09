@@ -124,17 +124,17 @@ export function unwrapData<T>(value: T | { data: T }): T {
     : (value as T);
 }
 
-export async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function readRaw<T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
   const operation = resolveSettingsOperation(path, "GET");
-  return unwrapData(
-    operation
-      ? await client.operation<T | { data: T }>(
-          operation.operationId,
-          operation.input,
-          { signal },
-        )
-      : await client.request<T | { data: T }>(path, { signal }),
-  );
+  return operation
+    ? client.operation<T>(operation.operationId, operation.input, { signal })
+    : client.request<T>(path, { signal });
+}
+export async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return unwrapData(await readRaw<T | { data: T }>(path, signal));
 }
 
 export async function write<T = unknown>(
@@ -167,7 +167,11 @@ export function writeRaw<T>(
     : client.request<T>(path, options);
 }
 
-export function useResource<T>(path: string | undefined, initial: T) {
+export function useResource<T>(
+  path: string | undefined,
+  initial: T,
+  load: (path: string, signal?: AbortSignal) => Promise<T> = read,
+) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(Boolean(path));
   const [error, setError] = useState<SettingsError>();
@@ -190,7 +194,7 @@ export function useResource<T>(path: string | undefined, initial: T) {
     const abort = new AbortController();
     setLoading(true);
     setError(undefined);
-    read<T>(path, abort.signal)
+    load(path, abort.signal)
       .then((value) => {
         if (abort.signal.aborted) return;
         setData(value);
@@ -203,7 +207,7 @@ export function useResource<T>(path: string | undefined, initial: T) {
         }
       });
     return () => abort.abort();
-  }, [path, revision]);
+  }, [path, revision, load]);
   return { data, loading, error, reload, replace: setData };
 }
 
