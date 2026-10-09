@@ -887,25 +887,12 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
               <Label>Fields</Label>
               <Select.Trigger>
                 <Select.Value>
-                  {fieldIds.length > 0 ? (
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      {fieldIds.map((id) => {
-                        const field = fields.find((item) => item.id === id);
-                        if (!field) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex items-center gap-2"
-                          >
-                            <FieldTypeIcon type={field.type} />
-                            {field.name}
-                          </span>
-                        );
-                      })}
-                    </span>
-                  ) : (
-                    "Choose fields"
-                  )}
+                  {fieldIds
+                    .map(
+                      (id) =>
+                        fields.find((field) => field.id === id)?.name ?? id,
+                    )
+                    .join(", ") || "Choose fields"}
                 </Select.Value>
                 <Select.Indicator />
               </Select.Trigger>
