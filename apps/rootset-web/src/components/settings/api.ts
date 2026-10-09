@@ -203,7 +203,7 @@ export function useResource<T>(path: string | undefined, initial: T) {
       });
     return () => abort.abort();
   }, [path, revision]);
-  return { data, loading, error, reload };
+  return { data, loading, error, reload, replace: setData };
 }
 
 export type MutationResult<T> =

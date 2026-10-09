@@ -262,3 +262,49 @@
     scroll-behavior: auto;
   }
 }
+
+.field-name-cell,
+.field-order-actions,
+.field-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field-name-cell {
+  min-width: 200px;
+}
+.field-name-cell > span {
+  overflow-wrap: anywhere;
+}
+.field-order-actions {
+  flex-shrink: 0;
+  gap: 0;
+}
+.field-edit-actions {
+  justify-content: flex-end;
+}
+.field-check {
+  display: inline-flex;
+  color: var(--muted);
+}
+.field-check-yes {
+  color: var(--success);
+}
+.field-constraints {
+  min-width: 180px;
+  max-width: 360px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+@media (max-width: 640px) {
+  .field-name-cell {
+    min-width: 0;
+  }
+  .field-edit-actions {
+    justify-content: flex-start;
+  }
+  .field-constraints {
+    min-width: 0;
+    max-width: none;
+  }
+}

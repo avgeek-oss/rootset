@@ -666,3 +666,8 @@ h1 {
 .retained-cell-draft .inline-cell-editor {
   position: relative;
 }
+
+.rootset-grid .row-number-cell {
+  font-variant-numeric: tabular-nums;
+  text-overflow: clip;
+}

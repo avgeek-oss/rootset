@@ -4,6 +4,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   ArrowDown01Icon,
+  ArrowUp01Icon,
+  Tick02Icon,
   ArrowRight01Icon,
   ArrowLeftDoubleIcon,
   ArrowRightDoubleIcon,
@@ -43,3 +45,6 @@ export const Trash2 = makeIcon(Delete02Icon);
 export const RefreshCw = makeIcon(Refresh01Icon);
 
 export const ChevronDown = makeIcon(ArrowDown01Icon);
+
+export const ChevronUp = makeIcon(ArrowUp01Icon);
+export const Check = makeIcon(Tick02Icon);

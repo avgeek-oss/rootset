@@ -25,7 +25,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <DesignSystemProviders>
         <NextNavigationProvider>
           {children}
-          <Toast.Provider placement="bottom" />
+          <Toast.Provider placement="top end" />
         </NextNavigationProvider>
       </DesignSystemProviders>
     </QueryClientProvider>

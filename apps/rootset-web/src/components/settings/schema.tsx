@@ -1,8 +1,15 @@
 "use client";
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
+import { Dialog } from "../dialog";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { Check, ChevronDown, ChevronUp } from "../ui/icons";
+import { PageSelectionTitle } from "./account/page-selection-title";
+import { fieldConstraints } from "./field-constraints";
 import {
+  organisationPath,
   performAction,
   tablePath,
   useMutation,
@@ -26,6 +33,7 @@ import {
 import {
   FIELD_TYPES,
   type SettingsPanelProps,
+  type Job,
   type TableField,
   type TableSchemaResult,
 } from "./types";
@@ -163,7 +171,9 @@ export function FieldForm({
   field,
   busy,
   submit,
+  onCancel,
 }: {
+  onCancel?: () => void;
   field?: TableField;
   busy: boolean;
   submit: (input: Record<string, unknown>) => Promise<void>;
@@ -196,7 +206,8 @@ export function FieldForm({
   return (
     <Form
       busy={busy}
-      submit={field ? "Preview and apply changes" : "Create field"}
+      submit={field ? "Preview and apply changes" : "Add field"}
+      onCancel={onCancel}
       onSubmit={async () => {
         setError(undefined);
         const parsed = parseFieldDraft(value);
@@ -214,7 +225,7 @@ export function FieldForm({
       }}
     >
       <Field
-        label="Name"
+        label="Column name"
         value={value.name}
         onChange={(next) => patch("name", next)}
         onBlur={() => validate("name")}
@@ -350,12 +361,50 @@ export function FieldForm({
 
 export function FieldsSettings(props: SettingsPanelProps) {
   const schema = useSchema(props);
-  const mutation = useMutation(() => {
+  const mutation = useMutation();
+  const [pendingJobId, setPendingJobId] = useState<string>();
+  const job = useResource<Job | null>(
+    pendingJobId
+      ? `${organisationPath(props.orgId)}/jobs/${pendingJobId}`
+      : undefined,
+    null,
+  );
+  useEffect(() => {
+    if (!pendingJobId) return;
+    const timer = setInterval(job.reload, 2000);
+    return () => clearInterval(timer);
+  }, [pendingJobId, job.reload]);
+  useEffect(() => {
+    if (
+      !pendingJobId ||
+      job.data?.id !== pendingJobId ||
+      ["queued", "running", "snapshotting", "uploading", "verifying"].includes(
+        job.data.state,
+      )
+    )
+      return;
+    setPendingJobId(undefined);
     schema.reload();
     props.onChanged?.();
-  });
+    if (job.data.state === "succeeded") toast.success("Fields updated.");
+    else
+      toast.danger(
+        typeof job.data.error === "string"
+          ? job.data.error
+          : (job.data.error?.message ??
+              "The field change could not be applied."),
+      );
+  }, [pendingJobId, job.data, schema.reload, props.onChanged]);
+  function applySchema(result: TableSchemaResult | { jobId: string }) {
+    if ("jobId" in result) setPendingJobId(result.jobId);
+    else {
+      schema.replace(result);
+      props.onChanged?.();
+    }
+  }
   const confirmation = useConfirmation();
   const [editing, setEditing] = useState<TableField>();
+  const [formOpen, setFormOpen] = useState(false);
   const [preview, setPreview] = useState<{
     valid?: boolean;
     conflicts?: { message?: string; rowId?: string; fieldId?: string }[];
@@ -363,18 +412,53 @@ export function FieldsSettings(props: SettingsPanelProps) {
     rowCount?: number;
     reportArtifactId?: string;
   }>();
+  const actions = useMemo(
+    () => (
+      <Button
+        isDisabled={
+          !schema.path ||
+          schema.loading ||
+          mutation.busy ||
+          Boolean(pendingJobId)
+        }
+        onPress={() => {
+          setEditing(undefined);
+          setPreview(undefined);
+          setFormOpen(true);
+        }}
+      >
+        Add field
+      </Button>
+    ),
+    [schema.path, schema.loading, mutation.busy, pendingJobId],
+  );
+  function closeForm() {
+    if (mutation.busy) return;
+    setFormOpen(false);
+    setEditing(undefined);
+    setPreview(undefined);
+    mutation.clear();
+  }
   if (!schema.path) return <Empty>Select a table to manage fields.</Empty>;
   async function apply(input: Record<string, unknown>) {
     if (!editing) {
       const result = await mutation.run(
         () =>
-          write(`${schema.path}/fields`, "POST", {
-            field: input,
-            expectedSchemaVersion: schema.data.table.schemaVersion,
-          }),
-        "Field creation committed or queued. Check the schema and Jobs for completion.",
+          write<TableSchemaResult | { jobId: string }>(
+            `${schema.path}/fields`,
+            "POST",
+            {
+              field: input,
+              expectedSchemaVersion: schema.data.table.schemaVersion,
+            },
+          ),
+        "Field creation requested.",
       );
-      if (result.ok) setEditing(undefined);
+      if (result.ok) {
+        applySchema(result.value);
+        setFormOpen(false);
+        setEditing(undefined);
+      }
       return;
     }
     const changes = { ...input };
@@ -405,14 +489,20 @@ export function FieldsSettings(props: SettingsPanelProps) {
     ) {
       const result = await mutation.run(
         () =>
-          write(`${schema.path}/fields/${editing.id}`, "PATCH", {
-            field: input,
-            conversion: "explicit",
-            expectedSchemaVersion: schema.data.table.schemaVersion,
-          }),
-        "Field change committed or queued.",
+          write<TableSchemaResult | { jobId: string }>(
+            `${schema.path}/fields/${editing.id}`,
+            "PATCH",
+            {
+              field: input,
+              conversion: "explicit",
+              expectedSchemaVersion: schema.data.table.schemaVersion,
+            },
+          ),
+        "Field change requested.",
       );
       if (result.ok) {
+        applySchema(result.value);
+        setFormOpen(false);
         setEditing(undefined);
         setPreview(undefined);
       }
@@ -424,148 +514,199 @@ export function FieldsSettings(props: SettingsPanelProps) {
     const next = position + direction;
     if (next < 0 || next >= ids.length) return;
     [ids[position], ids[next]] = [ids[next]!, ids[position]!];
-    await mutation.run(
+    const result = await mutation.run(
       () =>
-        write(`${schema.path}/field-order`, "PUT", {
-          fieldIds: ids,
-          expectedSchemaVersion: schema.data.table.schemaVersion,
-        }),
+        write<TableSchemaResult | { jobId: string }>(
+          `${schema.path}/field-order`,
+          "PUT",
+          {
+            fieldIds: ids,
+            expectedSchemaVersion: schema.data.table.schemaVersion,
+          },
+        ),
       "Field order updated.",
     );
+    if (result.ok) applySchema(result.value);
   }
+  const disabled = mutation.busy || schema.loading || Boolean(pendingJobId);
   return (
     <>
+      <PageSelectionTitle label="Fields" actions={actions} />
       <Loading {...schema} retry={schema.reload} />
-      <Feedback {...mutation} />
-      <Section
-        title={editing ? `Edit ${editing.name}` : "Create field"}
-        description="Every cell has a declared type. Constraints, defaults, row size, and existing values are checked before a schema change activates."
-      >
-        <FieldForm
-          key={editing?.id ?? `new:${schema.data.table.schemaVersion}`}
-          field={editing}
-          busy={mutation.busy}
-          submit={apply}
+      {!formOpen && <Feedback {...mutation} />}
+      {(!schema.loading || schema.data.fields.length > 0) && !schema.error && (
+        <ResourceTable
+          ariaLabel="Fields"
+          items={schema.data.fields}
+          getRowKey={(field) => field.id}
+          mobileLayout="stacked"
+          tableClassName="rootset-fields-table"
+          emptyTitle="No fields yet"
+          emptyDescription="Add a field to define the columns and values this table can store."
+          emptyAction={actions}
+          columns={[
+            {
+              key: "name",
+              header: "Column name",
+              cell: (field) => {
+                const position = schema.data.fields.indexOf(field);
+                return (
+                  <div className="field-name-cell">
+                    <div className="field-order-actions">
+                      <Button
+                        isIconOnly
+                        variant="ghost"
+                        aria-label={`Move ${field.name} up`}
+                        isDisabled={disabled || position === 0}
+                        onPress={() => move(field, -1)}
+                      >
+                        <ChevronUp />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        variant="ghost"
+                        aria-label={`Move ${field.name} down`}
+                        isDisabled={
+                          disabled || position === schema.data.fields.length - 1
+                        }
+                        onPress={() => move(field, 1)}
+                      >
+                        <ChevronDown />
+                      </Button>
+                    </div>
+                    <span>{field.name}</span>
+                  </div>
+                );
+              },
+            },
+            { key: "type", header: "Type", cell: (field) => field.type },
+            {
+              key: "required",
+              header: "Required",
+              cell: (field) => <FieldCheck checked={Boolean(field.required)} />,
+            },
+            {
+              key: "nullable",
+              header: "Nullable",
+              cell: (field) => <FieldCheck checked={!field.required} />,
+            },
+            {
+              key: "constraints",
+              header: "Constraints",
+              className: "field-constraints",
+              cell: (field) => (
+                <span>{fieldConstraints(field).join(" · ") || "—"}</span>
+              ),
+            },
+            {
+              key: "actions",
+              header: "Actions",
+              mobileFullWidth: true,
+              headerClassName: "text-right",
+              cell: (field) => (
+                <div className="field-edit-actions">
+                  <Button
+                    variant="ghost"
+                    isDisabled={disabled}
+                    onPress={() => {
+                      mutation.clear();
+                      setEditing(field);
+                      setPreview(undefined);
+                      setFormOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="danger-soft"
+                    isDisabled={disabled}
+                    onPress={async () => {
+                      const dependencies = [
+                        ...schema.data.uniqueRules,
+                        ...schema.data.indexes,
+                      ].filter((rule) =>
+                        (rule.fieldIds ?? rule.fields ?? []).includes(field.id),
+                      );
+                      if (
+                        await confirmation.confirm(
+                          "Remove this field?",
+                          `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
+                          "Remove field",
+                        )
+                      ) {
+                        const result = await mutation.run(
+                          () =>
+                            write<TableSchemaResult | { jobId: string }>(
+                              `${schema.path}/fields/${field.id}`,
+                              "DELETE",
+                              {
+                                expectedSchemaVersion:
+                                  schema.data.table.schemaVersion,
+                                removeDependencies: dependencies.length > 0,
+                              },
+                            ),
+                          "Field removal requested.",
+                        );
+                        if (result.ok) applySchema(result.value);
+                      }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
         />
-        {editing && (
-          <Button
-            variant="ghost"
-            onPress={() => {
-              setEditing(undefined);
-              setPreview(undefined);
-            }}
-          >
-            Cancel editing
-          </Button>
-        )}
-        {preview && (
-          <div className="settings-preview">
-            <p>
-              {preview.valid === false
-                ? "The change cannot activate."
-                : preview.requiresJob
-                  ? "This change requires a background job."
-                  : "Preview completed."}
-            </p>
-            {preview.conflicts?.map((conflict, index) => (
-              <p key={index}>
-                {conflict.message ??
-                  "Existing row violates the proposed field definition."}{" "}
-                {conflict.rowId && <>Row: {conflict.rowId}</>}
+      )}
+      {formOpen && (
+        <Dialog
+          title={editing ? `Edit ${editing.name}` : "Add field"}
+          onClose={closeForm}
+          closeDisabled={mutation.busy}
+        >
+          <Feedback error={mutation.error} />
+          <FieldForm
+            key={editing?.id ?? "new"}
+            field={editing}
+            busy={mutation.busy}
+            submit={apply}
+            onCancel={closeForm}
+          />
+          {preview && (
+            <div className="settings-preview">
+              <p>
+                {preview.valid === false
+                  ? "The change cannot activate."
+                  : preview.requiresJob
+                    ? "This change requires a background job."
+                    : "Preview completed."}
               </p>
-            ))}
-            {preview.reportArtifactId && (
-              <p>Conflict report artifact: {preview.reportArtifactId}</p>
-            )}
-          </div>
-        )}
-      </Section>
-      <Section
-        title="Existing fields"
-        description={`${schema.data.fields.length} of 200 active fields · schema revision ${schema.data.table.schemaVersion}`}
-      >
-        <RecordList>
-          {schema.data.fields.map((field, position) => (
-            <Record
-              key={field.id}
-              title={field.name}
-              description={
-                <>
-                  {field.type} · {field.required ? "required" : "nullable"}
-                  {field.charLimit && <> · {field.charLimit} characters</>}
-                  {field.min !== undefined && <> · min {field.min}</>}
-                  {field.max !== undefined && <> · max {field.max}</>}
-                </>
-              }
-            >
-              <Button
-                variant="ghost"
-
-                isDisabled={mutation.busy || position === 0}
-                onPress={() => move(field, -1)}
-              >
-                Move up
-              </Button>
-              <Button
-                variant="ghost"
-
-                isDisabled={
-                  mutation.busy || position === schema.data.fields.length - 1
-                }
-                onPress={() => move(field, 1)}
-              >
-                Move down
-              </Button>
-              <Button
-                variant="secondary"
-
-                onPress={() => {
-                  setEditing(field);
-                  setPreview(undefined);
-                }}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="danger-soft"
-
-                isDisabled={mutation.busy}
-                onPress={async () => {
-                  const dependencies = [
-                    ...schema.data.uniqueRules,
-                    ...schema.data.indexes,
-                  ].filter((rule) =>
-                    (rule.fieldIds ?? rule.fields ?? []).includes(field.id),
-                  );
-                  if (
-                    await confirmation.confirm(
-                      "Remove this field?",
-                      `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
-                      "Remove field",
-                    )
-                  )
-                    await mutation.run(
-                      () =>
-                        write(`${schema.path}/fields/${field.id}`, "DELETE", {
-                          expectedSchemaVersion:
-                            schema.data.table.schemaVersion,
-                          removeDependencies: dependencies.length > 0,
-                        }),
-                      "Field removal committed or queued.",
-                    );
-                }}
-              >
-                Remove
-              </Button>
-            </Record>
-          ))}
-        </RecordList>
-        {!schema.loading && !schema.error && !schema.data.fields.length && (
-          <Empty>This table has no fields yet.</Empty>
-        )}
-      </Section>
+              {preview.conflicts?.map((conflict, index) => (
+                <p key={index}>
+                  {conflict.message ??
+                    "Existing row violates the proposed field definition."}{" "}
+                  {conflict.rowId && <>Row: {conflict.rowId}</>}
+                </p>
+              ))}
+              {preview.reportArtifactId && (
+                <p>Conflict report artifact: {preview.reportArtifactId}</p>
+              )}
+            </div>
+          )}
+        </Dialog>
+      )}
       {confirmation.dialog}
     </>
+  );
+}
+
+function FieldCheck({ checked }: { checked: boolean }) {
+  return (
+    <span className={`field-check${checked ? " field-check-yes" : ""}`}>
+      <span className="sr-only">{checked ? "Yes" : "No"}</span>
+      {checked ? <Check size={18} /> : <span aria-hidden="true">—</span>}
+    </span>
   );
 }
 

@@ -151,6 +151,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
           <div className="rootset-settings">
             <header className="settings-header">
               <h1>{SECTION_LABELS[activeSection]}</h1>
+              {selection?.actions}
             </header>
             <div className="settings-content">{content}</div>
             <AccountActionApproval orgId={props.orgId} />

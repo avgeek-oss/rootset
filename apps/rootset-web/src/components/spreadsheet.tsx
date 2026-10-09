@@ -166,7 +166,7 @@ export function Spreadsheet({
   const scrollOffset = useRef<number | null>(null);
   const fetchingWindow = useRef(false);
   const tailCursor = useRef<string | null>(null);
-  const [hasNextWindow, setHasNextWindow] = useState(false);
+  const hasNextWindow = useRef(false);
   useLayoutEffect(() => {
     if (scrollOffset.current === null) return;
     const grid =
@@ -451,8 +451,8 @@ export function Spreadsheet({
         setRows(merged.rows);
         setWindowStart(merged.start);
         if (!direction || direction === "next")
-          setHasNextWindow(response.page.hasMore);
-        else if (merged.trimmed) setHasNextWindow(true);
+          hasNextWindow.current = response.page.hasMore;
+        else if (merged.trimmed) hasNextWindow.current = true;
         setWindowInfo(response);
         if (response.schemaVersion !== schema.data?.table.schemaVersion)
           void schema.refetch();
@@ -1102,7 +1102,12 @@ export function Spreadsheet({
     {
       key: "__row_number",
       name: "#",
-      width: 52,
+      width: Math.max(
+        52,
+        String(Math.max(table.rowCount, windowStart + rows.length)).length * 9 +
+          32,
+      ),
+      cellClass: "row-number-cell",
       frozen: true,
       resizable: false,
       renderCell: ({ rowIdx }) => windowStart + rowIdx + 1,
@@ -1321,16 +1326,19 @@ export function Spreadsheet({
                 if (
                   grid.scrollHeight - grid.scrollTop - grid.clientHeight <
                     rowHeight * 12 &&
-                  hasNextWindow
+                  hasNextWindow.current
                 )
                   void loadWindow(
-                    windowStart + rows.length,
+                    currentStart.current + currentRows.current.length,
                     tailCursor.current,
                     "next",
                   );
-                else if (grid.scrollTop < rowHeight * 6 && windowStart > 0)
+                else if (
+                  grid.scrollTop < rowHeight * 6 &&
+                  currentStart.current > 0
+                )
                   void loadWindow(
-                    Math.max(0, windowStart - windowLimit),
+                    Math.max(0, currentStart.current - windowLimit),
                     null,
                     "previous",
                   );

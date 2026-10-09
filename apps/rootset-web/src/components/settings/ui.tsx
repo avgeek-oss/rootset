@@ -219,11 +219,13 @@ export function Form({
   busy,
   onSubmit,
   submit = "Save changes",
+  onCancel,
 }: {
   children: ReactNode;
   busy: boolean;
   onSubmit: () => void | Promise<void>;
   submit?: string;
+  onCancel?: () => void;
 }) {
   function submitForm(event: FormEvent) {
     event.preventDefault();
@@ -233,6 +235,11 @@ export function Form({
     <form className="settings-form" onSubmit={submitForm} aria-busy={busy}>
       <fieldset disabled={busy}>{children}</fieldset>
       <div className="settings-actions">
+        {onCancel && (
+          <Button variant="secondary" isDisabled={busy} onPress={onCancel}>
+            Cancel
+          </Button>
+        )}
         <Button type="submit" isPending={busy} isDisabled={busy}>
           {busy ? "Working…" : submit}
         </Button>
