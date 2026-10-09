@@ -13,6 +13,7 @@ import {
 } from "@avgeek-oss/design-system/patterns/resource-table";
 import { Dialog } from "../dialog";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
 import { Check, ChevronDown, ChevronUp } from "../ui/icons";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { fieldConstraints } from "./field-constraints";
@@ -561,6 +562,25 @@ export function FieldsSettings(props: SettingsPanelProps) {
               key: "required",
               header: "Required",
               cell: (field) => <FieldCheck checked={Boolean(field.required)} />,
+            },
+            {
+              key: "default",
+              header: "Default value",
+              cell: (field) => {
+                const missing = field.default === undefined && field.required;
+                const value =
+                  field.default == null
+                    ? "Null"
+                    : JSON.stringify(field.default);
+                return (
+                  <TooltipText
+                    tooltip={missing ? "No default value" : value}
+                    className={`block max-w-64 truncate${missing ? " field-empty" : ""}`}
+                  >
+                    {missing ? "—" : value}
+                  </TooltipText>
+                );
+              },
             },
             {
               key: "constraints",

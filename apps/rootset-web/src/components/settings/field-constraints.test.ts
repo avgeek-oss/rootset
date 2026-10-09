@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fieldConstraints } from "./field-constraints";
 
 describe("field constraints summary", () => {
-  it("keeps zero bounds and false defaults visible", () => {
+  it("keeps zero bounds and leaves defaults to their own column", () => {
     expect(
       fieldConstraints({
         id: "field",
@@ -12,7 +12,7 @@ describe("field constraints summary", () => {
         max: 100,
         default: 0,
       }),
-    ).toEqual(["Min 0", "Max 100", "Default 0"]);
+    ).toEqual(["Min 0", "Max 100"]);
     expect(
       fieldConstraints({
         id: "field",
@@ -20,9 +20,9 @@ describe("field constraints summary", () => {
         type: "boolean",
         default: false,
       }),
-    ).toEqual(["Default false"]);
+    ).toEqual([]);
   });
-  it("distinguishes an explicit null default from no default", () => {
+  it("does not treat null defaults as constraints", () => {
     expect(
       fieldConstraints({
         id: "field",
@@ -30,12 +30,12 @@ describe("field constraints summary", () => {
         type: "json",
         default: null,
       }),
-    ).toEqual(["Default null"]);
+    ).toEqual([]);
     expect(
       fieldConstraints({ id: "field", name: "DATA", type: "json" }),
     ).toEqual([]);
   });
-  it("shows text limits and quotes literal text defaults", () => {
+  it("shows text limits without including literal text defaults", () => {
     expect(
       fieldConstraints({
         id: "field",
@@ -44,6 +44,6 @@ describe("field constraints summary", () => {
         charLimit: 64,
         default: "Unknown",
       }),
-    ).toEqual(["Max 64 characters", 'Default "Unknown"']);
+    ).toEqual(["Max 64 characters"]);
   });
 });
