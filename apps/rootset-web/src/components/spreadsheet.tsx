@@ -145,6 +145,7 @@ export function Spreadsheet({
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [draft, setDraft] = useState<CellDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
   const [history, setHistory] = useState<{
     row: Row;
@@ -1154,14 +1155,18 @@ export function Spreadsheet({
 
   async function deleteRow(row: Row) {
     if (!writable || saving) return;
-    if (
-      !(await confirmation.confirm(
+    setDeleteTargetId(row.id);
+    let confirmed: boolean;
+    try {
+      confirmed = await confirmation.confirm(
         `Delete row ${windowStart + rows.findIndex((candidate) => candidate.id === row.id) + 1}?`,
         "Delete this row and its cell history? This cannot be undone.",
         "Delete row",
-      ))
-    )
-      return;
+      );
+    } finally {
+      setDeleteTargetId(null);
+    }
+    if (!confirmed) return;
     setSaving(true);
     try {
       await client.request(`${tablePath}/rows/${row.id}`, {
@@ -1493,6 +1498,9 @@ export function Spreadsheet({
               columns={gridColumns}
               rows={rows}
               rowKeyGetter={(row) => row.id}
+              rowClass={(row) =>
+                row.id === deleteTargetId ? "row-delete-pending" : undefined
+              }
               rowHeight={rowHeight}
               className="rootset-grid"
               aria-label={`${table.name} spreadsheet`}

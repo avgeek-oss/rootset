@@ -327,6 +327,17 @@ h1 {
 .rootset-grid .range-selected {
   background: var(--rdg-row-selected-background-color);
 }
+.rootset-grid .row-delete-pending {
+  --rdg-selection-color: var(--danger);
+  --rdg-row-selected-background-color: color-mix(
+    in oklab,
+    var(--danger) 6%,
+    var(--rdg-background-color)
+  );
+}
+.rootset-grid .row-delete-pending > [role="gridcell"] {
+  background: var(--rdg-row-selected-background-color);
+}
 /* RDG exposes frozen shadows as direct children with sticky inline offsets. */
 .rootset-grid > div[style*="inset-inline-start"],
 .rootset-grid > div[style*="inset-inline-end"] {
