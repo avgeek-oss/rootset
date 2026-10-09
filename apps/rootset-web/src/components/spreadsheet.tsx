@@ -50,7 +50,6 @@ import { CellUndoStack } from "../lib/cell-undo";
 import { CellEditor, formatCellValue } from "./cells";
 import { Dialog } from "./dialog";
 import { useConfirmation } from "./settings/ui";
-import { PasteImport } from "./paste-import";
 import { TableFilterDialog } from "./table-filter-dialog";
 import type { FilterCombination, FilterCondition } from "../lib/table-filters";
 
@@ -149,9 +148,6 @@ export function Spreadsheet({
       values: Record<string, JsonValue>;
     }[];
     errors: string[];
-    larger: boolean;
-    values: Record<string, JsonValue>[];
-    start: number;
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
@@ -1014,7 +1010,6 @@ export function Spreadsheet({
     }
     const cells = parsedCells.map((line) => line.map((cell) => cell.value));
     const errors: string[] = [];
-    const parsedValues: Record<string, JsonValue>[] = [];
     const operations: {
       kind: "update";
       rowId: string;
@@ -1023,8 +1018,15 @@ export function Spreadsheet({
     }[] = [];
     if (cells.some((line) => line.length !== cells[0]?.length))
       errors.push("The pasted selection must be rectangular.");
-    let larger =
-      cells.length > 1000 || cells.length + selection.row > rows.length;
+    if (
+      cells.length > limits.mutationBatch ||
+      cells.length + selection.row > rows.length
+    ) {
+      toast.danger(
+        `Paste must fit within the loaded rows and contain at most ${limits.mutationBatch.toLocaleString()} rows.`,
+      );
+      return;
+    }
     cells.forEach((line, index) => {
       const row = rows[selection.row + index];
       const values: Record<string, JsonValue> = {};
@@ -1046,8 +1048,7 @@ export function Spreadsheet({
           );
         }
       });
-      parsedValues.push(values);
-      if (row && !larger)
+      if (row)
         operations.push({
           kind: "update",
           rowId: row.id,
@@ -1055,28 +1056,28 @@ export function Spreadsheet({
           values,
         });
     });
-    if (!larger) {
-      const input = {
-        orgId,
-        databaseId,
-        tableId: table.id,
-        mutations: operations.map(({ kind, ...mutation }) => ({
-          ...mutation,
-          type: kind,
-        })),
-        expectedSchemaVersion: schema.data!.table.schemaVersion,
-      };
-      larger =
-        new TextEncoder().encode(JSON.stringify(input)).byteLength >
-        limits.requestBytes;
+    const input = {
+      orgId,
+      databaseId,
+      tableId: table.id,
+      mutations: operations.map(({ kind, ...mutation }) => ({
+        ...mutation,
+        type: kind,
+      })),
+      expectedSchemaVersion: schema.data!.table.schemaVersion,
+    };
+    if (
+      new TextEncoder().encode(JSON.stringify(input)).byteLength >
+      limits.requestBytes
+    ) {
+      toast.danger("Paste is too large. Use a smaller selection.");
+      return;
     }
+
     setPastePreview({
       cells,
       errors: errors.slice(0, 50),
       operations,
-      larger,
-      values: parsedValues,
-      start: windowStart + selection.row,
     });
   }
 
@@ -1678,8 +1679,8 @@ export function Spreadsheet({
         >
           <p>
             {pastePreview.cells.length.toLocaleString()} rows ×{" "}
-            {pastePreview.cells[0]?.length ?? 0} columns. Small pastes commit as
-            one atomic batch.
+            {pastePreview.cells[0]?.length ?? 0} columns. Clipboard edits commit
+            as one atomic batch.
           </p>
           <p>
             An unquoted empty TSV cell means null; required fields refuse it. A
@@ -1706,31 +1707,12 @@ export function Spreadsheet({
               ))}
             </ul>
           )}
-          {pastePreview.larger ? (
-            pastePreview.errors.length === 0 && (
-              <PasteImport
-                orgId={orgId}
-                databaseId={databaseId}
-                tableId={table.id}
-                schemaVersion={schema.data!.table.schemaVersion}
-                values={pastePreview.values}
-                query={query}
-                start={pastePreview.start}
-                onCommitted={() => {
-                  cache.current.clear();
-                  void loadWindow(windowStart);
-                  onChanged();
-                }}
-              />
-            )
-          ) : (
-            <Button
-              isDisabled={saving || pastePreview.errors.length > 0}
-              onPress={() => void confirmPaste()}
-            >
-              {saving ? "Committing…" : "Commit paste"}
-            </Button>
-          )}
+          <Button
+            isDisabled={saving || pastePreview.errors.length > 0}
+            onPress={() => void confirmPaste()}
+          >
+            {saving ? "Committing…" : "Commit paste"}
+          </Button>
         </Dialog>
       )}
     </section>

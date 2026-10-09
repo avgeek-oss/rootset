@@ -6,7 +6,6 @@ import {
   limits,
 } from "./models";
 import type { NumberLexeme } from "./decoder";
-import { ArtifactUploadResultSchema } from "./resources";
 import {
   operations,
   ProtocolAdapterInventory,
@@ -380,106 +379,6 @@ export function generateOpenApi(
       },
     },
   };
-  schemas.ArtifactUploadResult = componentSchema(
-    ArtifactUploadResultSchema,
-    "ArtifactUploadResult",
-  );
-  paths["/v1/orgs/{orgId}/artifacts/{id}/upload"] = {
-    put: {
-      operationId: "uploadArtifactBytes",
-      tags: ["artifacts"],
-      summary:
-        "Stream the exact bytes for an authorised prepared import artifact.",
-      description:
-        "Use the API-origin URL, PUT method and content-type header from prepareImportUpload. The server verifies current target access, declared byte length and any supplied checksum; the upload is bounded to 128 MiB. This bound artifact upload accepts the MCP-audience OAuth token used to prepare the upload, with current imports:write scope and exact artifact organisation and table access checked again. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes require an API-audience credential. Browser sessions also require the configured UI Origin and CSRF proof. JSON body limits and MCP result limits do not apply to this binary handoff.",
-      parameters: [
-        {
-          name: "orgId",
-          in: "path",
-          required: true,
-          schema: { type: "string", pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-        },
-        {
-          name: "id",
-          in: "path",
-          required: true,
-          schema: { type: "string", pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-        },
-        {
-          name: "X-CSRF-Token",
-          in: "header",
-          required: false,
-          schema: { type: "string" },
-          description: "Required for browser-cookie authentication.",
-        },
-      ],
-      security: [
-        { apiKey: [] },
-        { oauth: ["imports:write"] },
-        { browserSession: [] },
-      ],
-      requestBody: {
-        required: true,
-        content: {
-          "application/octet-stream": {
-            schema: {
-              type: "string",
-              format: "binary",
-              minLength: 1,
-              maxLength: 134217728,
-            },
-          },
-        },
-      },
-      responses: Object.fromEntries(
-        [
-          "200",
-          "400",
-          "401",
-          "403",
-          "404",
-          "409",
-          "410",
-          "413",
-          "415",
-          "422",
-          "429",
-          "500",
-          "503",
-        ].map((status) => [
-          status,
-          {
-            description:
-              status === "200"
-                ? "Verified uploaded byte count and checksum."
-                : "Redacted upload authentication, target, expiry, integrity or admission failure.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: `#/components/schemas/${status === "200" ? "ArtifactUploadResult" : "ErrorEnvelope"}`,
-                },
-              },
-            },
-          },
-        ]),
-      ),
-      "x-rootset-operation": "prepareImportUpload",
-      "x-rootset-protocol-adapter": "binary",
-      "x-rootset-mcp-audience-handoff": true,
-      "x-rootset-max-bytes": 134217728,
-      "x-rootset-scopes": ["imports:write"],
-      "x-rootset-read-only": false,
-      "x-rootset-error-codes": [
-        "VALIDATION_FAILED",
-        "UNAUTHENTICATED",
-        "ACCESS_DENIED",
-        "RESOURCE_NOT_FOUND",
-        "ARTIFACT_EXPIRED",
-        "PAYLOAD_TOO_LARGE",
-        "DEPENDENCY_UNAVAILABLE",
-      ],
-    },
-  };
   paths["/v1/orgs/{orgId}/artifacts/{id}/download"] = {
     get: {
       operationId: "downloadArtifactBytes",
@@ -487,7 +386,7 @@ export function generateOpenApi(
       summary:
         "Stream verified artifact bytes under current artifact-purpose and target authority.",
       description:
-        "Use the authenticated download URL returned by getArtifact. An API key or API-audience OAuth bearer token is accepted; the MCP-audience OAuth grant used for artifact retrieval is also accepted only at this bound binary handoff. The server rechecks the artifact's organisation, original purpose scopes, requester and current role, verifies encrypted-object integrity, then streams the bytes with their exact declared size and checksum. Artifact-bound upload and download are the only MCP-audience exceptions among /v1 routes; ordinary JSON API routes remain API-audience only. The ordinary JSON response budget does not apply to the binary stream. MCP artifact resources return bounded metadata with this authenticated download URL.",
+        "Use the authenticated download URL returned by getArtifact. An API key or API-audience OAuth bearer token is accepted; the MCP-audience OAuth grant used for artifact retrieval is also accepted only at this bound binary handoff. The server rechecks the artifact's organisation, original purpose scopes, requester and current role, verifies encrypted-object integrity, then streams the bytes with their exact declared size and checksum. Artifact-bound downloads are the only MCP-audience exception among /v1 routes; ordinary JSON API routes remain API-audience only. The ordinary JSON response budget does not apply to the binary stream. MCP artifact resources return bounded metadata with this authenticated download URL.",
       parameters: ["orgId", "id"].map((name) => ({
         name,
         in: "path",

@@ -12,7 +12,7 @@ installation management. Personal keys inherit the person's live role; OAuth
 connections retain PKCE and operation consent without resource selections.
 
 Logical databases contain typed PostgreSQL tables with row revisions, cell
-history, structured queries and a spreadsheet. Imports/exports and internal processing remain supported. Database backup/restore and UI row creation are excluded from V1. REST, MCP and the browser share their domain operations.
+history, structured queries and a spreadsheet. Exports and internal processing remain supported. Database backup/restore and UI row creation are excluded from V1. REST, MCP and the browser share their domain operations.
 
 Each field has one `name` property, 1–64 ASCII letters or underscores matching
 `/^[A-Za-z_]+$/`. The name is both its UI label and JSON row key. A rename keeps

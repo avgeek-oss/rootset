@@ -30,9 +30,7 @@ export function roleAllows(role: Role, scope: string): boolean {
   if (scope.endsWith(":read")) return true;
   // Job ownership and purpose authority are rechecked by the job service.
   if (scope === "jobs:cancel" || scope === "jobs:retry") return true;
-  return (
-    role === "member" && (scope === "rows:write" || scope === "imports:write")
-  );
+  return role === "member" && scope === "rows:write";
 }
 
 export function roleScopes(role: Role): string[] {

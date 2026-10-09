@@ -21,7 +21,6 @@ export type SettingsSection =
   | "table"
   | "fields"
   | "rules"
-  | "imports"
   | "exports";
 
 export interface SettingsPanelProps {
@@ -193,7 +192,6 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "table-danger-zone": "Danger Zone",
   fields: "Fields",
   rules: "Unique rules",
-  imports: "Import rows",
   exports: "Export rows",
 };
 
@@ -214,7 +212,6 @@ export function canOpenSettings(
 ): boolean {
   if (!["admin", "member", "viewer"].includes(role ?? "")) return false;
   if (ADMIN_SETTINGS.includes(section)) return role === "admin";
-  if (section === "imports") return role === "admin" || role === "member";
   return true;
 }
 

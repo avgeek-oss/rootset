@@ -306,7 +306,7 @@ export const HistoryPageSchema = z.strictObject({
 export const ArtifactSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
-  kind: z.enum(["import", "export", "report"]),
+  kind: z.literal("export"),
   format: z.enum(["csv", "jsonl", "json"]),
   sizeBytes: z.number().int().nonnegative(),
   checksum: z.string(),
@@ -315,15 +315,6 @@ export const ArtifactSchema = z.strictObject({
   resourceUri: z.string().optional(),
   rowCount: z.number().int().nonnegative().optional(),
 });
-export const ArtifactUploadResultSchema = z.strictObject({
-  artifactId: IdSchema,
-  byteLength: z.number().int().min(1).max(134217728),
-  checksum: z.string().regex(/^[a-f0-9]{64}$/),
-});
-export const ImportMappingSchema = preservingRecordSchema(
-  z.string().min(1).max(255),
-  FieldNameSchema,
-);
 export const SchemaChangeSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("add_field"),

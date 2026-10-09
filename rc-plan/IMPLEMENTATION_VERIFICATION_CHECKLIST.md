@@ -30,22 +30,22 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-13` All eight types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.
 - [ ] `V1-14` UTC time/date-time precision, calendar dates and timezone/DST editing round-trip through browser, REST, MCP, export and history.
 - [ ] `V1-15` Row bytes, 200 fields, JSON depth, request/result bytes, query rows and 1,000-row mutation caps enforce exact boundaries.
-- [ ] `V1-16` The 5,000,000th live row succeeds and the next fails; concurrent imports/writers cannot race the limit, rollback releases reservations and committed deletion frees capacity.
+- [ ] `V1-16` The 5,000,000th live row succeeds and the next fails; concurrent writers cannot race the limit, rollback releases reservations and committed deletion frees capacity.
 - [ ] `V1-17` Revision conflicts, no-op updates, atomic batches and idempotent retry preserve the committed outcome under concurrent writes and network/process loss.
 - [ ] `V1-18` Single/composite scalar uniqueness handles nulls, exact text/float equality, wide tuples, forced digest collisions and concurrent insert/update/delete.
 - [ ] `V1-19` Schema/rule/index jobs validate existing values and row size; interrupted conversion/index activation reconciles actual catalog state and preserves the original generation on failure.
 
 ## History, jobs and recovery
 
-- [ ] `V1-20` Inserts/edits/imports/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.
+- [ ] `V1-20` Inserts/edits/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.
 - [ ] `V1-21` Field renames preserve interpretable history; deletion of a row, field, table or database removes its corresponding cell changelogs for every role; each existing cell retains only its latest 200 saved changes; no-op and failed writes add no entry.
 - [ ] `V1-22` Typed filters, JSON operators, projection/sort, signed cursors, byte-capped continuation and deep window navigation return correct complete rows.
 - [ ] `V1-23` Scan timeout/disconnect cancels owned work and preserves peer requests; native connection cleanup/restart tests cover idle and active pools without leaks.
 - [ ] `V1-24` Durable jobs fence stale leases, resume committed checkpoints, disclose partial cancellation and publish effects once under worker/process termination.
-- [ ] `V1-25` CSV/JSONL import/export preserves types/UTC/leading-zero text, validates dry runs/upsert conflicts, resumes without duplicates and produces authenticated checksummed artifacts.
+- [ ] `V1-25` CSV/JSONL exports preserve types/UTC/leading-zero text and produce authenticated checksummed artifacts.
 - [ ] `V1-26` Database backup/restore operations, scopes and generated REST/MCP contracts are absent; API/MCP row creation remains available.
 - [ ] `V1-27` The browser provides filters and inline edits, automatically loads batches during scrolling, uses path-based resource URLs, and restores committed values with a toast on failed edits. There is no Add row button, row-creation modal, Go to row action or backup navigation.
-- [ ] `V1-28` The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.
+- [ ] `V1-28` The fresh baseline contains no backup, restore or backup-notification tables; exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.
 - [ ] `V1-29` Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source.
 - [ ] `V1-30` Object/SMTP outage, corruption, missing keys, disk pressure and connection saturation produce truthful failures/retry behavior; retention preserves the last verified recovery point.
 

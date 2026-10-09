@@ -37,7 +37,7 @@ await storage.updateRow(
 
 A native write commits values, revisions, row count, uniqueness participation, mutation outcome and cell history together. Equal assignments retain the revision and omit cell history. Batch limits, typed bounds, canonical row bytes and transport response bytes are checked before commit. Durable idempotency outcomes can be replayed after subsequent schema changes or deletion.
 
-`mutateRows(actor, tableId, input, client?)` accepts a supplied organisation-bound transaction for imports. The import worker can commit the batch and its fenced progress checkpoint atomically.
+`mutateRows(actor, tableId, input, client?)` accepts a supplied organisation-bound transaction so callers can commit row changes and their durable operation receipt atomically.
 
 Worker-only `MutationContext.jobFence` and `beforePublish` are checked immediately before schema or row publication. These private fields never enter hashes, audit context or retained definitions.
 
@@ -51,7 +51,7 @@ Spreadsheet windows fetch at most 200 rows. Numeric position zero uses the first
 
 Rootset automatically retains the latest 200 saved changes for each cell. Each entry records its previous value, new value, actor, source and UTC timestamp. Older entries are deleted in the same transaction as the next change; there is no retention policy, archive job or cold storage. Equal assignments and rolled-back writes do not add history. Deleting a row, field, table, or database removes the corresponding cell history in the same transaction. Administrators cannot retrieve deleted-cell changelogs.
 
-The PostgreSQL history trigger covers native row writes, imports and field conversions. API and MCP history operations read the same retained entries as the dashboard cell changelog. Pagination preserves complete entries within the response byte budget.
+The PostgreSQL history trigger covers native row writes and field conversions. API and MCP history operations read the same retained entries as the dashboard cell changelog. Pagination preserves complete entries within the response byte budget.
 
 ## Verification
 

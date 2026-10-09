@@ -115,7 +115,7 @@ through `ROOTSET_OAUTH_CLIENTS`.
 Retain the application secret and encryption key across restart, and include
 both in protected recovery copies. Authentication and cursor signing keys are
 derived internally from the application secret. There is no keyring or
-installation-wide key-rotation selector. Import and export artifacts use this
+installation-wide key-rotation selector. Export artifacts use this
 single key without a key identifier or key-selection scheme. Passwords are hashed locally; sign-in
 has fixed internal work limits and does not depend on a password breach-check
 service. Restart API and worker after changing environment settings.

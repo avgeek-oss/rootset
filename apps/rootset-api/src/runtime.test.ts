@@ -801,7 +801,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       "exports:read",
       "jobs:read",
       "schema:manage",
-      "imports:write",
     ]);
     await client.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
@@ -1111,140 +1110,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         false,
       );
     }
-    const uploadBytes = Buffer.from("NAME,COUNT\nHTTP Upload,5\n"),
-      uploadChecksum = createHash("sha256").update(uploadBytes).digest("hex"),
-      upload = await call(
-        "prepareImportUpload",
-        {
-          ...ids,
-          format: "csv",
-          byteLength: uploadBytes.length,
-          checksum: uploadChecksum,
-        },
-        "rest",
-      );
-    assert.equal(new URL(upload.uploadUrl).origin, baseURL);
-    assert.equal(upload.method, "PUT");
-    assert.equal(upload.headers["content-type"], "application/octet-stream");
-    const transfer = (
-      url: string,
-      bytes: Uint8Array,
-      headers: Record<string, string>,
-    ) =>
-      fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/octet-stream", ...headers },
-        body: Uint8Array.from(bytes),
-      });
-    assert.equal(
-      (await transfer(upload.uploadUrl, uploadBytes, {})).status,
-      401,
-    );
-    assert.equal(
-      (
-        await transfer(upload.uploadUrl, uploadBytes, {
-          Cookie: cookie,
-          Origin: "https://foreign.example",
-        })
-      ).status,
-      403,
-    );
-    assert.equal(
-      (
-        await transfer(upload.uploadUrl, uploadBytes, {
-          Authorization: `Bearer ${readKey.secret}`,
-        })
-      ).status,
-      200,
-    );
-    assert.equal(
-      (
-        await transfer(upload.uploadUrl, uploadBytes, {
-          Authorization: `Bearer ${restSecret}`,
-          "Content-Type": "text/csv",
-        })
-      ).status,
-      415,
-    );
-    assert.equal(
-      (
-        await transfer(upload.uploadUrl.replace(orgId, newId()), uploadBytes, {
-          Authorization: `Bearer ${restSecret}`,
-        })
-      ).status,
-      404,
-    );
-    let offset = 0;
-    const source = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        if (offset === uploadBytes.length) {
-          controller.close();
-          return;
-        }
-        controller.enqueue(uploadBytes.subarray(offset, offset + 3));
-        offset = Math.min(uploadBytes.length, offset + 3);
-      },
-    });
-    const streamed = await fetch(upload.uploadUrl, {
-      method: "PUT",
-      headers: { ...upload.headers, Cookie: cookie, Origin: baseURL },
-      body: source,
-      duplex: "half",
-    } as RequestInit & { duplex: "half" });
-    assert.equal(
-      streamed.status,
-      200,
-      JSON.stringify(await streamed.clone().json()),
-    );
-    assert.deepEqual(await streamed.json(), {
-      artifactId: upload.artifactId,
-      byteLength: uploadBytes.length,
-      checksum: uploadChecksum,
-    });
-    const replayUpload = await transfer(upload.uploadUrl, uploadBytes, {
-      Authorization: `Bearer ${restSecret}`,
-    });
-    assert.equal(replayUpload.status, 200);
-    const changedBytes = Buffer.from(uploadBytes);
-    changedBytes[0] = 88;
-    assert.equal(
-      (
-        await transfer(upload.uploadUrl, changedBytes, {
-          Authorization: `Bearer ${restSecret}`,
-        })
-      ).status,
-      409,
-    );
-    const staged = (
-      await db.owner.query(
-        "SELECT metadata FROM rootset_control.artifacts WHERE id=$1",
-        [upload.artifactId],
-      )
-    ).rows[0];
-    assert.equal(staged.metadata.uploadedBytes, uploadBytes.length);
-    assert.equal(staged.metadata.uploadedChecksum, uploadChecksum);
-    const prepareMcp = await client.callTool({
-      name: "rootset_prepare_import_upload",
-      arguments: {
-        ...ids,
-        format: "csv",
-        byteLength: uploadBytes.length,
-        checksum: uploadChecksum,
-        idempotencyKey: "runtime-mcp-raw-upload",
-      },
-    });
-    assert.notEqual(prepareMcp.isError, true);
-    const mcpUpload = getOperation("prepareImportUpload").outputSchema.parse(
-      prepareMcp.structuredContent,
-    ) as { uploadUrl: string; artifactId: string };
-    assert.equal(
-      (
-        await transfer(mcpUpload.uploadUrl, uploadBytes, {
-          Authorization: `Bearer ${tokens.access_token}`,
-        })
-      ).status,
-      200,
-    );
     assert.equal(
       (
         await request(
@@ -1256,46 +1121,16 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       ).status,
       401,
     );
-    const shortUpload = await call(
-      "prepareImportUpload",
-      { ...ids, format: "csv", byteLength: uploadBytes.length + 1 },
-      "rest",
-    );
     assert.equal(
       (
-        await transfer(shortUpload.uploadUrl, uploadBytes, {
-          Authorization: `Bearer ${restSecret}`,
-        })
-      ).status,
-      422,
-    );
-    const corruptUpload = await call(
-      "prepareImportUpload",
-      {
-        ...ids,
-        format: "csv",
-        byteLength: uploadBytes.length,
-        checksum: "0".repeat(64),
-      },
-      "rest",
-    );
-    assert.equal(
-      (
-        await transfer(corruptUpload.uploadUrl, uploadBytes, {
-          Authorization: `Bearer ${restSecret}`,
-        })
-      ).status,
-      422,
-    );
-    for (const failedId of [shortUpload.artifactId, corruptUpload.artifactId]) {
-      const metadata = (
-        await db.owner.query(
-          "SELECT metadata FROM rootset_control.artifacts WHERE id=$1",
-          [failedId],
+        await request(
+          `/v1/orgs/${orgId}/artifacts/${rowId}/upload`,
+          "PUT",
+          undefined,
         )
-      ).rows[0].metadata;
-      assert.equal(metadata.uploadedObjectKey, undefined);
-    }
+      ).status,
+      404,
+    );
     const approvedKeyInput = {
       orgId,
       name: "Delegated approved read key",

@@ -38,10 +38,8 @@ describe("settings role boundaries", () => {
       expect(canOpenSettings(section)).toBe(false);
     },
   );
-  it("keeps row imports for writers and removes obsolete settings navigation", () => {
-    expect(canOpenSettings("imports", "admin")).toBe(true);
-    expect(canOpenSettings("imports", "member")).toBe(true);
-    expect(canOpenSettings("imports", "viewer")).toBe(false);
+  it("removes obsolete settings navigation", () => {
+    expect(SECTION_LABELS).not.toHaveProperty("imports");
     expect(SECTION_LABELS).not.toHaveProperty("grants");
     expect(SECTION_LABELS).not.toHaveProperty("audit");
     expect(SECTION_LABELS).not.toHaveProperty("jobs");

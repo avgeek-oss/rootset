@@ -7,8 +7,6 @@ const apiURL =
   process.env.ROOTSET_BROWSER_API_BASE_URL ?? "http://localhost:4310";
 
 const engine = process.env.ROOTSET_TEST_BROWSER ?? "chromium";
-const verifyTerminal =
-  process.env.ROOTSET_VERIFY_LARGE_PASTE_TERMINAL === "true";
 const baseURL = process.env.ROOTSET_BROWSER_BASE_URL ?? "http://localhost:4300";
 const output = new URL("../test-results/browser/", import.meta.url);
 const fixture = JSON.parse(
@@ -182,21 +180,16 @@ try {
     name: "Review paste",
     exact: true,
   });
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByText("Paste is too large. Use a smaller selection.", {
+      exact: true,
+    }),
+  ).toBeVisible();
   const text = await page.evaluate(() => window.__rootsetLimitPaste);
   const expected = `${rows.map((row) => fields.map((field) => row.values[field.name]).join("\t")).join("\n")}\n`;
   expect(text).toBe(expected);
   expect(Buffer.byteLength(text)).toBeLessThan(8 * 1024 * 1024);
-  await expect(
-    dialog.getByRole("button", { name: "Commit paste", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", {
-      name: "Upload and validate paste",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await dialog.getByRole("button", { name: "Close dialog" }).click();
   report.checks.push({
     name: "200-row/200-column projected copy uses signed byte-limit continuation, decodes at most 200 rows, does zero canonical GETs and leaves viewport cache unchanged",
     status: "passed",
@@ -213,95 +206,9 @@ try {
     viewportCacheUnchanged: true,
   });
   report.checks.push({
-    name: "Native keyboard paste preserves all 40,000 cells exactly; an over-8-MiB canonical batch is routed to existing large-paste validation rather than an oversized atomic request",
+    name: "Oversized clipboard edit is rejected with a toast without creating an import job",
     status: "passed",
-    canonicalValuesBytes: Buffer.byteLength(
-      JSON.stringify(rows.map((row) => row.values)),
-    ),
-    unchangedRevision: "1",
-    jobExecution: verifyTerminal
-      ? "Terminal validation/import assertions follow below"
-      : "Worker intentionally stopped; rendered job validation entry verified without mutation",
   });
-  if (verifyTerminal) {
-    await grid.focus();
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press("Enter");
-    const editor = page.getByRole("dialog", {
-      name: "Edit Wide 0",
-      exact: true,
-    });
-    await editor
-      .getByLabel("Wide 0", { exact: true })
-      .fill("Changed before large clipboard import");
-    await editor
-      .getByRole("button", { name: "Save value", exact: true })
-      .click();
-    await expect(editor).not.toBeVisible();
-    const changed = await call("GET", `${path}/rows/${rows[0].id}`);
-    expect(changed.version).toBe("2");
-    await grid.focus();
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press(
-      process.platform === "darwin" ? "Meta+v" : "Control+v",
-    );
-    await expect(dialog).toBeVisible();
-    const accepted = [];
-    page.on("response", (response) => {
-      const pathname = new URL(response.url()).pathname;
-      if (
-        response.request().method() === "POST" &&
-        /\/imports(?:\/validate)?$/.test(pathname)
-      )
-        accepted.push(response);
-    });
-    await dialog
-      .getByRole("button", { name: "Upload and validate paste", exact: true })
-      .click();
-    await expect(dialog).toContainText(
-      "200 examined · 200 accepted · 0 rejected.",
-      { timeout: 90_000 },
-    );
-    await dialog
-      .getByRole("button", { name: "Start paste import", exact: true })
-      .click();
-    await expect(
-      dialog.getByRole("button", { name: "Start paste import", exact: true }),
-    ).toHaveCount(0);
-    await expect(dialog.getByText("import", { exact: true })).toBeVisible();
-    await expect(dialog.locator(".settings-status-succeeded")).toBeVisible({
-      timeout: 90_000,
-    });
-    await dialog.getByRole("button", { name: "Close dialog" }).click();
-    const restored = await call("GET", `${path}/rows/${rows[0].id}`);
-    expect(restored.values).toEqual(rows[0].values);
-    expect(restored.version).toBe("3");
-    const untouched = await call("GET", `${path}/rows/${rows.at(-1).id}`);
-    expect(untouched.values).toEqual(rows.at(-1).values);
-    expect(untouched.version).toBe("1");
-    const firstField = created.fields[0];
-    const history = await call(
-      "GET",
-      `${path}/rows/${rows[0].id}/cells/${firstField.id}/history?limit=50`,
-    );
-    expect(
-      history.data.filter((entry) => entry.operation === "update"),
-    ).toHaveLength(2);
-    expect(history.data.at(-1).after).toBe(rows[0].values[firstField.name]);
-    report.checks.push({
-      name: "Actual over-8-MiB paste uploads encrypted JSONL, validates 200 records, runs an owned-org scoped worker, reaches terminal UI, restores changed canonical value once and leaves no-op rows/revisions unchanged",
-      status: "passed",
-      restoredRevision: restored.version,
-      noOpRevision: untouched.version,
-      updates: 2,
-      acceptedJobs: await Promise.all(
-        accepted.map(async (response) => ({
-          httpStatus: response.status(),
-          ...(await response.json()),
-        })),
-      ),
-    });
-  }
   expect(report.pageErrors).toEqual([]);
   report.status = "passed";
 } catch (e) {

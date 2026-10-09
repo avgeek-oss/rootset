@@ -4,7 +4,6 @@ import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { createRuntime } from "@rootset/core/runtime";
 import {
@@ -631,45 +630,24 @@ export async function runHttpProfile(
           databaseId: database.id,
           tableId: created.table.id,
         };
-        const payload = Buffer.from(
-          Array.from({ length: 10000 }, (_, index) =>
-            JSON.stringify({
-              CODE: String(index).padStart(6, "0"),
-              AMOUNT: index,
-              FLOAT: index / 10,
-              FLAG: index % 2 === 0,
-              DATE: "2026-10-02",
-              TIME: "12:34:56Z",
-              STAMP: "2026-10-02T12:34:56Z",
-              JSON: { group: index % 4, nested: [null, index] },
-            }),
-          ).join("\n") + "\n",
-        );
-        const upload = (
-          await adminCall("prepareImportUpload", {
+        for (let offset = 0; offset < 10000; offset += 100)
+          await adminCall("mutateRows", {
             ...bg,
-            format: "jsonl",
-            byteLength: payload.length,
-            checksum: createHash("sha256").update(payload).digest("hex"),
-          })
-        ).value as {
-          artifactId: string;
-          uploadUrl: string;
-          headers: Record<string, string>;
-        };
-        const uploadURL = new URL(upload.uploadUrl);
-        uploadURL.host = base.host;
-        uploadURL.protocol = base.protocol;
-        const receipt = await fetch(uploadURL, {
-          method: "PUT",
-          headers: {
-            ...upload.headers,
-            Authorization: `Bearer ${adminSecret}`,
-          },
-          body: payload,
-        });
-        assert.equal(receipt.status, 200);
-        await receipt.arrayBuffer();
+            expectedSchemaVersion: created.table.schemaVersion,
+            mutations: Array.from({ length: 100 }, (_, index) => ({
+              type: "create",
+              values: {
+                CODE: String(offset + index).padStart(6, "0"),
+                AMOUNT: offset + index,
+                FLOAT: (offset + index) / 10,
+                FLAG: index % 2 === 0,
+                DATE: "2026-10-02",
+                TIME: "12:34:00Z",
+                STAMP: "2026-10-02T12:34:00Z",
+                JSON: { group: index % 4, nested: [null, offset + index] },
+              },
+            })),
+          });
         const resources = async () => ({
           database: (
             await target.pools.identity.query(
@@ -786,17 +764,6 @@ export async function runHttpProfile(
           );
           return state!;
         };
-        await phase("IMPORT", "importRows", {
-          ...bg,
-          expectedSchemaVersion: 1,
-          artifactId: upload.artifactId,
-          format: "jsonl",
-          mapping: Object.fromEntries(
-            created.fields.map((field) => [field.name, field.name]),
-          ),
-          mode: "create",
-          batchSize: 100,
-        });
         const readSchema = async () =>
           (await adminCall("getTableSchema", bg)).value as typeof created;
         let current = await readSchema();

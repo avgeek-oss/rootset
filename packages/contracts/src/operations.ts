@@ -31,7 +31,6 @@ import {
   DatabaseSchema,
   DatabaseSummarySchema,
   HistoryPageSchema,
-  ImportMappingSchema,
   InvitationSchema,
   KeyCreatedSchema,
   KeyMetadataSchema,
@@ -143,9 +142,7 @@ function operation(
   const readOnly = settings.readOnly ?? method === "GET";
   const group = path.includes("/installation")
     ? "installation"
-    : path.includes("/imports") ||
-        path.includes("/exports") ||
-        path.includes("/artifacts")
+    : path.includes("/exports") || path.includes("/artifacts")
       ? "artifacts"
       : path.includes("/jobs")
         ? "jobs"
@@ -1086,83 +1083,6 @@ operation(
 );
 
 operation(
-  "prepareImportUpload",
-  "prepare_import_upload",
-  "POST",
-  `${T}/imports/uploads`,
-  ["imports:write"],
-  z.strictObject({
-    ...table,
-    format: z.enum(["csv", "jsonl"]),
-    byteLength: z.number().int().min(1).max(134217728),
-    checksum: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .optional(),
-  }),
-  z.strictObject({
-    artifactId: IdSchema,
-    uploadUrl: z.string(),
-    expiresAt: DateTimeSchema,
-    maxBytes: z.number().int().positive(),
-    method: z.literal("PUT"),
-    headers: z.record(z.string(), z.string()),
-    byteLength: z.number().int().min(1).max(134217728),
-  }),
-  "Prepare a bounded upload bound to the authorised import target.",
-);
-const importInput = {
-  ...table,
-  ...expected,
-  artifactId: IdSchema,
-  format: z.enum(["csv", "jsonl"]).optional(),
-  mapping: ImportMappingSchema,
-  mode: z.enum(["create", "upsert"]),
-  uniqueRuleId: IdSchema.optional(),
-  rowIdColumn: z.string().optional(),
-  atomic: z.boolean().optional(),
-  batchSize: z.number().int().min(1).max(limits.mutationBatch).optional(),
-};
-const importReport = z.strictObject({
-  valid: z.boolean(),
-  examined: z.number().int().nonnegative(),
-  accepted: z.number().int().nonnegative(),
-  rejected: z.number().int().nonnegative(),
-  errors: z
-    .array(
-      z.strictObject({
-        record: z.number().int().min(1),
-        field: z.string().optional(),
-        code: z.string(),
-        message: z.string(),
-      }),
-    )
-    .max(1000),
-  reportArtifactId: IdSchema.optional(),
-});
-operation(
-  "validateImport",
-  "validate_import",
-  "POST",
-  `${T}/imports/validate`,
-  ["imports:write"],
-  z.strictObject(importInput),
-  jobOr(importReport),
-  "Dry run CSV/JSONL mappings and validation without committing imported rows.",
-  { readOnly: false, idempotencyRequired: true, job: true },
-);
-operation(
-  "importRows",
-  "import_rows",
-  "POST",
-  `${T}/imports`,
-  ["imports:write", "rows:write"],
-  z.strictObject(importInput),
-  JobAcceptedSchema,
-  "Import validated batches with durable checkpoints and explicit partial outcomes.",
-  { job: true, successStatus: 202 },
-);
-operation(
   "exportRows",
   "export_rows",
   "POST",
@@ -1315,14 +1235,6 @@ export const ProtocolAdapterInventory = Object.freeze([
     kind: "protocol",
     reason:
       "Streamable HTTP MCP transport negotiates protocol methods and requires an MCP-resource OAuth actor; its named tools come from the operation catalog.",
-  },
-  {
-    path: "/v1/orgs/{orgId}/artifacts/{id}/upload",
-    methods: ["PUT"],
-    kind: "binary",
-    operationId: "prepareImportUpload",
-    reason:
-      "Bounded authenticated raw upload follows the prepared artifact handoff; binary bodies are not MCP tool arguments.",
   },
   {
     path: "/v1/orgs/{orgId}/artifacts/{id}/download",

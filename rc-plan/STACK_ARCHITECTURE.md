@@ -69,7 +69,7 @@ Tables overview, adapted from Mill's Boards page with responsive widget cards
 showing table names and row counts. Creating tables belongs to that page.
 Selecting a card opens the table's Rows page, with its own secondary sidebar:
 Table → Rows, Settings → General/Fields/Unique rules, and Data →
-Import rows/Export rows. The database breadcrumb returns to the Tables overview.
+Export rows. The database breadcrumb returns to the Tables overview.
 Use Towbar's resource-heading typography for database and table names and omit
 a settings button beside the sidebar title.
 
@@ -85,14 +85,14 @@ controls from non-admins. Narrow screens use a focus-trapping drawer containing
 the primary navigation and the current page's secondary navigation; desktop
 navigation can collapse with focus restoration.
 
-The spreadsheet uses React Data Grid for virtualized rows and columns, native resizing, frozen columns and keyboard navigation. Load complete row windows across all fields, so horizontal scrolling does not fetch projections or replace cell values with loading placeholders. Keep the grid inside a bounded viewport with a floating Filter action at the bottom right. Row creation remains available through imports, REST and MCP.
+The spreadsheet uses React Data Grid for virtualized rows and columns, native resizing, frozen columns and keyboard navigation. Load complete row windows across all fields, so horizontal scrolling does not fetch projections or replace cell values with loading placeholders. Keep the grid inside a bounded viewport with a floating Filter action at the bottom right. Row creation remains available through REST and MCP.
 Export and table settings are available in the table's secondary sidebar.
 Filter opens a HeroUI modal using Towbar Analytics' condition-row layout, with
 typed values, all/any matching, removable conditions and Clear/Cancel/Apply
 actions. The UI displays every field and has no sort, column-visibility, help or
 manual reload controls. API/MCP query sorting and projection remain supported.
 There is no standalone Background Jobs screen. Operation progress stays
-with the import/export or schema action that started the work.
+with the export or schema action that started the work.
 SMTP and S3-compatible storage are configured only through environment variables;
 there are no database overrides, provider forms, test-email action, editable
 request/concurrency controls or storage admission subsystem.
@@ -109,7 +109,7 @@ current values and retain the user's draft until a deliberate retry.
 Field names are the visible labels and JSON keys. A rename preserves the internal
 field ID, column identity and history. Column resize/order/freeze are view
 preferences. Copy/paste validates a bounded atomic batch or previews a larger
-import. Review phone/desktop, light/dark, keyboard, touch and screen-reader states.
+export. Review phone/desktop, light/dark, keyboard, touch and screen-reader states.
 
 ## Resource profile and deployment
 

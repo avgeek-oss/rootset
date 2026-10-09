@@ -40,7 +40,7 @@ For object failure, inspect artifact state, storage errors, endpoint, bucket per
 
 Observe filesystem headroom, WAL/temp growth, pool occupancy, query timeouts,
 history/index size, queue age, expired leases and artifact failures. Bound worker
-concurrency so imports/scans/exports keep foreground requests usable. An expensive
+concurrency so scans/exports keep foreground requests usable. An expensive
 query must return an actionable timeout within 10 seconds and cancel/join owned
 work in bounded cleanup; retry cannot silently expand its budget.
 

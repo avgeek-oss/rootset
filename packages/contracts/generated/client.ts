@@ -3509,87 +3509,6 @@ export type getMutationOutput = {
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
-export type prepareImportUploadInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  format: "csv" | "jsonl";
-  byteLength: number;
-  checksum?: string;
-};
-export type prepareImportUploadOutput = {
-  artifactId: string;
-  uploadUrl: string;
-  expiresAt: string;
-  maxBytes: number;
-  method: "PUT";
-  headers: Record<string, string>;
-  byteLength: number;
-};
-export type validateImportInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  expectedSchemaVersion: number;
-  artifactId: string;
-  format?: "csv" | "jsonl";
-  mapping: Record<string, string>;
-  mode: "create" | "upsert";
-  uniqueRuleId?: string;
-  rowIdColumn?: string;
-  atomic?: boolean;
-  batchSize?: number;
-};
-export type validateImportOutput =
-  | {
-      valid: boolean;
-      examined: number;
-      accepted: number;
-      rejected: number;
-      errors: {
-        record: number;
-        field?: string;
-        code: string;
-        message: string;
-      }[];
-      reportArtifactId?: string;
-    }
-  | {
-      jobId: string;
-      state:
-        | "queued"
-        | "running"
-        | "succeeded"
-        | "failed"
-        | "cancelled"
-        | "partially_completed";
-      statusUrl: string;
-    };
-export type importRowsInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  expectedSchemaVersion: number;
-  artifactId: string;
-  format?: "csv" | "jsonl";
-  mapping: Record<string, string>;
-  mode: "create" | "upsert";
-  uniqueRuleId?: string;
-  rowIdColumn?: string;
-  atomic?: boolean;
-  batchSize?: number;
-};
-export type importRowsOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
-};
 export type exportRowsInput = {
   orgId: string;
   databaseId: string;
@@ -3649,7 +3568,7 @@ export type getArtifactInput = { orgId: string; id: string };
 export type getArtifactOutput = {
   id: string;
   orgId: string;
-  kind: "import" | "export" | "report";
+  kind: "export";
   format: "csv" | "jsonl" | "json";
   sizeBytes: number;
   checksum: string;
@@ -4137,21 +4056,6 @@ const routes = {
     path: "/v1/orgs/{orgId}/mutations/{id}",
     method: "GET",
     idempotencyRequired: false,
-  },
-  prepareImportUpload: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/uploads",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  validateImport: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/validate",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  importRows: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports",
-    method: "POST",
-    idempotencyRequired: true,
   },
   exportRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/exports",
@@ -4820,32 +4724,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<getMutationOutput>;
-  }
-  prepareImportUpload(
-    input: prepareImportUploadInput,
-    options?: CallOptions,
-  ): Promise<prepareImportUploadOutput> {
-    return this.call(
-      "prepareImportUpload",
-      input,
-      options,
-    ) as Promise<prepareImportUploadOutput>;
-  }
-  validateImport(
-    input: validateImportInput,
-    options?: CallOptions,
-  ): Promise<validateImportOutput> {
-    return this.call(
-      "validateImport",
-      input,
-      options,
-    ) as Promise<validateImportOutput>;
-  }
-  importRows(
-    input: importRowsInput,
-    options?: CallOptions,
-  ): Promise<importRowsOutput> {
-    return this.call("importRows", input, options) as Promise<importRowsOutput>;
   }
   exportRows(
     input: exportRowsInput,

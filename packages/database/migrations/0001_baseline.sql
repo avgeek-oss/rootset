@@ -542,7 +542,7 @@ CREATE TABLE rootset_control.artifacts (
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT artifacts_state_check CHECK ((state = ANY (ARRAY['upload_pending'::text, 'uploading'::text, 'ready'::text, 'expired'::text, 'deleting'::text, 'deleted'::text, 'failed'::text]))),
+    CONSTRAINT artifacts_state_check CHECK ((state = ANY (ARRAY['uploading'::text, 'ready'::text, 'expired'::text, 'deleting'::text, 'deleted'::text, 'failed'::text]))),
     CONSTRAINT artifacts_target_type_check CHECK ((target_type = ANY (ARRAY['table'::text, 'database'::text, 'organisation'::text])))
 );
 
@@ -773,30 +773,10 @@ CREATE TABLE rootset_control.identity_rate_limits (
 );
 
 
-CREATE TABLE rootset_control.import_batches (
-    job_id character(26) NOT NULL,
-    org_id character(26) NOT NULL,
-    start_record bigint NOT NULL,
-    end_record bigint NOT NULL,
-    plan jsonb NOT NULL,
-    state text DEFAULT 'planned'::text NOT NULL,
-    progress jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT import_batches_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'committed'::text])))
-);
-
-ALTER TABLE ONLY rootset_control.import_batches FORCE ROW LEVEL SECURITY;
 
 
-CREATE TABLE rootset_control.import_rejections (
-    job_id character(26) NOT NULL,
-    org_id character(26) NOT NULL,
-    record_number bigint NOT NULL,
-    code text NOT NULL,
-    message text NOT NULL,
-    field text
-);
 
-ALTER TABLE ONLY rootset_control.import_rejections FORCE ROW LEVEL SECURITY;
+
 
 
 CREATE TABLE rootset_control.invitations (
@@ -1259,11 +1239,7 @@ ALTER TABLE ONLY rootset_control.history_metrics
 ALTER TABLE ONLY rootset_control.identity_rate_limits
     ADD CONSTRAINT identity_rate_limits_pkey PRIMARY KEY (bucket_hash);
 
-ALTER TABLE ONLY rootset_control.import_batches
-    ADD CONSTRAINT import_batches_pkey PRIMARY KEY (job_id, start_record);
 
-ALTER TABLE ONLY rootset_control.import_rejections
-    ADD CONSTRAINT import_rejections_pkey PRIMARY KEY (job_id, record_number);
 
 
 ALTER TABLE ONLY rootset_control.invitations
@@ -1371,7 +1347,7 @@ ALTER TABLE ONLY rootset_control.worker_heartbeats
 
 CREATE INDEX api_admissions_principal ON rootset_control.api_admissions USING btree (principal, read_only, expires_at);
 
-CREATE INDEX artifacts_expiry ON rootset_control.artifacts USING btree (expires_at) WHERE (state = ANY (ARRAY['upload_pending'::text, 'ready'::text]));
+CREATE INDEX artifacts_expiry ON rootset_control.artifacts USING btree (expires_at) WHERE (state = ANY (ARRAY['ready'::text]));
 
 CREATE INDEX auth_verifications_identifier_idx ON rootset_control.auth_verifications USING btree (identifier);
 
@@ -1489,11 +1465,7 @@ ALTER TABLE ONLY rootset_control.fields
 
 
 
-ALTER TABLE ONLY rootset_control.import_batches
-    ADD CONSTRAINT import_batches_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
 
-ALTER TABLE ONLY rootset_control.import_rejections
-    ADD CONSTRAINT import_rejections_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
 
 
 ALTER TABLE ONLY rootset_control.invitations
@@ -1585,9 +1557,7 @@ CREATE POLICY identity_org_isolation ON rootset_control.key_requests USING (((or
 CREATE POLICY identity_org_isolation ON rootset_control.memberships USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 
-ALTER TABLE rootset_control.import_batches ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.import_rejections ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE rootset_control.invitations ENABLE ROW LEVEL SECURITY;
@@ -1611,9 +1581,7 @@ CREATE POLICY org_isolation ON rootset_control.databases USING (((org_id)::text 
 CREATE POLICY org_isolation ON rootset_control.fields USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 
-CREATE POLICY org_isolation ON rootset_control.import_batches USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.import_rejections USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
 
 CREATE POLICY org_isolation ON rootset_control.jobs USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));

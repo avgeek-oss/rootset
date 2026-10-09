@@ -2,7 +2,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { timingSafeEqual } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { stringify } from "csv-stringify/sync";
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { writeFile } from "node:fs/promises";
 import {
   canonicalJson,
@@ -25,7 +24,6 @@ import {
   lockOperationAdmission,
 } from "@rootset/idempotency";
 import { ArtifactStore } from "./artifacts.js";
-import { ImportRunner } from "./imports.js";
 import {
   DurableQueue,
   JobCancelled,
@@ -43,7 +41,6 @@ import type {
 export * from "./types.js";
 export * from "./queue.js";
 export * from "./artifacts.js";
-export * from "./imports.js";
 
 function repairReason(
   operationId: string,
@@ -122,7 +119,6 @@ function jobView(job: JobRecord): Record<string, unknown> {
 export class JobsService {
   readonly queue: DurableQueue;
   readonly artifacts: ArtifactStore;
-  readonly imports: ImportRunner;
   readonly config: JobsOptions["config"];
   readonly storage: JobsOptions["storage"];
   private readonly authoriseCallback: JobsOptions["authorise"];
@@ -176,13 +172,6 @@ export class JobsService {
       },
     );
     this.artifacts = new ArtifactStore(options.pool, options.config.artifacts);
-    this.imports = new ImportRunner(
-      this.queue,
-      this.artifacts,
-      this.storage,
-      this.config.failpoint,
-      (job) => this.jobActor(job),
-    );
   }
 
   async authorise(
@@ -629,62 +618,6 @@ export class JobsService {
     idempotencyKey: string | undefined,
   ): Promise<unknown> {
     switch (operationId) {
-      case "prepareImportUpload": {
-        await this.storage.getTable(actor, String(input.tableId));
-        if (!idempotencyKey)
-          throw new RootsetError(
-            "VALIDATION_FAILED",
-            "Upload preparation requires an idempotency key",
-          );
-        return this.artifacts.prepareUpload(actor, {
-          tableId: String(input.tableId),
-          format: String(input.format),
-          byteLength: Number(input.byteLength),
-          ...(typeof input.checksum === "string"
-            ? { checksum: input.checksum }
-            : {}),
-          idempotencyKey,
-        });
-      }
-      case "validateImport":
-      case "importRows": {
-        const table = await this.storage.getTable(actor, String(input.tableId));
-        const artifact = await this.artifacts.get(
-          actor,
-          String(input.artifactId),
-        );
-        await this.authoriseArtifact(actor, artifact);
-        if (
-          artifact.target_type !== "table" ||
-          artifact.target_id !== table.id ||
-          (!["import_upload", `import-${input.artifactId}`].includes(
-            artifact.purpose,
-          ) &&
-            !artifact.purpose.startsWith("import-"))
-        )
-          throw new RootsetError(
-            "ACCESS_DENIED",
-            "Import artifact belongs to a different source",
-            403,
-          );
-        if (table.schemaVersion !== Number(input.expectedSchemaVersion))
-          throw new RootsetError(
-            "SCHEMA_VERSION_CONFLICT",
-            "Import schema version is stale",
-            409,
-          );
-        return accepted(
-          await this.queue.enqueue(
-            actor,
-            operationId,
-            operationId === "validateImport" ? "validate_import" : "import",
-            { type: "table", id: table.id },
-            input,
-            this.requireKey(idempotencyKey),
-            context.client,
-          ),
-        );
-      }
       case "exportRows": {
         const table = await this.storage.getTable(actor, String(input.tableId));
         return accepted(
@@ -909,12 +842,9 @@ export class JobsService {
     actor: Actor,
     artifact: ArtifactRecord,
   ): Promise<void> {
-    const operation = artifact.purpose.startsWith("import")
-      ? "validateImport"
-      : "exportRows";
     await this.authorise(
       actor,
-      operation,
+      "exportRows",
       artifact.target_type === "table"
         ? { tableId: artifact.target_id }
         : { databaseId: artifact.target_id },
@@ -932,13 +862,8 @@ export class JobsService {
   }
 
   async getArtifact(actor: Actor, id: string) {
-    let artifact = await this.artifacts.get(actor, id);
+    const artifact = await this.artifacts.get(actor, id);
     await this.authoriseArtifact(actor, artifact);
-    if (typeof artifact.metadata.finalizedArtifactId === "string")
-      artifact = await this.artifacts.get(
-        actor,
-        artifact.metadata.finalizedArtifactId,
-      );
     if (artifact.state !== "ready")
       throw new RootsetError(
         "JOB_FAILED",
@@ -948,12 +873,7 @@ export class JobsService {
     return {
       id: artifact.id,
       orgId: actor.orgId,
-      kind:
-        artifact.purpose === "import-rejections"
-          ? "report"
-          : artifact.purpose.startsWith("import")
-            ? "import"
-            : "export",
+      kind: "export",
       format: artifact.format,
       sizeBytes: Number(artifact.byte_length),
       checksum: artifact.checksum!,
@@ -967,13 +887,8 @@ export class JobsService {
   }
 
   async downloadArtifact(actor: Actor, id: string): Promise<ArtifactDownload> {
-    let artifact = await this.artifacts.get(actor, id);
+    const artifact = await this.artifacts.get(actor, id);
     await this.authoriseArtifact(actor, artifact);
-    if (typeof artifact.metadata.finalizedArtifactId === "string")
-      artifact = await this.artifacts.get(
-        actor,
-        artifact.metadata.finalizedArtifactId,
-      );
     const verified = await this.artifacts.openVerified(actor, artifact);
     verified.stream.once("close", () => {
       void verified.cleanup();
@@ -988,51 +903,6 @@ export class JobsService {
       byteLength: Number(artifact.byte_length),
       checksum: artifact.checksum!,
     };
-  }
-
-  async uploadArtifact(
-    actor: Actor,
-    id: string,
-    source: AsyncIterable<Uint8Array>,
-  ) {
-    const artifact = await this.artifacts.get(actor, id);
-    if (artifact.target_type !== "table")
-      throw new RootsetError(
-        "RESOURCE_NOT_FOUND",
-        "Import artifact not found",
-        404,
-      );
-    actor = await this.authorise(actor, "prepareImportUpload", {
-      tableId: artifact.target_id,
-    });
-    await this.authoriseArtifact(actor, artifact);
-    await this.storage.getTable(actor, artifact.target_id);
-    const recheck = async () => {
-      await this.authorise(actor, "prepareImportUpload", {
-        tableId: artifact.target_id,
-      });
-      await this.storage.getTable(actor, artifact.target_id);
-    };
-    const receipt = await this.artifacts.upload(
-      actor,
-      artifact,
-      source,
-      recheck,
-    );
-    await this.artifacts.finalizeUpload(
-      actor,
-      await this.artifacts.get(actor, id),
-      null,
-      {
-        deadlineAt: Math.min(
-          artifact.expires_at.getTime(),
-          Date.now() + 600000,
-        ),
-        beforePublish: recheck,
-      },
-    );
-    await recheck();
-    return receipt;
   }
 
   private async jobActor(job: JobRecord): Promise<Actor> {
@@ -1057,7 +927,7 @@ export class JobsService {
       async (client) =>
         (
           await client.query<ArtifactRecord>(`SELECT a.* FROM rootset_control.artifacts a
-      WHERE a.state<>'deleted' AND ((a.expires_at<=now() AND a.state IN ('upload_pending','uploading','ready','failed','deleting')) OR a.metadata->>'cleanupPending'='true')
+      WHERE a.state<>'deleted' AND ((a.expires_at<=now() AND a.state IN ('uploading','ready','failed','deleting')))
       AND NOT EXISTS(SELECT 1 FROM rootset_control.jobs j WHERE j.id=a.job_id AND j.state IN ('queued','running'))
       ORDER BY a.expires_at LIMIT 20 FOR UPDATE SKIP LOCKED`)
         ).rows,
@@ -1077,36 +947,8 @@ export class JobsService {
           "Artifact retention refused an object outside the owned organisation namespace",
           403,
         );
-      if (
-        artifact.metadata.cleanupPending === true &&
-        typeof artifact.metadata.finalizedArtifactId === "string"
-      ) {
-        const cleanupKey =
-          typeof artifact.metadata.uploadedObjectKey === "string"
-            ? artifact.metadata.uploadedObjectKey
-            : artifact.object_key;
-        if (!cleanupKey.startsWith(`rootset/${orgId}/`))
-          throw new RootsetError(
-            "ACCESS_DENIED",
-            "Upload cleanup refused an object outside the owned organisation namespace",
-            403,
-          );
-        await this.artifacts.client.send(
-          new DeleteObjectCommand({
-            Bucket: this.config.artifacts.bucket,
-            Key: cleanupKey,
-          }),
-        );
-        await withOrg(this.queue.workerPool, orgId, (client) =>
-          client.query(
-            "UPDATE rootset_control.artifacts SET metadata=metadata-'cleanupPending' WHERE id=$1",
-            [artifact.id],
-          ),
-        );
-      } else {
-        await this.artifacts.remove(maintenance, artifact);
-        removed++;
-      }
+      await this.artifacts.remove(maintenance, artifact);
+      removed++;
     }
     return removed;
   }
@@ -1153,31 +995,7 @@ export class JobsService {
       const actor = await this.jobActor(job);
       if (job.cancel_requested) throw new JobCancelled();
       let result: JsonValue;
-      if (job.kind === "import" || job.kind === "validate_import") {
-        let artifact = await this.artifacts.get(
-          actor,
-          String(job.checkpoint.artifactId ?? job.input.artifactId),
-        );
-        if (typeof artifact.metadata.finalizedArtifactId === "string")
-          artifact = await this.artifacts.get(
-            actor,
-            artifact.metadata.finalizedArtifactId,
-          );
-        if (artifact.state === "upload_pending")
-          artifact = await this.artifacts.finalizeUpload(actor, artifact, job);
-        await this.queue.checkpoint(
-          job,
-          { ...job.checkpoint, artifactId: artifact.id },
-          job.progress,
-          job.kind === "import" ? "importing" : "validating",
-        );
-        result = await this.imports.run(
-          actor,
-          job,
-          artifact,
-          job.kind === "validate_import",
-        );
-      } else if (job.kind === "export") result = await this.export(actor, job);
+      if (job.kind === "export") result = await this.export(actor, job);
       else if (job.kind === "operation" && this.config.executeOperation)
         result = await this.config.executeOperation(
           actor,

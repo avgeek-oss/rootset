@@ -62,7 +62,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-16",
-    "The 5,000,000th live row succeeds and the next fails; concurrent imports/writers cannot race the limit, rollback releases reservations and committed deletion frees capacity.",
+    "The 5,000,000th live row succeeds and the next fails; concurrent writers cannot race the limit, rollback releases reservations and committed deletion frees capacity.",
   ],
   [
     "V1-17",
@@ -78,7 +78,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-20",
-    "Inserts/edits/imports/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.",
+    "Inserts/edits/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.",
   ],
   [
     "V1-21",
@@ -98,7 +98,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-25",
-    "CSV/JSONL import/export preserves types/UTC/leading-zero text, validates dry runs/upsert conflicts, resumes without duplicates and produces authenticated checksummed artifacts.",
+    "CSV/JSONL exports preserve types/UTC/leading-zero text and produce authenticated checksummed artifacts.",
   ],
   [
     "V1-26",
@@ -110,7 +110,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-28",
-    "The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.",
+    "The fresh baseline contains no backup, restore or backup-notification tables; exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.",
   ],
   [
     "V1-29",

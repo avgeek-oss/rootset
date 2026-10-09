@@ -26,12 +26,10 @@ export interface ArtifactConfig {
   secretAccessKey: string;
   forcePathStyle?: boolean;
   encryptionKey: string | Buffer;
-  maxUploadBytes?: number;
   maxArtifactBytes?: number;
   artifactLifetimeSeconds?: number;
   minimumTempFreeBytes?: number;
   tempDirectory?: string;
-  uploadBaseURL?: string;
 }
 export interface JobsConfig {
   recordRepairIntent?: (
@@ -78,7 +76,6 @@ export interface JobsConfig {
   baseURL?: string;
   leaseSeconds?: number;
   pollMilliseconds?: number;
-  importBatchSize?: number;
   maxAttempts?: number;
   outbox?: { deliverNext(): Promise<boolean> };
 
@@ -95,13 +92,7 @@ export interface JobsConfig {
 export type TableInfo = TableRecord;
 export type StoragePort = Pick<
   TableStorage,
-  | "getTable"
-  | "getRow"
-  | "getDatabase"
-  | "listUniqueRules"
-  | "queryRows"
-  | "mutateRows"
-  | "snapshotTable"
+  "getTable" | "getDatabase" | "snapshotTable"
 >;
 export interface JobsOptions {
   pool: Pool;

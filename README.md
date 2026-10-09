@@ -8,7 +8,7 @@ through REST or OAuth-protected MCP. PostgreSQL stores values, revisions and
 the latest 200 changes per existing cell. Deleting a row, field, table, or database removes its cell changelogs. The project domain is `rootset.fyi`.
 
 V1 uses Admin, Member and Viewer roles. Admins manage people, schema and recovery with deployment readiness checked separately.
-SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP or imports; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
+SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
 There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
 Personal API keys inherit the person's current role; OAuth connections add
 approved operations to that current authority. Field definitions have one `name`

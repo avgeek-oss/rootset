@@ -278,51 +278,6 @@ try {
   });
   await expect(page.locator(".grid-footer")).toContainText("Live view");
 
-  await paste(
-    Array.from(
-      { length: 1001 },
-      (_, index) => `Imported ${String(index).padStart(4, "0")}\t${index}`,
-    ).join("\n"),
-  );
-  await page
-    .getByLabel("Paste write mode", { exact: true })
-    .selectOption("create");
-  await page
-    .getByRole("button", { name: "Upload and validate paste", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", { name: "Start paste import", exact: true }),
-  ).toBeEnabled({ timeout: 90_000 });
-  await page.screenshot({
-    path: new URL(`${engine}-large-paste-validation.png`, output).pathname,
-  });
-  const imported = await responseTo("/imports", () =>
-    page
-      .getByRole("button", { name: "Start paste import", exact: true })
-      .click(),
-  );
-  await expect
-    .poll(
-      async () =>
-        (await request("GET", `/orgs/${fixture.orgId}/jobs/${imported.jobId}`))
-          .state,
-      { timeout: 90_000, intervals: [1000, 2000] },
-    )
-    .toBe("succeeded");
-  await expect(page.getByRole("dialog")).toContainText("succeeded", {
-    timeout: 90_000,
-  });
-  result = await request("POST", `${path}/query`, { query: { limit: 5000 } });
-  expect(result.data).toHaveLength(1003);
-  expect(result.data[2].values.NAME).toBe("Imported 0000");
-  await page.screenshot({
-    path: new URL(`${engine}-large-paste-result.png`, output).pathname,
-  });
-  report.checks.push({
-    name: "large paste visible validation and actual durable import job",
-    status: "passed",
-    rows: result.data.length,
-  });
   expect(report.pageErrors).toEqual([]);
   report.status = "passed";
 } catch (error) {

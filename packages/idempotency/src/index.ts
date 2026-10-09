@@ -39,8 +39,6 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "updateField",
   "deleteField",
   "countRows",
-  "validateImport",
-  "importRows",
   "exportRows",
 ]);
 export const mutationSet: ReadonlySet<string> = new Set([

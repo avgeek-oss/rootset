@@ -152,7 +152,7 @@ test(
 );
 
 test(
-  "MCP-sized mutation rejection rolls back every row and audit event; imports keep bounded outcomes",
+  "MCP-sized mutation rejection rolls back every row and audit event; worker mutations keep bounded outcomes",
   { skip: !configured },
   async () => {
     const table = await storage!.createTable(actor, databaseId, {

@@ -27,7 +27,7 @@ import {
   TableSettings,
   TableDangerZone,
 } from "./schema";
-import { ImportsSettings, ExportsSettings } from "./jobs";
+import { ExportsSettings } from "./jobs";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
   canOpenSettings,
@@ -79,7 +79,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone": TableDangerZone,
     fields: FieldsSettings,
     rules: UniqueRulesSettings,
-    imports: ImportsSettings,
     exports: ExportsSettings,
   };
   const Component = components[activeSection];
@@ -88,7 +87,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone",
     "fields",
     "rules",
-    "imports",
     "exports",
   ];
   const databaseSections = ["database", "database-danger-zone"];
@@ -99,11 +97,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         activeSection,
         props.role ?? context.data?.principal.role,
       ) ? (
-      <Empty>
-        {activeSection === "imports"
-          ? "Member or admin access is required to import rows."
-          : "Admin access is required to manage these settings."}
-      </Empty>
+      <Empty>Admin access is required to manage these settings.</Empty>
     ) : (
       <Component
         key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}

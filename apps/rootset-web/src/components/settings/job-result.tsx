@@ -8,50 +8,22 @@ export function JobResultDetails({
   openArtifact,
 }: {
   result: JsonValue;
-  openArtifact: (id: string, kind: "result" | "rejection") => void;
+  openArtifact: (id: string) => void;
 }) {
   if (!result || typeof result !== "object" || Array.isArray(result))
     return null;
-  const counts = [
-    ["Committed", result.committed],
-    ["Inserted", result.inserted],
-    ["updated", result.updated],
-    ["rejected", result.rejected],
-  ].filter((entry): entry is [string, number] => typeof entry[1] === "number");
   const artifactId =
     typeof result.artifactId === "string" ? result.artifactId : undefined;
-  const rejectionId =
-    typeof result.rejectionArtifactId === "string"
-      ? result.rejectionArtifactId
-      : typeof result.reportArtifactId === "string"
-        ? result.reportArtifactId
-        : undefined;
   return (
     <>
-      {counts.length > 0 && (
+      {typeof result.rowCount === "number" && (
         <p className="settings-muted">
-          {counts.map(([label, value], index) => (
-            <span key={label}>
-              {index > 0 && " · "}
-              {label} {value.toLocaleString()}
-            </span>
-          ))}
+          Exported {result.rowCount.toLocaleString()} rows
         </p>
       )}
       {artifactId && (
-        <Button
-          variant="secondary"
-          onPress={() => openArtifact(artifactId, "result")}
-        >
+        <Button variant="secondary" onPress={() => openArtifact(artifactId)}>
           Download result
-        </Button>
-      )}
-      {rejectionId && (
-        <Button
-          variant="secondary"
-          onPress={() => openArtifact(rejectionId, "rejection")}
-        >
-          Download rejection report
         </Button>
       )}
     </>

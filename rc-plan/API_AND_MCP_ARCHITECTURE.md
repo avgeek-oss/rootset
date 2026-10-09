@@ -106,7 +106,7 @@ success or prevent unrelated foreground requests.
 
 ## Jobs and artifacts
 
-Import/export and schema work can return a job
+Export and schema work can return a job
 ID. An accepted request is not terminal success. Progress describes committed
 checkpoints; cancellation reports already committed work. Revalidate current role
 and OAuth consent before publication or a new effect.

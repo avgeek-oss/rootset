@@ -17,7 +17,6 @@ import {
   SecurityCheckIcon,
   Settings01Icon,
   TableIcon,
-  Upload01Icon,
   UserAccountIcon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
@@ -45,7 +44,7 @@ export const settingsGroups = {
       title: "Settings",
       sections: ["table", "fields", "rules", "table-danger-zone"],
     },
-    { title: "Data", sections: ["imports", "exports"] },
+    { title: "Data", sections: ["exports"] },
   ],
 } satisfies Record<
   SettingsScope,
@@ -137,7 +136,6 @@ export const settingsIcons = {
   "table-danger-zone": Delete02Icon,
   fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
-  imports: Upload01Icon,
   exports: Download01Icon,
 };
 

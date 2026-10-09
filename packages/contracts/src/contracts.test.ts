@@ -9,7 +9,6 @@ import {
   AccountNameSchema,
   AccountActionTypeSchema,
   JsonValueSchema,
-  ImportMappingSchema,
   OperatorRepairAccountActionSchema,
   OperatorRepairIntentSchema,
   ErrorCodeSchema,
@@ -97,6 +96,9 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     "getHistoryRetentionPolicy",
     "setHistoryRetentionPolicy",
     "archiveHistory",
+    "prepareImportUpload",
+    "validateImport",
+    "importRows",
     "listHistoryArchives",
     "getHistoryArchive",
     "createOrganisation",
@@ -134,7 +136,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 73);
+  assert.equal(operations.length, 70);
   assert.equal(getOperation("createRow").readOnly, false);
   assert(
     operations.every((operation) =>
@@ -433,11 +435,6 @@ test("JSON cells and dictionary adapters preserve own prototype-named keys witho
     "a",
   ]);
   assert.equal(({} as { marker?: string }).marker, undefined);
-  const mapped = ImportMappingSchema.parse(
-    parseStrictJson('{"__proto__":"META","constructor":"CODE"}'),
-  );
-  assert.equal(Object.hasOwn(mapped, "__proto__"), true);
-  assert.equal(mapped.__proto__, "META");
   const unknownValues = parseStrictJson('{"__proto__":1}');
   assert.equal(
     operationMap.createRow!.inputSchema.safeParse({
@@ -704,33 +701,6 @@ test("query stable-ID aliases normalise to the same name projection/filter/sort"
   );
 });
 
-test("upload contracts retain exact method and byte limits", () => {
-  const upload = operationMap.prepareImportUpload!.outputSchema.parse({
-    artifactId: id,
-    uploadUrl: "http://localhost:9000/signed-upload",
-    expiresAt: "2026-10-02T00:00:00.000Z",
-    maxBytes: 134217728,
-    method: "PUT",
-    headers: { "content-type": "text/csv" },
-    byteLength: 1001,
-  });
-  assert.equal((upload as { method: string }).method, "PUT");
-  assert.equal(
-    operationMap.prepareImportUpload!.outputSchema.safeParse({
-      ...(upload as object),
-      method: "POST",
-    }).success,
-    false,
-  );
-  assert.equal(
-    operationMap.prepareImportUpload!.outputSchema.safeParse({
-      ...(upload as object),
-      byteLength: 134217729,
-    }).success,
-    false,
-  );
-});
-
 test("usage rejects removed quota and storage-admission fields", () => {
   const usage = {
     databases: 1,
@@ -774,9 +744,13 @@ test("ordinary JSON budgets retain 8 MiB input, a separate read deadline and unc
     limits.requestTimeoutMs,
   );
   assert.ok((query.responses as Record<string, unknown>)["408"]);
-  const upload = document.paths["/v1/orgs/{orgId}/artifacts/{id}/upload"]!.put!;
-  assert.equal(upload["x-rootset-max-bytes"], 134_217_728);
-  assert.equal(upload["x-rootset-json-read-timeout-ms"], undefined);
+  assert.equal(
+    document.paths["/v1/orgs/{orgId}/artifacts/{id}/upload"],
+    undefined,
+  );
+  const download =
+    document.paths["/v1/orgs/{orgId}/artifacts/{id}/download"]!.get!;
+  assert.equal(download["x-rootset-json-read-timeout-ms"], undefined);
   const tool = generateMcpTools().find(
     (value) => value.name === "rootset_query_rows",
   )!;
@@ -1006,9 +980,9 @@ test("OpenAPI, MCP and coverage are generated from the same operation inventory 
   const paths = Object.values(document.paths).flatMap((path) =>
     Object.values(path),
   );
-  assert.equal(paths.length, operations.length + 2);
+  assert.equal(paths.length, operations.length + 1);
   assert.ok(
-    paths.some((operation) => operation.operationId === "uploadArtifactBytes"),
+    !paths.some((operation) => operation.operationId === "uploadArtifactBytes"),
   );
   const browserDownloadPath =
     "/api/internal/v1/orgs/{orgId}/artifacts/{id}/download";
@@ -1163,7 +1137,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 73);
+  assert.equal(operations.length, 70);
   const api = generateOpenApi() as {
     paths: Record<
       string,

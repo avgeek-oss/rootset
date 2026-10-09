@@ -92,7 +92,7 @@ is separate from the public name-keyed row. System metadata/history have separat
 accounting. The service and enforcement path use the same canonicaliser.
 
 A database-enforced transactional counter reserves the net live-row change while
-holding the table counter lock. Concurrent imports cannot race a prior count.
+holding the table counter lock. Concurrent writers cannot race a prior count.
 Rollback releases reservations; a committed deletion frees capacity. Updates and
 history do not consume live-row slots.
 
@@ -127,13 +127,13 @@ non-null values. Deleting a row removes its cell changelogs in that same transac
 Each event records stable row/field IDs, typed before/after values and definitions,
 revisions, person/credential/client attribution, request/mutation/source and UTC
 time, without authentication material. Same-value updates add no cell event.
-Imports, conversions and Admin corrections preserve these same guarantees.
+Conversions and Admin corrections preserve these same guarantees.
 
 History entries cannot be edited through the API and remain interpretable after a field rename. Deleting a row, field, table or database removes the corresponding cell changelogs; deleted-cell history is unavailable to every role, including Admin. Current live role and OAuth operation consent govern reads and writes. There is no separate
 organisation audit resource or organisation deletion workflow.
 
 History keeps the latest 200 saved changes per cell, including initial populated
-values and subsequent edits, imports and conversions. PostgreSQL prunes older
+values and subsequent edits and conversions. PostgreSQL prunes older
 entries in the same transaction. No-op and failed writes do not consume history.
 There are no schedules, retention settings, archives or table backup/restore
 features. The dashboard changelog, API and MCP read the same retained entries.
@@ -182,14 +182,8 @@ Do not calculate an exact filtered count for every page. Deep grid navigation
 uses bounded windows/anchors rather than unlimited OFFSET and declares supported
 jump/loading behavior.
 
-## Imports and exports
+## Exports
 
-CSV/JSONL imports have explicit mapping and dry-run validation. Preserve text
-codes/leading zeroes. Upsert requires explicit row IDs or an active unique rule;
-ambiguous matches fail. Small batches are atomic; large jobs retain committed
-checkpoints, exact rejection reasons and partial cancellation. Resume must not
-duplicate rows or history. Export holds a schema barrier through extraction,
-uses a consistent snapshot and returns typed UTC data with checksums. Downloads
-recheck authority and never put reusable keys in URLs.
+CSV/JSONL exports hold a schema barrier through extraction, use a consistent snapshot and return typed UTC data with checksums. Downloads recheck authority and never put reusable keys in URLs.
 
-Row creation is available through REST, MCP and imports. The browser edits existing rows inline and has no Add row action. Rootset does not provide database backup or restore operations. Use the PostgreSQL/provider tooling described in the [recovery runbook](../docs/operations/upgrade-and-recovery.md) for installation recovery.
+Row creation is available through REST and MCP. The browser edits existing rows inline and has no Add row action. Rootset does not provide database backup or restore operations. Use the PostgreSQL/provider tooling described in the [recovery runbook](../docs/operations/upgrade-and-recovery.md) for installation recovery.

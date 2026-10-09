@@ -109,11 +109,6 @@ export interface ApiDependencies {
     byteLength: number;
     checksum: string;
   }>;
-  uploadArtifact?: (
-    actor: Actor,
-    id: string,
-    body: AsyncIterable<Uint8Array>,
-  ) => Promise<{ artifactId: string; byteLength: number; checksum: string }>;
 }
 
 const object = (value: unknown): Record<string, unknown> => {
@@ -572,97 +567,6 @@ export function createApp(deps: ApiDependencies) {
         404,
       ),
   );
-  if (deps.uploadArtifact)
-    app.put("/v1/orgs/:orgId/artifacts/:id/upload", async (c) => {
-      c.set("operationId", "uploadArtifactBytes");
-      const browser =
-        !c.req.header("Authorization") && Boolean(c.req.header("Cookie"));
-      if (browser) assertBrowserOrigin(c.req.raw, webOrigin);
-      const actor = browser
-        ? await authenticate(deps, c.req.raw, true)
-        : await authenticateArtifactBearer(deps, c.req.raw);
-      const orgId = IdSchema.safeParse(c.req.param("orgId")),
-        id = IdSchema.safeParse(c.req.param("id"));
-      if (!orgId.success || !id.success || actor.orgId !== orgId.data)
-        throw new RootsetError(
-          "RESOURCE_NOT_FOUND",
-          "Resource unavailable.",
-          404,
-        );
-      if (
-        c.req.header("Content-Type")?.split(";")[0]?.trim().toLowerCase() !==
-        "application/octet-stream"
-      )
-        throw new RootsetError(
-          "UNSUPPORTED_MEDIA_TYPE",
-          "Use application/octet-stream for artifact bytes.",
-          415,
-        );
-      const declared = c.req.header("Content-Length"),
-        maximum = 128 * 1024 * 1024;
-      if (
-        declared &&
-        (!/^\d{1,9}$/.test(declared) || Number(declared) > maximum)
-      )
-        throw new RootsetError(
-          "PAYLOAD_TOO_LARGE",
-          "Artifact upload exceeds 128 MiB.",
-          413,
-        );
-      const body = c.req.raw.body;
-      if (!body)
-        throw new RootsetError(
-          "VALIDATION_FAILED",
-          "Artifact bytes are required.",
-          400,
-        );
-      async function* chunks() {
-        const reader = body!.getReader();
-        let received = 0,
-          completed = false;
-        try {
-          while (true) {
-            const next = await reader.read();
-            if (next.done) {
-              completed = true;
-              return;
-            }
-            received += next.value.byteLength;
-            if (received > maximum)
-              throw new RootsetError(
-                "PAYLOAD_TOO_LARGE",
-                "Artifact upload exceeds 128 MiB.",
-                413,
-              );
-            yield next.value;
-          }
-        } finally {
-          if (!completed) await reader.cancel().catch(() => undefined);
-          reader.releaseLock();
-        }
-      }
-      const release = await enterActor(actor, false, 660);
-      try {
-        const result = await deps.uploadArtifact!(actor, id.data, chunks());
-        const output = z
-          .strictObject({
-            artifactId: IdSchema,
-            byteLength: z.number().int().min(1).max(maximum),
-            checksum: z.string().regex(/^[a-f0-9]{64}$/),
-          })
-          .safeParse(result);
-        if (!output.success)
-          throw new RootsetError(
-            "INTERNAL_ERROR",
-            "Artifact result failed its output contract.",
-            500,
-            { reason: "OUTPUT_CONTRACT_INVALID" },
-          );
-        return json(output.data);
-      } finally {
-        await release();
-      }
-    });
   app.all("/oauth/*", async (c) => {
     let ip = "in-process";
     try {

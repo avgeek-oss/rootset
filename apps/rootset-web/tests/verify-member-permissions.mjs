@@ -125,12 +125,11 @@ try {
     .getByRole("dialog")
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
-  await page.goto(`/settings/imports?${target}`);
   await expect(
     page.getByRole("link", { name: "Import rows", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   report.checks.push({
-    name: "Direct admin links do not fetch or mount protected forms; members retain imports and personal keys",
+    name: "Direct admin links do not fetch or mount protected forms; members retain personal keys and have no import surface",
     status: "passed",
   });
   const adminContext = await signIn(admin, "../.env.browser-test", "admin");

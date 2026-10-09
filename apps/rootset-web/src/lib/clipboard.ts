@@ -25,7 +25,7 @@ export function parseTsvCells(
   limits = { rows: 25_000, columns: 200, bytes: 8 * 1024 * 1024 },
 ): TsvCell[][] {
   if (new TextEncoder().encode(text).length > limits.bytes)
-    throw new Error("Paste exceeds 8 MiB. Upload a file through Imports.");
+    throw new Error("Paste exceeds 8 MiB. Use a smaller selection.");
   const rows: TsvCell[][] = [];
   let row: TsvCell[] = [],
     cell = "",
@@ -35,7 +35,7 @@ export function parseTsvCells(
   function endCell() {
     if (row.length >= limits.columns)
       throw new Error(
-        `Paste exceeds ${limits.columns} columns. Upload a file through Imports.`,
+        `Paste exceeds ${limits.columns} columns. Use a smaller selection.`,
       );
     row.push({ value: cell, quoted: wasQuoted });
     cell = "";
@@ -45,7 +45,7 @@ export function parseTsvCells(
   function endRow() {
     if (rows.length >= limits.rows)
       throw new Error(
-        `Paste exceeds ${limits.rows.toLocaleString()} rows. Upload a file through Imports.`,
+        `Paste exceeds ${limits.rows.toLocaleString()} rows. Use a smaller selection.`,
       );
     endCell();
     rows.push(row);

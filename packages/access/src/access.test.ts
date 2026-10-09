@@ -43,7 +43,7 @@ test("roles separate admin management, member row writes and viewer reads", () =
         role === "admin",
         `${role}:${scope}`,
       );
-    for (const scope of ["rows:write", "imports:write"])
+    for (const scope of ["rows:write"])
       assert.equal(
         roleAllows(role, scope),
         role !== "viewer",
@@ -106,7 +106,7 @@ test("OAuth operation consent intersects the current role on every check", () =>
     }),
   );
   assert.throws(
-    () => assertAccess(actor, { scope: "imports:write" }),
+    () => assertAccess(actor, { scope: "exports:read" }),
     /OAuth grant/,
   );
   assert.throws(

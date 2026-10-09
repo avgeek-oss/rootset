@@ -49,7 +49,7 @@ describe("context settings navigation", () => {
     if (scope === "account" || scope === "team")
       for (const item of items) expect(item.href).not.toContain("databaseId");
   });
-  it("keeps exports available to viewers while hiding management and imports", () => {
+  it("keeps exports available to viewers while hiding management", () => {
     expect(
       settingsNavigationGroups("table", "viewer").flatMap((group) =>
         group.items.map((item) => item.id),
@@ -59,7 +59,7 @@ describe("context settings navigation", () => {
       settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["imports", "exports"]);
+    ).toEqual(["exports"]);
     expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });
   it("includes only identifiers belonging to the settings scope", () => {
@@ -81,7 +81,6 @@ describe("context settings navigation", () => {
       "table",
       "table-danger-zone",
       "fields",
-      "imports",
       "exports",
     ] as const) {
       const route = resourceRoute(

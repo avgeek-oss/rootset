@@ -70,9 +70,7 @@ export function oauthPermissions(role: string, scopes: string[]) {
   ];
   const administrative =
     role === "admin" && adminScopes.some((scope) => scopes.includes(scope));
-  const edit =
-    role !== "viewer" &&
-    scopes.some((scope) => scope === "rows:write" || scope === "imports:write");
+  const edit = role !== "viewer" && scopes.includes("rows:write");
   return {
     access: administrative || edit ? "edit" : "read",
     includeAdmin: administrative,

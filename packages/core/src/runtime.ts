@@ -90,7 +90,6 @@ export async function createRuntime(
         },
         artifacts: {
           ...config.artifacts,
-          uploadBaseURL: config.baseURL,
           forcePathStyle: true,
           encryptionKey: config.encryptionKey,
         },

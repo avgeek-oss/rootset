@@ -59,7 +59,5 @@ export function createRuntimeApp(
       };
     },
     downloadArtifact: (actor, id) => runtime.jobs.downloadArtifact(actor, id),
-    uploadArtifact: (actor, id, body) =>
-      runtime.jobs.uploadArtifact(actor, id, body),
   });
 }
