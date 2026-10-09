@@ -133,6 +133,8 @@ before(async () => {
       { name: "active", type: "boolean" },
       { name: "instant", type: "date-time" },
       { name: "payload", type: "json" },
+      { name: "resource", type: "uri" },
+      { name: "website", type: "url" },
     ],
     idempotencyKey: newId(),
   });
@@ -153,6 +155,8 @@ before(async () => {
         active: true,
         instant: "2026-10-02T01:00:00Z",
         payload: { index },
+        resource: `custom:resource ${index}`,
+        website: "not a URL",
       },
       { idempotencyKey: newId() },
     );
@@ -210,7 +214,10 @@ test("V1-25: complete-table snapshot export has canonical quoted content and enc
   const download = await jobs.downloadArtifact(actor, artifact.id);
   let content = "";
   for await (const chunk of download.stream) content += String(chunk);
-  assert.ok(content.startsWith("code,name,active,instant,payload\n"));
+  assert.ok(content.includes("custom:resource 1,not a URL"));
+  assert.ok(
+    content.startsWith("code,name,active,instant,payload,resource,website\n"),
+  );
   for (const code of ["00001", "00002", "00003"])
     assert.ok(content.includes(code));
   assert.match(content, /00001,"Name, one",true,2026-10-02T01:00:00.000Z/);

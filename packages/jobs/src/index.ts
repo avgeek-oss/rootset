@@ -1128,7 +1128,7 @@ export class JobsService {
                             ? canonicalJson(value)
                             : String(value);
                       if (
-                        field.type === "text" &&
+                        ["text", "uri", "url"].includes(field.type) &&
                         typeof value === "string" &&
                         text.startsWith("\\")
                       )

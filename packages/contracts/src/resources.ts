@@ -19,7 +19,6 @@ import {
   FieldDefinitionSchema,
   FieldInputSchema,
 } from "./values";
-import { QuerySpecSchema } from "./query";
 
 const timestamps = { createdAt: DateTimeSchema, updatedAt: DateTimeSchema };
 export const LifecycleSchema = z.enum([

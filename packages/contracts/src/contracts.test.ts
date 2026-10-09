@@ -57,6 +57,38 @@ import {
 } from "./index";
 
 const id = "01K6J7B8000000000000000000";
+test("URI and URL fields preserve arbitrary strings without address validation or custom constraints", () => {
+  for (const type of ["uri", "url"] as const) {
+    const field = { id, name: "ADDRESS", type };
+    assert.equal(
+      FieldDefinitionSchema.safeParse({ ...field, default: "not an address" })
+        .success,
+      true,
+    );
+    for (const value of [
+      "",
+      "not an address",
+      "mailto:someone@example.org",
+      "relative/path",
+      "https://example.org/a?x=1",
+      " \\N ",
+    ])
+      assert.equal(validateCell(field, value), value);
+    assert.equal(validateCell(field, null), null);
+    assert.throws(() => validateCell({ ...field, required: true }, null));
+    assert.throws(() => validateCell(field, 42));
+    assert.equal(
+      FieldDefinitionSchema.safeParse({ ...field, charLimit: 30 }).success,
+      false,
+    );
+    assert.equal(validateCell(field, "x".repeat(5000)), "x".repeat(5000));
+    validateQuery(
+      { where: { field: "ADDRESS", op: "contains", value: "address" } },
+      [field],
+    );
+  }
+});
+
 test("exports accept only CSV or JSONL and reject partial-table selectors", () => {
   const schema = getOperation("exportRows").inputSchema;
   const input = { orgId: id, databaseId: id, tableId: id, format: "csv" };

@@ -752,7 +752,9 @@ export class RootsetCore {
                   strategy:
                     input.conversion === "lossless"
                       ? "strict"
-                      : field.type === "text"
+                      : field.type === "text" ||
+                          field.type === "uri" ||
+                          field.type === "url"
                         ? "stringify"
                         : "parse",
                 } as const,

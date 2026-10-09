@@ -26,6 +26,22 @@ const field = (
 const draft = (text: string, isNull = false) => ({ text, isNull });
 
 describe("typed editor validation parity", () => {
+  it.each(["uri", "url"] as const)(
+    "edits %s as plain text without address validation",
+    (type) => {
+      for (const value of [
+        "not an address",
+        "mailto:test@example.org",
+        "relative/path",
+        "",
+      ]) {
+        expect(
+          parseCellDraft(field(type), createCellDraft(field(type), value)),
+        ).toBe(value);
+        expect(formatCellValue(field(type), value)).toBe(value);
+      }
+    },
+  );
   it("distinguishes null, empty text, zero and false", () => {
     expect(parseCellDraft(field("text"), draft(""))).toBe("");
     expect(parseCellDraft(field("text"), draft("", true))).toBeNull();

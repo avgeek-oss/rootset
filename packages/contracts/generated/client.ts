@@ -668,6 +668,32 @@ export type createTableInput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "uri";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -789,6 +815,34 @@ export type createTableOutput = {
         type: "float";
         min?: number;
         max?: number;
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "uri";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
       }
     | {
         id: string;
@@ -1015,6 +1069,34 @@ export type getTableSchemaOutput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "uri";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -1158,6 +1240,34 @@ export type listFieldsOutput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "uri";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -1273,6 +1383,32 @@ export type createFieldInput = {
         type: "float";
         min?: number;
         max?: number;
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "uri";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
       }
     | {
         name: string;
@@ -1411,6 +1547,34 @@ export type createFieldOutput =
             type: "float";
             min?: number;
             max?: number;
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "uri";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "url";
           }
         | {
             id: string;
@@ -1574,6 +1738,32 @@ export type updateFieldInput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "uri";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -1701,6 +1891,34 @@ export type updateFieldOutput =
             type: "float";
             min?: number;
             max?: number;
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "uri";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "url";
           }
         | {
             id: string;
@@ -1890,6 +2108,34 @@ export type deleteFieldOutput =
               | unknown[]
               | Record<string, unknown>;
             order?: number;
+            type: "uri";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "url";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
             type: "boolean";
           }
         | {
@@ -2046,6 +2292,34 @@ export type reorderFieldsOutput = {
         type: "float";
         min?: number;
         max?: number;
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "uri";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "url";
       }
     | {
         id: string;
@@ -2288,6 +2562,32 @@ export type getSchemaOperationOutput = {
                 | unknown[]
                 | Record<string, unknown>;
               order?: number;
+              type: "uri";
+            }
+          | {
+              name: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "url";
+            }
+          | {
+              name: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
               type: "boolean";
             }
           | {
@@ -2408,6 +2708,32 @@ export type getSchemaOperationOutput = {
                 | unknown[]
                 | Record<string, unknown>;
               order?: number;
+              type: "uri";
+            }
+          | {
+              name: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
+              type: "url";
+            }
+          | {
+              name: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
               type: "boolean";
             }
           | {
@@ -2474,6 +2800,8 @@ export type getSchemaOperationOutput = {
           name?: string;
           type?:
             | "text"
+            | "uri"
+            | "url"
             | "integer"
             | "float"
             | "boolean"
@@ -2502,6 +2830,8 @@ export type getSchemaOperationOutput = {
           name?: string;
           type?:
             | "text"
+            | "uri"
+            | "url"
             | "integer"
             | "float"
             | "boolean"
@@ -2595,6 +2925,34 @@ export type getSchemaOperationOutput = {
           type: "float";
           min?: number;
           max?: number;
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "uri";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "url";
         }
       | {
           id: string;
@@ -2741,6 +3099,34 @@ export type getSchemaOperationOutput = {
           type: "float";
           min?: number;
           max?: number;
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "uri";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "url";
         }
       | {
           id: string;
@@ -3270,6 +3656,34 @@ export type getCellHistoryOutput = {
             | unknown[]
             | Record<string, unknown>;
           order?: number;
+          type: "uri";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "url";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
           type: "boolean";
         }
       | {
@@ -3420,6 +3834,34 @@ export type queryHistoryOutput = {
           type: "float";
           min?: number;
           max?: number;
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "uri";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "url";
         }
       | {
           id: string;

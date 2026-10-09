@@ -99,6 +99,8 @@ export interface TableField {
   name: string;
   type:
     | "text"
+    | "uri"
+    | "url"
     | "integer"
     | "float"
     | "boolean"
@@ -169,6 +171,8 @@ export interface Artifact {
 
 export const FIELD_TYPES: TableField["type"][] = [
   "text",
+  "uri",
+  "url",
   "integer",
   "float",
   "boolean",

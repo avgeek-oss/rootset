@@ -1,6 +1,8 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   TextFontIcon,
+  Link01Icon,
+  Globe02Icon,
   HashtagIcon,
   DecimalsArrowRightIcon,
   ToggleOnIcon,
@@ -13,6 +15,8 @@ import { FIELD_TYPES, type TableField } from "./types";
 
 const icons: Record<TableField["type"], typeof TextFontIcon> = {
   text: TextFontIcon,
+  uri: Link01Icon,
+  url: Globe02Icon,
   integer: HashtagIcon,
   float: DecimalsArrowRightIcon,
   boolean: ToggleOnIcon,

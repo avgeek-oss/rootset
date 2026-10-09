@@ -256,17 +256,21 @@ export function assertQueryLexemes(
   }
 }
 
+const textOperators = [
+  "eq",
+  "ne",
+  "in",
+  "prefix",
+  "contains",
+  "iContains",
+  "isNull",
+  "isNotNull",
+] satisfies readonly QueryOperator[];
+
 export const operatorsByType = Object.freeze({
-  text: [
-    "eq",
-    "ne",
-    "in",
-    "prefix",
-    "contains",
-    "iContains",
-    "isNull",
-    "isNotNull",
-  ],
+  text: textOperators,
+  uri: textOperators,
+  url: textOperators,
   integer: [
     "eq",
     "ne",

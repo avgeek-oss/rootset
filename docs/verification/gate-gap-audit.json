@@ -210,7 +210,7 @@
     {
       "id": "V1-13",
       "area": "Contracts and storage",
-      "requirement": "All eight types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.",
+      "requirement": "All ten types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.",
       "status": "pending",
       "testSources": [
         {

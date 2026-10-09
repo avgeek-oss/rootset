@@ -112,6 +112,8 @@ export function parseCellDraft(
   let value: JsonValue;
   switch (field.type) {
     case "text":
+    case "uri":
+    case "url":
       value = draft.text;
       break;
     case "integer": {
@@ -278,6 +280,8 @@ export function formatCellValue(
     case "json":
       return jsonCellPreview(value);
     case "text":
+    case "uri":
+    case "url":
       return String(value).length > 512
         ? `${String(value).slice(0, 511)}…`
         : String(value);

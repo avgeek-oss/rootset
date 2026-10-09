@@ -238,6 +238,8 @@ function storageError(error: unknown): never {
 function physicalType(f: FieldDefinition): string {
   switch (f.type) {
     case "text":
+    case "uri":
+    case "url":
       return 'text COLLATE "C"';
     case "integer":
       return "bigint";
@@ -2142,7 +2144,7 @@ export class TableStorage {
       fields.reduce(
         (bytes, f) =>
           bytes +
-          (f.type === "text"
+          (["text", "uri", "url"].includes(f.type)
             ? (f.charLimit ?? limits.textCharLimit) * 4 + 8
             : 24),
         64,
@@ -2619,7 +2621,7 @@ export class TableStorage {
           const strategy =
             change.conversion === "lossless"
               ? "strict"
-              : after.type === "text"
+              : ["text", "uri", "url"].includes(after.type)
                 ? "stringify"
                 : "parse";
           transform = (r) => ({

@@ -88,6 +88,59 @@ after(async () => {
 });
 
 test(
+  "URI and URL storage preserves arbitrary strings, filters, edits and cell history",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Unvalidated addresses",
+      fields: [
+        { name: "RESOURCE", type: "uri" },
+        { name: "WEBSITE", type: "url" },
+      ],
+    });
+    const initial = {
+      RESOURCE: "custom:opaque identifier",
+      WEBSITE: "not a URL",
+    };
+    const row = await storage!.createRow(actor, table.id, initial);
+    assert.deepEqual(
+      (await storage!.getRow(actor, table.id, row.id)).values,
+      initial,
+    );
+    const page = await storage!.queryRows(actor, table.id, {
+      where: { field: "WEBSITE", op: "contains", value: "not a" },
+    });
+    assert.equal(page.data[0]?.id, row.id);
+    const next = await storage!.updateRow(
+      actor,
+      table.id,
+      row.id,
+      { RESOURCE: "relative/path", WEBSITE: "" },
+      { expectedVersion: row.version },
+    );
+    assert.deepEqual(next.values, { RESOURCE: "relative/path", WEBSITE: "" });
+    const history = await storage!.cellHistory(
+      actor,
+      table.id,
+      row.id,
+      table.fields[1]!.id,
+    );
+    assert.ok(history.data.length >= 1);
+    await storage!.updateRow(
+      actor,
+      table.id,
+      row.id,
+      { RESOURCE: null, WEBSITE: null },
+      { expectedVersion: next.version },
+    );
+    assert.deepEqual((await storage!.getRow(actor, table.id, row.id)).values, {
+      RESOURCE: null,
+      WEBSITE: null,
+    });
+  },
+);
+
+test(
   "PostgreSQL canonical numeric bytes match JavaScript finite-double vectors, including shortest-rounding boundaries",
   { skip: !configured },
   async () => {

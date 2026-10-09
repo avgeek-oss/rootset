@@ -27,7 +27,7 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-10` Browser Origin/CSRF, REST/MCP audience separation, nested-parent validation and SQL parameter/identifier boundaries reject abuse without leaking secrets or data.
 - [ ] `V1-11` Field definitions have only one `name`; 1–64 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced.
 - [ ] `V1-12` Field rename changes the UI label and JSON key together while preserving internal ID, values, query references and interpretable cell history.
-- [ ] `V1-13` All eight types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.
+- [ ] `V1-13` All ten types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.
 - [ ] `V1-14` UTC time/date-time precision, calendar dates and timezone/DST editing round-trip through browser, REST, MCP, export and history.
 - [ ] `V1-15` Row bytes, 200 fields, JSON depth, request/result bytes, query rows and 1,000-row mutation caps enforce exact boundaries.
 - [ ] `V1-16` The 5,000,000th live row succeeds and the next fails; concurrent writers cannot race the limit, rollback releases reservations and committed deletion frees capacity.
@@ -73,7 +73,7 @@ settings and contention. Local object/mail dependencies are separate test
 fixtures; measure browser memory separately. Browser-to-API RTT is at most 50 ms
 and API-to-PostgreSQL RTT at most 10 ms.
 
-Use five million live rows, 24 fields spanning all eight types and average
+Use five million live rows, 24 fields spanning all ten types and average
 canonical row size 0.5–1 KiB. Add indexed/unindexed, selective/nonselective and
 sorted queries, a 200-field near-limit fixture, null/duplicate cases and at least
 ten million retained history events. Cold and warm are separate. Collect at least

@@ -18,6 +18,8 @@ literal default is supplied. The field editor requires a valid non-null literal
 default for required fields; new rows must receive a valid value or use that
 default.
 
+Fields support text, URI, URL, integer, float, boolean, date, time, date-time and JSON. URI and URL values are stored as plain strings without address-format validation or custom constraints.
+
 The [current V1 plan](rc-plan/README.md) and its
 [verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) define
 the revised scope. Implementation and verification are being aligned with it.

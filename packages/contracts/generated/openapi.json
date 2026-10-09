@@ -5873,6 +5873,68 @@
                               "minimum": 0,
                               "maximum": 199
                             },
+                            "type": { "type": "string", "const": "uri" }
+                          },
+                          "required": ["name", "type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z_]+$"
+                            },
+                            "required": { "type": "boolean" },
+                            "default": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 199
+                            },
+                            "type": { "type": "string", "const": "url" }
+                          },
+                          "required": ["name", "type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z_]+$"
+                            },
+                            "required": { "type": "boolean" },
+                            "default": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 199
+                            },
                             "type": { "type": "string", "const": "boolean" }
                           },
                           "required": ["name", "type"],
@@ -7312,6 +7374,68 @@
                             "minimum": 0,
                             "maximum": 199
                           },
+                          "type": { "type": "string", "const": "uri" }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z_]+$"
+                          },
+                          "required": { "type": "boolean" },
+                          "default": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "order": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 199
+                          },
+                          "type": { "type": "string", "const": "url" }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z_]+$"
+                          },
+                          "required": { "type": "boolean" },
+                          "default": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "order": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 199
+                          },
                           "type": { "type": "string", "const": "boolean" }
                         },
                         "required": ["name", "type"],
@@ -7802,6 +7926,68 @@
                           "type": { "type": "string", "const": "float" },
                           "min": { "type": "number" },
                           "max": { "type": "number" }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z_]+$"
+                          },
+                          "required": { "type": "boolean" },
+                          "default": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "order": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 199
+                          },
+                          "type": { "type": "string", "const": "uri" }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z_]+$"
+                          },
+                          "required": { "type": "boolean" },
+                          "default": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "order": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 199
+                          },
+                          "type": { "type": "string", "const": "url" }
                         },
                         "required": ["name", "type"],
                         "additionalProperties": false
@@ -17286,6 +17472,68 @@
                       "minimum": 0,
                       "maximum": 199
                     },
+                    "type": { "type": "string", "const": "uri" }
+                  },
+                  "required": ["name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "url" }
+                  },
+                  "required": ["name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
                     "type": { "type": "string", "const": "boolean" }
                   },
                   "required": ["name", "type"],
@@ -17645,6 +17893,76 @@
                     "type": { "type": "string", "const": "float" },
                     "min": { "type": "number" },
                     "max": { "type": "number" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "uri" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "url" }
                   },
                   "required": ["id", "name", "type"],
                   "additionalProperties": false
@@ -18414,6 +18732,76 @@
                       "minimum": 0,
                       "maximum": 199
                     },
+                    "type": { "type": "string", "const": "uri" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "url" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
                     "type": { "type": "string", "const": "boolean" }
                   },
                   "required": ["id", "name", "type"],
@@ -18836,6 +19224,76 @@
                       "minimum": 0,
                       "maximum": 199
                     },
+                    "type": { "type": "string", "const": "uri" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "url" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
                     "type": { "type": "string", "const": "boolean" }
                   },
                   "required": ["id", "name", "type"],
@@ -19132,6 +19590,60 @@
                   "type": { "type": "string", "const": "float" },
                   "min": { "type": "number" },
                   "max": { "type": "number" }
+                },
+                "required": ["name", "type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z_]+$"
+                  },
+                  "required": { "type": "boolean" },
+                  "default": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "order": { "type": "integer", "minimum": 0, "maximum": 199 },
+                  "type": { "type": "string", "const": "uri" }
+                },
+                "required": ["name", "type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z_]+$"
+                  },
+                  "required": { "type": "boolean" },
+                  "default": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "order": { "type": "integer", "minimum": 0, "maximum": 199 },
+                  "type": { "type": "string", "const": "url" }
                 },
                 "required": ["name", "type"],
                 "additionalProperties": false
@@ -19512,6 +20024,76 @@
                         "type": { "type": "string", "const": "float" },
                         "min": { "type": "number" },
                         "max": { "type": "number" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "uri" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "url" }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false
@@ -19967,6 +20549,60 @@
                     ]
                   },
                   "order": { "type": "integer", "minimum": 0, "maximum": 199 },
+                  "type": { "type": "string", "const": "uri" }
+                },
+                "required": ["name", "type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z_]+$"
+                  },
+                  "required": { "type": "boolean" },
+                  "default": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "order": { "type": "integer", "minimum": 0, "maximum": 199 },
+                  "type": { "type": "string", "const": "url" }
+                },
+                "required": ["name", "type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z_]+$"
+                  },
+                  "required": { "type": "boolean" },
+                  "default": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "order": { "type": "integer", "minimum": 0, "maximum": 199 },
                   "type": { "type": "string", "const": "boolean" }
                 },
                 "required": ["name", "type"],
@@ -20323,6 +20959,76 @@
                         "type": { "type": "string", "const": "float" },
                         "min": { "type": "number" },
                         "max": { "type": "number" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "uri" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "url" }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false
@@ -20904,6 +21610,76 @@
                           "minimum": 0,
                           "maximum": 199
                         },
+                        "type": { "type": "string", "const": "uri" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "url" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
                         "type": { "type": "string", "const": "boolean" }
                       },
                       "required": ["id", "name", "type"],
@@ -21414,6 +22190,76 @@
                     "type": { "type": "string", "const": "float" },
                     "min": { "type": "number" },
                     "max": { "type": "number" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "uri" }
+                  },
+                  "required": ["id", "name", "type"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z_]+$"
+                    },
+                    "required": { "type": "boolean" },
+                    "default": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    },
+                    "order": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 199
+                    },
+                    "type": { "type": "string", "const": "url" }
                   },
                   "required": ["id", "name", "type"],
                   "additionalProperties": false
@@ -22248,6 +23094,68 @@
                               "minimum": 0,
                               "maximum": 199
                             },
+                            "type": { "type": "string", "const": "uri" }
+                          },
+                          "required": ["name", "type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z_]+$"
+                            },
+                            "required": { "type": "boolean" },
+                            "default": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 199
+                            },
+                            "type": { "type": "string", "const": "url" }
+                          },
+                          "required": ["name", "type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z_]+$"
+                            },
+                            "required": { "type": "boolean" },
+                            "default": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 199
+                            },
                             "type": { "type": "string", "const": "boolean" }
                           },
                           "required": ["name", "type"],
@@ -22579,6 +23487,68 @@
                             "minimum": 0,
                             "maximum": 199
                           },
+                          "type": { "type": "string", "const": "uri" }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z_]+$"
+                          },
+                          "required": { "type": "boolean" },
+                          "default": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "order": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 199
+                          },
+                          "type": { "type": "string", "const": "url" }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z_]+$"
+                          },
+                          "required": { "type": "boolean" },
+                          "default": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "order": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 199
+                          },
                           "type": { "type": "string", "const": "boolean" }
                         },
                         "required": ["name", "type"],
@@ -22761,6 +23731,8 @@
                         "type": "string",
                         "enum": [
                           "text",
+                          "uri",
+                          "url",
                           "integer",
                           "float",
                           "boolean",
@@ -22822,6 +23794,8 @@
                         "type": "string",
                         "enum": [
                           "text",
+                          "uri",
+                          "url",
                           "integer",
                           "float",
                           "boolean",
@@ -23138,6 +24112,76 @@
                             "type": { "type": "string", "const": "float" },
                             "min": { "type": "number" },
                             "max": { "type": "number" }
+                          },
+                          "required": ["id", "name", "type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z_]+$"
+                            },
+                            "required": { "type": "boolean" },
+                            "default": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 199
+                            },
+                            "type": { "type": "string", "const": "uri" }
+                          },
+                          "required": ["id", "name", "type"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64,
+                              "pattern": "^[A-Za-z_]+$"
+                            },
+                            "required": { "type": "boolean" },
+                            "default": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 199
+                            },
+                            "type": { "type": "string", "const": "url" }
                           },
                           "required": ["id", "name", "type"],
                           "additionalProperties": false
@@ -23568,6 +24612,76 @@
                       "type": { "type": "string", "const": "float" },
                       "min": { "type": "number" },
                       "max": { "type": "number" }
+                    },
+                    "required": ["id", "name", "type"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[A-Za-z_]+$"
+                      },
+                      "required": { "type": "boolean" },
+                      "default": {
+                        "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                        "anyOf": [
+                          { "type": "null" },
+                          { "type": "boolean" },
+                          { "type": "number" },
+                          { "type": "string" },
+                          { "type": "array", "items": {} },
+                          { "type": "object", "additionalProperties": {} }
+                        ]
+                      },
+                      "order": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 199
+                      },
+                      "type": { "type": "string", "const": "uri" }
+                    },
+                    "required": ["id", "name", "type"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[A-Za-z_]+$"
+                      },
+                      "required": { "type": "boolean" },
+                      "default": {
+                        "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                        "anyOf": [
+                          { "type": "null" },
+                          { "type": "boolean" },
+                          { "type": "number" },
+                          { "type": "string" },
+                          { "type": "array", "items": {} },
+                          { "type": "object", "additionalProperties": {} }
+                        ]
+                      },
+                      "order": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 199
+                      },
+                      "type": { "type": "string", "const": "url" }
                     },
                     "required": ["id", "name", "type"],
                     "additionalProperties": false
@@ -25523,6 +26637,76 @@
                           "minimum": 0,
                           "maximum": 199
                         },
+                        "type": { "type": "string", "const": "uri" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "url" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
                         "type": { "type": "string", "const": "boolean" }
                       },
                       "required": ["id", "name", "type"],
@@ -25993,6 +27177,76 @@
                         "type": { "type": "string", "const": "float" },
                         "min": { "type": "number" },
                         "max": { "type": "number" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "uri" }
+                      },
+                      "required": ["id", "name", "type"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z_]+$"
+                        },
+                        "required": { "type": "boolean" },
+                        "default": {
+                          "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                          "anyOf": [
+                            { "type": "null" },
+                            { "type": "boolean" },
+                            { "type": "number" },
+                            { "type": "string" },
+                            { "type": "array", "items": {} },
+                            { "type": "object", "additionalProperties": {} }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 199
+                        },
+                        "type": { "type": "string", "const": "url" }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false

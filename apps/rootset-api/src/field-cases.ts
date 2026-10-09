@@ -50,6 +50,23 @@ function nested(depth: number): JsonValue {
 }
 
 export const fieldCases: FieldCases[] = [
+  ...(["uri", "url"] as const).map((type): FieldCases => ({
+    type,
+    baseline: "not an address",
+    canonical: "not an address",
+    default: "relative/path",
+    defaultCanonical: "relative/path",
+    requiredDefault: "custom:identifier",
+    requiredDefaultCanonical: "custom:identifier",
+    cases: [
+      good("arbitrary-text", "still not an address"),
+      good("relative-path", "../relative/path"),
+      good("opaque-uri", "custom:opaque identifier"),
+      good("empty-string", ""),
+      good("no-text-character-limit", "x".repeat(5000)),
+      bad("number-is-not-a-string", 42),
+    ],
+  })),
   {
     type: "text",
     baseline: "Root",

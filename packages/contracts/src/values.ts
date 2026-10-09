@@ -204,6 +204,8 @@ const rawFields = z.discriminatedUnion("type", [
     min: z.number().finite().optional(),
     max: z.number().finite().optional(),
   }),
+  z.strictObject({ ...common, type: z.literal("uri") }),
+  z.strictObject({ ...common, type: z.literal("url") }),
   z.strictObject({ ...common, type: z.literal("boolean") }),
   z.strictObject({
     ...common,
@@ -284,6 +286,12 @@ export function validateCell(
         invalid(`Field ${field.name} requires valid Unicode text`);
       if ([...value].length > (field.charLimit ?? limits.textCharLimit))
         invalid(`Field ${field.name} exceeds its character limit`);
+      result = value;
+      break;
+    case "uri":
+    case "url":
+      if (typeof value !== "string" || !validUnicode(value))
+        invalid(`Field ${field.name} requires valid Unicode text`);
       result = value;
       break;
     case "integer":

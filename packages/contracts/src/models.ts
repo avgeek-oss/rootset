@@ -203,6 +203,8 @@ export const FieldNameSchema = z
   );
 export const FieldTypeSchema = z.enum([
   "text",
+  "uri",
+  "url",
   "integer",
   "float",
   "boolean",
