@@ -647,8 +647,7 @@ h1 {
 @media (hover: hover) and (pointer: fine) {
   .nav-item:hover,
   .icon-button:hover,
-  .toolbar-button:hover,
-  .sidebar-identity:hover {
+  .toolbar-button:hover {
     background: var(--default);
   }
 }
