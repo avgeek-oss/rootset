@@ -48,6 +48,7 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { DebouncedSave } from "../lib/debounced-save";
 import { CellEditor, formatCellValue } from "./cells";
 import { Dialog } from "./dialog";
+import { useConfirmation } from "./settings/ui";
 import { PasteImport } from "./paste-import";
 import { TableFilterDialog } from "./table-filter-dialog";
 import type { FilterCombination, FilterCondition } from "../lib/table-filters";
@@ -102,6 +103,7 @@ export function Spreadsheet({
 }) {
   const tablePath = resourcePath(orgId, databaseId, table.id);
   const queryClient = useQueryClient();
+  const confirmation = useConfirmation();
   const schema = useQuery({
     queryKey: ["schema", table.id],
     queryFn: ({ signal }) =>
@@ -1020,14 +1022,14 @@ export function Spreadsheet({
     }
   }
 
-  async function deleteSelectedRow() {
-    if (!selection || !writable) return;
-    const row = rows[selection.row];
-    if (!row) return;
+  async function deleteRow(row: Row) {
+    if (!writable || saving) return;
     if (
-      !confirm(
-        "Delete the selected row and its cell history? This cannot be undone.",
-      )
+      !(await confirmation.confirm(
+        `Delete row ${windowStart + rows.findIndex((candidate) => candidate.id === row.id) + 1}?`,
+        "Delete this row and its cell history? This cannot be undone.",
+        "Delete row",
+      ))
     )
       return;
     setSaving(true);
@@ -1506,7 +1508,8 @@ export function Spreadsheet({
                   void setCellNull(current.row, current.field);
                 else if (key === "history" && current.row && current.field)
                   setHistory({ row: current.row, field: current.field });
-                else if (key === "delete") void deleteSelectedRow();
+                else if (key === "delete" && current.row)
+                  void deleteRow(current.row);
               }}
             >
               {contextMenu.field ? (
@@ -1535,6 +1538,7 @@ export function Spreadsheet({
           </Dropdown.Popover>
         </Dropdown>
       )}
+      {confirmation.dialog}
       {history && (
         <CellHistory
           tablePath={tablePath}
