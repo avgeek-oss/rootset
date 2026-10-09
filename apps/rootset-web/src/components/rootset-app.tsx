@@ -675,6 +675,7 @@ export function RootsetApp() {
                     databaseId={selectedDatabaseId ?? undefined}
                     tableId={selectedTableId ?? undefined}
                     theme={preferences.theme}
+                    preferences={preferences}
                     onClose={backToData}
                     onChanged={refresh}
                   />

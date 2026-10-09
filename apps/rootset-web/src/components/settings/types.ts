@@ -31,6 +31,7 @@ export interface SettingsPanelProps {
   databaseId?: string;
   tableId?: string;
   theme?: Preferences["theme"];
+  preferences?: Preferences;
   onClose: () => void;
   onChanged?: () => void;
 }

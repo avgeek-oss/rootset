@@ -587,7 +587,10 @@ export function FieldsSettings(props: SettingsPanelProps) {
               header: "Constraints",
               className: "field-constraints",
               cell: (field) => {
-                const constraints = fieldConstraints(field).join(", ");
+                const constraints = fieldConstraints(
+                  field,
+                  props.preferences,
+                ).join(", ");
                 return (
                   <span className={constraints ? undefined : "field-empty"}>
                     {constraints || "—"}
