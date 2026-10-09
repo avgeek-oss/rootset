@@ -69,7 +69,7 @@ API/worker artifact spools are private durable directories under
 `/var/lib/rootset/artifact-spool`; they are not unbounded heap buffers. Runtime
 services and the one-shot migration service all use `ROOTSET_DATABASE_URL`.
 Use one ordinary PostgreSQL database owner with permission to create schemas
-and the trusted `pgcrypto` and `pg_trgm` extensions. It must not have superuser
+and the trusted `pgcrypto` extension. It must not have superuser
 or `BYPASSRLS` privileges. The local profile provisions this user automatically.
 Rootset does not require separate application, identity or DDL credentials.
 Organisation context and product permissions still apply to API and MCP calls.

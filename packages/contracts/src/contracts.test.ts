@@ -134,7 +134,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 76);
+  assert.equal(operations.length, 73);
   assert.equal(getOperation("createRow").readOnly, false);
   assert(
     operations.every((operation) =>
@@ -849,18 +849,8 @@ test("catalog covers every named baseline MCP operation with unique routes and s
   assert.equal(operationMap.queryRows!.readOnly, true);
   assert.equal(operationMap.createRow!.readOnly, false);
   assert.equal(operationMap.createTeamKey, undefined);
-  const indexInput = operationExample(operationMap.createIndex!);
-  assert.equal(
-    operationMap.createIndex!.inputSchema.safeParse(indexInput).success,
-    true,
-  );
-  assert.equal(
-    operationMap.createIndex!.inputSchema.safeParse({
-      ...indexInput,
-      fieldIds: [id, "01ARZ3NDEKTSV4RRFFQ69G5FAW"],
-    }).success,
-    false,
-  );
+  for (const id of ["listIndexes", "createIndex", "deleteIndex"])
+    assert.equal(operationMap[id], undefined);
   assert.equal(
     operationMap.createUniqueRule!.inputSchema.safeParse({
       ...operationExample(operationMap.createUniqueRule!),
@@ -1173,7 +1163,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 76);
+  assert.equal(operations.length, 73);
   const api = generateOpenApi() as {
     paths: Record<
       string,

@@ -6773,7 +6773,7 @@
       "get": {
         "operationId": "getTableSchema",
         "tags": ["schema"],
-        "summary": "Discover active fields, rules, indexes, limits and operator coverage.",
+        "summary": "Discover active fields, rules, limits and operator coverage.",
         "parameters": [
           {
             "name": "orgId",
@@ -8154,7 +8154,7 @@
       "delete": {
         "operationId": "deleteField",
         "tags": ["schema"],
-        "summary": "Remove a field safely after approving dependent rule/index removal.",
+        "summary": "Remove a field safely after approving dependent unique-rule removal.",
         "parameters": [
           {
             "name": "orgId",
@@ -9958,622 +9958,6 @@
         "x-rootset-minimum-role": "admin",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_delete_unique_rule",
-        "x-rootset-error-codes": [
-          "VALIDATION_FAILED",
-          "UNAUTHENTICATED",
-          "ACCESS_DENIED",
-          "FORBIDDEN",
-          "INSUFFICIENT_SCOPE",
-          "RESOURCE_NOT_FOUND",
-          "DEPENDENCY_UNAVAILABLE",
-          "REQUEST_TIMEOUT",
-          "IDEMPOTENCY_CONFLICT"
-        ],
-        "x-rootset-json-request-max-bytes": 8388608,
-        "x-rootset-json-read-timeout-ms": 10000,
-        "x-rootset-request-example": {
-          "orgId": "01K6J7B8000000000000000000",
-          "databaseId": "01K6J7B8000000000000000000",
-          "tableId": "01K6J7B8000000000000000000",
-          "expectedSchemaVersion": 1,
-          "id": "01K6J7B8000000000000000000"
-        }
-      }
-    },
-    "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes": {
-      "get": {
-        "operationId": "listIndexes",
-        "tags": ["schema"],
-        "summary": "List index state and supported operator coverage.",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "databaseId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          }
-        ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
-        "responses": {
-          "200": {
-            "description": "Authorised operation result.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/listIndexesOutput" }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired, revoked or wrong-audience credential.",
-            "headers": {
-              "WWW-Authenticate": { "schema": { "type": "string" } }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient current authority.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown or undisclosed target.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "408": {
-            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "409": {
-            "description": "Revision, schema, uniqueness or idempotency conflict.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "413": {
-            "description": "Payload or output budget exceeded.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "422": {
-            "description": "Typed validation failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate, concurrency or admission limit.",
-            "headers": { "Retry-After": { "schema": { "type": "string" } } },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "500": {
-            "description": "Redacted internal failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "502": {
-            "description": "A required upstream service is unavailable.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "503": {
-            "description": "A required service is unavailable. Check service configuration before retrying.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          }
-        },
-        "x-rootset-scopes": ["tables:read"],
-        "x-rootset-read-only": true,
-        "x-rootset-step-up": "never",
-        "x-rootset-job": false,
-        "x-rootset-minimum-role": "viewer",
-        "x-rootset-personal": false,
-        "x-rootset-mcp-tool": "rootset_list_indexes",
-        "x-rootset-error-codes": [
-          "VALIDATION_FAILED",
-          "UNAUTHENTICATED",
-          "ACCESS_DENIED",
-          "FORBIDDEN",
-          "INSUFFICIENT_SCOPE",
-          "RESOURCE_NOT_FOUND",
-          "DEPENDENCY_UNAVAILABLE",
-          "REQUEST_TIMEOUT"
-        ],
-        "x-rootset-json-request-max-bytes": 8388608,
-        "x-rootset-json-read-timeout-ms": 10000,
-        "x-rootset-request-example": {
-          "orgId": "01K6J7B8000000000000000000",
-          "databaseId": "01K6J7B8000000000000000000",
-          "tableId": "01K6J7B8000000000000000000"
-        }
-      },
-      "post": {
-        "operationId": "createIndex",
-        "tags": ["schema"],
-        "summary": "Start a verified index build within the secondary-index budget.",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "databaseId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
-            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
-          }
-        ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "expectedSchemaVersion": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 2147483647
-                  },
-                  "fieldIds": {
-                    "minItems": 1,
-                    "maxItems": 1,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": ["btree", "trigram", "jsonb"]
-                  }
-                },
-                "required": ["expectedSchemaVersion", "fieldIds", "kind"],
-                "additionalProperties": false
-              },
-              "example": {
-                "expectedSchemaVersion": 1,
-                "fieldIds": ["01K6J7B8000000000000000000"],
-                "kind": "btree"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/createIndexOutput" }
-              }
-            }
-          },
-          "202": {
-            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/createIndexOutput" }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired, revoked or wrong-audience credential.",
-            "headers": {
-              "WWW-Authenticate": { "schema": { "type": "string" } }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient current authority.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown or undisclosed target.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "408": {
-            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "409": {
-            "description": "Revision, schema, uniqueness or idempotency conflict.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "413": {
-            "description": "Payload or output budget exceeded.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "422": {
-            "description": "Typed validation failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate, concurrency or admission limit.",
-            "headers": { "Retry-After": { "schema": { "type": "string" } } },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "500": {
-            "description": "Redacted internal failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "502": {
-            "description": "A required upstream service is unavailable.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "503": {
-            "description": "A required service is unavailable. Check service configuration before retrying.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          }
-        },
-        "x-rootset-scopes": ["schema:manage"],
-        "x-rootset-read-only": false,
-        "x-rootset-step-up": "never",
-        "x-rootset-job": true,
-        "x-rootset-minimum-role": "admin",
-        "x-rootset-personal": false,
-        "x-rootset-mcp-tool": "rootset_create_index",
-        "x-rootset-error-codes": [
-          "VALIDATION_FAILED",
-          "UNAUTHENTICATED",
-          "ACCESS_DENIED",
-          "FORBIDDEN",
-          "INSUFFICIENT_SCOPE",
-          "RESOURCE_NOT_FOUND",
-          "DEPENDENCY_UNAVAILABLE",
-          "REQUEST_TIMEOUT",
-          "IDEMPOTENCY_CONFLICT"
-        ],
-        "x-rootset-json-request-max-bytes": 8388608,
-        "x-rootset-json-read-timeout-ms": 10000,
-        "x-rootset-request-example": {
-          "orgId": "01K6J7B8000000000000000000",
-          "databaseId": "01K6J7B8000000000000000000",
-          "tableId": "01K6J7B8000000000000000000",
-          "expectedSchemaVersion": 1,
-          "fieldIds": ["01K6J7B8000000000000000000"],
-          "kind": "btree"
-        }
-      }
-    },
-    "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes/{id}": {
-      "delete": {
-        "operationId": "deleteIndex",
-        "tags": ["schema"],
-        "summary": "Remove a secondary index without removing unique enforcement.",
-        "parameters": [
-          {
-            "name": "orgId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "databaseId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            },
-            "example": "01K6J7B8000000000000000000"
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
-            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
-          }
-        ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "expectedSchemaVersion": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 2147483647
-                  }
-                },
-                "required": ["expectedSchemaVersion"],
-                "additionalProperties": false
-              },
-              "example": { "expectedSchemaVersion": 1 }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Authorised operation result.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/deleteIndexOutput" }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired, revoked or wrong-audience credential.",
-            "headers": {
-              "WWW-Authenticate": { "schema": { "type": "string" } }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient current authority.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown or undisclosed target.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "408": {
-            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "409": {
-            "description": "Revision, schema, uniqueness or idempotency conflict.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "413": {
-            "description": "Payload or output budget exceeded.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "422": {
-            "description": "Typed validation failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate, concurrency or admission limit.",
-            "headers": { "Retry-After": { "schema": { "type": "string" } } },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "500": {
-            "description": "Redacted internal failure.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "502": {
-            "description": "A required upstream service is unavailable.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          },
-          "503": {
-            "description": "A required service is unavailable. Check service configuration before retrying.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
-              }
-            }
-          }
-        },
-        "x-rootset-scopes": ["schema:manage"],
-        "x-rootset-read-only": false,
-        "x-rootset-step-up": "never",
-        "x-rootset-job": false,
-        "x-rootset-minimum-role": "admin",
-        "x-rootset-personal": false,
-        "x-rootset-mcp-tool": "rootset_delete_index",
         "x-rootset-error-codes": [
           "VALIDATION_FAILED",
           "UNAUTHENTICATED",
@@ -19559,51 +18943,6 @@
               "additionalProperties": false
             }
           },
-          "indexes": {
-            "maxItems": 16,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "tableId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "fieldIds": {
-                  "minItems": 1,
-                  "maxItems": 8,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  }
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": ["btree", "trigram", "jsonb"]
-                },
-                "state": {
-                  "type": "string",
-                  "enum": ["building", "active", "failed", "deleting"]
-                },
-                "jobId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "sizeBytes": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": ["id", "tableId", "fieldIds", "kind", "state"],
-              "additionalProperties": false
-            }
-          },
           "operators": {
             "type": "object",
             "propertyNames": { "type": "string" },
@@ -19622,14 +18961,7 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": [
-          "table",
-          "fields",
-          "uniqueRules",
-          "indexes",
-          "operators",
-          "limits"
-        ],
+        "required": ["table", "fields", "uniqueRules", "operators", "limits"],
         "additionalProperties": false
       },
       "getTableInput": {
@@ -20346,51 +19678,6 @@
               "additionalProperties": false
             }
           },
-          "indexes": {
-            "maxItems": 16,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "tableId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "fieldIds": {
-                  "minItems": 1,
-                  "maxItems": 8,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  }
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": ["btree", "trigram", "jsonb"]
-                },
-                "state": {
-                  "type": "string",
-                  "enum": ["building", "active", "failed", "deleting"]
-                },
-                "jobId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "sizeBytes": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": ["id", "tableId", "fieldIds", "kind", "state"],
-              "additionalProperties": false
-            }
-          },
           "operators": {
             "type": "object",
             "propertyNames": { "type": "string" },
@@ -20409,14 +19696,7 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": [
-          "table",
-          "fields",
-          "uniqueRules",
-          "indexes",
-          "operators",
-          "limits"
-        ],
+        "required": ["table", "fields", "uniqueRules", "operators", "limits"],
         "additionalProperties": false
       },
       "listFieldsInput": {
@@ -21530,51 +20810,6 @@
                   "additionalProperties": false
                 }
               },
-              "indexes": {
-                "maxItems": 16,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "tableId": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "fieldIds": {
-                      "minItems": 1,
-                      "maxItems": 8,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      }
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": ["btree", "trigram", "jsonb"]
-                    },
-                    "state": {
-                      "type": "string",
-                      "enum": ["building", "active", "failed", "deleting"]
-                    },
-                    "jobId": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "sizeBytes": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                  "additionalProperties": false
-                }
-              },
               "operators": {
                 "type": "object",
                 "propertyNames": { "type": "string" },
@@ -21597,7 +20832,6 @@
               "table",
               "fields",
               "uniqueRules",
-              "indexes",
               "operators",
               "limits"
             ],
@@ -22387,51 +21621,6 @@
                   "additionalProperties": false
                 }
               },
-              "indexes": {
-                "maxItems": 16,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "tableId": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "fieldIds": {
-                      "minItems": 1,
-                      "maxItems": 8,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      }
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": ["btree", "trigram", "jsonb"]
-                    },
-                    "state": {
-                      "type": "string",
-                      "enum": ["building", "active", "failed", "deleting"]
-                    },
-                    "jobId": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "sizeBytes": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                  "additionalProperties": false
-                }
-              },
               "operators": {
                 "type": "object",
                 "propertyNames": { "type": "string" },
@@ -22454,7 +21643,6 @@
               "table",
               "fields",
               "uniqueRules",
-              "indexes",
               "operators",
               "limits"
             ],
@@ -22980,51 +22168,6 @@
                   "additionalProperties": false
                 }
               },
-              "indexes": {
-                "maxItems": 16,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "tableId": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "fieldIds": {
-                      "minItems": 1,
-                      "maxItems": 8,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      }
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": ["btree", "trigram", "jsonb"]
-                    },
-                    "state": {
-                      "type": "string",
-                      "enum": ["building", "active", "failed", "deleting"]
-                    },
-                    "jobId": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    },
-                    "sizeBytes": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                  "additionalProperties": false
-                }
-              },
               "operators": {
                 "type": "object",
                 "propertyNames": { "type": "string" },
@@ -23047,7 +22190,6 @@
               "table",
               "fields",
               "uniqueRules",
-              "indexes",
               "operators",
               "limits"
             ],
@@ -23570,51 +22712,6 @@
               "additionalProperties": false
             }
           },
-          "indexes": {
-            "maxItems": 16,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "tableId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "fieldIds": {
-                  "minItems": 1,
-                  "maxItems": 8,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  }
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": ["btree", "trigram", "jsonb"]
-                },
-                "state": {
-                  "type": "string",
-                  "enum": ["building", "active", "failed", "deleting"]
-                },
-                "jobId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "sizeBytes": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": ["id", "tableId", "fieldIds", "kind", "state"],
-              "additionalProperties": false
-            }
-          },
           "operators": {
             "type": "object",
             "propertyNames": { "type": "string" },
@@ -23633,14 +22730,7 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": [
-          "table",
-          "fields",
-          "uniqueRules",
-          "indexes",
-          "operators",
-          "limits"
-        ],
+        "required": ["table", "fields", "uniqueRules", "operators", "limits"],
         "additionalProperties": false
       },
       "previewSchemaChangeInput": {
@@ -24879,39 +23969,6 @@
               {
                 "type": "object",
                 "properties": {
-                  "kind": { "type": "string", "const": "index.create" },
-                  "fieldIds": {
-                    "minItems": 1,
-                    "maxItems": 1,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "indexKind": {
-                    "type": "string",
-                    "enum": ["btree", "trigram", "jsonb"]
-                  }
-                },
-                "required": ["kind", "fieldIds", "indexKind"],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": { "type": "string", "const": "index.delete" },
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  }
-                },
-                "required": ["kind"],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
                   "kind": { "type": "string", "const": "unknown" }
                 },
                 "required": ["kind"],
@@ -25429,10 +24486,6 @@
             "properties": {
               "transactional": { "type": "boolean" },
               "fieldId": {
-                "type": "string",
-                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-              },
-              "indexId": {
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
               },
@@ -26032,230 +25085,6 @@
         "additionalProperties": false
       },
       "deleteUniqueRuleOutput": {
-        "type": "object",
-        "properties": {
-          "deleted": { "type": "boolean" },
-          "mutationId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          }
-        },
-        "required": ["deleted"],
-        "additionalProperties": false
-      },
-      "listIndexesInput": {
-        "type": "object",
-        "properties": {
-          "orgId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "databaseId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "tableId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          }
-        },
-        "required": ["orgId", "databaseId", "tableId"],
-        "additionalProperties": false
-      },
-      "listIndexesOutput": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "tableId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "fieldIds": {
-                  "minItems": 1,
-                  "maxItems": 8,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  }
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": ["btree", "trigram", "jsonb"]
-                },
-                "state": {
-                  "type": "string",
-                  "enum": ["building", "active", "failed", "deleting"]
-                },
-                "jobId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "sizeBytes": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": ["id", "tableId", "fieldIds", "kind", "state"],
-              "additionalProperties": false
-            }
-          },
-          "nextCursor": { "type": ["string", "null"] },
-          "hasMore": { "type": "boolean" }
-        },
-        "required": ["data"],
-        "additionalProperties": false
-      },
-      "createIndexInput": {
-        "type": "object",
-        "properties": {
-          "orgId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "databaseId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "tableId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "expectedSchemaVersion": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 2147483647
-          },
-          "fieldIds": {
-            "minItems": 1,
-            "maxItems": 1,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            }
-          },
-          "kind": { "type": "string", "enum": ["btree", "trigram", "jsonb"] }
-        },
-        "required": [
-          "orgId",
-          "databaseId",
-          "tableId",
-          "expectedSchemaVersion",
-          "fieldIds",
-          "kind"
-        ],
-        "additionalProperties": false
-      },
-      "createIndexOutput": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-              },
-              "tableId": {
-                "type": "string",
-                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-              },
-              "fieldIds": {
-                "minItems": 1,
-                "maxItems": 8,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                }
-              },
-              "kind": {
-                "type": "string",
-                "enum": ["btree", "trigram", "jsonb"]
-              },
-              "state": {
-                "type": "string",
-                "enum": ["building", "active", "failed", "deleting"]
-              },
-              "jobId": {
-                "type": "string",
-                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-              },
-              "sizeBytes": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              }
-            },
-            "required": ["id", "tableId", "fieldIds", "kind", "state"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "jobId": {
-                "type": "string",
-                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-              },
-              "state": {
-                "type": "string",
-                "enum": [
-                  "queued",
-                  "running",
-                  "succeeded",
-                  "failed",
-                  "cancelled",
-                  "partially_completed"
-                ]
-              },
-              "statusUrl": { "type": "string" }
-            },
-            "required": ["jobId", "state", "statusUrl"],
-            "additionalProperties": false
-          }
-        ]
-      },
-      "deleteIndexInput": {
-        "type": "object",
-        "properties": {
-          "orgId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "databaseId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "tableId": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          },
-          "expectedSchemaVersion": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 2147483647
-          },
-          "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" }
-        },
-        "required": [
-          "orgId",
-          "databaseId",
-          "tableId",
-          "expectedSchemaVersion",
-          "id"
-        ],
-        "additionalProperties": false
-      },
-      "deleteIndexOutput": {
         "type": "object",
         "properties": {
           "deleted": { "type": "boolean" },

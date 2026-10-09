@@ -32,7 +32,6 @@ import type {
   SchemaOptions,
   RowOperation,
   UniqueRule,
-  IndexRecord,
   FieldInput,
 } from "@rootset/table-storage";
 import type { JobsService } from "@rootset/jobs";
@@ -139,13 +138,6 @@ const rulePublic = (r: UniqueRule) => ({
     ? { error: typeof r.error === "string" ? r.error : JSON.stringify(r.error) }
     : {}),
 });
-const indexPublic = (i: IndexRecord) => ({
-  id: i.id,
-  tableId: i.tableId,
-  fieldIds: [i.fieldId],
-  kind: i.kind === "json" ? "jsonb" : i.kind,
-  state: i.state,
-});
 function mutationOptions(
   input: Record<string, unknown>,
   ctx: OperationContext,
@@ -214,7 +206,6 @@ const asynchronous = new Set([
   "deleteDatabase",
   "deleteTable",
   "applySchemaChange",
-  "createIndex",
   "createUniqueRule",
   "updateField",
   "deleteField",
@@ -635,9 +626,6 @@ export class RootsetCore {
       uniqueRules: (
         await this.options.storage.listUniqueRules(actor, tableId)
       ).map(rulePublic),
-      indexes: (await this.options.storage.listIndexes(actor, tableId)).map(
-        indexPublic,
-      ),
       operators,
       limits: { ...limits },
     };
@@ -877,34 +865,6 @@ export class RootsetCore {
         );
       case "deleteUniqueRule":
         await s.deleteUniqueRule(
-          a,
-          tableId,
-          str(input.id),
-          schemaOptions(input, ctx),
-        );
-        return { deleted: true };
-      case "listIndexes":
-        return { data: (await s.listIndexes(a, tableId)).map(indexPublic) };
-      case "createIndex": {
-        const fields = input.fieldIds as string[];
-        if (fields.length !== 1)
-          throw new RootsetError(
-            "VALIDATION_FAILED",
-            "A query index covers one field; composite uniqueness uses unique rules",
-          );
-        return indexPublic(
-          await s.createIndex(a, tableId, {
-            fieldId: fields[0]!,
-            kind:
-              input.kind === "jsonb"
-                ? "json"
-                : (input.kind as "btree" | "trigram"),
-            ...schemaOptions(input, ctx),
-          }),
-        );
-      }
-      case "deleteIndex":
-        await s.deleteIndex(
           a,
           tableId,
           str(input.id),

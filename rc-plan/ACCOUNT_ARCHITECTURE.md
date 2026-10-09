@@ -34,7 +34,7 @@ their separate Rootset limits.
 | ---------------------------------------------------------- | ----- | ------ | ------ |
 | Read tables and history; export readable data              | Yes   | Yes    | Yes    |
 | Create, edit and delete rows; import data                  | Yes   | Yes    | No     |
-| Manage databases, schema, uniqueness and indexes           | Yes   | No     | No     |
+| Manage databases, schema and uniqueness                    | Yes   | No     | No     |
 | Invite people and change/remove memberships                | Yes   | No     | No     |
 | Manage own profile, factors, preferences and personal keys | Yes   | Yes    | Yes    |
 

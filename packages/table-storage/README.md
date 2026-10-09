@@ -39,8 +39,6 @@ A native write commits values, revisions, row count, uniqueness participation, m
 
 `mutateRows(actor, tableId, input, client?)` accepts a supplied organisation-bound transaction for imports. The import worker can commit the batch and its fenced progress checkpoint atomically.
 
-Secondary indexes build with `CREATE INDEX CONCURRENTLY`. Database barriers use completed try-lock queries and bounded application polling so waiting transactions cannot retain a snapshot that prevents PostgreSQL's build from finishing. Publication verifies the native index, schema journal, current worker lease and current authority. Failed cleanup remains explicit and allocated space remains measurable.
-
 Worker-only `MutationContext.jobFence` and `beforePublish` are checked immediately before schema or row publication. These private fields never enter hashes, audit context or retained definitions.
 
 ## Queries and spreadsheet windows

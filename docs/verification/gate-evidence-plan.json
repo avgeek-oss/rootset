@@ -204,7 +204,7 @@
     {
       "id": "V1-11",
       "area": "Contracts and storage",
-      "requirement": "Field definitions have only one `name`; 1–64 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced.",
+      "requirement": "Field definitions have only one `name`; 1\u201364 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced.",
       "status": "pending",
       "testSources": [
         {
@@ -500,11 +500,6 @@
           "path": "tools/verification/storage.integration.test.ts",
           "line": 1091,
           "title": "STORAGE-CONVERSION-01"
-        },
-        {
-          "path": "tools/verification/storage.integration.test.ts",
-          "line": 1339,
-          "title": "STORAGE-INDEX-01"
         }
       ]
     },
@@ -541,11 +536,6 @@
           "path": "packages/jobs/src/integration.ts",
           "line": 1899,
           "title": "V1-07 V1-23 V1-24 V1-25: slow all-rejected validation keeps its transaction live and owns a forced PostgreSQL disconnect"
-        },
-        {
-          "path": "tools/verification/storage.integration.test.ts",
-          "line": 1339,
-          "title": "STORAGE-INDEX-01"
         }
       ]
     },

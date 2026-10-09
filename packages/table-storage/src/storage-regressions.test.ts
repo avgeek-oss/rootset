@@ -230,50 +230,6 @@ test(
 );
 
 test(
-  "Two concurrent secondary-index retries create one validated index and increment schema once",
-  { skip: !configured },
-  async () => {
-    const table = await storage!.createTable(actor, databaseId, {
-      name: "Index replay",
-      fields: [{ name: "code", type: "text", charLimit: 20 }],
-    });
-    const input = {
-      fieldId: table.fields[0]!.id,
-      kind: "btree" as const,
-      expectedSchemaVersion: 1,
-      idempotencyKey: "concurrent-index",
-    };
-    const settled = await Promise.allSettled([
-      storage!.createIndex(actor, table.id, input),
-      storage!.createIndex(actor, table.id, input),
-    ]);
-    for (const result of settled)
-      if (result.status === "rejected") throw result.reason;
-    const completed = settled.map(
-      (result) =>
-        (
-          result as PromiseFulfilledResult<
-            Awaited<ReturnType<TableStorage["createIndex"]>>
-          >
-        ).value,
-    );
-    const first = completed[0]!,
-      second = completed[1]!;
-    assert.equal(first.id, second.id);
-    assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 2);
-    assert.equal(
-      (await storage!.createIndex(actor, table.id, input)).id,
-      first.id,
-    );
-    const native = await owner!.query<{ indisvalid: boolean }>(
-      "SELECT indisvalid FROM pg_index WHERE indexrelid=to_regclass($1)",
-      [`"${schemaName}"."${first.physicalName}"`],
-    );
-    assert.equal(native.rows[0]!.indisvalid, true);
-  },
-);
-
-test(
   "Numeric zero window does not build ranked anchors or claim a filtered count",
   { skip: !configured },
   async () => {
@@ -1087,7 +1043,6 @@ async function repairState(table: TableRecord): Promise<string> {
     "mutations",
     "resource_history",
     "unique_rules",
-    "indexes",
     "schema_operations",
   ])
     data[relation] = (
@@ -2407,7 +2362,7 @@ test(
 );
 
 test(
-  "Conversions rebuild unaffected native, trigram and JSON indexes on the authoritative generation and preserve registry uniqueness across repeated conversion and replay",
+  "Conversions rebuild native uniqueness and preserve registry uniqueness across repeated conversion and replay",
   { skip: !configured },
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
@@ -2430,14 +2385,6 @@ test(
       expectedSchemaVersion: 2,
     });
     assert.equal(registry.strategy, "registry");
-    for (const [index, kind] of (
-      ["btree", "trigram", "json"] as const
-    ).entries())
-      await storage!.createIndex(actor, table.id, {
-        fieldId: table.fields[kind === "json" ? 3 : 0]!.id,
-        kind,
-        expectedSchemaVersion: 3 + index,
-      });
     const rows = [];
     for (let i = 0; i < 3; i++)
       rows.push(
@@ -2453,7 +2400,7 @@ test(
     const input = {
       type: "text" as const,
       conversion: { strategy: "stringify" as const },
-      expectedSchemaVersion: 6,
+      expectedSchemaVersion: 3,
       idempotencyKey: "generation-stringify",
       context: {
         source: "mcp" as const,
@@ -2486,16 +2433,12 @@ test(
       }
     }
     async function enforcement(current: typeof converted) {
-      const rules = await storage!.listUniqueRules(actor, table.id),
-        indexes = await storage!.listIndexes(actor, table.id);
+      const rules = await storage!.listUniqueRules(actor, table.id);
       assert.deepEqual(
         rules.map((r) => r.id).sort(),
         [native.id, registry.id].sort(),
       );
-      for (const definition of [
-        ...rules.filter((r) => r.strategy === "native"),
-        ...indexes,
-      ]) {
+      for (const definition of rules.filter((r) => r.strategy === "native")) {
         const info = (
           await owner!.query<{
             relid: string;
@@ -2511,10 +2454,6 @@ test(
           `${current.schemaName}.${current.physicalName}`,
         );
         assert.equal(info.valid, true);
-        if ("kind" in definition && definition.kind === "trigram")
-          assert.ok(info.definition.includes("gin_trgm_ops"));
-        if ("kind" in definition && definition.kind === "json")
-          assert.ok(info.definition.includes("USING gin"));
       }
       const value = current.fields[2]!.type === "text" ? "7" : 7;
       await assert.rejects(
@@ -2543,7 +2482,7 @@ test(
         .generation,
       2,
     );
-    assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 7);
+    assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 4);
     const reverted = await storage!.updateField(
       actor,
       table.id,
@@ -2551,7 +2490,7 @@ test(
       {
         type: "float",
         conversion: { strategy: "parse" },
-        expectedSchemaVersion: 7,
+        expectedSchemaVersion: 4,
         idempotencyKey: "generation-parse",
       },
     );
@@ -2571,331 +2510,6 @@ test(
       ).rowCount,
       6,
     );
-  },
-);
-
-test(
-  "Restart reconciliation publishes an actually built index after SIGKILL before metadata cutover, then exact retry increments the schema only once",
-  { skip: !configured },
-  async () => {
-    const { spawn } = await import("node:child_process");
-    const table = await storage!.createTable(actor, databaseId, {
-      name: "Killed valid native build",
-      fields: [{ name: "code", type: "text", charLimit: 30 }],
-    });
-    await storage!.createRow(actor, table.id, { code: "kept" });
-    const appUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!),
-      ddlUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!);
-    appUrl.pathname = ddlUrl.pathname = `/${isolatedName}`;
-    const input = {
-      fieldId: table.fields[0]!.id,
-      kind: "btree" as const,
-      expectedSchemaVersion: 1,
-      idempotencyKey: "actual-killed-index",
-    };
-    const program = `import {TableStorage} from ${JSON.stringify(new URL("./index.ts", import.meta.url).href)};import {createPool} from '@rootset/database';const app=createPool(process.env.PROBE_APP_URL),ddl=createPool(process.env.PROBE_DDL_URL);const storage=new TableStorage({pool:app,ddlPool:ddl,cursorSecret:'child-index-restart-secret-at-least-thirty-two-bytes'});let calls=0;await storage.createIndex(${JSON.stringify(actor)},${JSON.stringify(table.id)},{...${JSON.stringify(input)},context:{beforePublish:async()=>{if(++calls===2){process.send({nativeBuilt:true});await new Promise(()=>{});}}}});`;
-    const child = spawn(
-      process.execPath,
-      ["--import", "tsx", "--input-type=module", "--eval", program],
-      {
-        env: {
-          ...process.env,
-          PROBE_APP_URL: appUrl.toString(),
-          PROBE_DDL_URL: ddlUrl.toString(),
-        },
-        stdio: ["ignore", "ignore", "pipe", "ipc"],
-      },
-    );
-    let stderr = "";
-    child.stderr!.on("data", (chunk) => (stderr += chunk.toString()));
-    const ended = new Promise<{
-      code: number | null;
-      signal: NodeJS.Signals | null;
-    }>((resolve) =>
-      child.once("exit", (code, signal) => resolve({ code, signal })),
-    );
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error("Native index checkpoint missing: " + stderr)),
-          5000,
-        );
-        child.once("message", () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-        child.once("exit", () => {
-          clearTimeout(timeout);
-          reject(new Error("Child exited before checkpoint: " + stderr));
-        });
-      });
-      const pending = await storage!.listIndexes(actor, table.id);
-      assert.equal(pending[0]!.state, "building");
-      assert.equal(
-        (
-          await owner!.query<{ valid: boolean }>(
-            "SELECT indisvalid AS valid FROM pg_index WHERE indexrelid=$1::regclass",
-            [`"${schemaName}"."${pending[0]!.physicalName}"`],
-          )
-        ).rows[0]!.valid,
-        true,
-      );
-      child.kill("SIGKILL");
-      assert.equal((await ended).signal, "SIGKILL");
-      const restarted = new TableStorage({
-        pool: app!,
-        ddlPool: ddl!,
-        cursorSecret:
-          "index-restart-verification-secret-at-least-thirty-two-bytes",
-      });
-      assert.equal(
-        (await restarted.reconcileSchemaOperations(actor)).recovered.length,
-        1,
-      );
-      assert.equal(
-        (await restarted.createIndex(actor, table.id, input)).id,
-        pending[0]!.id,
-      );
-      assert.equal(
-        (await restarted.getTable(actor, table.id)).schemaVersion,
-        2,
-      );
-      assert.equal(
-        (await restarted.listIndexes(actor, table.id))[0]!.state,
-        "active",
-      );
-      assert.equal((await restarted.getTable(actor, table.id)).rowCount, 1);
-    } finally {
-      if (child.exitCode === null && child.signalCode === null)
-        child.kill("SIGKILL");
-      await ended;
-    }
-  },
-);
-
-test(
-  "SIGKILL of a queued index worker preserves live leases and requires a freshly authorised retry after cancellation or lease expiry",
-  { skip: !configured },
-  async () => {
-    const { spawn } = await import("node:child_process");
-    for (const interruption of ["cancelled", "expired"] as const) {
-      const table = await storage!.createTable(actor, databaseId, {
-        name: `Killed queued index ${interruption}`,
-        fields: [{ name: "code", type: "text", charLimit: 30 }],
-      });
-      await storage!.createRow(actor, table.id, { code: "kept" });
-      const fence = await runningJob(table.id, "createIndex");
-      const appUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!),
-        ddlUrl = new URL(process.env.ROOTSET_TEST_DATABASE_URL!);
-      appUrl.pathname = ddlUrl.pathname = `/${isolatedName}`;
-      const input = {
-        fieldId: table.fields[0]!.id,
-        kind: "btree" as const,
-        expectedSchemaVersion: 1,
-        idempotencyKey: `actual-killed-queued-index-${interruption}`,
-      };
-      const program = `import {TableStorage} from ${JSON.stringify(new URL("./index.ts", import.meta.url).href)};import {createPool} from '@rootset/database';const app=createPool(process.env.PROBE_APP_URL),ddl=createPool(process.env.PROBE_DDL_URL);const storage=new TableStorage({pool:app,ddlPool:ddl,cursorSecret:'child-index-restart-secret-at-least-thirty-two-bytes'});let calls=0;await storage.createIndex(${JSON.stringify(actor)},${JSON.stringify(table.id)},{...${JSON.stringify(input)},context:{jobFence:${JSON.stringify(fence)},beforePublish:async()=>{if(++calls===2){process.send({nativeBuilt:true});await new Promise(()=>{});}}}});`;
-      const child = spawn(
-        process.execPath,
-        ["--import", "tsx", "--input-type=module", "--eval", program],
-        {
-          env: {
-            ...process.env,
-            PROBE_APP_URL: appUrl.toString(),
-            PROBE_DDL_URL: ddlUrl.toString(),
-          },
-          stdio: ["ignore", "ignore", "pipe", "ipc"],
-        },
-      );
-      let stderr = "";
-      child.stderr!.on("data", (chunk) => (stderr += chunk.toString()));
-      const ended = new Promise<{ signal: NodeJS.Signals | null }>((resolve) =>
-        child.once("exit", (_code, signal) => resolve({ signal })),
-      );
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(
-            () =>
-              reject(new Error("Queued native checkpoint missing: " + stderr)),
-            5000,
-          );
-          child.once("message", () => {
-            clearTimeout(timeout);
-            resolve();
-          });
-          child.once("exit", () => {
-            clearTimeout(timeout);
-            reject(
-              new Error("Queued child exited before checkpoint: " + stderr),
-            );
-          });
-        });
-        const pending = (await storage!.listIndexes(actor, table.id))[0]!;
-        const nativeName = `"${schemaName}"."${pending.physicalName}"`;
-        assert.equal(pending.state, "building");
-        assert.equal(
-          (
-            await owner!.query<{ valid: boolean }>(
-              "SELECT indisvalid AS valid FROM pg_index WHERE indexrelid=$1::regclass",
-              [nativeName],
-            )
-          ).rows[0]!.valid,
-          true,
-        );
-        child.kill("SIGKILL");
-        assert.equal((await ended).signal, "SIGKILL");
-        const restarted = new TableStorage({
-          pool: app!,
-          ddlPool: ddl!,
-          cursorSecret: "queued-index-restart-secret-at-least-thirty-two-bytes",
-        });
-        assert.deepEqual(await restarted.reconcileSchemaOperations(actor), {
-          recovered: [],
-        });
-        await owner!.query(
-          interruption === "cancelled"
-            ? "UPDATE rootset_control.jobs SET state='cancelled',cancel_requested=true,lease_until=NULL WHERE id=$1"
-            : "UPDATE rootset_control.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
-          [fence.jobId],
-        );
-        assert.equal(
-          (await restarted.reconcileSchemaOperations(actor)).recovered.length,
-          1,
-        );
-        assert.equal(
-          (await restarted.getTable(actor, table.id)).schemaVersion,
-          1,
-        );
-        assert.equal(
-          (await restarted.listIndexes(actor, table.id))[0]!.state,
-          "failed",
-        );
-        assert.equal(
-          (
-            await owner!.query("SELECT to_regclass($1) AS relation", [
-              nativeName,
-            ])
-          ).rows[0]!.relation,
-          null,
-        );
-        await assert.rejects(
-          restarted.createIndex(actor, table.id, {
-            ...input,
-            context: { jobFence: fence },
-          }),
-          { code: "JOB_LEASE_LOST" },
-        );
-        const leaseToken = newId();
-        await owner!.query(
-          "UPDATE rootset_control.jobs SET state='running',cancel_requested=false,lease_token=$2,lease_until=clock_timestamp()+interval '5 minutes' WHERE id=$1",
-          [fence.jobId, leaseToken],
-        );
-        let authorityChecks = 0;
-        const retried = await restarted.createIndex(actor, table.id, {
-          ...input,
-          context: {
-            jobFence: { jobId: fence.jobId, leaseToken },
-            beforePublish: async () => {
-              authorityChecks++;
-            },
-          },
-        });
-        assert.equal(retried.id, pending.id);
-        assert.equal(retried.state, "active");
-        assert.ok(authorityChecks >= 2);
-        assert.equal(
-          (await restarted.getTable(actor, table.id)).schemaVersion,
-          2,
-        );
-        assert.equal((await restarted.getTable(actor, table.id)).rowCount, 1);
-      } finally {
-        if (child.exitCode === null && child.signalCode === null)
-          child.kill("SIGKILL");
-        await ended;
-      }
-    }
-  },
-);
-
-test(
-  "Concurrent index resource audit preserves supplied worker correlation and replay without exposing lease hooks or creating cell edits",
-  { skip: !configured },
-  async () => {
-    const table = await storage!.createTable(actor, databaseId, {
-      name: "Index resource correlation",
-      fields: [{ name: "CODE", type: "text", charLimit: 20 }],
-    });
-    await storage!.createRow(actor, table.id, { CODE: "unchanged" });
-    const fence = await runningJob(table.id, "createIndex");
-    const input = {
-      fieldId: table.fields[0]!.id,
-      kind: "btree" as const,
-      expectedSchemaVersion: 1,
-      idempotencyKey: newId(),
-      context: {
-        requestId: "index-public-request",
-        source: "mcp" as const,
-        jobId: fence.jobId,
-        jobFence: fence,
-        beforePublish: async () => undefined,
-      },
-    };
-    const index = await storage!.createIndex(actor, table.id, input);
-    const replay = await storage!.createIndex(actor, table.id, input);
-    assert.equal(replay.id, index.id);
-    const events = (
-      await owner!.query(
-        "SELECT actor,context,before_value,after_value FROM rootset_control.resource_history WHERE resource_id=$1 AND operation='index.create'",
-        [index.id],
-      )
-    ).rows;
-    assert.equal(events.length, 1);
-    assert.deepEqual(events[0]!.context, {
-      requestId: "index-public-request",
-      source: "mcp",
-      jobId: fence.jobId,
-    });
-    assert.equal(events[0]!.actor.id, actor.id);
-    assert.equal(events[0]!.before_value, null);
-    assert.deepEqual(events[0]!.after_value, {
-      fieldId: input.fieldId,
-      kind: "btree",
-    });
-    const current = await storage!.getTable(actor, table.id);
-    assert.equal(current.schemaVersion, 2);
-    const native = (
-      await owner!.query(
-        "SELECT indisvalid,indrelid::regclass::text AS relation FROM pg_index WHERE indexrelid=$1::regclass",
-        [`"${current.schemaName}"."${index.physicalName}"`],
-      )
-    ).rows[0]!;
-    assert.equal(native.indisvalid, true);
-    assert.equal(
-      native.relation,
-      `${current.schemaName}.${current.physicalName}`,
-    );
-    const facts = (
-      await owner!.query(
-        "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells",
-        [table.id],
-      )
-    ).rows[0]!;
-    assert.deepEqual(facts, { cells: 1 });
-    const peer = newId();
-    assert.equal(
-      (
-        await withOrg(app!, peer, (client) =>
-          client.query(
-            "SELECT id FROM rootset_control.resource_history WHERE resource_id=$1",
-            [index.id],
-          ),
-        )
-      ).rowCount,
-      0,
-    );
-    const persisted = JSON.stringify(events);
-    assert.equal(persisted.includes(fence.leaseToken), false);
-    assert.equal(persisted.includes("beforePublish"), false);
   },
 );
 

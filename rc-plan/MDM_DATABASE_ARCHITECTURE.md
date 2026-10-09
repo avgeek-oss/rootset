@@ -72,20 +72,19 @@ JSON search uses typed operators rather than stringifying the document.
 
 ## Limits and capacity
 
-| Limit                                   |                              V1 value |
-| --------------------------------------- | ------------------------------------: |
-| Live rows per table                     |                             5,000,000 |
-| Active fields per table                 |                                   200 |
-| Canonical user-cell row bytes           |                                65,536 |
-| JSON nesting                            |                             32 levels |
-| Fields per composite unique rule        |                                     8 |
-| Active unique rules per table           |                                    16 |
-| Non-primary secondary indexes per table |   16, including native unique indexes |
-| Synchronous mutation                    | 1,000 rows, also request-byte bounded |
-| Requested query rows                    |                              1–25,000 |
-| REST/browser JSON request/result        |                                 8 MiB |
-| MCP structured result                   |                                 1 MiB |
-| Interactive query budget                |                            10 seconds |
+| Limit                            |                              V1 value |
+| -------------------------------- | ------------------------------------: |
+| Live rows per table              |                             5,000,000 |
+| Active fields per table          |                                   200 |
+| Canonical user-cell row bytes    |                                65,536 |
+| JSON nesting                     |                             32 levels |
+| Fields per composite unique rule |                                     8 |
+| Active unique rules per table    |                                    16 |
+| Synchronous mutation             | 1,000 rows, also request-byte bounded |
+| Requested query rows             |                              1–25,000 |
+| REST/browser JSON request/result |                                 8 MiB |
+| MCP structured result            |                                 1 MiB |
+| Interactive query budget         |                            10 seconds |
 
 Measure row bytes using deterministic minified UTF-8 JSON keyed by stable field
 IDs, including null cells and full JSON cell contents. This internal accounting
@@ -152,9 +151,8 @@ A populated type conversion makes the table visibly read-only, validates all
 source values and writes a shadow generation in bounded batches. Conversion
 history stays staged until one cutover publishes generation, schema and mutation.
 Before cutover the old generation is authoritative; failure preserves it. After
-cutover recovery must not repeat cells/history. Concurrent index creation has
-separate transaction/cleanup behavior; an invalid physical index is never ready.
-Deleting a field requires explicit handling of dependent rules/indexes and removes its cell changelogs.
+cutover recovery must not repeat cells/history.
+Deleting a field requires explicit handling of dependent unique rules and removes its cell changelogs.
 
 ## Queries and windows
 
@@ -168,8 +166,7 @@ JSON supports path existence, typed path equality and containment. Null tests
 apply to nullable fields. Limit filter depth to 8, predicates to 100, sorts to 8
 and JSON paths to 32. Invalid type/operator pairs fail before execution.
 
-Every field is queryable, with indexes for chosen operators and visible build
-state. Expensive scans produce an actionable timeout within 10 seconds, followed
+Every field is queryable without configuring search indexes. Expensive scans produce an actionable timeout within 10 seconds, followed
 by bounded cancellation/physical transport cleanup. Peer requests must remain
 usable. A timeout cannot turn an incomplete page into success.
 

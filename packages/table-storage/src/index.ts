@@ -121,15 +121,6 @@ export interface UniqueRule {
   physicalName: string | null;
   error?: JsonValue;
 }
-export interface IndexRecord {
-  id: string;
-  tableId: string;
-  fieldId: string;
-  kind: "btree" | "trigram" | "json";
-  state: string;
-  physicalName: string;
-  error?: JsonValue;
-}
 type Raw = Record<string, unknown>;
 class SchemaLockBusy extends Error {
   constructor(readonly databaseId: string) {
@@ -550,29 +541,12 @@ export class TableStorage {
       fields: fs.rows.map((x) => x.definition),
     };
   }
-  private async barrier(
-    c: PoolClient,
-    databaseId: string,
-    allowIndexBuild = false,
-  ): Promise<void> {
+  private async barrier(c: PoolClient, databaseId: string): Promise<void> {
     const acquired = await c.query<{ acquired: boolean }>(
       "SELECT pg_try_advisory_xact_lock(hashtextextended($1,0)) AS acquired",
       [databaseId],
     );
     if (!acquired.rows[0]!.acquired) throw new SchemaLockBusy(databaseId);
-
-    if (!allowIndexBuild) {
-      const building = await c.query(
-        "SELECT i.id FROM rootset_control.indexes i JOIN rootset_control.tables t ON t.id=i.table_id WHERE t.database_id=$1 AND i.state=$2 LIMIT 1",
-        [databaseId, "building"],
-      );
-      if (building.rowCount)
-        fail(
-          "SCHEMA_MAINTENANCE",
-          "A secondary index build must finish before another schema change",
-          409,
-        );
-    }
   }
 
   private async audit(
@@ -1300,17 +1274,12 @@ export class TableStorage {
           "SELECT * FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active'",
           [t.id, f.id],
         );
-        const indexes = await c.query<Raw>(
-          "SELECT * FROM rootset_control.indexes WHERE table_id=$1 AND field_id=$2 AND state='active'",
-          [t.id, f.id],
-        );
-        if ((rules.rowCount || indexes.rowCount) && !input.removeDependencies)
+        if (rules.rowCount && !input.removeDependencies)
           fail(
             "VALIDATION_FAILED",
-            "Field has rule/index dependencies; explicit removal approval is required",
+            "Field has unique-rule dependencies; explicit removal approval is required",
           );
         for (const r of rules.rows) await this.removeRule(c, t, r);
-        for (const i of indexes.rows) await this.removeIndex(c, t, i);
         await c.query(
           "UPDATE rootset_control.fields SET state='deleted',deleted_at=now() WHERE id=$1",
           [f.id],
@@ -2093,7 +2062,6 @@ export class TableStorage {
     rowCount: number;
     countKind: "live";
     schemaVersion: number;
-    indexes: Raw[];
     bytes: number;
     indexBytes: number;
   }> {
@@ -2107,12 +2075,6 @@ export class TableStorage {
         rowCount: t.rowCount,
         countKind: "live",
         schemaVersion: t.schemaVersion,
-        indexes: (
-          await c.query<Raw>(
-            "SELECT id,state,kind FROM rootset_control.indexes WHERE table_id=$1",
-            [t.id],
-          )
-        ).rows,
         bytes: Number(r.rows[0]?.bytes ?? 0),
         indexBytes: Number(r.rows[0]?.index_bytes ?? 0),
       };
@@ -2256,7 +2218,6 @@ export class TableStorage {
       input,
       async (c, t, operationId) => {
         const rules = await this.rules(c, t);
-        const indexes = await this.indexes(c, t);
         if (
           rules.filter((r) => r.state === "active").length >=
           limits.maxUniqueRules
@@ -2272,14 +2233,6 @@ export class TableStorage {
         if (fields.some((f) => f.type === "json"))
           fail("VALIDATION_FAILED", "JSON uniqueness is outside v1");
         const strategy = this.nativeFits(fields) ? "native" : "registry";
-        if (
-          strategy === "native" &&
-          indexes.filter((i) => i.state === "active").length +
-            rules.filter((r) => r.state === "active" && r.strategy === "native")
-              .length >=
-            limits.maxIndexes
-        )
-          fail("VALIDATION_FAILED", "Secondary index budget exceeded");
         ruleId = newId();
         const r: UniqueRule = {
           id: ruleId,
@@ -2374,340 +2327,6 @@ export class TableStorage {
       },
     );
   }
-  private async indexes(c: PoolClient, t: TableRecord): Promise<IndexRecord[]> {
-    return (
-      await c.query<Raw>(
-        `SELECT * FROM rootset_control.indexes WHERE table_id=$1 AND state<>'deleted' ORDER BY id`,
-        [t.id],
-      )
-    ).rows.map((v) => ({
-      id: String(v.id),
-      tableId: t.id,
-      fieldId: String(v.field_id),
-      kind: v.kind as IndexRecord["kind"],
-      state: String(v.state),
-      physicalName: String(v.physical_name),
-      ...(v.error ? { error: v.error as JsonValue } : {}),
-    }));
-  }
-  async listIndexes(a: Actor, tableId: string): Promise<IndexRecord[]> {
-    return this.run(a, async (c) =>
-      this.indexes(c, await this.table(c, a, tableId)),
-    );
-  }
-  async createIndex(
-    a: Actor,
-    tableId: string,
-    input: {
-      fieldId?: string;
-      fieldIds?: string[];
-      kind: "btree" | "trigram" | "json" | "jsonb";
-    } & SchemaOptions,
-  ): Promise<IndexRecord> {
-    const kind = input.kind === "jsonb" ? "json" : input.kind;
-    const fieldId =
-      input.fieldId ??
-      input.fieldIds?.[0] ??
-      fail("VALIDATION_FAILED", "An index field is required");
-    if (input.fieldIds && input.fieldIds.length !== 1)
-      fail("VALIDATION_FAILED", "V1 secondary indexes address one field");
-    let indexId = newId();
-    let table!: TableRecord;
-    const op = await this.run(
-      a,
-      async (c) => {
-        await this.assertPublication(c, a, input.context, false);
-        table = await this.table(c, a, tableId);
-        await this.barrier(c, table.databaseId, true);
-        table = await this.table(c, a, tableId, true);
-        const j = await this.journal(
-          c,
-          a,
-          table,
-          table.databaseId,
-          "index.create",
-          input,
-          input,
-        );
-        const saved = await c.query<{ plan: Raw }>(
-          "SELECT plan FROM rootset_control.schema_operations WHERE id=$1",
-          [j.operationId],
-        );
-        if (saved.rows[0]?.plan.indexId) {
-          indexId = String(saved.rows[0].plan.indexId);
-          if (!j.replay) {
-            this.expected(table, input.expectedSchemaVersion);
-            await c.query(
-              "UPDATE rootset_control.indexes SET state='building',error=NULL WHERE id=$1",
-              [indexId],
-            );
-            await c.query(
-              "UPDATE rootset_control.schema_operations SET state='building',error=NULL WHERE id=$1",
-              [j.operationId],
-            );
-          }
-          return j;
-        }
-        if (j.replay) return j;
-        this.expected(table, input.expectedSchemaVersion);
-        const f = fieldFor(table, fieldId);
-        if (
-          (kind === "trigram" && f.type !== "text") ||
-          (kind === "json" && f.type !== "json") ||
-          (kind === "btree" && (f.type === "json" || !this.nativeFits([f])))
-        )
-          fail("VALIDATION_FAILED", "Index type/value width is unsupported");
-        const rules = await this.rules(c, table);
-        const indexes = await this.indexes(c, table);
-        if (indexes.some((index) => index.state === "building"))
-          fail(
-            "SCHEMA_MAINTENANCE",
-            "A secondary index build is already planned for this table",
-            409,
-          );
-        if (
-          indexes.filter((i) => i.state !== "deleted" && i.state !== "failed")
-            .length +
-            rules.filter((r) => r.strategy === "native" && r.state === "active")
-              .length >=
-          limits.maxIndexes
-        )
-          fail("VALIDATION_FAILED", "Secondary index budget exceeded");
-        await c.query(
-          "INSERT INTO rootset_control.indexes(id,table_id,org_id,field_id,kind,physical_name) VALUES($1,$2,$3,$4,$5,$6)",
-          [
-            indexId,
-            table.id,
-            a.orgId,
-            f.id,
-            kind,
-            `rsi_${indexId.toLowerCase()}`,
-          ],
-        );
-        await c.query(
-          "UPDATE rootset_control.schema_operations SET plan=$2::jsonb,state=$3 WHERE id=$1",
-          [
-            j.operationId,
-            JSON.stringify({
-              indexId,
-              physicalName: `rsi_${indexId.toLowerCase()}`,
-              transactional: false,
-              ...(input.context?.jobFence
-                ? { jobId: input.context.jobFence.jobId }
-                : {}),
-            }),
-            "building",
-          ],
-        );
-        return j;
-      },
-      true,
-    );
-    if (op.replay)
-      return (
-        (await this.listIndexes(a, tableId)).find((i) => i.id === indexId) ??
-        fail("RESOURCE_NOT_FOUND", "Index was not found", 404)
-      );
-    const f = fieldFor(table, fieldId);
-    const connection = await this.ddlPool.connect();
-    let buildAttempted = false;
-    let operationLocked = false;
-    try {
-      {
-        try {
-          await connection.query(
-            "SELECT set_config('rootset.org_id',$1,false)",
-            [a.orgId],
-          );
-          await connection.query(
-            "SELECT pg_advisory_lock_shared(hashtextextended($1,0))",
-            [table.databaseId],
-          );
-          await connection.query("SET statement_timeout='0'");
-
-          const lockDeadline = Date.now() + limits.queryTimeoutMs;
-          while (!operationLocked) {
-            const acquired = await connection.query<{ acquired: boolean }>(
-              "SELECT pg_try_advisory_lock(hashtextextended($1,4)) AS acquired",
-              [op.operationId],
-            );
-            operationLocked = acquired.rows[0]!.acquired;
-            if (!operationLocked) {
-              if (Date.now() >= lockDeadline)
-                fail(
-                  "QUERY_TIMEOUT",
-                  "Index operation lock exceeded its ten-second wait budget",
-                  408,
-                );
-              await new Promise((resolve) => setTimeout(resolve, 20));
-            }
-          }
-          const using = kind === "btree" ? "btree" : "gin";
-          const opclass = kind === "trigram" ? " gin_trgm_ops" : "";
-          const present = await connection.query<{ indisvalid: boolean }>(
-            "SELECT indisvalid FROM pg_index WHERE indexrelid=to_regclass($1)",
-            [`${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`],
-          );
-          if (!present.rows[0]?.indisvalid) {
-            buildAttempted = true;
-            if (present.rows[0])
-              await connection.query(
-                `DROP INDEX CONCURRENTLY ${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`,
-              );
-            await connection.query(
-              `CREATE INDEX CONCURRENTLY ${q(`rsi_${indexId.toLowerCase()}`)} ON ${tablePath(table)} USING ${using}(${q(fieldColumn(f))}${opclass})`,
-            );
-          }
-          await clientTransaction(connection, async (c) => {
-            await this.assertPublication(c, a, input.context);
-            await c.query(
-              "SELECT id FROM rootset_control.tables WHERE id=$1 FOR UPDATE",
-              [table.id],
-            );
-            const journal = await c.query<{ state: string }>(
-              "SELECT state FROM rootset_control.schema_operations WHERE id=$1 FOR UPDATE",
-              [op.operationId],
-            );
-            if (journal.rows[0]?.state === "committed") {
-              return;
-            }
-            const r = await c.query<{ indisvalid: boolean }>(
-              "SELECT indisvalid FROM pg_index WHERE indexrelid=$1::regclass",
-              [`${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`],
-            );
-            if (!r.rows[0]?.indisvalid)
-              fail("JOB_FAILED", "PostgreSQL did not validate the index");
-            await c.query(
-              "UPDATE rootset_control.indexes SET state='active' WHERE id=$1",
-              [indexId],
-            );
-            await this.finish(c, op.operationId, table.id);
-            await this.audit(
-              c,
-              a,
-              table.databaseId,
-              table.id,
-              indexId,
-              "index.create",
-              null,
-              { fieldId: f.id, kind },
-              input.context,
-            );
-          });
-        } catch (error) {
-          if (!operationLocked) storageError(error);
-          if (input.context?.jobFence) {
-            const fence = input.context.jobFence;
-            const owner = await connection.query(
-              "SELECT id FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND lease_token=$3 AND (state<>'running' OR lease_until>clock_timestamp())",
-              [fence.jobId, a.orgId, fence.leaseToken],
-            );
-            if (!owner.rowCount) storageError(error);
-          }
-          let cleanupCode: string | undefined;
-          if (buildAttempted) {
-            try {
-              await connection.query(
-                `DROP INDEX CONCURRENTLY IF EXISTS ${q(table.schemaName)}.${q(`rsi_${indexId.toLowerCase()}`)}`,
-              );
-            } catch (cleanupError) {
-              cleanupCode = String(
-                (cleanupError as { code?: string }).code ?? "UNKNOWN",
-              );
-            }
-          }
-          await clientTransaction(connection, async (c) => {
-            await c.query(
-              "SELECT id FROM rootset_control.tables WHERE id=$1 FOR UPDATE",
-              [table.id],
-            );
-            await c.query(
-              "SELECT id FROM rootset_control.schema_operations WHERE id=$1 FOR UPDATE",
-              [op.operationId],
-            );
-            await c.query(
-              "UPDATE rootset_control.indexes SET state='failed',error=NULL WHERE id=$1",
-              [indexId],
-            );
-            await c.query(
-              "UPDATE rootset_control.schema_operations SET state='failed',plan=jsonb_build_object('indexId',$3::text,'cleanupRequired',$4::boolean),error=$2::jsonb WHERE id=$1",
-              [
-                op.operationId,
-                JSON.stringify({
-                  code: cleanupCode
-                    ? "INDEX_CLEANUP_FAILED"
-                    : "INDEX_BUILD_FAILED",
-                }),
-                indexId,
-                Boolean(cleanupCode),
-              ],
-            );
-          });
-          if (cleanupCode)
-            fail(
-              "INDEX_CLEANUP_FAILED",
-              "Index build failed and its allocated index needs operator cleanup",
-              503,
-              { indexId, cleanupRequired: true, postgresCode: cleanupCode },
-            );
-          storageError(error);
-        }
-      }
-    } catch (error) {
-      storageError(error);
-    } finally {
-      if (operationLocked)
-        await connection
-          .query("SELECT pg_advisory_unlock(hashtextextended($1,4))", [
-            op.operationId,
-          ])
-          .catch(() => undefined);
-      await connection
-        .query("SELECT pg_advisory_unlock_shared(hashtextextended($1,0))", [
-          table.databaseId,
-        ])
-        .catch(() => undefined);
-      await connection
-        .query("RESET rootset.org_id; RESET statement_timeout")
-        .catch(() => undefined);
-      connection.release();
-    }
-    return (await this.listIndexes(a, tableId)).find((i) => i.id === indexId)!;
-  }
-  private async removeIndex(
-    c: PoolClient,
-    t: TableRecord,
-    r: Raw,
-  ): Promise<void> {
-    await c.query(
-      `DROP INDEX IF EXISTS ${q(t.schemaName)}.${q(String(r.physical_name))}`,
-    );
-    await c.query(
-      "UPDATE rootset_control.indexes SET state='deleted' WHERE id=$1",
-      [r.id],
-    );
-  }
-  async deleteIndex(
-    a: Actor,
-    tableId: string,
-    indexId: string,
-    input: SchemaOptions,
-  ): Promise<TableRecord> {
-    return this.schemaChange(
-      a,
-      tableId,
-      "index.delete",
-      { ...input, indexId: id(indexId) },
-      async (c, t) => {
-        const r = await c.query<Raw>(
-          "SELECT * FROM rootset_control.indexes WHERE id=$1 AND table_id=$2 AND state IN ('active','failed')",
-          [id(indexId), t.id],
-        );
-        if (!r.rows[0]) fail("RESOURCE_NOT_FOUND", "Index was not found", 404);
-        await this.removeIndex(c, t, r.rows[0]);
-      },
-    );
-  }
   private async convertField(
     a: Actor,
     tableId: string,
@@ -2737,13 +2356,13 @@ export class TableStorage {
         this.expected(old, input.expectedSchemaVersion);
         const previous = fieldFor(old, fieldId);
         const dependencies = await c.query<Raw>(
-          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active' UNION SELECT id FROM rootset_control.indexes WHERE table_id=$1 AND field_id=$2 AND state='active'",
+          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active'",
           [old.id, previous.id],
         );
         if (dependencies.rows.length)
           fail(
             "VALIDATION_FAILED",
-            "Remove affected rules/indexes before conversion",
+            "Remove affected unique rules before conversion",
           );
         const changes = fieldPatch(input);
         const next = changedField(previous, changes);
@@ -2853,18 +2472,6 @@ export class TableStorage {
             await c.query(
               "UPDATE rootset_control.unique_rules SET physical_name=$2 WHERE id=$1",
               [rule.id, physicalName],
-            );
-          }
-          for (const index of await this.indexes(c, old)) {
-            if (index.state !== "active") continue;
-            const physicalName = `rsi_${index.id.toLowerCase()}_g${fresh.generation}`;
-            const column = q(fieldColumn(fieldFor(fresh, index.fieldId)));
-            await c.query(
-              `CREATE INDEX ${q(physicalName)} ON ${tablePath(fresh)} USING ${index.kind === "btree" ? "btree" : "gin"}(${column}${index.kind === "trigram" ? " gin_trgm_ops" : ""})`,
-            );
-            await c.query(
-              "UPDATE rootset_control.indexes SET physical_name=$2 WHERE id=$1",
-              [index.id, physicalName],
             );
           }
           const m = await this.newMutation(
@@ -3029,7 +2636,7 @@ export class TableStorage {
         const before = fieldFor(t, String(change.fieldId));
         fieldId = before.id;
         const deps = await c.query<Raw>(
-          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active' UNION SELECT id FROM rootset_control.indexes WHERE table_id=$1 AND field_id=$2 AND state='active'",
+          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active'",
           [t.id, before.id],
         );
         if (deps.rows.length && !change.removeDependencies)
@@ -3120,11 +2727,7 @@ export class TableStorage {
             ).rowCount
           )
             continue;
-          await this.barrier(
-            c,
-            String(op.database_id),
-            op.kind === "index.create",
-          );
+          await this.barrier(c, String(op.database_id));
           const plan = op.plan as Raw;
           if (op.kind === "field.convert" && op.table_id) {
             const t = await this.table(c, a, String(op.table_id), true);
@@ -3154,37 +2757,6 @@ export class TableStorage {
                     retryable: true,
                   }),
                 ],
-              );
-            }
-          } else if (op.kind === "index.create" && op.table_id) {
-            const t = await this.table(c, a, String(op.table_id));
-            const r = await c.query<{ indisvalid: boolean }>(
-              "SELECT i.indisvalid FROM pg_index i JOIN pg_class cls ON cls.oid=i.indexrelid JOIN pg_namespace ns ON ns.oid=cls.relnamespace WHERE ns.nspname=$1 AND cls.relname=$2",
-              [t.schemaName, plan.physicalName],
-            );
-            if (r.rows[0]?.indisvalid && !planJob) {
-              await c.query(
-                "UPDATE rootset_control.indexes SET state='active' WHERE id=$1",
-                [plan.indexId],
-              );
-              await this.finish(c, String(op.id), t.id);
-            } else {
-              await c.query(
-                `DROP INDEX IF EXISTS ${q(t.schemaName)}.${q(String(plan.physicalName))}`,
-              );
-              const recoveryError = JSON.stringify({
-                code: planJob
-                  ? "INTERRUPTED_JOB_REQUIRES_RETRY"
-                  : "INVALID_INDEX_RECOVERED",
-                retryable: true,
-              });
-              await c.query(
-                "UPDATE rootset_control.indexes SET state='failed',error=$2::jsonb WHERE id=$1",
-                [plan.indexId, recoveryError],
-              );
-              await c.query(
-                "UPDATE rootset_control.schema_operations SET state='failed',error=$2::jsonb WHERE id=$1",
-                [op.id, recoveryError],
               );
             }
           } else

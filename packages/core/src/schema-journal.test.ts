@@ -201,8 +201,6 @@ test("non-field schema operations have typed requests without invented field cha
     ["table.delete", { expectedSchemaVersion: 3 }],
     ["rule.create", { fieldIds: [id(4)], name: "Code uniqueness" }],
     ["rule.delete", { expectedSchemaVersion: 3 }],
-    ["index.create", { fieldId: id(4), kind: "json" }],
-    ["index.delete", { expectedSchemaVersion: 3 }],
   ];
   for (const [kind, input] of inputs) {
     const output = mapSchemaJournal(journal(kind, input), {

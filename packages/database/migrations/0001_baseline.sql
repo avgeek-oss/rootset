@@ -2,7 +2,6 @@
 -- Use pnpm db:migrate with ROOTSET_DATABASE_URL. Existing prelaunch schemas
 -- are never reset automatically; use a fresh database and preserve their data.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
 SET LOCAL statement_timeout = 0;
 SET LOCAL lock_timeout = 0;
 SET LOCAL idle_in_transaction_session_timeout = 0;
@@ -376,9 +375,6 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
  ), schema_stats AS (
   SELECT count(*) FILTER(WHERE state NOT IN ('committed','failed','historical'))::integer pending,
    count(*) FILTER(WHERE state='failed')::integer failed FROM rootset_control.schema_operations
- ), index_stats AS (
-  SELECT count(*) FILTER(WHERE state='building')::integer building,
-   count(*) FILTER(WHERE state='failed')::integer failed FROM rootset_control.indexes
  ), native_stats AS (
   SELECT coalesce(sum(pg_table_size(c.oid)),0)::bigint data_bytes,
    coalesce(sum(pg_indexes_size(c.oid)),0)::bigint index_bytes
@@ -416,12 +412,12 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
   'connections',jsonb_build_object('total',c.total,'active',c.active,'idle',c.idle,'idleInTransaction',c.idle_in_transaction,'maximum',current_setting('max_connections')::integer,'oldestTransactionSeconds',c.oldest_transaction_seconds),
   'jobs',jsonb_build_object('queued',j.queued,'running',j.running,'failed',j.failed,'expiredLeases',j.expired_leases,'oldestQueuedSeconds',j.oldest_queued_seconds,'retried',j.retried),
   'email',jsonb_build_object('pending',e.pending,'sending',e.sending,'failed',e.failed,'retrying',e.retrying,'oldestPendingSeconds',e.oldest_pending_seconds),
-  'schema',jsonb_build_object('pending',s.pending,'failed',s.failed,'buildingIndexes',i.building,'failedIndexes',i.failed,'invalidIndexes',ix.invalid),
+  'schema',jsonb_build_object('pending',s.pending,'failed',s.failed,'invalidIndexes',ix.invalid),
   'workers',jsonb_build_object('freshReady',h.fresh_ready,'stale',h.stale,'degraded',h.degraded),
   'storage',jsonb_build_object('activeDatabases',(SELECT count(*) FROM rootset_control.databases WHERE state='active'),'activeTables',t.active,'retainedTables',t.retained,'liveRows',t.live_rows::text,'dataBytes',n.data_bytes::text,'indexBytes',n.index_bytes::text,'historyEvents',a.events::text,'historyBytes',a.bytes::text,'artifactBytes',o.bytes::text),
   'statisticsResetAt',d.stats_reset,
   'walStatisticsResetAt',w.stats_reset
- ) FROM connection_stats c CROSS JOIN job_stats j CROSS JOIN email_stats e CROSS JOIN schema_stats s CROSS JOIN index_stats i CROSS JOIN invalid_index_stats ix CROSS JOIN native_stats n CROSS JOIN table_stats t CROSS JOIN history_stats a CROSS JOIN artifact_stats o CROSS JOIN worker_stats h CROSS JOIN pg_stat_wal w LEFT JOIN database_stats d ON true
+ ) FROM connection_stats c CROSS JOIN job_stats j CROSS JOIN email_stats e CROSS JOIN schema_stats s CROSS JOIN invalid_index_stats ix CROSS JOIN native_stats n CROSS JOIN table_stats t CROSS JOIN history_stats a CROSS JOIN artifact_stats o CROSS JOIN worker_stats h CROSS JOIN pg_stat_wal w LEFT JOIN database_stats d ON true
 $_$;
 
 
@@ -801,22 +797,6 @@ CREATE TABLE rootset_control.import_rejections (
 );
 
 ALTER TABLE ONLY rootset_control.import_rejections FORCE ROW LEVEL SECURITY;
-
-
-CREATE TABLE rootset_control.indexes (
-    id character varying(26) NOT NULL,
-    table_id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    field_id character varying(26) NOT NULL,
-    kind text NOT NULL,
-    physical_name text NOT NULL,
-    state text DEFAULT 'building'::text NOT NULL,
-    error jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT indexes_kind_check CHECK ((kind = ANY (ARRAY['btree'::text, 'trigram'::text, 'json'::text])))
-);
-
-ALTER TABLE ONLY rootset_control.indexes FORCE ROW LEVEL SECURITY;
 
 
 CREATE TABLE rootset_control.invitations (
@@ -1285,8 +1265,6 @@ ALTER TABLE ONLY rootset_control.import_batches
 ALTER TABLE ONLY rootset_control.import_rejections
     ADD CONSTRAINT import_rejections_pkey PRIMARY KEY (job_id, record_number);
 
-ALTER TABLE ONLY rootset_control.indexes
-    ADD CONSTRAINT indexes_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY rootset_control.invitations
     ADD CONSTRAINT invitations_pkey PRIMARY KEY (id);
@@ -1517,8 +1495,6 @@ ALTER TABLE ONLY rootset_control.import_batches
 ALTER TABLE ONLY rootset_control.import_rejections
     ADD CONSTRAINT import_rejections_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
 
-ALTER TABLE ONLY rootset_control.indexes
-    ADD CONSTRAINT indexes_table_id_fkey FOREIGN KEY (table_id) REFERENCES rootset_control.tables(id);
 
 ALTER TABLE ONLY rootset_control.invitations
     ADD CONSTRAINT invitations_inviter_id_fkey FOREIGN KEY (inviter_id) REFERENCES rootset_control.users(id);
@@ -1613,7 +1589,6 @@ ALTER TABLE rootset_control.import_batches ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.import_rejections ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.indexes ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.invitations ENABLE ROW LEVEL SECURITY;
 
@@ -1640,7 +1615,6 @@ CREATE POLICY org_isolation ON rootset_control.import_batches USING ((org_id = (
 
 CREATE POLICY org_isolation ON rootset_control.import_rejections USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
-CREATE POLICY org_isolation ON rootset_control.indexes USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY org_isolation ON rootset_control.jobs USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 

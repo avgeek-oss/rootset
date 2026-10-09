@@ -35,7 +35,6 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "deleteDatabase",
   "deleteTable",
   "applySchemaChange",
-  "createIndex",
   "createUniqueRule",
   "updateField",
   "deleteField",

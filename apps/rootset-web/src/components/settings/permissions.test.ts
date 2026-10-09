@@ -9,7 +9,6 @@ const management = [
   "table",
   "fields",
   "rules",
-  "indexes",
 ] as const;
 const personalAndRead = [
   "profile",

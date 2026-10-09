@@ -33,6 +33,14 @@ test(
       await rm(directory, { recursive: true, force: true });
     });
     assert.deepEqual(await migrate(pool), ["0001_baseline.sql"]);
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT to_regclass('rootset_control.indexes') AS relation",
+        )
+      ).rows[0].relation,
+      null,
+    );
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,

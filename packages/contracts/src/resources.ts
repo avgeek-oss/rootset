@@ -66,20 +66,10 @@ export const UniqueRuleSchema = z.strictObject({
   jobId: IdSchema.optional(),
   error: z.string().optional(),
 });
-export const IndexSchema = z.strictObject({
-  id: IdSchema,
-  tableId: IdSchema,
-  fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
-  kind: z.enum(["btree", "trigram", "jsonb"]),
-  state: z.enum(["building", "active", "failed", "deleting"]),
-  jobId: IdSchema.optional(),
-  sizeBytes: z.number().int().nonnegative().optional(),
-});
 export const TableSchemaResultSchema = z.strictObject({
   table: TableSchema,
   fields: z.array(FieldDefinitionSchema).max(limits.maxFields),
   uniqueRules: z.array(UniqueRuleSchema).max(limits.maxUniqueRules),
-  indexes: z.array(IndexSchema).max(limits.maxIndexes),
   operators: z.record(z.string(), z.array(z.string())),
   limits: z.record(z.string(), z.number()),
   schemaOperationId: IdSchema.optional(),
@@ -419,12 +409,6 @@ export const SchemaJournalRequestSchema = z.discriminatedUnion("kind", [
     name: journalNames.name.optional(),
   }),
   z.strictObject({ kind: z.literal("rule.delete"), id: IdSchema.optional() }),
-  z.strictObject({
-    kind: z.literal("index.create"),
-    fieldIds: z.array(IdSchema).length(1),
-    indexKind: z.enum(["btree", "trigram", "jsonb"]),
-  }),
-  z.strictObject({ kind: z.literal("index.delete"), id: IdSchema.optional() }),
   z.strictObject({ kind: z.literal("unknown") }),
 ]);
 export const SchemaOperationReportSchema = z.strictObject({
@@ -453,7 +437,6 @@ export const SchemaOperationReportSchema = z.strictObject({
   verification: z.strictObject({
     transactional: z.boolean().optional(),
     fieldId: IdSchema.optional(),
-    indexId: IdSchema.optional(),
     nextField: FieldDefinitionSchema.optional(),
   }),
   createdAt: DateTimeSchema,

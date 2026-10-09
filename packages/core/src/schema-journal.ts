@@ -142,21 +142,11 @@ function request(
     case "rule.create":
       result = { kind, ...pick(stored, ["fieldIds", "name"]) };
       break;
-    case "rule.delete":
-    case "index.delete": {
+    case "rule.delete": {
       const id = identifier(original.id ?? stored.id);
       result = { kind, ...(id ? { id } : {}) };
       break;
     }
-    case "index.create":
-      result = {
-        kind,
-        fieldIds:
-          stored.fieldIds ??
-          (stored.fieldId ? [stored.fieldId] : original.fieldIds),
-        indexKind: stored.kind === "json" ? "jsonb" : stored.kind,
-      };
-      break;
     default:
       result = { kind: "unknown" };
   }
@@ -275,9 +265,6 @@ export function mapSchemaJournal(
           : {}),
         ...(identifier(plan.fieldId)
           ? { fieldId: identifier(plan.fieldId) }
-          : {}),
-        ...(identifier(plan.indexId)
-          ? { indexId: identifier(plan.indexId) }
           : {}),
         ...(plan.nextField
           ? {

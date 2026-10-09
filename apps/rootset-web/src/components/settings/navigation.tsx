@@ -6,7 +6,6 @@ import {
   DatabaseIcon,
   DatabaseSettingIcon,
   Delete02Icon,
-  DatabaseSearchIcon,
   ColumnsThreeCogIcon,
   TablePropertiesIcon,
   FingerPrintIcon,
@@ -44,7 +43,7 @@ export const settingsGroups = {
   table: [
     {
       title: "Settings",
-      sections: ["table", "fields", "rules", "indexes", "table-danger-zone"],
+      sections: ["table", "fields", "rules", "table-danger-zone"],
     },
     { title: "Data", sections: ["imports", "exports"] },
   ],
@@ -138,7 +137,6 @@ export const settingsIcons = {
   "table-danger-zone": Delete02Icon,
   fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
-  indexes: DatabaseSearchIcon,
   imports: Upload01Icon,
   exports: Download01Icon,
 };

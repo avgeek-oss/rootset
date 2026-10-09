@@ -32,7 +32,6 @@ import {
   DatabaseSummarySchema,
   HistoryPageSchema,
   ImportMappingSchema,
-  IndexSchema,
   InvitationSchema,
   KeyCreatedSchema,
   KeyMetadataSchema,
@@ -692,7 +691,7 @@ operation(
   ["tables:read"],
   z.strictObject(table),
   TableSchemaResultSchema,
-  "Discover active fields, rules, indexes, limits and operator coverage.",
+  "Discover active fields, rules, limits and operator coverage.",
 );
 operation(
   "listFields",
@@ -745,7 +744,7 @@ operation(
     removeDependencies: z.boolean().optional(),
   }),
   jobOr(TableSchemaResultSchema),
-  "Remove a field safely after approving dependent rule/index removal.",
+  "Remove a field safely after approving dependent unique-rule removal.",
   { destructive: true, job: true },
 );
 operation(
@@ -846,43 +845,6 @@ operation(
   deleted,
   "Remove uniqueness enforcement and update the schema version.",
 );
-operation(
-  "listIndexes",
-  "list_indexes",
-  "GET",
-  `${T}/indexes`,
-  ["tables:read"],
-  z.strictObject(table),
-  list(IndexSchema),
-  "List index state and supported operator coverage.",
-);
-operation(
-  "createIndex",
-  "create_index",
-  "POST",
-  `${T}/indexes`,
-  ["schema:manage"],
-  z.strictObject({
-    ...table,
-    ...expected,
-    fieldIds: z.array(IdSchema).length(1),
-    kind: z.enum(["btree", "trigram", "jsonb"]),
-  }),
-  jobOr(IndexSchema),
-  "Start a verified index build within the secondary-index budget.",
-  { job: true },
-);
-operation(
-  "deleteIndex",
-  "delete_index",
-  "DELETE",
-  `${T}/indexes/{id}`,
-  ["schema:manage"],
-  z.strictObject({ ...table, ...expected, id: IdSchema }),
-  deleted,
-  "Remove a secondary index without removing unique enforcement.",
-);
-
 operation(
   "listRows",
   "list_rows",

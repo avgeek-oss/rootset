@@ -57,8 +57,6 @@ export const DatabaseMetricsSchema = z.strictObject({
   schema: z.strictObject({
     pending: count,
     failed: count,
-    buildingIndexes: count,
-    failedIndexes: count,
     invalidIndexes: count,
   }),
   workers: z.strictObject({ freshReady: count, stale: count, degraded: count }),

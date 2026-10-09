@@ -257,12 +257,12 @@ export class OperationalObserver {
           "email",
           "Transactional email is retrying; inspect SMTP availability while data reads remain available.",
         );
-      if (database.schema.failed > 0 || database.schema.failedIndexes > 0)
+      if (database.schema.failed > 0)
         signal(
           "SCHEMA_JOB_FAILED",
           "warning",
           "schema",
-          "Schema or index jobs failed; inspect journals and reconcile before cleanup or retry.",
+          "Schema jobs failed; inspect journals and reconcile before cleanup or retry.",
         );
       if (database.schema.invalidIndexes > 0)
         signal(

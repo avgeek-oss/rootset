@@ -21,7 +21,6 @@ export type SettingsSection =
   | "table"
   | "fields"
   | "rules"
-  | "indexes"
   | "imports"
   | "exports";
 
@@ -127,23 +126,12 @@ export interface TableSchemaResult {
   table: Omit<TableSchema, "fields">;
   fields: TableField[];
   uniqueRules: UniqueRule[];
-  indexes: TableIndex[];
 }
 export interface UniqueRule {
   id: string;
   name?: string;
   fieldIds?: string[];
   fields?: string[];
-  state?: string;
-  status?: string;
-  jobId?: string;
-}
-export interface TableIndex {
-  id: string;
-  name?: string;
-  fieldIds?: string[];
-  fields?: string[];
-  kind: string;
   state?: string;
   status?: string;
   jobId?: string;
@@ -205,7 +193,6 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "table-danger-zone": "Danger Zone",
   fields: "Fields",
   rules: "Unique rules",
-  indexes: "Search indexes",
   imports: "Import rows",
   exports: "Export rows",
 };
@@ -219,7 +206,6 @@ const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "table-danger-zone",
   "fields",
   "rules",
-  "indexes",
 ];
 
 export function canOpenSettings(

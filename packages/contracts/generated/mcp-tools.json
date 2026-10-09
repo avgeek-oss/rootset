@@ -6512,51 +6512,6 @@
                 "additionalProperties": false
               }
             },
-            "indexes": {
-              "maxItems": 16,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "tableId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "fieldIds": {
-                    "minItems": 1,
-                    "maxItems": 8,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": ["btree", "trigram", "jsonb"]
-                  },
-                  "state": {
-                    "type": "string",
-                    "enum": ["building", "active", "failed", "deleting"]
-                  },
-                  "jobId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "sizeBytes": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  }
-                },
-                "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                "additionalProperties": false
-              }
-            },
             "operators": {
               "type": "object",
               "propertyNames": { "type": "string" },
@@ -6575,14 +6530,7 @@
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
           },
-          "required": [
-            "table",
-            "fields",
-            "uniqueRules",
-            "indexes",
-            "operators",
-            "limits"
-          ],
+          "required": ["table", "fields", "uniqueRules", "operators", "limits"],
           "additionalProperties": false
         },
         {
@@ -7216,7 +7164,7 @@
   {
     "name": "rootset_get_table_schema",
     "title": "getTableSchema",
-    "description": "Discover active fields, rules, indexes, limits and operator coverage.",
+    "description": "Discover active fields, rules, limits and operator coverage.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -7695,51 +7643,6 @@
                 "additionalProperties": false
               }
             },
-            "indexes": {
-              "maxItems": 16,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "tableId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "fieldIds": {
-                    "minItems": 1,
-                    "maxItems": 8,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": ["btree", "trigram", "jsonb"]
-                  },
-                  "state": {
-                    "type": "string",
-                    "enum": ["building", "active", "failed", "deleting"]
-                  },
-                  "jobId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "sizeBytes": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  }
-                },
-                "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                "additionalProperties": false
-              }
-            },
             "operators": {
               "type": "object",
               "propertyNames": { "type": "string" },
@@ -7758,14 +7661,7 @@
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
           },
-          "required": [
-            "table",
-            "fields",
-            "uniqueRules",
-            "indexes",
-            "operators",
-            "limits"
-          ],
+          "required": ["table", "fields", "uniqueRules", "operators", "limits"],
           "additionalProperties": false
         },
         {
@@ -9074,51 +8970,6 @@
                     "additionalProperties": false
                   }
                 },
-                "indexes": {
-                  "maxItems": 16,
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "tableId": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "fieldIds": {
-                        "minItems": 1,
-                        "maxItems": 8,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                        }
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": ["btree", "trigram", "jsonb"]
-                      },
-                      "state": {
-                        "type": "string",
-                        "enum": ["building", "active", "failed", "deleting"]
-                      },
-                      "jobId": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "sizeBytes": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                    "additionalProperties": false
-                  }
-                },
                 "operators": {
                   "type": "object",
                   "propertyNames": { "type": "string" },
@@ -9141,7 +8992,6 @@
                 "table",
                 "fields",
                 "uniqueRules",
-                "indexes",
                 "operators",
                 "limits"
               ],
@@ -10033,51 +9883,6 @@
                     "additionalProperties": false
                   }
                 },
-                "indexes": {
-                  "maxItems": 16,
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "tableId": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "fieldIds": {
-                        "minItems": 1,
-                        "maxItems": 8,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                        }
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": ["btree", "trigram", "jsonb"]
-                      },
-                      "state": {
-                        "type": "string",
-                        "enum": ["building", "active", "failed", "deleting"]
-                      },
-                      "jobId": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "sizeBytes": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                    "additionalProperties": false
-                  }
-                },
                 "operators": {
                   "type": "object",
                   "propertyNames": { "type": "string" },
@@ -10100,7 +9905,6 @@
                 "table",
                 "fields",
                 "uniqueRules",
-                "indexes",
                 "operators",
                 "limits"
               ],
@@ -10220,7 +10024,7 @@
   {
     "name": "rootset_delete_field",
     "title": "deleteField",
-    "description": "Remove a field safely after approving dependent rule/index removal.",
+    "description": "Remove a field safely after approving dependent unique-rule removal.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -10728,51 +10532,6 @@
                     "additionalProperties": false
                   }
                 },
-                "indexes": {
-                  "maxItems": 16,
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "tableId": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "fieldIds": {
-                        "minItems": 1,
-                        "maxItems": 8,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                        }
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": ["btree", "trigram", "jsonb"]
-                      },
-                      "state": {
-                        "type": "string",
-                        "enum": ["building", "active", "failed", "deleting"]
-                      },
-                      "jobId": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      },
-                      "sizeBytes": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                    "additionalProperties": false
-                  }
-                },
                 "operators": {
                   "type": "object",
                   "propertyNames": { "type": "string" },
@@ -10795,7 +10554,6 @@
                 "table",
                 "fields",
                 "uniqueRules",
-                "indexes",
                 "operators",
                 "limits"
               ],
@@ -11420,51 +11178,6 @@
                 "additionalProperties": false
               }
             },
-            "indexes": {
-              "maxItems": 16,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "tableId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "fieldIds": {
-                    "minItems": 1,
-                    "maxItems": 8,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": ["btree", "trigram", "jsonb"]
-                  },
-                  "state": {
-                    "type": "string",
-                    "enum": ["building", "active", "failed", "deleting"]
-                  },
-                  "jobId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "sizeBytes": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  }
-                },
-                "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                "additionalProperties": false
-              }
-            },
             "operators": {
               "type": "object",
               "propertyNames": { "type": "string" },
@@ -11483,14 +11196,7 @@
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
           },
-          "required": [
-            "table",
-            "fields",
-            "uniqueRules",
-            "indexes",
-            "operators",
-            "limits"
-          ],
+          "required": ["table", "fields", "uniqueRules", "operators", "limits"],
           "additionalProperties": false
         },
         {
@@ -13054,39 +12760,6 @@
                 {
                   "type": "object",
                   "properties": {
-                    "kind": { "type": "string", "const": "index.create" },
-                    "fieldIds": {
-                      "minItems": 1,
-                      "maxItems": 1,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                      }
-                    },
-                    "indexKind": {
-                      "type": "string",
-                      "enum": ["btree", "trigram", "jsonb"]
-                    }
-                  },
-                  "required": ["kind", "fieldIds", "indexKind"],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": { "type": "string", "const": "index.delete" },
-                    "id": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "required": ["kind"],
-                  "additionalProperties": false
-                },
-                {
-                  "type": "object",
-                  "properties": {
                     "kind": { "type": "string", "const": "unknown" }
                   },
                   "required": ["kind"],
@@ -13631,10 +13304,6 @@
               "properties": {
                 "transactional": { "type": "boolean" },
                 "fieldId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "indexId": {
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                 },
@@ -14490,528 +14159,6 @@
     "name": "rootset_delete_unique_rule",
     "title": "deleteUniqueRule",
     "description": "Remove uniqueness enforcement and update the schema version.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "orgId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "databaseId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "tableId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "expectedSchemaVersion": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 2147483647
-        },
-        "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-        "idempotencyKey": {
-          "type": "string",
-          "minLength": 8,
-          "maxLength": 255,
-          "description": "Stable caller-provided key across retries of this exact operation."
-        }
-      },
-      "required": [
-        "orgId",
-        "databaseId",
-        "tableId",
-        "expectedSchemaVersion",
-        "id",
-        "idempotencyKey"
-      ],
-      "additionalProperties": false
-    },
-    "outputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "deleted": { "type": "boolean" },
-            "mutationId": {
-              "type": "string",
-              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-            }
-          },
-          "required": ["deleted"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "error": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
-                  "x-rootset-known-error-codes": [
-                    "VALIDATION_FAILED",
-                    "UNAUTHENTICATED",
-                    "ACCESS_DENIED",
-                    "FORBIDDEN",
-                    "LAST_ADMIN",
-                    "INSUFFICIENT_SCOPE",
-                    "PERSONAL_IDENTITY_REQUIRED",
-                    "DELEGATION_EXCEEDS_AUTHORITY",
-                    "RESOURCE_NOT_FOUND",
-                    "ROW_VERSION_CONFLICT",
-                    "SCHEMA_VERSION_CONFLICT",
-                    "UNIQUE_CONFLICT",
-                    "ROW_SIZE_LIMIT",
-                    "ROW_LIMIT_REACHED",
-                    "PAYLOAD_TOO_LARGE",
-                    "REQUEST_TIMEOUT",
-                    "QUERY_TIMEOUT",
-                    "CURSOR_INVALID",
-                    "STEP_UP_REQUIRED",
-                    "IDEMPOTENCY_CONFLICT",
-                    "JOB_FAILED",
-                    "RATE_LIMITED",
-                    "CAPACITY_LIMIT",
-                    "SCHEMA_MAINTENANCE",
-                    "ARTIFACT_UNVERIFIED",
-                    "ARTIFACT_EXPIRED",
-                    "CONFIGURATION_INVALID",
-                    "DEPENDENCY_UNAVAILABLE",
-                    "INTERNAL_ERROR"
-                  ]
-                },
-                "message": { "type": "string" },
-                "requestId": { "type": "string" },
-                "details": {
-                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
-                  "anyOf": [
-                    { "type": "null" },
-                    { "type": "boolean" },
-                    { "type": "number" },
-                    { "type": "string" },
-                    { "type": "array", "items": {} },
-                    { "type": "object", "additionalProperties": {} }
-                  ]
-                }
-              },
-              "required": ["code", "message", "requestId"],
-              "additionalProperties": false
-            }
-          },
-          "required": ["error"],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": true,
-      "openWorldHint": false
-    },
-    "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
-        "VALIDATION_FAILED",
-        "UNAUTHENTICATED",
-        "ACCESS_DENIED",
-        "FORBIDDEN",
-        "INSUFFICIENT_SCOPE",
-        "RESOURCE_NOT_FOUND",
-        "DEPENDENCY_UNAVAILABLE",
-        "REQUEST_TIMEOUT",
-        "IDEMPOTENCY_CONFLICT"
-      ]
-    }
-  },
-  {
-    "name": "rootset_list_indexes",
-    "title": "listIndexes",
-    "description": "List index state and supported operator coverage.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "orgId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "databaseId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "tableId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        }
-      },
-      "required": ["orgId", "databaseId", "tableId"],
-      "additionalProperties": false
-    },
-    "outputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "data": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "tableId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "fieldIds": {
-                    "minItems": 1,
-                    "maxItems": 8,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                    }
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": ["btree", "trigram", "jsonb"]
-                  },
-                  "state": {
-                    "type": "string",
-                    "enum": ["building", "active", "failed", "deleting"]
-                  },
-                  "jobId": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  },
-                  "sizeBytes": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  }
-                },
-                "required": ["id", "tableId", "fieldIds", "kind", "state"],
-                "additionalProperties": false
-              }
-            },
-            "nextCursor": { "type": ["string", "null"] },
-            "hasMore": { "type": "boolean" }
-          },
-          "required": ["data"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "error": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
-                  "x-rootset-known-error-codes": [
-                    "VALIDATION_FAILED",
-                    "UNAUTHENTICATED",
-                    "ACCESS_DENIED",
-                    "FORBIDDEN",
-                    "LAST_ADMIN",
-                    "INSUFFICIENT_SCOPE",
-                    "PERSONAL_IDENTITY_REQUIRED",
-                    "DELEGATION_EXCEEDS_AUTHORITY",
-                    "RESOURCE_NOT_FOUND",
-                    "ROW_VERSION_CONFLICT",
-                    "SCHEMA_VERSION_CONFLICT",
-                    "UNIQUE_CONFLICT",
-                    "ROW_SIZE_LIMIT",
-                    "ROW_LIMIT_REACHED",
-                    "PAYLOAD_TOO_LARGE",
-                    "REQUEST_TIMEOUT",
-                    "QUERY_TIMEOUT",
-                    "CURSOR_INVALID",
-                    "STEP_UP_REQUIRED",
-                    "IDEMPOTENCY_CONFLICT",
-                    "JOB_FAILED",
-                    "RATE_LIMITED",
-                    "CAPACITY_LIMIT",
-                    "SCHEMA_MAINTENANCE",
-                    "ARTIFACT_UNVERIFIED",
-                    "ARTIFACT_EXPIRED",
-                    "CONFIGURATION_INVALID",
-                    "DEPENDENCY_UNAVAILABLE",
-                    "INTERNAL_ERROR"
-                  ]
-                },
-                "message": { "type": "string" },
-                "requestId": { "type": "string" },
-                "details": {
-                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
-                  "anyOf": [
-                    { "type": "null" },
-                    { "type": "boolean" },
-                    { "type": "number" },
-                    { "type": "string" },
-                    { "type": "array", "items": {} },
-                    { "type": "object", "additionalProperties": {} }
-                  ]
-                }
-              },
-              "required": ["code", "message", "requestId"],
-              "additionalProperties": false
-            }
-          },
-          "required": ["error"],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "destructiveHint": false,
-      "idempotentHint": true,
-      "openWorldHint": false
-    },
-    "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
-        "VALIDATION_FAILED",
-        "UNAUTHENTICATED",
-        "ACCESS_DENIED",
-        "FORBIDDEN",
-        "INSUFFICIENT_SCOPE",
-        "RESOURCE_NOT_FOUND",
-        "DEPENDENCY_UNAVAILABLE",
-        "REQUEST_TIMEOUT"
-      ]
-    }
-  },
-  {
-    "name": "rootset_create_index",
-    "title": "createIndex",
-    "description": "Start a verified index build within the secondary-index budget.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "orgId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "databaseId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "tableId": {
-          "type": "string",
-          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-        },
-        "expectedSchemaVersion": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 2147483647
-        },
-        "fieldIds": {
-          "minItems": 1,
-          "maxItems": 1,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-          }
-        },
-        "kind": { "type": "string", "enum": ["btree", "trigram", "jsonb"] },
-        "idempotencyKey": {
-          "type": "string",
-          "minLength": 8,
-          "maxLength": 255,
-          "description": "Stable caller-provided key across retries of this exact operation."
-        }
-      },
-      "required": [
-        "orgId",
-        "databaseId",
-        "tableId",
-        "expectedSchemaVersion",
-        "fieldIds",
-        "kind",
-        "idempotencyKey"
-      ],
-      "additionalProperties": false
-    },
-    "outputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "anyOf": [
-        {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "tableId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "fieldIds": {
-                  "minItems": 1,
-                  "maxItems": 8,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                  }
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": ["btree", "trigram", "jsonb"]
-                },
-                "state": {
-                  "type": "string",
-                  "enum": ["building", "active", "failed", "deleting"]
-                },
-                "jobId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "sizeBytes": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": ["id", "tableId", "fieldIds", "kind", "state"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "jobId": {
-                  "type": "string",
-                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "queued",
-                    "running",
-                    "succeeded",
-                    "failed",
-                    "cancelled",
-                    "partially_completed"
-                  ]
-                },
-                "statusUrl": { "type": "string" }
-              },
-              "required": ["jobId", "state", "statusUrl"],
-              "additionalProperties": false
-            }
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "error": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
-                  "x-rootset-known-error-codes": [
-                    "VALIDATION_FAILED",
-                    "UNAUTHENTICATED",
-                    "ACCESS_DENIED",
-                    "FORBIDDEN",
-                    "LAST_ADMIN",
-                    "INSUFFICIENT_SCOPE",
-                    "PERSONAL_IDENTITY_REQUIRED",
-                    "DELEGATION_EXCEEDS_AUTHORITY",
-                    "RESOURCE_NOT_FOUND",
-                    "ROW_VERSION_CONFLICT",
-                    "SCHEMA_VERSION_CONFLICT",
-                    "UNIQUE_CONFLICT",
-                    "ROW_SIZE_LIMIT",
-                    "ROW_LIMIT_REACHED",
-                    "PAYLOAD_TOO_LARGE",
-                    "REQUEST_TIMEOUT",
-                    "QUERY_TIMEOUT",
-                    "CURSOR_INVALID",
-                    "STEP_UP_REQUIRED",
-                    "IDEMPOTENCY_CONFLICT",
-                    "JOB_FAILED",
-                    "RATE_LIMITED",
-                    "CAPACITY_LIMIT",
-                    "SCHEMA_MAINTENANCE",
-                    "ARTIFACT_UNVERIFIED",
-                    "ARTIFACT_EXPIRED",
-                    "CONFIGURATION_INVALID",
-                    "DEPENDENCY_UNAVAILABLE",
-                    "INTERNAL_ERROR"
-                  ]
-                },
-                "message": { "type": "string" },
-                "requestId": { "type": "string" },
-                "details": {
-                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
-                  "anyOf": [
-                    { "type": "null" },
-                    { "type": "boolean" },
-                    { "type": "number" },
-                    { "type": "string" },
-                    { "type": "array", "items": {} },
-                    { "type": "object", "additionalProperties": {} }
-                  ]
-                }
-              },
-              "required": ["code", "message", "requestId"],
-              "additionalProperties": false
-            }
-          },
-          "required": ["error"],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "idempotentHint": true,
-      "openWorldHint": false
-    },
-    "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
-        "VALIDATION_FAILED",
-        "UNAUTHENTICATED",
-        "ACCESS_DENIED",
-        "FORBIDDEN",
-        "INSUFFICIENT_SCOPE",
-        "RESOURCE_NOT_FOUND",
-        "DEPENDENCY_UNAVAILABLE",
-        "REQUEST_TIMEOUT",
-        "IDEMPOTENCY_CONFLICT"
-      ]
-    }
-  },
-  {
-    "name": "rootset_delete_index",
-    "title": "deleteIndex",
-    "description": "Remove a secondary index without removing unique enforcement.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",

@@ -15,7 +15,6 @@ export const limits = Object.freeze({
   jsonDepth: 32,
   maxUniqueFields: 8,
   maxUniqueRules: 16,
-  maxIndexes: 16,
   mutationBatch: 1_000,
   queryRows: 25_000,
   restDefaultRows: 5_000,

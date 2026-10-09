@@ -351,19 +351,6 @@ export async function finalizeScaleFixture(filename: string): Promise<void> {
         idempotencyKey: newId(),
       });
     manifest.wideTableId = wide.id;
-    const integer = t.fields.find((field) => field.name === "INTEGER_A")!;
-    const indexes = await storage.listIndexes(actor, t.id);
-    if (
-      !indexes.some(
-        (index) => index.fieldId === integer.id && index.state === "active",
-      )
-    )
-      await storage.createIndex(actor, t.id, {
-        fieldId: integer.id,
-        kind: "btree",
-        expectedSchemaVersion: t.schemaVersion,
-        idempotencyKey: newId(),
-      });
     manifest.relations = (
       await client.query(
         "SELECT relname,pg_total_relation_size(c.oid)::text AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 OR (n.nspname=$2 AND c.relname IN ($3,$4)) ORDER BY relname",
@@ -587,13 +574,6 @@ export async function seedScaleFixture(destination: string): Promise<void> {
         idempotencyKey: newId(),
       });
     manifest.wideTableId = wide.id;
-    const index = await storage.createIndex(actor, table.id, {
-      fieldId: integer.id,
-      kind: "btree",
-      expectedSchemaVersion: 1,
-      idempotencyKey: newId(),
-    });
-    assert.equal(index.state, "active");
     manifest.relations = (
       await connection.query(
         "SELECT relname,pg_total_relation_size(c.oid)::text AS bytes FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 OR (n.nspname=$2 AND c.relname IN ($3,$4)) ORDER BY relname",

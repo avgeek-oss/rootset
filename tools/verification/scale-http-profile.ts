@@ -800,14 +800,6 @@ export async function runHttpProfile(
         const readSchema = async () =>
           (await adminCall("getTableSchema", bg)).value as typeof created;
         let current = await readSchema();
-        const amount = current.fields.find((field) => field.name === "AMOUNT")!;
-        await phase("INDEX", "createIndex", {
-          ...bg,
-          expectedSchemaVersion: current.table.schemaVersion,
-          fieldIds: [amount.id],
-          kind: "btree",
-        });
-        current = await readSchema();
         const code = current.fields.find((field) => field.name === "CODE")!;
         await phase("RULE", "createUniqueRule", {
           ...bg,
@@ -1053,17 +1045,6 @@ export async function runHttpProfile(
           table: { schemaVersion: number };
           fields: { id: string; name: string }[];
         };
-        const secondInteger = current.fields.find(
-          (field) => field.name === "INTEGER_B",
-        )!;
-        await phase("INDEX", "createIndex", {
-          ...ids,
-          expectedSchemaVersion: current.table.schemaVersion,
-          fieldIds: [secondInteger.id],
-          kind: "btree",
-        });
-        current = (await adminCall("getTableSchema", ids))
-          .value as typeof current;
         const integerField = current.fields.find(
             (field) => field.name === "INTEGER_A",
           )!,

@@ -23,7 +23,7 @@ import { PreferencesSettings } from "./preferences";
 import { AccountActionApproval } from "./security";
 import {
   FieldsSettings,
-  RulesIndexesSettings,
+  UniqueRulesSettings,
   TableSettings,
   TableDangerZone,
 } from "./schema";
@@ -78,8 +78,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     table: TableSettings,
     "table-danger-zone": TableDangerZone,
     fields: FieldsSettings,
-    rules: RulesIndexesSettings,
-    indexes: RulesIndexesSettings,
+    rules: UniqueRulesSettings,
     imports: ImportsSettings,
     exports: ExportsSettings,
   };
@@ -89,7 +88,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone",
     "fields",
     "rules",
-    "indexes",
     "imports",
     "exports",
   ];
@@ -111,7 +109,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
         key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}
         {...props}
         section={activeSection}
-        {...(activeSection === "indexes" ? { indexes: true } : {})}
       />
     );
   const title = selection?.label ?? SECTION_LABELS[activeSection];

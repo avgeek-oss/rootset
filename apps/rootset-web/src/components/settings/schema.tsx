@@ -46,7 +46,6 @@ const EMPTY_SCHEMA: TableSchemaResult = {
   table: { name: "", schemaVersion: 1 },
   fields: [],
   uniqueRules: [],
-  indexes: [],
 };
 
 function useSchema(props: SettingsPanelProps) {
@@ -586,16 +585,16 @@ export function FieldsSettings(props: SettingsPanelProps) {
                     variant="danger-soft"
                     isDisabled={disabled}
                     onPress={async () => {
-                      const dependencies = [
-                        ...schema.data.uniqueRules,
-                        ...schema.data.indexes,
-                      ].filter((rule) =>
-                        (rule.fieldIds ?? rule.fields ?? []).includes(field.id),
+                      const dependencies = schema.data.uniqueRules.filter(
+                        (rule) =>
+                          (rule.fieldIds ?? rule.fields ?? []).includes(
+                            field.id,
+                          ),
                       );
                       if (
                         await confirmation.confirm(
                           "Remove this field?",
-                          `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent rules/indexes will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
+                          `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent unique rules will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
                           "Remove field",
                         )
                       ) {
@@ -659,9 +658,7 @@ function FieldCheck({ checked }: { checked: boolean }) {
   );
 }
 
-export function RulesIndexesSettings(
-  props: SettingsPanelProps & { indexes?: boolean },
-) {
+export function UniqueRulesSettings(props: SettingsPanelProps) {
   const schema = useSchema(props);
   const mutation = useMutation(() => {
     schema.reload();
@@ -669,61 +666,39 @@ export function RulesIndexesSettings(
   });
   const confirmation = useConfirmation();
   const [fieldIds, setFieldIds] = useState<string[]>([]);
-  const [kind, setKind] = useState("btree");
   const [selected, setSelected] = useState("");
   if (!schema.path)
-    return (
-      <Empty>
-        Select a table to manage {props.indexes ? "indexes" : "unique rules"}.
-      </Empty>
-    );
-  const entries = props.indexes ? schema.data.indexes : schema.data.uniqueRules;
-  const suffix = props.indexes ? "indexes" : "unique-rules";
+    return <Empty>Select a table to manage unique rules.</Empty>;
+  const entries = schema.data.uniqueRules;
+  const suffix = "unique-rules";
   return (
     <>
       <Loading {...schema} retry={schema.reload} />
       <Section
-        title={props.indexes ? "Create search index" : "Create unique rule"}
-        description={
-          props.indexes
-            ? "Indexes support specific operators and consume the 16-index budget. Build status must be active before Rootset advertises the index as ready."
-            : "Single-field and composite uniqueness are opt-in. Tuples containing null do not participate. JSON uniqueness is outside v1."
-        }
+        title="Create unique rule"
+        description="Single-field and composite uniqueness are opt-in. Tuples containing null do not participate. JSON uniqueness is outside v1."
       >
         <Form
           busy={mutation.busy}
-          submit={props.indexes ? "Build index" : "Build unique rule"}
+          submit="Build unique rule"
           onSubmit={async () => {
             const result = await mutation.run(
               () =>
                 write(`${schema.path}/${suffix}`, "POST", {
                   fieldIds,
                   expectedSchemaVersion: schema.data.table.schemaVersion,
-                  ...(props.indexes ? { kind } : {}),
                 }),
               "Build requested. Existing data and physical enforcement must validate before activation.",
             );
             if (result.ok) setFieldIds([]);
           }}
         >
-          {props.indexes && (
-            <Choice
-              label="Index type"
-              value={kind}
-              onChange={setKind}
-              options={[
-                { value: "btree", label: "Exact values and ranges (B-tree)" },
-                { value: "trigram", label: "Text contains (trigram)" },
-                { value: "jsonb", label: "JSON paths and containment (GIN)" },
-              ]}
-            />
-          )}
           <Choice
             label="Add field"
             value={selected}
             onChange={setSelected}
             options={schema.data.fields
-              .filter((field) => props.indexes || field.type !== "json")
+              .filter((field) => field.type !== "json")
               .filter((field) => !fieldIds.includes(field.id))
               .map((field) => ({
                 value: field.id,
@@ -769,7 +744,7 @@ export function RulesIndexesSettings(
           )}
         </Form>
       </Section>
-      <Section title={props.indexes ? "Indexes" : "Unique rules"}>
+      <Section title="Unique rules">
         <RecordList>
           {entries.map((entry) => (
             <Record
@@ -792,10 +767,8 @@ export function RulesIndexesSettings(
                 onPress={async () => {
                   if (
                     await confirmation.confirm(
-                      props.indexes ? "Remove index?" : "Remove unique rule?",
-                      props.indexes
-                        ? "Queries remain available but may be slower after this index is removed."
-                        : "Future writes will no longer enforce this uniqueness rule.",
+                      "Remove unique rule?",
+                      "Future writes will no longer enforce this uniqueness rule.",
                       "Remove",
                     )
                   )
@@ -819,7 +792,7 @@ export function RulesIndexesSettings(
           ))}
         </RecordList>
         {!schema.loading && !schema.error && !entries.length && (
-          <Empty>No {props.indexes ? "indexes" : "unique rules"}.</Empty>
+          <Empty>No unique rules.</Empty>
         )}
       </Section>
       {confirmation.dialog}

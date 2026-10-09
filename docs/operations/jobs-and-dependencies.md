@@ -22,7 +22,7 @@ permit it. An old queued request cannot preserve revoked access.
 
 For schema work, inspect its journal, staging generation and cutover state.
 Resume through reconciliation against actual catalog state. Verify values,
-revisions, rules/indexes and history before removing staging data. Failure or
+revisions, unique rules and history before removing staging data. Failure or
 cancellation before publication must preserve the original source.
 
 ## SMTP and object storage

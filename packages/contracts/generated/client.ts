@@ -875,15 +875,6 @@ export type createTableOutput = {
     jobId?: string;
     error?: string;
   }[];
-  indexes: {
-    id: string;
-    tableId: string;
-    fieldIds: string[];
-    kind: "btree" | "trigram" | "jsonb";
-    state: "building" | "active" | "failed" | "deleting";
-    jobId?: string;
-    sizeBytes?: number;
-  }[];
   operators: Record<string, string[]>;
   limits: Record<string, number>;
   schemaOperationId?: string;
@@ -1096,15 +1087,6 @@ export type getTableSchemaOutput = {
     strategy: "native" | "registry";
     jobId?: string;
     error?: string;
-  }[];
-  indexes: {
-    id: string;
-    tableId: string;
-    fieldIds: string[];
-    kind: "btree" | "trigram" | "jsonb";
-    state: "building" | "active" | "failed" | "deleting";
-    jobId?: string;
-    sizeBytes?: number;
   }[];
   operators: Record<string, string[]>;
   limits: Record<string, number>;
@@ -1515,15 +1497,6 @@ export type createFieldOutput =
         jobId?: string;
         error?: string;
       }[];
-      indexes: {
-        id: string;
-        tableId: string;
-        fieldIds: string[];
-        kind: "btree" | "trigram" | "jsonb";
-        state: "building" | "active" | "failed" | "deleting";
-        jobId?: string;
-        sizeBytes?: number;
-      }[];
       operators: Record<string, string[]>;
       limits: Record<string, number>;
       schemaOperationId?: string;
@@ -1814,15 +1787,6 @@ export type updateFieldOutput =
         jobId?: string;
         error?: string;
       }[];
-      indexes: {
-        id: string;
-        tableId: string;
-        fieldIds: string[];
-        kind: "btree" | "trigram" | "jsonb";
-        state: "building" | "active" | "failed" | "deleting";
-        jobId?: string;
-        sizeBytes?: number;
-      }[];
       operators: Record<string, string[]>;
       limits: Record<string, number>;
       schemaOperationId?: string;
@@ -1999,15 +1963,6 @@ export type deleteFieldOutput =
         jobId?: string;
         error?: string;
       }[];
-      indexes: {
-        id: string;
-        tableId: string;
-        fieldIds: string[];
-        kind: "btree" | "trigram" | "jsonb";
-        state: "building" | "active" | "failed" | "deleting";
-        jobId?: string;
-        sizeBytes?: number;
-      }[];
       operators: Record<string, string[]>;
       limits: Record<string, number>;
       schemaOperationId?: string;
@@ -2176,15 +2131,6 @@ export type reorderFieldsOutput = {
     strategy: "native" | "registry";
     jobId?: string;
     error?: string;
-  }[];
-  indexes: {
-    id: string;
-    tableId: string;
-    fieldIds: string[];
-    kind: "btree" | "trigram" | "jsonb";
-    state: "building" | "active" | "failed" | "deleting";
-    jobId?: string;
-    sizeBytes?: number;
   }[];
   operators: Record<string, string[]>;
   limits: Record<string, number>;
@@ -2582,12 +2528,6 @@ export type getSchemaOperationOutput = {
     | { kind: "fields.reorder"; fieldIds: string[] }
     | { kind: "rule.create"; fieldIds: string[]; name?: string }
     | { kind: "rule.delete"; id?: string }
-    | {
-        kind: "index.create";
-        fieldIds: string[];
-        indexKind: "btree" | "trigram" | "jsonb";
-      }
-    | { kind: "index.delete"; id?: string }
     | { kind: "unknown" };
   before: {
     table: {
@@ -2754,7 +2694,6 @@ export type getSchemaOperationOutput = {
   verification: {
     transactional?: boolean;
     fieldId?: string;
-    indexId?: string;
     nextField?:
       | {
           id: string;
@@ -2939,61 +2878,6 @@ export type deleteUniqueRuleInput = {
   id: string;
 };
 export type deleteUniqueRuleOutput = { deleted: boolean; mutationId?: string };
-export type listIndexesInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-};
-export type listIndexesOutput = {
-  data: {
-    id: string;
-    tableId: string;
-    fieldIds: string[];
-    kind: "btree" | "trigram" | "jsonb";
-    state: "building" | "active" | "failed" | "deleting";
-    jobId?: string;
-    sizeBytes?: number;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
-export type createIndexInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  expectedSchemaVersion: number;
-  fieldIds: string[];
-  kind: "btree" | "trigram" | "jsonb";
-};
-export type createIndexOutput =
-  | {
-      id: string;
-      tableId: string;
-      fieldIds: string[];
-      kind: "btree" | "trigram" | "jsonb";
-      state: "building" | "active" | "failed" | "deleting";
-      jobId?: string;
-      sizeBytes?: number;
-    }
-  | {
-      jobId: string;
-      state:
-        | "queued"
-        | "running"
-        | "succeeded"
-        | "failed"
-        | "cancelled"
-        | "partially_completed";
-      statusUrl: string;
-    };
-export type deleteIndexInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  expectedSchemaVersion: number;
-  id: string;
-};
-export type deleteIndexOutput = { deleted: boolean; mutationId?: string };
 export type listRowsInput = {
   orgId: string;
   databaseId: string;
@@ -4194,21 +4078,6 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
-  listIndexes: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  createIndex: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  deleteIndex: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/indexes/{id}",
-    method: "DELETE",
-    idempotencyRequired: true,
-  },
   listRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows",
     method: "GET",
@@ -4866,36 +4735,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<deleteUniqueRuleOutput>;
-  }
-  listIndexes(
-    input: listIndexesInput,
-    options?: CallOptions,
-  ): Promise<listIndexesOutput> {
-    return this.call(
-      "listIndexes",
-      input,
-      options,
-    ) as Promise<listIndexesOutput>;
-  }
-  createIndex(
-    input: createIndexInput,
-    options?: CallOptions,
-  ): Promise<createIndexOutput> {
-    return this.call(
-      "createIndex",
-      input,
-      options,
-    ) as Promise<createIndexOutput>;
-  }
-  deleteIndex(
-    input: deleteIndexInput,
-    options?: CallOptions,
-  ): Promise<deleteIndexOutput> {
-    return this.call(
-      "deleteIndex",
-      input,
-      options,
-    ) as Promise<deleteIndexOutput>;
   }
   listRows(
     input: listRowsInput,
