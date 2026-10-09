@@ -266,7 +266,8 @@
   display: inline-flex;
   color: var(--muted);
 }
-.field-check-no {
+.field-empty {
+  color: var(--muted);
   font-size: 12px;
   opacity: 0.45;
 }

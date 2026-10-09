@@ -556,9 +556,14 @@ export function FieldsSettings(props: SettingsPanelProps) {
               key: "constraints",
               header: "Constraints",
               className: "field-constraints",
-              cell: (field) => (
-                <span>{fieldConstraints(field).join(", ") || "—"}</span>
-              ),
+              cell: (field) => {
+                const constraints = fieldConstraints(field).join(", ");
+                return (
+                  <span className={constraints ? undefined : "field-empty"}>
+                    {constraints || "—"}
+                  </span>
+                );
+              },
             },
             {
               key: "actions",
@@ -646,7 +651,7 @@ function FieldCheck({ checked }: { checked: boolean }) {
       {checked ? (
         <Check size={18} />
       ) : (
-        <span className="field-check-no" aria-hidden="true">
+        <span className="field-empty" aria-hidden="true">
           —
         </span>
       )}
