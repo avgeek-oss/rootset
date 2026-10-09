@@ -1024,7 +1024,11 @@ export function Spreadsheet({
     if (!selection || !writable) return;
     const row = rows[selection.row];
     if (!row) return;
-    if (!confirm("Delete the selected row? Its cell history will be retained."))
+    if (
+      !confirm(
+        "Delete the selected row and its cell history? This cannot be undone.",
+      )
+    )
       return;
     setSaving(true);
     try {

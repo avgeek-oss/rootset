@@ -5308,7 +5308,7 @@
       "delete": {
         "operationId": "deleteDatabase",
         "tags": ["databases"],
-        "summary": "Start approved database deletion and retained-history handling.",
+        "summary": "Start approved database deletion, removing its tables, rows and cell history.",
         "parameters": [
           {
             "name": "orgId",

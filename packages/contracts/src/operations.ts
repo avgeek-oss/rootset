@@ -626,7 +626,7 @@ operation(
   ["databases:manage"],
   z.strictObject({ ...database, ...approval }),
   JobAcceptedSchema,
-  "Start approved database deletion and retained-history handling.",
+  "Start approved database deletion, removing its tables, rows and cell history.",
   { minimumRole: "admin", stepUp: "required", job: true, successStatus: 202 },
 );
 operation(
