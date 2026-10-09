@@ -217,7 +217,7 @@ describe("draft initialisation and bounded display", () => {
     );
     expect(formatCellValue(field("boolean"), false)).toBe("false");
     expect(formatCellValue(field("integer"), 0)).toBe("0");
-    expect(formatCellValue(field("text"), null)).toBe("—");
+    expect(formatCellValue(field("text"), null)).toBe("NULL");
   });
 
   it("applies date and clock presentation without shifting date/time-only values", () => {

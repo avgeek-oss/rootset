@@ -1670,13 +1670,13 @@ export function Spreadsheet({
                 <>
                   <Dropdown.Item
                     id="null"
-                    textValue="Set to null"
+                    textValue="Set to NULL"
                     isDisabled={
                       !writable || saving || contextMenu.field.required
                     }
                   >
                     <Eraser className="shrink-0 text-muted" />
-                    Set to null
+                    Set to NULL
                   </Dropdown.Item>
                   <Dropdown.Item id="history" textValue="View cell history">
                     <History className="shrink-0 text-muted" />
@@ -1733,7 +1733,7 @@ export function Spreadsheet({
             as one atomic batch.
           </p>
           <p>
-            An unquoted empty TSV cell means null; required fields refuse it. A
+            An unquoted empty TSV cell means NULL; required fields refuse it. A
             quoted empty cell preserves empty text. JSON cells use JSON values,
             including quotes around scalar strings. Review before committing.
           </p>
@@ -1889,7 +1889,7 @@ function CellHistory({
 }
 
 function HistoryValue({ value }: { value: JsonValue }) {
-  const text = value === null ? "Null" : JSON.stringify(value);
+  const text = value === null ? "NULL" : JSON.stringify(value);
   return (
     <TooltipText
       tooltip={text}

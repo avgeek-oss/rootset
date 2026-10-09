@@ -81,7 +81,7 @@ export function CellInput({
               })
             }
           >
-            {!field.required && <option value="null">Not set (null)</option>}
+            {!field.required && <option value="null">NULL</option>}
             <option value="false">false</option>
             <option value="true">true</option>
           </select>
@@ -92,6 +92,7 @@ export function CellInput({
           {...common}
           rows={field.type === "json" ? 8 : inline ? 1 : 2}
           value={draft.isNull ? "" : draft.text}
+          placeholder={draft.isNull ? "NULL" : undefined}
           onChange={(event) => changeText(event.target.value)}
         />
       ) : (
@@ -120,6 +121,7 @@ export function CellInput({
               : undefined
           }
           value={draft.isNull ? "" : draft.text}
+          placeholder={draft.isNull ? "NULL" : undefined}
           onChange={(event) => changeText(event.target.value)}
         />
       )}

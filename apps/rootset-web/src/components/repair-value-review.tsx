@@ -30,7 +30,10 @@ export default function RepairValueReview({
   value: JsonValue;
   field: string;
 }) {
-  const text = useMemo(() => JSON.stringify(value), [value]);
+  const text = useMemo(
+    () => (value === null ? "NULL" : JSON.stringify(value)),
+    [value],
+  );
   const [page, setPage] = useState(0);
   const current = repairValuePage(text, page);
   return (

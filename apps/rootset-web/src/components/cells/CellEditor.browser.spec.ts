@@ -711,7 +711,7 @@ test("nullable boolean false and top-level JSON null remain distinct", async ({
   annotate("FLD-05", "FLD-11", "FLD-13");
   await (await cell(page, "BOOLEAN")).click({ button: "right" });
   await page
-    .getByRole("menuitem", { name: "Set to null", exact: true })
+    .getByRole("menuitem", { name: "Set to NULL", exact: true })
     .click();
   await expect
     .poll(async () => (await readRow(page)).values.BOOLEAN)
@@ -792,7 +792,7 @@ test("V1-27 compact rows select on click, edit on double-click, and expose heade
   ).toHaveCount(0);
   await nameCell.click({ button: "right" });
   await expect(
-    page.getByRole("menuitem", { name: "Set to null", exact: true }),
+    page.getByRole("menuitem", { name: "Set to NULL", exact: true }),
   ).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(

@@ -275,7 +275,7 @@ export function FieldForm({
             patch("defaultMode", next as FieldDraft["defaultMode"])
           }
           options={[
-            { value: "null", label: "Null" },
+            { value: "null", label: "NULL" },
             { value: "value", label: "A literal value" },
           ]}
         />
@@ -570,7 +570,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                 const missing = field.default === undefined && field.required;
                 const value =
                   field.default == null
-                    ? "Null"
+                    ? "NULL"
                     : JSON.stringify(field.default);
                 return (
                   <TooltipText
@@ -891,7 +891,7 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
           >
             <p className="settings-muted">
               Values must be unique across the selected fields. Rows containing
-              null in any selected field are excluded.
+              NULL in any selected field are excluded.
             </p>
             <Select
               variant="secondary"

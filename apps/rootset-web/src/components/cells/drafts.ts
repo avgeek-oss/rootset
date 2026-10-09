@@ -256,7 +256,7 @@ export function formatCellValue(
             options.timeFormat ?? defaultDateTimePreferences.timeFormat,
         }
       : undefined);
-  if (value === null) return "—";
+  if (value === null) return "NULL";
   switch (field.type) {
     case "date-time": {
       if (!preferences)
