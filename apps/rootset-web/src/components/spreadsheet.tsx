@@ -17,8 +17,9 @@ import {
   type CellKeyDownArgs,
   type CellKeyboardEvent,
 } from "react-data-grid";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { NumberField, Label, Dropdown, Checkbox, Tooltip } from "@heroui/react";
 import { CellInput } from "./cells/CellInput";
 import {
@@ -49,6 +50,7 @@ import {
   readSelectedWindow,
 } from "../lib/clipboard-selection";
 import { MutationAttempt } from "../lib/mutation-attempt";
+import { DebouncedSave } from "../lib/debounced-save";
 import { CellEditor, formatCellValue } from "./cells";
 import { Dialog } from "./dialog";
 import { PasteImport } from "./paste-import";
@@ -108,6 +110,7 @@ export function Spreadsheet({
   onChanged: () => void;
 }) {
   const tablePath = resourcePath(orgId, databaseId, table.id);
+  const queryClient = useQueryClient();
   const schema = useQuery({
     queryKey: ["schema", table.id],
     queryFn: ({ signal }) =>
@@ -123,6 +126,9 @@ export function Spreadsheet({
       ),
   });
   const [viewPrefs, setViewPrefs] = useState(preferencesEmpty);
+  const latestViewPrefs = useRef(preferencesEmpty);
+  const mounted = useRef(true);
+  const viewSaveToast = useRef<string | undefined>(undefined);
   const [rows, setRows] = useState<Row[]>([]);
   const [query, setQuery] = useState<QuerySpec>({ limit: windowLimit });
   const [windowStart, setWindowStart] = useState(0);
@@ -187,6 +193,54 @@ export function Spreadsheet({
   const currentStart = useRef(0);
   const currentRows = useRef<Row[]>([]);
   const currentSelection = useRef<CellSelection | null>(null);
+  const viewSave: DebouncedSave<typeof preferencesEmpty> = useMemo(
+    () =>
+      new DebouncedSave<typeof preferencesEmpty>(
+        async (next) => {
+          const result = await client.operation<{
+            preferences: typeof preferencesEmpty;
+          }>("updateViewPreferences", { tableId: table.id, preferences: next });
+          queryClient.setQueryData(["view-preferences", table.id], result);
+          if (viewSaveToast.current) {
+            toast.close(viewSaveToast.current);
+            viewSaveToast.current = undefined;
+          }
+        },
+        (failure) => {
+          if (!mounted.current) return;
+          const revoked =
+            failure instanceof ApiError &&
+            [401, 403, 404].includes(failure.status);
+          if (revoked) {
+            cache.current.clear();
+            setRows([]);
+            setWindowInfo(null);
+            setSelection(null);
+            setAccessRevoked(true);
+          }
+          if (viewSaveToast.current) toast.close(viewSaveToast.current);
+          viewSaveToast.current = toast.danger(
+            "Column widths could not be saved",
+            {
+              description:
+                failure instanceof Error
+                  ? failure.message
+                  : "Try again in a moment.",
+              timeout: 0,
+              ...(!revoked && {
+                actionProps: {
+                  children: "Retry",
+                  onPress: () => {
+                    if (mounted.current) void viewSave.flush();
+                  },
+                },
+              }),
+            },
+          );
+        },
+      ),
+    [table.id, queryClient],
+  );
   const queryDigest = JSON.stringify(query);
   const copyContext = `${tablePath}:${schema.data?.table.schemaVersion}:${queryDigest}:${JSON.stringify(selection)}:${rows.map((row) => `${row.id}:${row.version}`).join("|")}`;
   const navigationDigest = JSON.stringify({
@@ -210,8 +264,19 @@ export function Spreadsheet({
     (schema.data?.table.state ?? table.state) === "active";
 
   useEffect(() => {
-    if (view.data) setViewPrefs(view.data.preferences);
-  }, [view.data]);
+    if (view.data && !viewSave.hasPending) {
+      latestViewPrefs.current = view.data.preferences;
+      setViewPrefs(view.data.preferences);
+    }
+  }, [view.data, viewSave]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (viewSaveToast.current) toast.close(viewSaveToast.current);
+      void viewSave.flush();
+    };
+  }, [viewSave]);
   useEffect(() => {
     viewportTiming.current = {
       context: tablePath,
@@ -435,32 +500,6 @@ export function Spreadsheet({
     currentSelection.current = selection;
   }, [rows, selection]);
   useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
-  async function saveView(next: typeof preferencesEmpty) {
-    setViewPrefs(next);
-    try {
-      await client.operation("updateViewPreferences", {
-        tableId: table.id,
-        preferences: next,
-      });
-    } catch (failure) {
-      if (
-        failure instanceof ApiError &&
-        [401, 403, 404].includes(failure.status)
-      ) {
-        cache.current.clear();
-        setRows([]);
-        setWindowInfo(null);
-        setSelection(null);
-        setAccessRevoked(true);
-      }
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "View preferences could not be saved",
-      );
-    }
-  }
-
   async function leaveEditor(action: () => void) {
     if (saving) return;
     if (draft && !(await submitEditor.current?.())) return;
@@ -1141,6 +1180,7 @@ export function Spreadsheet({
               ? 200
               : 180),
       frozen: index < viewPrefs.frozenColumns,
+      maxWidth: 2000,
       editable: (row) => writable && Object.hasOwn(row.values, field.name),
       renderHeaderCell: ({ tabIndex }) => (
         <Tooltip delay={250} closeDelay={0}>
@@ -1331,7 +1371,9 @@ export function Spreadsheet({
               className="rootset-grid"
               aria-label={`${table.name} spreadsheet`}
               aria-describedby="grid-instructions"
-              defaultColumnOptions={{ resizable: true }}
+              defaultColumnOptions={{
+                resizable: view.isSuccess && !accessRevoked,
+              }}
               onCellMouseDown={(args, event) => {
                 extendSelection.current = event.shiftKey;
                 if (draft) {
@@ -1384,15 +1426,17 @@ export function Spreadsheet({
                 extendSelection.current = false;
               }}
               onCellKeyDown={onKey}
-              onColumnResize={(column, width) =>
-                void saveView({
-                  ...viewPrefs,
+              onColumnResize={(column, width) => {
+                const next = {
+                  ...latestViewPrefs.current,
                   columnWidths: {
-                    ...viewPrefs.columnWidths,
+                    ...latestViewPrefs.current.columnWidths,
                     [column.key]: width,
                   },
-                })
-              }
+                };
+                latestViewPrefs.current = next;
+                viewSave.schedule(next);
+              }}
               renderers={{
                 renderRow: (key, props) => (
                   <DataGridRow

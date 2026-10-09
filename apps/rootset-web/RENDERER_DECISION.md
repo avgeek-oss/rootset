@@ -4,6 +4,12 @@ Rootset uses React Data Grid 7.0.0-beta.61 with its published stylesheet. This v
 
 Grid appearance uses the library defaults. Integration CSS sizes the grid to its pane, chooses the light or dark scheme, highlights selected ranges with the library's own color variable, and allows inline validation feedback to extend below an editing cell. Column headers use medium weight. It does not replace grid borders, spacing, selected-cell outlines or resize handles.
 
+Column resizing stays inside React Data Grid while dragging. Preference writes
+wait for 350 ms of inactivity, coalesce changes across columns, and run one at
+a time. Navigation flushes the latest pending widths. Failed saves retain that
+snapshot and offer Retry in a toast; background preference reads cannot replace
+unsaved widths. Resize bounds match the preference API's maximum of 2000 px.
+
 The API supplies bounded 200-row windows. First, middle, last and explicit row-position navigation use server query sessions and anchors; the browser never creates a spacer for millions of rows. React Data Grid virtualizes each loaded window. The row-number column and live announcement report logical positions; the grid's ARIA indices describe its loaded window. A cache retains at most five windows within a 32 MiB encoded-value budget and clears when schema, authority or query identity changes. TanStack Query stores table and schema metadata separately.
 
 Single click selects; double-click, Enter, F2 or typing opens a typed inline editor. Column-name tooltips expose the field type on hover and focus. Right-clicking a cell opens null, history and deletion actions; the # header opens Go to row. Floating Filter and Add row icon buttons sit at the bottom right so the table occupies the former title-toolbar space. Add row opens one responsive form with all typed fields. Rootset provides these editors and server mutation handling, while the library handles the grid layout and navigation. Drafts stay local until a mutation returns a committed revision. Validation and server failures retain them; version conflicts require explicit review before retry. The inline input fills its cell at the grid font size and padding, without a save/cancel button strip. Enter, Tab and leaving the cell save valid changes; Tab advances after the API confirms the save. Escape cancels without a confirmation. Invalid or conflicting changes keep the editor open, and pending saves remain protected.

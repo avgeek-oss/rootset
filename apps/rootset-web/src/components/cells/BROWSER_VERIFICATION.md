@@ -30,3 +30,9 @@ Readable screenshots of saved, pending, rejected, conflicting, repeated-time and
 Passing these checks supports the editor portions of `UI-04` through `UI-07`, `UI-17`, the related field rules and stale revision handling. It does not by itself sign off screen-reader use, touch devices, cross-browser review, network loss, all API/MCP field parity or five-million-row performance. Those require their separate checklist evidence.
 
 The suite also verifies 32 px row height, single-click selection, double-click editing, required-field null restrictions, type tooltips, the `#` header context menu, and the complete add-row form with real typed API values. Cell menus are also available with Shift+F10; Enter/F2 opens the selected inline editor.
+
+For column resizing, drag two columns repeatedly, check that the latest widths
+survive reload, and inspect `updateViewPreferences` request outcomes in the API
+logs. A pointer movement must not create a request for every intermediate width.
+`src/lib/debounced-save.test.ts` covers coalescing, an earlier save held pending,
+new movement during that save, navigation flushes, and retry after failure.
