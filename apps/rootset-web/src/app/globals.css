@@ -334,6 +334,21 @@ h1 {
 .rootset-grid .cell-boolean-false {
   color: var(--rs-boolean-false);
 }
+.cell-image {
+  display: inline-flex;
+  width: 48px;
+  height: 24px;
+  align-items: center;
+  vertical-align: middle;
+  color: var(--rs-muted);
+}
+.cell-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+  border-radius: 3px;
+}
 .rootset-grid .rdg-editor-container {
   overflow: visible;
   z-index: 2;

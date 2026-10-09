@@ -87,7 +87,7 @@ export function CellInput({
           </select>
           <ChevronDown size={14} />
         </div>
-      ) : ["text", "uri", "url", "json"].includes(field.type) ? (
+      ) : ["text", "uri", "url", "image", "json"].includes(field.type) ? (
         <textarea
           {...common}
           rows={field.type === "json" ? 8 : inline ? 1 : 2}

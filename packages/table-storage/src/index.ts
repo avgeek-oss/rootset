@@ -240,6 +240,7 @@ function physicalType(f: FieldDefinition): string {
     case "text":
     case "uri":
     case "url":
+    case "image":
       return 'text COLLATE "C"';
     case "integer":
       return "bigint";
@@ -2144,7 +2145,7 @@ export class TableStorage {
       fields.reduce(
         (bytes, f) =>
           bytes +
-          (["text", "uri", "url"].includes(f.type)
+          (["text", "uri", "url", "image"].includes(f.type)
             ? (f.charLimit ?? limits.textCharLimit) * 4 + 8
             : 24),
         64,
@@ -2621,7 +2622,7 @@ export class TableStorage {
           const strategy =
             change.conversion === "lossless"
               ? "strict"
-              : ["text", "uri", "url"].includes(after.type)
+              : ["text", "uri", "url", "image"].includes(after.type)
                 ? "stringify"
                 : "parse";
           transform = (r) => ({

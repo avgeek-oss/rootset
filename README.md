@@ -18,7 +18,7 @@ literal default is supplied. The field editor requires a valid non-null literal
 default for required fields; new rows must receive a valid value or use that
 default.
 
-Fields support text, URI, URL, integer, float, boolean, date, time, date-time and JSON. URI and URL values are stored as plain strings without address-format validation or custom constraints.
+Fields support text, URI, URL, image, integer, float, boolean, date, time, date-time and JSON. URI, URL and image values are stored as plain strings without address-format validation or custom constraints. Image cells display a compact thumbnail and edit the stored URL inline; unavailable images show a muted image icon.
 
 The [current V1 plan](rc-plan/README.md) and its
 [verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) define

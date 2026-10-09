@@ -754,7 +754,8 @@ export class RootsetCore {
                       ? "strict"
                       : field.type === "text" ||
                           field.type === "uri" ||
-                          field.type === "url"
+                          field.type === "url" ||
+                          field.type === "image"
                         ? "stringify"
                         : "parse",
                 } as const,

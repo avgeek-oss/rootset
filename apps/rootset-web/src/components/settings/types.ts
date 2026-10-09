@@ -101,6 +101,7 @@ export interface TableField {
     | "text"
     | "uri"
     | "url"
+    | "image"
     | "integer"
     | "float"
     | "boolean"
@@ -173,6 +174,7 @@ export const FIELD_TYPES: TableField["type"][] = [
   "text",
   "uri",
   "url",
+  "image",
   "integer",
   "float",
   "boolean",

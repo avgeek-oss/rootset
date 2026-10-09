@@ -88,7 +88,7 @@ after(async () => {
 });
 
 test(
-  "URI and URL storage preserves arbitrary strings, filters, edits and cell history",
+  "URI, URL and image storage preserves arbitrary strings, filters, edits and cell history",
   { skip: !configured },
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
@@ -96,11 +96,13 @@ test(
       fields: [
         { name: "RESOURCE", type: "uri" },
         { name: "WEBSITE", type: "url" },
+        { name: "PHOTO", type: "image" },
       ],
     });
     const initial = {
       RESOURCE: "custom:opaque identifier",
       WEBSITE: "not a URL",
+      PHOTO: "https://example.org/photo.png",
     };
     const row = await storage!.createRow(actor, table.id, initial);
     assert.deepEqual(
@@ -115,10 +117,14 @@ test(
       actor,
       table.id,
       row.id,
-      { RESOURCE: "relative/path", WEBSITE: "" },
+      { RESOURCE: "relative/path", WEBSITE: "", PHOTO: "not an image URL" },
       { expectedVersion: row.version },
     );
-    assert.deepEqual(next.values, { RESOURCE: "relative/path", WEBSITE: "" });
+    assert.deepEqual(next.values, {
+      RESOURCE: "relative/path",
+      WEBSITE: "",
+      PHOTO: "not an image URL",
+    });
     const history = await storage!.cellHistory(
       actor,
       table.id,
@@ -130,12 +136,13 @@ test(
       actor,
       table.id,
       row.id,
-      { RESOURCE: null, WEBSITE: null },
+      { RESOURCE: null, WEBSITE: null, PHOTO: null },
       { expectedVersion: next.version },
     );
     assert.deepEqual((await storage!.getRow(actor, table.id, row.id)).values, {
       RESOURCE: null,
       WEBSITE: null,
+      PHOTO: null,
     });
   },
 );

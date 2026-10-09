@@ -32,7 +32,7 @@ const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
 
 // FLD-15: each named case below runs unchanged through real REST and delegated OAuth MCP.
 // PostgreSQL native columns and trigger history are the independent persistence oracle.
-test("FLD-15 actual REST/MCP ten-type create/patch boundary matrix with native PostgreSQL revision and history", async (t) => {
+test("FLD-15 actual REST/MCP eleven-type create/patch boundary matrix with native PostgreSQL revision and history", async (t) => {
   const db = await isolatedDatabase();
   let app: ReturnType<typeof createRuntimeApp> | undefined;
   let runtime: Awaited<ReturnType<typeof createRuntime>> | undefined;
@@ -379,6 +379,7 @@ test("FLD-15 actual REST/MCP ten-type create/patch boundary matrix with native P
         text: "text",
         uri: "text",
         url: "text",
+        image: "text",
         integer: "bigint",
         float: "double precision",
         boolean: "boolean",

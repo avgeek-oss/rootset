@@ -694,6 +694,19 @@ export type createTableInput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "image";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -843,6 +856,20 @@ export type createTableOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "url";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "image";
       }
     | {
         id: string;
@@ -1097,6 +1124,20 @@ export type getTableSchemaOutput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "image";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -1268,6 +1309,20 @@ export type listFieldsOutput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "image";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -1409,6 +1464,19 @@ export type createFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "url";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "image";
       }
     | {
         name: string;
@@ -1575,6 +1643,20 @@ export type createFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "url";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "image";
           }
         | {
             id: string;
@@ -1764,6 +1846,19 @@ export type updateFieldInput = {
           | unknown[]
           | Record<string, unknown>;
         order?: number;
+        type: "image";
+      }
+    | {
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
         type: "boolean";
       }
     | {
@@ -1919,6 +2014,20 @@ export type updateFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "url";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
+            type: "image";
           }
         | {
             id: string;
@@ -2136,6 +2245,20 @@ export type deleteFieldOutput =
               | unknown[]
               | Record<string, unknown>;
             order?: number;
+            type: "image";
+          }
+        | {
+            id: string;
+            name: string;
+            required?: boolean;
+            default?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            order?: number;
             type: "boolean";
           }
         | {
@@ -2320,6 +2443,20 @@ export type reorderFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "url";
+      }
+    | {
+        id: string;
+        name: string;
+        required?: boolean;
+        default?:
+          | null
+          | boolean
+          | number
+          | string
+          | unknown[]
+          | Record<string, unknown>;
+        order?: number;
+        type: "image";
       }
     | {
         id: string;
@@ -2588,6 +2725,19 @@ export type getSchemaOperationOutput = {
                 | unknown[]
                 | Record<string, unknown>;
               order?: number;
+              type: "image";
+            }
+          | {
+              name: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
               type: "boolean";
             }
           | {
@@ -2734,6 +2884,19 @@ export type getSchemaOperationOutput = {
                 | unknown[]
                 | Record<string, unknown>;
               order?: number;
+              type: "image";
+            }
+          | {
+              name: string;
+              required?: boolean;
+              default?:
+                | null
+                | boolean
+                | number
+                | string
+                | unknown[]
+                | Record<string, unknown>;
+              order?: number;
               type: "boolean";
             }
           | {
@@ -2802,6 +2965,7 @@ export type getSchemaOperationOutput = {
             | "text"
             | "uri"
             | "url"
+            | "image"
             | "integer"
             | "float"
             | "boolean"
@@ -2832,6 +2996,7 @@ export type getSchemaOperationOutput = {
             | "text"
             | "uri"
             | "url"
+            | "image"
             | "integer"
             | "float"
             | "boolean"
@@ -2953,6 +3118,20 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "url";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "image";
         }
       | {
           id: string;
@@ -3127,6 +3306,20 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "url";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "image";
         }
       | {
           id: string;
@@ -3684,6 +3877,20 @@ export type getCellHistoryOutput = {
             | unknown[]
             | Record<string, unknown>;
           order?: number;
+          type: "image";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
           type: "boolean";
         }
       | {
@@ -3862,6 +4069,20 @@ export type queryHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "url";
+        }
+      | {
+          id: string;
+          name: string;
+          required?: boolean;
+          default?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          order?: number;
+          type: "image";
         }
       | {
           id: string;

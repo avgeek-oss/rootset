@@ -271,6 +271,7 @@ export const operatorsByType = Object.freeze({
   text: textOperators,
   uri: textOperators,
   url: textOperators,
+  image: textOperators,
   integer: [
     "eq",
     "ne",

@@ -26,7 +26,7 @@ const field = (
 const draft = (text: string, isNull = false) => ({ text, isNull });
 
 describe("typed editor validation parity", () => {
-  it.each(["uri", "url"] as const)(
+  it.each(["uri", "url", "image"] as const)(
     "edits %s as plain text without address validation",
     (type) => {
       for (const value of [

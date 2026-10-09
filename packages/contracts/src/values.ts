@@ -206,6 +206,7 @@ const rawFields = z.discriminatedUnion("type", [
   }),
   z.strictObject({ ...common, type: z.literal("uri") }),
   z.strictObject({ ...common, type: z.literal("url") }),
+  z.strictObject({ ...common, type: z.literal("image") }),
   z.strictObject({ ...common, type: z.literal("boolean") }),
   z.strictObject({
     ...common,
@@ -290,6 +291,7 @@ export function validateCell(
       break;
     case "uri":
     case "url":
+    case "image":
       if (typeof value !== "string" || !validUnicode(value))
         invalid(`Field ${field.name} requires valid Unicode text`);
       result = value;

@@ -50,7 +50,7 @@ function nested(depth: number): JsonValue {
 }
 
 export const fieldCases: FieldCases[] = [
-  ...(["uri", "url"] as const).map((type): FieldCases => ({
+  ...(["uri", "url", "image"] as const).map((type): FieldCases => ({
     type,
     baseline: "not an address",
     canonical: "not an address",

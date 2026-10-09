@@ -205,6 +205,7 @@ export const FieldTypeSchema = z.enum([
   "text",
   "uri",
   "url",
+  "image",
   "integer",
   "float",
   "boolean",

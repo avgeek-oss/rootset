@@ -48,6 +48,7 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { DebouncedSave } from "../lib/debounced-save";
 import { CellUndoStack } from "../lib/cell-undo";
 import { CellEditor, formatCellValue } from "./cells";
+import { ImageCell } from "./cells/ImageCell";
 import { Dialog } from "./dialog";
 import { useConfirmation } from "./settings/ui";
 import { TableFilterDialog } from "./table-filter-dialog";
@@ -1294,14 +1295,21 @@ export function Spreadsheet({
               : undefined
           }
         >
-          {!Object.hasOwn(row.values, field.name)
-            ? null
-            : formatCellValue(field, row.values[field.name] ?? null, {
-                timeZone: preferences.timezone,
-                locale: preferences.locale,
-                dateFormat: preferences.dateFormat,
-                timeFormat: preferences.timeFormat,
-              })}
+          {!Object.hasOwn(row.values, field.name) ? null : field.type ===
+              "image" && typeof row.values[field.name] === "string" ? (
+            <ImageCell
+              key={String(row.values[field.name])}
+              src={String(row.values[field.name])}
+              name={field.name}
+            />
+          ) : (
+            formatCellValue(field, row.values[field.name] ?? null, {
+              timeZone: preferences.timezone,
+              locale: preferences.locale,
+              dateFormat: preferences.dateFormat,
+              timeFormat: preferences.timeFormat,
+            })
+          )}
         </span>
       ),
       renderEditCell: ({ onClose }) => (

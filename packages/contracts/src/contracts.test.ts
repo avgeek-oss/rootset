@@ -57,8 +57,8 @@ import {
 } from "./index";
 
 const id = "01K6J7B8000000000000000000";
-test("URI and URL fields preserve arbitrary strings without address validation or custom constraints", () => {
-  for (const type of ["uri", "url"] as const) {
+test("URI, URL and image fields preserve arbitrary strings without address validation or custom constraints", () => {
+  for (const type of ["uri", "url", "image"] as const) {
     const field = { id, name: "ADDRESS", type };
     assert.equal(
       FieldDefinitionSchema.safeParse({ ...field, default: "not an address" })

@@ -53,6 +53,7 @@ Defaults do not rewrite existing rows and cannot contain expressions.
 | Text      | `text`             | JSON string; positive Unicode scalar limit, default 4,096. Empty is valid.                                                 |
 | URI       | `text`             | JSON string stored as entered; no URI syntax, scheme, host or address validation.                                          |
 | URL       | `text`             | JSON string stored as entered; no URL syntax, scheme, host or address validation.                                          |
+| Image     | `text`             | Plain URL string with no address validation; the UI displays a thumbnail and edits the URL as text.                        |
 | Integer   | `bigint`           | JSON integer within ±9,007,199,254,740,991, with optional inclusive bounds.                                                |
 | Float     | `double precision` | Finite JSON number with optional finite inclusive bounds; no string coercion, NaN or infinity.                             |
 | Boolean   | `boolean`          | Strict true/false, or null when nullable.                                                                                  |

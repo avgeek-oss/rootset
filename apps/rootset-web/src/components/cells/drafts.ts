@@ -114,6 +114,7 @@ export function parseCellDraft(
     case "text":
     case "uri":
     case "url":
+    case "image":
       value = draft.text;
       break;
     case "integer": {
@@ -282,6 +283,7 @@ export function formatCellValue(
     case "text":
     case "uri":
     case "url":
+    case "image":
       return String(value).length > 512
         ? `${String(value).slice(0, 511)}…`
         : String(value);

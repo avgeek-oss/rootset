@@ -135,6 +135,7 @@ before(async () => {
       { name: "payload", type: "json" },
       { name: "resource", type: "uri" },
       { name: "website", type: "url" },
+      { name: "photo", type: "image" },
     ],
     idempotencyKey: newId(),
   });
@@ -157,6 +158,7 @@ before(async () => {
         payload: { index },
         resource: `custom:resource ${index}`,
         website: "not a URL",
+        photo: `https://example.org/photo-${index}.png`,
       },
       { idempotencyKey: newId() },
     );
@@ -214,9 +216,15 @@ test("V1-25: complete-table snapshot export has canonical quoted content and enc
   const download = await jobs.downloadArtifact(actor, artifact.id);
   let content = "";
   for await (const chunk of download.stream) content += String(chunk);
-  assert.ok(content.includes("custom:resource 1,not a URL"));
   assert.ok(
-    content.startsWith("code,name,active,instant,payload,resource,website\n"),
+    content.includes(
+      "custom:resource 1,not a URL,https://example.org/photo-1.png",
+    ),
+  );
+  assert.ok(
+    content.startsWith(
+      "code,name,active,instant,payload,resource,website,photo\n",
+    ),
   );
   for (const code of ["00001", "00002", "00003"])
     assert.ok(content.includes(code));
@@ -245,6 +253,7 @@ test("JSONL export includes every row and field and exposes its format in reques
     .split("\n")
     .map((line) => JSON.parse(line) as Record<string, unknown>);
   assert.equal(rows.length, 3);
+  assert.equal(rows[0]!.photo, "https://example.org/photo-1.png");
   for (const row of rows)
     assert.deepEqual(
       Object.keys(row).sort(),
