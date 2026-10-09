@@ -68,7 +68,7 @@ payloads remain encrypted.
 
 Keep verified email/password sign-in, password reset, passkeys, passkey recovery codes and session management. There is no authenticator/TOTP plugin, setup secret, verification endpoint, database table or action type. Setup/invitation/reset/factor tokens
 are bounded, single-use and protected at rest. Rate-limit authentication and
-approval attempts; errors must not reveal unrelated account existence.
+identity confirmation attempts; errors must not reveal unrelated account existence.
 
 Passwords contain 15–1,024 characters and use salted credential hashes.
 Hash/verify work shares a fixed bounded FIFO gate: two active operations and
@@ -87,12 +87,13 @@ sign-in does not issue a session or trigger an automatic email.
 
 Once a user registers a passkey, successful password verification creates a bounded pending sign-in instead of a usable session. The second step requires a cryptographically verified passkey with user verification. Its challenge binds the exact pending sign-in and user. Direct passkey sign-in remains supported. Reauthentication binds the exact existing session, keeps its identifier and updates only its fresh-proof timestamp; password-only reauthentication is refused for an account with passkeys.
 
-The first passkey returns ten random recovery codes once. Only SHA-256 hashes of their normalized 128-bit values are stored in `auth_recovery_codes`. A recovery code completes a pending password sign-in and is consumed atomically with that pending proof, so concurrent attempts cannot both succeed. A recovery-created session has no fresh-proof timestamp: read access remains available, but key issuance, credential changes, passkey management and approval require an actual passkey assertion bound to that session. Adding another passkey preserves codes; replacement invalidates the previous set; removing the last key removes its codes. Password reset preserves passkeys. Access revocation invalidates pending sign-in and bound challenge receipts. Explicit host-authorized operator recovery removes passkeys/codes and revokes sessions and delegated credentials.
+The first passkey returns ten random recovery codes once. Only SHA-256 hashes of their normalized 128-bit values are stored in `auth_recovery_codes`. A recovery code completes a pending password sign-in and is consumed atomically with that pending proof, so concurrent attempts cannot both succeed. A recovery-created session has no fresh-proof timestamp: read access remains available, but key issuance, credential changes, passkey management and database deletion require an actual passkey assertion bound to that session. Adding another passkey preserves codes; replacement invalidates the previous set; removing the last key removes its codes. Password reset preserves passkeys. Access revocation invalidates pending sign-in and bound challenge receipts. Explicit host-authorized operator recovery removes passkeys/codes and revokes sessions and delegated credentials.
 
-Sensitive account changes, credential changes and
-destructive schema changes require current authentication and explicit approval of the
-intended action. A cached session or old approval cannot approve a changed
-request. Changes to email verify the new address and handle uniqueness races;
+Sensitive account and credential changes require recent password or passkey
+authentication in the browser. Database deletion also requires this confirmation.
+Administrators can delete databases and tables; editors can create and edit them.
+Authorized API and MCP credentials execute operations directly. There are no
+account-action tickets or approval pages. Changes to email verify the new address and handle uniqueness races;
 revocation invalidates affected sessions and grants. Email-change links hold
 proof in a URL fragment; opening the page only inspects it. An explicit shared
 confirmation button submits the proof. Email update, session/key/grant revocation
@@ -104,7 +105,7 @@ authority and usable proof.
 A key belongs to a person and has a name, protected secret hash, creation/expiry
 and revocation metadata. Show the random secret once and retain only its keyed
 hash and redacted metadata. The default expiry remains 90 days; an Admin can
-approve a non-expiring key. Rotation uses a bounded overlap before revocation.
+create a non-expiring key. Rotation uses a bounded overlap before revocation.
 
 Personal keys have Read-only, Edit or Administrative permission ceilings,
 intersected with the person's live role. They do not contain selected operations
@@ -182,7 +183,7 @@ contains a previous database or table identifier.
 
 Legacy `/settings/security` and `/settings/2fa` links resolve to Passkeys; keys/connections aliases resolve to API Keys. Account pages consume published `ProfileImageSettings`, `ProfileSettings`, `EmailChangeSettings`, `PasswordChangeSettings`, `PasskeySettings`, `SessionsSettings`, and the shared API/MCP patterns. Shared labels, dialogs and fixed copy stay in the library. Recovery-code saving belongs to the passkey ceremony, with no separate recovery-code administration panel.
 
-Sensitive operations continue to use Rootset's immutable approval checks. The browser verifies the matching server ticket before approving and completing it. Identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Delete and operator repair keep their separate explicit review.
+Browser identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Once identity is confirmed, the browser sends the mutation directly. Table deletion uses the normal destructive confirmation; database deletion additionally verifies identity. Operator repair runs directly for authorized administrators.
 
 The browser-only `/v1/auth/email-change` GET/DELETE endpoint reads or cancels only
 the signed-in user's pending confirmation. Cancellation invalidates its token and

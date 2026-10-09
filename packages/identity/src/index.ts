@@ -46,10 +46,7 @@ import {
   createDateTimeFormatter,
   RootsetError,
   ViewPreferencesSchema,
-  OperatorRepairIntentSchema,
-  OperatorRepairReasonSchema,
   operationMap,
-  assertSchemaNumberLexemes,
   newId,
   type Preferences,
   type JsonValue,
@@ -62,17 +59,10 @@ import {
   type PoolClient,
 } from "@rootset/database";
 import { identitySchema } from "@rootset/database/identity-schema";
-import {
-  identityMutationSet,
-  mutationSet,
-  runMutation,
-  stripMutationSecrets,
-} from "@rootset/idempotency";
+import { identityMutationSet, runMutation } from "@rootset/idempotency";
 export { identityMutationSet } from "@rootset/idempotency";
 import {
   EmailOutbox,
-  decryptProtected,
-  encryptProtected,
   type EmailConfig,
   type EmailPayload,
   type EmailTemplate,
@@ -85,18 +75,13 @@ export interface IdentityConfig extends EmailConfig {
   bootstrapSecret: string;
   keyHashSecret: string;
   oauthResolver?: (request: Request, audience: string) => Promise<Actor | null>;
-  authoriseRepair?: (
-    actor: Actor,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
 }
 export interface ExecutionContext {
   requestId?: string;
   idempotencyKey?: string;
-  actionId?: string;
   jobId?: string;
   surface?: "browser" | "rest" | "api" | "mcp" | "worker";
-  approvalClient?: PoolClient;
+  client?: PoolClient;
   numericLexemes?: readonly NumberLexeme[];
 }
 export interface IdentityPageRequest {
@@ -143,20 +128,6 @@ const canonical = (value: unknown): string =>
   );
 const digest = (value: unknown): string =>
   createHash("sha256").update(canonical(value)).digest("hex");
-const businessInput = (
-  input: Record<string, unknown>,
-): Record<string, unknown> =>
-  Object.fromEntries(
-    Object.entries(input).filter(
-      ([key]) => key !== "approvalId" && key !== "actionId",
-    ),
-  );
-const keyIssuanceOperations = new Set([
-  "createPersonalKey",
-  "rotatePersonalKey",
-  "createTeamKey",
-  "rotateTeamKey",
-]);
 const safeEqual = (a: string, b: string): boolean => {
   const x = Buffer.from(a),
     y = Buffer.from(b);
@@ -191,39 +162,6 @@ const defaultPreferences: Preferences = {
   timeFormat: defaultDateTimePreferences.timeFormat,
   theme: "system",
 };
-const redact = (value: unknown): unknown =>
-  Array.isArray(value)
-    ? value.map(redact)
-    : value && typeof value === "object"
-      ? Object.fromEntries(
-          Object.entries(value).map(([key, item]) => [
-            key,
-            /password|secret|token|recovery|credential|private.?key|totp|code$/i.test(
-              key,
-            )
-              ? "[redacted]"
-              : redact(item),
-          ]),
-        )
-      : value;
-const stripSecrets = stripMutationSecrets;
-const sensitiveOperations = new Set([
-  "changePassword",
-  "changeEmail",
-  "registerPasskey",
-  "removePasskey",
-  "rotateRecoveryCodes",
-  "signOutEverywhere",
-  "createPersonalKey",
-  "rotatePersonalKey",
-  "createTeamKey",
-  "rotateTeamKey",
-  "deleteDatabase",
-  "deleteTable",
-  "updateMember",
-  "removeMember",
-  "mutateRows",
-]);
 const factorRoutes: Record<string, string> = {
   "/passkey/generate-register-options": "registerPasskey",
   "/passkey/verify-registration": "registerPasskey",
@@ -240,6 +178,9 @@ const identityRoutes = new Set([
   "POST /request-verification-email",
   "POST /send-verification-email",
   "POST /reauthenticate",
+  "POST /change-password",
+  "POST /change-email",
+  "POST /sign-out-everywhere",
   "GET /email-change",
   "DELETE /email-change",
   "POST /email-change/inspect",
@@ -254,43 +195,6 @@ const identityRoutes = new Set([
   "GET /passkey/list-user-passkeys",
   "POST /passkey/replace-recovery-codes",
 ]);
-const actionTypes: Record<string, string> = {
-  changePassword: "change_password",
-  changeEmail: "change_email",
-  registerPasskey: "register_passkey",
-  removePasskey: "remove_passkey",
-  rotateRecoveryCodes: "rotate_recovery_codes",
-  signOutEverywhere: "sign_out_everywhere",
-  updateMember: "update_member",
-  removeMember: "remove_member",
-  createPersonalKey: "create_key",
-  rotatePersonalKey: "rotate_key",
-  createTeamKey: "create_key",
-  rotateTeamKey: "rotate_key",
-  deleteDatabase: "delete_database",
-  deleteTable: "delete_table",
-  mutateRows: "operator_repair",
-};
-const requiresOperationApproval = (
-  operation: string,
-  input: Record<string, unknown>,
-): boolean =>
-  sensitiveOperations.has(operation) &&
-  !(operation === "mutateRows" && input.repair === undefined);
-
-const repairIntent = (input: Record<string, unknown>) =>
-  OperatorRepairIntentSchema.parse({
-    orgId: input.orgId,
-    databaseId: input.databaseId,
-    tableId: input.tableId,
-    expectedSchemaVersion: input.expectedSchemaVersion,
-    reason: (input.repair as { reason: string }).reason,
-    updates: (input.mutations as Record<string, unknown>[]).map((update) => ({
-      rowId: update.rowId,
-      expectedVersion: update.expectedVersion,
-      values: update.values,
-    })),
-  });
 
 export class IdentityService {
   readonly emailOutbox: EmailOutbox;
@@ -300,22 +204,6 @@ export class IdentityService {
   private paging?: IdentityPaging;
   setPaging(paging: IdentityPaging): void {
     this.paging = paging;
-  }
-  private externalExecutor?: (
-    operationId: string,
-    actor: Actor,
-    input: Record<string, unknown>,
-    context: ExecutionContext,
-  ) => Promise<unknown>;
-  setExecutor(
-    executor: (
-      operationId: string,
-      actor: Actor,
-      input: Record<string, unknown>,
-      context: ExecutionContext,
-    ) => Promise<unknown>,
-  ): void {
-    this.externalExecutor = executor;
   }
   constructor(readonly config: IdentityConfig) {
     if (
@@ -879,7 +767,6 @@ export class IdentityService {
   }
   private async handleAuth(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname.replace(/^\/v1\/auth/, "");
-    let approvalLease: PoolClient | undefined;
     try {
       if (
         !identityRoutes.has(`${request.method} ${path}`) &&
@@ -982,7 +869,6 @@ export class IdentityService {
         return await this.inspectEmailChange(request);
       if (path === "/email-change/confirm")
         return await this.confirmEmailChange(request);
-      const actionId = request.headers.get("x-rootset-action-id");
       const actionOperation = factorRoutes[path];
       if (
         ["/passkey/verify-registration", "/passkey/update-passkey"].includes(
@@ -1005,51 +891,29 @@ export class IdentityService {
           );
       }
       if (
-        path === "/change-password" ||
-        path === "/update-user" ||
-        path === "/delete-user"
-      )
+        ["/change-password", "/change-email", "/sign-out-everywhere"].includes(
+          path,
+        )
+      ) {
+        const actor = await this.resolveActor(request, "browser");
+        if (!actor)
+          throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
+        const operation = {
+          "/change-password": "changePassword",
+          "/change-email": "changeEmail",
+          "/sign-out-everywhere": "signOutEverywhere",
+        }[path]!;
         return Response.json(
-          {
-            error: {
-              code: "STEP_UP_REQUIRED",
-              message: "Use the bound Rootset account action",
-            },
-          },
-          { status: 403 },
+          await this.execute(operation, actor, await request.json(), {
+            idempotencyKey: request.headers.get("idempotency-key") ?? newId(),
+          }),
         );
+      }
       if (actionOperation) {
         const actor = await this.resolveActor(request, "browser");
         if (!actor)
           throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
-        if (actionId) {
-          approvalLease = await this.config.pool.connect();
-          await approvalLease.query("BEGIN");
-          await approvalLease.query(
-            `SELECT set_config('rootset.org_id',$1,true)`,
-            [actor.orgId],
-          );
-          const approved = await this.requireApprovedAction(
-            actor,
-            actionId,
-            actionOperation,
-            approvalLease,
-            true,
-          );
-          const expected = decryptProtected<Record<string, unknown>>(
-            approved.payload_encrypted as string,
-            this.config,
-          );
-          if (path === "/passkey/delete-passkey") {
-            const body = (await request.clone().json()) as { id?: string };
-            if (expected.id !== body.id)
-              throw new RootsetError(
-                "STEP_UP_REQUIRED",
-                "The approved passkey does not match this request",
-                403,
-              );
-          }
-        } else this.requireRecentAuthentication(actor);
+        this.requireRecentAuthentication(actor);
       }
       const passkeySession =
         path === "/passkey/verify-authentication"
@@ -1121,18 +985,6 @@ export class IdentityService {
       }
       if (
         response.ok &&
-        actionId &&
-        actionOperation &&
-        !path.includes("generate-register")
-      ) {
-        if (approvalLease)
-          await approvalLease.query(
-            `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='',result=$2 WHERE id=$1 AND consumed_at IS NULL`,
-            [actionId, JSON.stringify({ completed: true })],
-          );
-      }
-      if (
-        response.ok &&
         [
           "/passkey/verify-registration",
           "/passkey/delete-passkey",
@@ -1183,8 +1035,6 @@ export class IdentityService {
           });
         }
       }
-      if (approvalLease)
-        await approvalLease.query(response.ok ? "COMMIT" : "ROLLBACK");
       return response;
     } catch (error) {
       const status =
@@ -1210,11 +1060,6 @@ export class IdentityService {
         },
         { status },
       );
-    } finally {
-      if (approvalLease) {
-        await approvalLease.query("ROLLBACK");
-        approvalLease.release();
-      }
     }
   }
   private requireRecentAuthentication(actor: Actor): void {
@@ -1229,238 +1074,23 @@ export class IdentityService {
         403,
       );
   }
-  private async requireApprovedAction(
-    actor: Actor,
-    id: string,
-    operation: string,
-    client?: PoolClient,
-    lock = false,
-  ): Promise<Record<string, unknown>> {
-    const read = async (c: PoolClient) => {
-      const r = await c.query(
-        `SELECT * FROM rootset_control.account_actions WHERE id=$1 AND user_id=$2 AND org_id=$3 AND operation=$4 AND approved_at IS NOT NULL AND consumed_at IS NULL AND expires_at>now()${lock ? " FOR UPDATE" : ""}`,
-        [id, actor.userId, actor.orgId, operation],
-      );
-      if (!r.rows[0])
-        throw new RootsetError(
-          "STEP_UP_REQUIRED",
-          "The approved action is unavailable",
-          403,
-        );
-      return r.rows[0];
-    };
-    return client ? read(client) : withOrg(this.config.pool, actor.orgId, read);
+  assertDatabaseDeletion(actor: Actor): void {
+    if (actor.kind === "session") this.requireRecentAuthentication(actor);
   }
-  private async assertSensitive(
-    actor: Actor,
-    operation: string,
-    input: unknown,
-    context: ExecutionContext,
-    client: PoolClient,
-  ): Promise<void> {
-    if (!requiresOperationApproval(operation, input as Record<string, unknown>))
-      return;
+  private assertSensitive(actor: Actor, operation: string): void {
     if (
-      actor.kind === "session" &&
-      !context.actionId &&
-      operation !== "mutateRows"
-    ) {
-      this.requireRecentAuthentication(actor);
-      return;
-    }
-    if (!context.actionId)
-      throw new RootsetError(
-        "STEP_UP_REQUIRED",
-        "Start an account action and approve it in the browser",
-        403,
-        { operationId: operation },
-      );
-    const action = await this.requireApprovedAction(
-      actor,
-      context.actionId,
-      operation,
-      client,
-      true,
-    );
-    if (
-      action.actor_id !== actor.id ||
-      action.client_id !== (actor.clientId ?? null) ||
-      action.digest !==
-        this.requestDigest({
-          operation,
-          input: businessInput(input as Record<string, unknown>),
-          actorId: actor.id,
-          clientId: actor.clientId ?? null,
-          userId: actor.userId,
-          orgId: actor.orgId,
-        })
+      ["changePassword", "changeEmail", "signOutEverywhere"].includes(
+        operation,
+      ) ||
+      (actor.kind === "session" &&
+        [
+          "createPersonalKey",
+          "rotatePersonalKey",
+          "createTeamKey",
+          "rotateTeamKey",
+        ].includes(operation))
     )
-      throw new RootsetError(
-        "STEP_UP_REQUIRED",
-        "Approval is bound to a different request",
-        403,
-      );
-    if (context.approvalClient !== client)
-      await client.query(
-        `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='' WHERE id=$1`,
-        [context.actionId],
-      );
-  }
-  async approveAction(id: string, actor: Actor): Promise<unknown> {
-    actor = await this.refreshActor(actor);
-    this.requireRecentAuthentication(actor);
-    return withOrg(this.config.pool, actor.orgId, async (client) => {
-      const row = await client.query(
-        `UPDATE rootset_control.account_actions SET approved_at=now() WHERE id=$1 AND user_id=$2 AND org_id=$3 AND consumed_at IS NULL AND expires_at>now() RETURNING id,operation,expires_at,payload_encrypted`,
-        [id, actor.userId, actor.orgId],
-      );
-      if (!row.rows[0]) notFound();
-      const intent =
-        row.rows[0].operation === "mutateRows"
-          ? decryptProtected<Record<string, unknown>>(
-              row.rows[0].payload_encrypted,
-              this.config,
-            )
-          : undefined;
-      if (intent) await this.authoriseRepair(actor, intent);
-      return this.actionMetadata(
-        row.rows[0],
-        "approved",
-        undefined,
-        intent ? repairIntent(intent) : undefined,
-      );
-    });
-  }
-  private actionMetadata(
-    row: Record<string, unknown>,
-    state: "pending" | "approved" | "consumed" | "expired",
-    result?: unknown,
-    intent?: unknown,
-  ): Record<string, unknown> {
-    return {
-      id: row.id,
-      type: actionTypes[row.operation as string],
-      state,
-      expiresAt: new Date(row.expires_at as string | Date).toISOString(),
-      approvalUrl: `${this.config.webURL ?? this.config.baseURL}/account-actions/${row.id}`,
-      ...(result === undefined ? {} : { result }),
-      ...(intent === undefined ? {} : { repairIntent: intent }),
-    };
-  }
-  async assertOperationApproval(
-    actor: Actor,
-    operationId: string,
-    input: Record<string, unknown>,
-    context: ExecutionContext,
-  ): Promise<void> {
-    const operation = normaliseOperation(operationId);
-    if (!requiresOperationApproval(operation, input)) return;
-    actor = await this.hydrateActor(actor, true, context.approvalClient);
-    if (
-      actor.kind === "session" &&
-      !context.actionId &&
-      operation !== "mutateRows"
-    ) {
       this.requireRecentAuthentication(actor);
-      return;
-    }
-    if (!context.actionId)
-      throw new RootsetError(
-        "STEP_UP_REQUIRED",
-        "Start an account action and approve it in the browser",
-        403,
-        { operationId: operation },
-      );
-    const validate = async (client: PoolClient) => {
-      const row = await this.requireApprovedAction(
-        actor,
-        context.actionId!,
-        operation,
-        client,
-      );
-      if (
-        row.actor_id !== actor.id ||
-        row.client_id !== (actor.clientId ?? null) ||
-        row.digest !==
-          this.requestDigest({
-            operation,
-            input: businessInput(input),
-            actorId: actor.id,
-            clientId: actor.clientId ?? null,
-            userId: actor.userId,
-            orgId: actor.orgId,
-          })
-      )
-        throw new RootsetError(
-          "STEP_UP_REQUIRED",
-          "Approval is bound to a different request",
-          403,
-        );
-    };
-    if (context.approvalClient) await validate(context.approvalClient);
-    else await withOrg(this.config.pool, actor.orgId, validate);
-  }
-  async withOperationApproval<T>(
-    actor: Actor,
-    operationId: string,
-    input: Record<string, unknown>,
-    context: ExecutionContext,
-    work: (client: PoolClient) => Promise<T>,
-  ): Promise<T> {
-    const operation = normaliseOperation(operationId);
-    const sensitive = requiresOperationApproval(operation, input);
-    actor = await this.hydrateActor(actor, true, context.approvalClient);
-    const approveAndRun = async (client: PoolClient) => {
-      const approvedContext = { ...context, approvalClient: client };
-      if (sensitive && context.actionId)
-        await this.requireApprovedAction(
-          actor,
-          context.actionId,
-          operation,
-          client,
-          true,
-        );
-      await this.assertOperationApproval(
-        actor,
-        operation,
-        input,
-        approvedContext,
-      );
-      const result = await work(client);
-      if (sensitive && context.actionId)
-        await client.query(
-          `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='',result=$2 WHERE id=$1 AND consumed_at IS NULL`,
-          [context.actionId, JSON.stringify(stripSecrets(result))],
-        );
-      return result;
-    };
-    const run = async (client: PoolClient): Promise<T> => {
-      if (keyIssuanceOperations.has(operation)) {
-        const replay = await this.prepareKeyReceipt(
-          client,
-          operation,
-          actor,
-          businessInput(input),
-          context,
-        );
-        if (replay) return replay as T;
-      }
-      return mutationSet.has(operation) &&
-        (operation !== "mutateRows" || sensitive)
-        ? runMutation(
-            client,
-            actor,
-            operation,
-            input,
-            context.idempotencyKey ?? "",
-            this.config.keyHashSecret,
-            () => approveAndRun(client),
-          )
-        : approveAndRun(client);
-    };
-    return context.approvalClient
-      ? run(context.approvalClient)
-      : withOrg(this.config.pool, actor.orgId, run);
   }
   private async page(
     client: PoolClient,
@@ -1557,83 +1187,6 @@ export class IdentityService {
       originalContext,
     ]);
   }
-  validateAccountActionRequest(
-    actor: Actor,
-    input: Record<string, unknown>,
-    context: ExecutionContext = {},
-  ): { operationId: string; input: Record<string, unknown> } {
-    if (!actor.userId)
-      throw new RootsetError(
-        "PERSONAL_IDENTITY_REQUIRED",
-        "A user identity is required",
-        403,
-      );
-    const data = parse(
-      z.strictObject({
-        type: z.string().optional(),
-        operationId: z.string().optional(),
-        input: z.record(z.string(), z.unknown()).default({}),
-        orgId: IdSchema.optional(),
-      }),
-      input,
-    );
-    if (data.orgId && data.orgId !== actor.orgId) notFound();
-    const inferred = Object.entries(actionTypes).find(
-      ([, type]) => type === data.type,
-    )?.[0];
-    const target = normaliseOperation(data.operationId ?? inferred ?? "");
-    if (
-      !sensitiveOperations.has(target) ||
-      (target === "mutateRows" && data.input.repair === undefined) ||
-      (data.type && actionTypes[target] !== data.type)
-    )
-      throw new RootsetError(
-        "VALIDATION_FAILED",
-        "The action type must match the requested operation",
-      );
-    let boundInput = businessInput(data.input);
-    this.checkActionAuthority(actor, target, boundInput);
-    // Factor ceremonies belong to the authentication protocol adapter.
-    const targetOperation = operationMap[target];
-    if (targetOperation) {
-      if (
-        targetOperation.inputSchema instanceof z.ZodObject &&
-        targetOperation.inputSchema.shape.orgId &&
-        boundInput.orgId === undefined
-      )
-        boundInput.orgId = actor.orgId;
-      const parsedInput = parse(targetOperation.inputSchema, boundInput);
-      if (target === "mutateRows")
-        boundInput = parsedInput as Record<string, unknown>;
-      assertSchemaNumberLexemes(
-        targetOperation.inputSchema,
-        (context.numericLexemes ?? [])
-          .filter((info) => info.path[0] === "input")
-          .map((info) => ({
-            ...info,
-            path: info.path.slice(1),
-            pointer: info.pointer.replace(/^\/input/, ""),
-          })),
-      );
-    } else
-      parse(
-        target === "changePassword"
-          ? z.strictObject({
-              currentPassword: z.string().max(1024).optional(),
-              newPassword: passwordSchema,
-            })
-          : target === "changeEmail"
-            ? z.strictObject({ newEmail: emailSchema })
-            : target === "signOutEverywhere"
-              ? signOutEverywhereInputSchema
-              : target === "removePasskey"
-                ? z.strictObject({ id: z.string().min(1).max(255) })
-                : z.strictObject({}),
-        boundInput,
-      );
-    this.checkActionAuthority(actor, target, boundInput);
-    return { operationId: target, input: boundInput };
-  }
   async execute(
     operationId: string,
     incomingActor: Actor,
@@ -1641,22 +1194,9 @@ export class IdentityService {
     context: ExecutionContext = {},
   ): Promise<unknown> {
     const operation = normaliseOperation(operationId),
-      actor = await this.hydrateActor(
-        incomingActor,
-        true,
-        context.approvalClient,
-      ),
+      actor = await this.hydrateActor(incomingActor, true, context.client),
       input = (value ?? {}) as Record<string, unknown>;
-    if (
-      (typeof input.actionId === "string" ||
-        typeof input.approvalId === "string") &&
-      !context.actionId
-    )
-      context = {
-        ...context,
-        actionId: (input.actionId ?? input.approvalId) as string,
-      };
-    const normalizedInput = businessInput(input);
+    const normalizedInput = input;
     const executionInput = normalizedInput;
     if (
       typeof normalizedInput.orgId === "string" &&
@@ -1699,15 +1239,6 @@ export class IdentityService {
             orgId: actor.orgId,
           });
       }
-      if (operation === "beginAccountAction") {
-        const bound = this.validateAccountActionRequest(
-          actor,
-          normalizedInput,
-          context,
-        );
-        if (bound.operationId === "mutateRows")
-          await this.authoriseRepair(actor, bound.input);
-      }
       if (operation === "updateViewPreferences") {
         const table = (
           await client.query(
@@ -1734,7 +1265,7 @@ export class IdentityService {
             operation,
             actor,
             executionInput,
-            { ...context, approvalClient: client },
+            { ...context, client },
           );
           const json = JSON.parse(JSON.stringify(output)) as unknown;
           return definition ? definition.outputSchema.parse(json) : json;
@@ -1742,16 +1273,9 @@ export class IdentityService {
       );
       return definition ? definition.outputSchema.parse(result) : result;
     };
-    const result =
-      operation === "completeAccountAction"
-        ? await this.completeAction(
-            actor,
-            parse(z.strictObject({ id: IdSchema }), normalizedInput).id,
-            context,
-          )
-        : await (context.approvalClient
-            ? run(context.approvalClient)
-            : withOrg(this.config.pool, actor.orgId, run));
+    const result = await (context.client
+      ? run(context.client)
+      : withOrg(this.config.pool, actor.orgId, run));
     return JSON.parse(JSON.stringify(result)) as unknown;
   }
   private async executeWithin(
@@ -1929,89 +1453,6 @@ export class IdentityService {
         if (!result.rowCount) notFound();
         return { deleted: true };
       }
-      case "beginAccountAction": {
-        const { operationId: target, input: boundInput } =
-          this.validateAccountActionRequest(actor, input, context);
-        if (target === "mutateRows")
-          await this.authoriseRepair(actor, boundInput);
-        const id = newId(),
-          expiresAt = new Date(Date.now() + 600000),
-          requestDigest = this.requestDigest({
-            operation: target,
-            input: boundInput,
-            actorId: actor.id,
-            clientId: actor.clientId ?? null,
-            userId: actor.userId,
-            orgId: actor.orgId,
-          });
-        await client.query(
-          `INSERT INTO rootset_control.account_actions(id,user_id,org_id,actor_id,client_id,operation,payload_encrypted,digest,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [
-            id,
-            actor.userId,
-            actor.orgId,
-            actor.id,
-            actor.clientId ?? null,
-            target,
-            encryptProtected(boundInput, this.config),
-            requestDigest,
-            expiresAt,
-          ],
-        );
-        return this.actionMetadata(
-          { id, operation: target, expires_at: expiresAt },
-          "pending",
-          target === "mutateRows"
-            ? undefined
-            : {
-                operationId: target,
-                input: redact(boundInput),
-                requestDigest,
-                clientId: actor.clientId ?? null,
-              },
-          target === "mutateRows" ? repairIntent(boundInput) : undefined,
-        );
-      }
-      case "getAccountAction": {
-        const id = parse(IdSchema, input.id);
-        const row = await client.query(
-          `SELECT id,operation,expires_at,approved_at,consumed_at,result,payload_encrypted,digest,client_id FROM rootset_control.account_actions WHERE id=$1 AND user_id=$2 AND org_id=$3 AND (actor_id=$4 OR $5)`,
-          [id, actor.userId, actor.orgId, actor.id, actor.kind === "session"],
-        );
-        if (!row.rows[0]) notFound();
-        const item = row.rows[0];
-        const repair =
-          item.operation === "mutateRows" && !item.consumed_at
-            ? decryptProtected<Record<string, unknown>>(
-                item.payload_encrypted,
-                this.config,
-              )
-            : undefined;
-        if (repair) await this.authoriseRepair(actor, repair);
-        return this.actionMetadata(
-          item,
-          item.consumed_at
-            ? "consumed"
-            : new Date(item.expires_at) < new Date()
-              ? "expired"
-              : item.approved_at
-                ? "approved"
-                : "pending",
-          item.consumed_at
-            ? (item.result ?? undefined)
-            : repair
-              ? undefined
-              : (item.result ?? {
-                  operationId: item.operation,
-                  input: redact(
-                    decryptProtected(item.payload_encrypted, this.config),
-                  ),
-                  requestDigest: item.digest,
-                  clientId: item.client_id,
-                }),
-          repair ? repairIntent(repair) : undefined,
-        );
-      }
       case "getOrganisation":
         org("org:read");
         return (
@@ -2053,7 +1494,7 @@ export class IdentityService {
         );
       case "updateMember":
       case "removeMember":
-        return this.mutateMember(client, operation, actor, input, context);
+        return this.mutateMember(client, operation, actor, input);
       case "listInvitations":
         org("members:manage", ["admin"]);
         return this.page(
@@ -2212,13 +1653,13 @@ export class IdentityService {
         return { tableId, preferences };
       }
       case "changePassword":
-        return this.changePassword(client, actor, input, context);
+        return this.changePassword(client, actor, input);
       case "changeEmail":
-        return this.beginEmailChange(client, actor, input, context);
+        return this.beginEmailChange(client, actor, input);
       case "signOutEverywhere": {
         security();
         const data = parse(signOutEverywhereInputSchema, input);
-        await this.assertSensitive(actor, operation, input, context, client);
+        this.assertSensitive(actor, operation);
         const delegated = data.revokeDelegated !== false;
         await client.query(
           `DELETE FROM rootset_control.sessions WHERE user_id=$1`,
@@ -2228,16 +1669,6 @@ export class IdentityService {
           await this.revokeAllUserAccess(actor.userId!, undefined, client);
         return { revoked: true };
       }
-      case "registerPasskey":
-      case "removePasskey":
-      case "rotateRecoveryCodes":
-        security();
-        return {
-          state: "interactive_proof_required",
-          operationId: operation,
-          proofUrl: `${this.config.webURL ?? this.config.baseURL}/settings/passkeys`,
-          actionId: context.actionId ?? null,
-        };
       default:
         throw new RootsetError(
           "RESOURCE_NOT_FOUND",
@@ -2266,253 +1697,6 @@ export class IdentityService {
       [userId],
     );
     return parse(PreferencesSchema, r.rows[0] ?? defaultPreferences);
-  }
-  private checkActionAuthority(
-    actor: Actor,
-    operation: string,
-    input: Record<string, unknown>,
-  ): void {
-    if (operation === "mutateRows") {
-      if (input.repair === undefined)
-        throw new RootsetError(
-          "VALIDATION_FAILED",
-          "Operator repair approval requires an explicit repair intent",
-        );
-      assertAccess(actor, {
-        scope: "installation:manage",
-        roles: ["admin"],
-        personal: true,
-      });
-      assertAccess(actor, {
-        scope: "rows:write",
-        personal: true,
-      });
-    } else if (["createPersonalKey", "rotatePersonalKey"].includes(operation))
-      assertAccess(actor, { scope: "keys:manage", personal: true });
-    else if (["createTeamKey", "rotateTeamKey"].includes(operation))
-      assertAccess(actor, {
-        scope: "team-keys:manage",
-        roles: ["admin"],
-        personal: true,
-      });
-    else if (["updateMember", "removeMember"].includes(operation))
-      assertAccess(actor, {
-        scope: "members:manage",
-        roles: ["admin"],
-        personal: true,
-      });
-    else if (operation === "deleteDatabase")
-      assertAccess(actor, {
-        scope: "databases:manage",
-      });
-    else if (operation === "deleteTable")
-      assertAccess(actor, {
-        scope: "tables:manage",
-      });
-    else assertAccess(actor, { scope: "account:security", personal: true });
-  }
-  private async authoriseRepair(
-    actor: Actor,
-    input: Record<string, unknown>,
-  ): Promise<void> {
-    this.checkActionAuthority(actor, "mutateRows", input);
-    if (!this.config.authoriseRepair)
-      throw new RootsetError(
-        "CONFIGURATION_INVALID",
-        "The shared operator repair authority check is unavailable",
-        503,
-      );
-    await this.config.authoriseRepair(actor, input);
-  }
-  async recordRepairIntent(
-    client: PoolClient,
-    actor: Actor,
-    intent: {
-      jobId: string;
-      tableId: string;
-      reason: string;
-      approvalId: string;
-      requestId?: string;
-    },
-  ): Promise<void> {
-    const reason = OperatorRepairReasonSchema.parse(intent.reason);
-    const job = (
-      await client.query(
-        "SELECT id,org_id,operation_id,target_id,actor,input FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 FOR UPDATE",
-        [IdSchema.parse(intent.jobId), actor.orgId],
-      )
-    ).rows[0];
-    const input = job?.input as Record<string, unknown> | undefined;
-    const context = input?.operationContext as
-      Record<string, unknown> | undefined;
-    const owner = job?.actor as Actor | undefined;
-    if (
-      !job ||
-      job.operation_id !== "mutateRows" ||
-      job.target_id !== intent.tableId ||
-      !owner ||
-      owner.kind !== actor.kind ||
-      owner.id !== actor.id ||
-      owner.userId !== actor.userId ||
-      owner.credentialId !== actor.credentialId ||
-      owner.clientId !== actor.clientId ||
-      (input?.repair as { reason?: string } | undefined)?.reason !== reason ||
-      context?.approvalId !== intent.approvalId
-    )
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Operator repair intent does not match its admitted job",
-        403,
-      );
-    await this.authoriseRepair(
-      await this.hydrateActor(actor, true, client),
-      input!,
-    );
-    const approval = (
-      await client.query(
-        "SELECT id FROM rootset_control.account_actions WHERE id=$1 AND org_id=$2 AND user_id=$3 AND actor_id=$4 AND client_id IS NOT DISTINCT FROM $5 AND operation='mutateRows' AND approved_at IS NOT NULL AND consumed_at IS NULL AND expires_at>now()",
-        [
-          IdSchema.parse(intent.approvalId),
-          actor.orgId,
-          actor.userId,
-          actor.id,
-          actor.clientId ?? null,
-        ],
-      )
-    ).rows[0];
-    if (!approval)
-      throw new RootsetError(
-        "STEP_UP_REQUIRED",
-        "The approved operator repair is unavailable",
-        403,
-      );
-    if ((context?.requestId ?? job.id) !== intent.requestId)
-      throw new RootsetError(
-        "IDEMPOTENCY_CONFLICT",
-        "Repair intent belongs to a different request",
-        409,
-      );
-  }
-  private async completeAction(
-    actor: Actor,
-    id: string,
-    context: ExecutionContext,
-  ): Promise<unknown> {
-    const r = await withOrg(this.config.pool, actor.orgId, (client) =>
-      client.query(
-        `SELECT * FROM rootset_control.account_actions WHERE id=$1 AND actor_id=$2 AND org_id=$3 AND user_id=$4 AND client_id IS NOT DISTINCT FROM $5`,
-        [id, actor.id, actor.orgId, actor.userId, actor.clientId ?? null],
-      ),
-    );
-    const action = r.rows[0];
-    if (!action) notFound();
-    if (action.consumed_at)
-      return this.actionMetadata(
-        action,
-        "consumed",
-        action.result ?? undefined,
-      );
-    if (!action.approved_at || new Date(action.expires_at) < new Date())
-      throw new RootsetError(
-        "STEP_UP_REQUIRED",
-        "Approve the action in the browser before completing it",
-        403,
-      );
-    const input = decryptProtected<Record<string, unknown>>(
-      action.payload_encrypted,
-      this.config,
-    );
-    this.checkActionAuthority(actor, action.operation, input);
-    const external = ["deleteDatabase", "deleteTable", "mutateRows"].includes(
-      action.operation,
-    );
-    const result = await withOrg(
-      this.config.pool,
-      actor.orgId,
-      async (client) => {
-        if (external) {
-          if (!this.externalExecutor)
-            throw new RootsetError(
-              "CONFIGURATION_INVALID",
-              "The shared operation executor is unavailable",
-              503,
-            );
-          const output = await this.externalExecutor(
-            action.operation,
-            actor,
-            input,
-            {
-              ...context,
-              actionId: id,
-              approvalClient: client,
-              idempotencyKey: `account-action:${id}`,
-            },
-          );
-          await client.query(
-            `UPDATE rootset_control.account_actions SET consumed_at=COALESCE(consumed_at,now()),payload_encrypted='',result=$2 WHERE id=$1`,
-            [id, JSON.stringify(stripSecrets(output))],
-          );
-          return output;
-        }
-        if (keyIssuanceOperations.has(action.operation)) {
-          const replay = await this.prepareKeyReceipt(
-            client,
-            action.operation,
-            actor,
-            input,
-            {
-              ...context,
-              actionId: id,
-              idempotencyKey: context.idempotencyKey ?? `account-action:${id}`,
-            },
-          );
-          if (replay) return replay;
-        }
-        const locked = await client.query(
-          `SELECT consumed_at,result FROM rootset_control.account_actions WHERE id=$1 FOR UPDATE`,
-          [id],
-        );
-        if (locked.rows[0].consumed_at) return locked.rows[0].result;
-        const output = await this.executeWithin(
-          client,
-          action.operation,
-          actor,
-          input,
-          {
-            ...context,
-            actionId: id,
-            approvalClient: client,
-            idempotencyKey: context.idempotencyKey ?? `account-action:${id}`,
-          },
-        );
-        if (!(
-          output &&
-          typeof output === "object" &&
-          "state" in output &&
-          output.state === "interactive_proof_required"
-        ))
-          await client.query(
-            `UPDATE rootset_control.account_actions SET consumed_at=now(),payload_encrypted='' WHERE id=$1`,
-            [id],
-          );
-        const stored = stripSecrets(output);
-        await client.query(
-          `UPDATE rootset_control.account_actions SET result=$2 WHERE id=$1`,
-          [id, JSON.stringify(stored)],
-        );
-        return output;
-      },
-    );
-    return this.actionMetadata(
-      action,
-      result &&
-        typeof result === "object" &&
-        "state" in result &&
-        result.state === "interactive_proof_required"
-        ? "approved"
-        : "consumed",
-      result,
-    );
   }
   private async lockUserAuthorities(
     client: PoolClient,
@@ -2552,14 +1736,13 @@ export class IdentityService {
     operation: string,
     actor: Actor,
     input: Record<string, unknown>,
-    context: ExecutionContext,
   ): Promise<unknown> {
     assertAccess(actor, {
       scope: "members:manage",
       orgId: input.orgId as string | undefined,
       roles: ["admin"],
     });
-    await this.assertSensitive(actor, operation, input, context, client);
+    this.assertSensitive(actor, operation);
     const update = parse(
       z.strictObject({
         id: IdSchema,
@@ -3120,7 +2303,11 @@ export class IdentityService {
   ): Promise<z.infer<typeof KeyCreatedSchema> | null> {
     await this.lockUserAuthorities(client, [actor.userId!]);
     actor = await this.hydrateActor(actor, true, client);
-    this.checkActionAuthority(actor, operation, input);
+    assertAccess(actor, {
+      scope: operation.endsWith("TeamKey") ? "team-keys:manage" : "keys:manage",
+      personal: true,
+      ...(operation.endsWith("TeamKey") ? { roles: ["admin" as const] } : {}),
+    });
     if (typeof input.orgId === "string" && input.orgId !== actor.orgId)
       notFound();
     if (!context.idempotencyKey)
@@ -3138,7 +2325,6 @@ export class IdentityService {
       userId: actor.userId ?? null,
       credentialId: actor.credentialId ?? null,
       clientId: actor.clientId ?? null,
-      actionId: context.actionId ?? null,
     });
     await client.query(
       `INSERT INTO rootset_control.key_requests(actor_id,org_id,operation,key,digest) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
@@ -3186,6 +2372,8 @@ export class IdentityService {
     input: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<unknown> {
+    await this.lockUserAuthorities(client, [actor.userId!]);
+    actor = await this.hydrateActor(actor, true, client);
     const scope = operation.endsWith("TeamKey") ? "team" : "personal";
     assertAccess(actor, {
       scope: scope === "team" ? "team-keys:manage" : "keys:manage",
@@ -3281,7 +2469,7 @@ export class IdentityService {
         "VALIDATION_FAILED",
         "Expiry must be in the future",
       );
-    await this.assertSensitive(actor, operation, input, context, client);
+    this.assertSensitive(actor, operation);
     const id = newId(),
       secret = `rst_${id}_${randomBytes(32).toString("base64url")}`;
     const result = await client.query(
@@ -3346,7 +2534,6 @@ export class IdentityService {
     client: PoolClient,
     actor: Actor,
     input: Record<string, unknown>,
-    context: ExecutionContext,
   ): Promise<unknown> {
     assertAccess(actor, { scope: "account:security", personal: true });
     const data = parse(
@@ -3356,7 +2543,7 @@ export class IdentityService {
       }),
       input,
     );
-    await this.assertSensitive(actor, "changePassword", input, context, client);
+    this.assertSensitive(actor, "changePassword");
     const account = (
       await client.query(
         `SELECT id,password,EXISTS(SELECT 1 FROM rootset_control.auth_passkeys WHERE user_id=$1) has_passkey FROM rootset_control.auth_accounts WHERE user_id=$1 AND provider_id='credential' FOR UPDATE`,
@@ -3400,11 +2587,10 @@ export class IdentityService {
     client: PoolClient,
     actor: Actor,
     input: Record<string, unknown>,
-    context: ExecutionContext,
   ): Promise<unknown> {
     assertAccess(actor, { scope: "account:security", personal: true });
     const data = parse(z.strictObject({ newEmail: emailSchema }), input);
-    await this.assertSensitive(actor, "changeEmail", input, context, client);
+    this.assertSensitive(actor, "changeEmail");
     const user = (
       await client.query(
         `SELECT email,name FROM rootset_control.users WHERE id=$1 FOR UPDATE`,

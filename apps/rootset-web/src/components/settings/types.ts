@@ -211,12 +211,8 @@ const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "team-api-keys",
   "organisation",
   "members",
-  "database",
   "database-danger-zone",
-  "table",
   "table-danger-zone",
-  "fields",
-  "rules",
 ];
 
 export function canOpenSettings(
@@ -225,6 +221,8 @@ export function canOpenSettings(
 ): boolean {
   if (!["admin", "member", "viewer"].includes(role ?? "")) return false;
   if (ADMIN_SETTINGS.includes(section)) return role === "admin";
+  if (["database", "table", "fields", "rules"].includes(section))
+    return role !== "viewer";
   return true;
 }
 

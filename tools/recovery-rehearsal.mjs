@@ -371,7 +371,7 @@ try {
   const encryptionKey = process.env.ROOTSET_ENCRYPTION_KEY;
   const protectedRows = (
     await restoredPool.query(
-      "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE payload_encrypted<>'' UNION ALL SELECT payload_encrypted FROM rootset_control.account_actions WHERE payload_encrypted<>''",
+      "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE payload_encrypted<>''",
     )
   ).rows;
   let readable = 0,

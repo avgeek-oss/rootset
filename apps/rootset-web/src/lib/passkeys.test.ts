@@ -34,7 +34,6 @@ describe("abortable passkey proof boundary", () => {
       "/passkey/generate-authenticate-options",
       "GET",
       undefined,
-      undefined,
       controller.signal,
     );
   });

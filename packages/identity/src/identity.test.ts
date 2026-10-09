@@ -3,7 +3,6 @@ import { test } from "node:test";
 import { randomBytes } from "node:crypto";
 import { Pool, migrate } from "@rootset/database";
 import {
-  AccountActionSchema,
   ContextSchema,
   KeyCreatedSchema,
   OrganisationSchema,
@@ -89,7 +88,7 @@ async function login(
 }
 
 test(
-  "AUTH-07 AUTH-08 UI-shaped sign-out approvals preserve or revoke delegated authority with an immutable boolean",
+  "AUTH-07 AUTH-08 direct sign-out preserves or revokes delegated authority with a strict boolean",
   { skip: !ownerURL || !identityURL },
   async () => {
     const fixture = await isolatedDatabase();
@@ -161,46 +160,13 @@ test(
         ],
       );
       await assert.rejects(
-        () =>
-          execute("beginAccountAction", actor, {
-            type: "sign_out_everywhere",
-            operationId: "signOutEverywhere",
-            input: { revokeDelegated: "false" },
-          }),
+        () => execute("signOutEverywhere", actor, { revokeDelegated: "false" }),
         (error) => (error as { code: string }).code === "VALIDATION_FAILED",
       );
-      const preserve = AccountActionSchema.parse(
-        await execute("beginAccountAction", actor, {
-          type: "sign_out_everywhere",
-          operationId: "signOutEverywhere",
-          input: { revokeDelegated: false },
-        }),
+      assert.deepEqual(
+        await execute("signOutEverywhere", actor, { revokeDelegated: false }),
+        { revoked: true },
       );
-      await service.approveAction(preserve.id, actor);
-      await assert.rejects(
-        () =>
-          service.execute(
-            "signOutEverywhere",
-            actor,
-            { revokeDelegated: true },
-            { actionId: preserve.id, idempotencyKey: newId() },
-          ),
-        (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-      );
-      assert.ok(await service.refreshActor(actor));
-      assert.equal(
-        (
-          await fixture.owner.query(
-            `SELECT consumed_at FROM rootset_control.account_actions WHERE id=$1`,
-            [preserve.id],
-          )
-        ).rows[0].consumed_at,
-        null,
-      );
-      const preserved = AccountActionSchema.parse(
-        await execute("completeAccountAction", actor, { id: preserve.id }),
-      );
-      assert.deepEqual(preserved.result, { revoked: true });
       await assert.rejects(() => service.refreshActor(actor));
       assert.ok(await bearer());
       assert.equal(
@@ -214,18 +180,10 @@ test(
       );
       const renewed = await freshSession();
       const secondSession = await freshSession();
-      const revoke = AccountActionSchema.parse(
-        await execute("beginAccountAction", renewed, {
-          type: "sign_out_everywhere",
-          operationId: "signOutEverywhere",
-          input: { revokeDelegated: true },
-        }),
+      assert.deepEqual(
+        await execute("signOutEverywhere", renewed, { revokeDelegated: true }),
+        { revoked: true },
       );
-      await service.approveAction(revoke.id, renewed);
-      const revoked = AccountActionSchema.parse(
-        await execute("completeAccountAction", renewed, { id: revoke.id }),
-      );
-      assert.deepEqual(revoked.result, { revoked: true });
       await assert.rejects(() => service.refreshActor(renewed));
       await assert.rejects(() => service.refreshActor(secondSession));
       assert.equal(await bearer(), null);
@@ -253,7 +211,7 @@ test(
 );
 
 test(
-  "ACC/AUTH/KEY real PostgreSQL identity, invitation, MFA, revocation and immutable approvals",
+  "ACC/AUTH/KEY real PostgreSQL identity, invitation, MFA, revocation and direct account security",
   { skip: !ownerURL || !identityURL, timeout: 120000 },
   async (t) => {
     const databaseName = `rootset_identity_${randomBytes(6).toString("hex")}`;
@@ -565,7 +523,7 @@ test(
         },
       );
       await t.test(
-        "API09 identity mutation retries dedupe invitations/actions, reject changed input and recheck live sessions",
+        "API09 identity mutation retries dedupe invitations, reject changed input and recheck live sessions",
         async () => {
           await assert.rejects(
             () =>
@@ -612,47 +570,6 @@ test(
               await owner.query(
                 "SELECT count(*)::int AS count FROM rootset_control.email_outbox WHERE to_address=$1 AND template='invitation'",
                 [invitation.email],
-              )
-            ).rows[0].count,
-            1,
-          );
-          const actionContext = { idempotencyKey: newId() },
-            actionInput = {
-              operationId: "changePassword",
-              type: "change_password",
-              input: {
-                currentPassword: password,
-                newPassword: "Replay private password 2026",
-              },
-            };
-          const actions = await Promise.all([
-            execute("beginAccountAction", actor, actionInput, actionContext),
-            execute("beginAccountAction", actor, actionInput, actionContext),
-          ]);
-          assert.deepEqual(actions[0], actions[1]);
-          AccountActionSchema.parse(actions[0]);
-          const privateReceipts = (
-            await owner.query(
-              "SELECT input_digest,outcome FROM rootset_control.control_mutation_replays WHERE operation_id='beginAccountAction'",
-            )
-          ).rows;
-          assert.equal(
-            JSON.stringify(privateReceipts).includes(
-              actionInput.input.currentPassword,
-            ),
-            false,
-          );
-          assert.equal(
-            JSON.stringify(privateReceipts).includes(
-              actionInput.input.newPassword,
-            ),
-            false,
-          );
-          assert.equal(
-            (
-              await owner.query(
-                "SELECT count(*)::int AS count FROM rootset_control.account_actions WHERE id=$1",
-                [(actions[0] as { id: string }).id],
               )
             ).rows[0].count,
             1,
@@ -751,65 +668,6 @@ test(
             ),
             null,
           );
-        },
-      );
-      await t.test(
-        "AUTH-07 action is immutable, client-bound, one-use and replay metadata only",
-        async () => {
-          const input = {
-            access: "edit",
-            includeAdmin: true,
-            expiresAt: "2030-01-01T00:00:00.000Z",
-            name: "Approved key",
-          };
-          const begun = AccountActionSchema.parse(
-            await execute("beginAccountAction", actor, {
-              type: "create_key",
-              operationId: "createPersonalKey",
-              input,
-            }),
-          );
-          assert.equal(begun.state, "pending");
-          await assert.rejects(() =>
-            execute("completeAccountAction", actor, { id: begun.id }),
-          );
-          AccountActionSchema.parse(
-            await service.approveAction(begun.id, actor),
-          );
-          await assert.rejects(() =>
-            execute(
-              "createPersonalKey",
-              actor,
-              {
-                ...input,
-                name: "Tampered",
-              },
-              { idempotencyKey: newId(), actionId: begun.id },
-            ),
-          );
-          const completed = AccountActionSchema.parse(
-            await execute("completeAccountAction", actor, {
-              id: begun.id,
-            }),
-          );
-          assert.equal(completed.state, "consumed");
-          assert.ok((completed.result as { secret?: string }).secret);
-          const replay = AccountActionSchema.parse(
-            await execute("completeAccountAction", actor, {
-              id: begun.id,
-            }),
-          );
-          assert.equal(
-            (replay.result as { secret?: string }).secret,
-            undefined,
-          );
-          const db = (
-            await owner.query(
-              `SELECT payload_encrypted FROM rootset_control.account_actions WHERE id=$1`,
-              [begun.id],
-            )
-          ).rows[0];
-          assert.equal(db.payload_encrypted.includes("Approved key"), false);
         },
       );
       let viewerActor: Actor;

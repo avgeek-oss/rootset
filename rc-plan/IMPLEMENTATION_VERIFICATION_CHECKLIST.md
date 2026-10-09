@@ -15,9 +15,9 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-01` An empty PostgreSQL 18 installation applies only `0001_baseline.sql`; concurrent startup and digest mismatch behave safely.
 - [ ] `V1-02` An incompatible earlier prelaunch ledger refuses startup without changing data; the message gives fresh-install guidance and preserves the original installation.
 - [ ] `V1-03` Setup claims one organisation and the first Admin atomically; SQL rejects a second organisation, including concurrent/direct fixture attempts.
-- [ ] `V1-04` Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema; SMTP/S3 configuration is read only from the deployment environment.
+- [ ] `V1-04` Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members and deletes databases/tables; Members create and edit databases/tables/schema; SMTP/S3 configuration is read only from the deployment environment.
 - [ ] `V1-05` Invitations and member role/removal flows work, protect the last Admin, and have no organisation switcher or removed lifecycle fields.
-- [ ] `V1-06` Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.
+- [ ] `V1-06` Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and direct password/passkey confirmation work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.
 - [ ] `V1-07` Personal key permissions are capped by live membership; workspace-owned team keys have admin-only management and cannot access personal accounts. Verify REST/MCP permission ceilings, rotation, revocation, expiry, creator departure, waiting requests and replay.
 - [ ] `V1-08` OAuth PKCE, redirect/state/issuer/audience, code replay, refresh reuse, revocation and operation consent work with a real MCP client; no database/table selections remain.
 

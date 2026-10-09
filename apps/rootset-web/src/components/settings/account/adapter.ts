@@ -4,7 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { identityRequest } from "../../../lib/identity-request";
 import { registerWebAuthnPasskey } from "../../../lib/passkeys";
 import { authClient } from "../../../lib/auth-client";
-import { describeError, performAction, read, write } from "../api";
+import {
+  describeError,
+  performAction,
+  read,
+  write,
+  withIdentityConfirmation,
+} from "../api";
 import type {
   ApiKey,
   Connection,
@@ -30,7 +36,6 @@ type Context = {
   organisation: { id: string } | null;
   principal: { role: string };
 };
-export type InteractiveProof = { actionId: string };
 
 export function refreshApiQueries() {
   window.dispatchEvent(new Event("rootset:account-refresh"));
@@ -47,9 +52,6 @@ function check<T extends { error?: { message?: string } | null }>(
     );
   return result;
 }
-export function proofHeaders(actionId: string) {
-  return { headers: { "X-Rootset-Action-ID": actionId } };
-}
 
 export function oauthPermissions(role: string, scopes: string[]) {
   const adminScopes = [
@@ -62,7 +64,11 @@ export function oauthPermissions(role: string, scopes: string[]) {
   ];
   const administrative =
     role === "admin" && adminScopes.some((scope) => scopes.includes(scope));
-  const edit = role !== "viewer" && scopes.includes("rows:write");
+  const edit =
+    role !== "viewer" &&
+    ["rows:write", "databases:manage", "tables:manage", "schema:manage"].some(
+      (scope) => scopes.includes(scope),
+    );
   return {
     access: administrative || edit ? "edit" : "read",
     includeAdmin: administrative,
@@ -203,34 +209,29 @@ async function mutate(
     if (path === "/v1/core/profile")
       return write("/me/profile", "PATCH", { name: values.displayName });
     if (path === "/v1/core/profile/password")
-      return performAction("changePassword", {
-        currentPassword: values.currentPassword,
-        newPassword: values.newPassword,
-      });
+      return withIdentityConfirmation(() =>
+        identityRequest("/change-password", "POST", {
+          currentPassword: values.currentPassword,
+          newPassword: values.newPassword,
+        }),
+      );
     if (path === "/v1/core/profile/email-change")
       return method === "DELETE"
         ? identityRequest("/email-change", "DELETE")
-        : performAction("changeEmail", { newEmail: values.email });
+        : withIdentityConfirmation(() =>
+            identityRequest("/change-email", "POST", {
+              newEmail: values.email,
+            }),
+          );
     if (path === "/v1/core/profile/passkeys/recovery-codes") {
-      const proof = await performAction<InteractiveProof>(
-        "rotateRecoveryCodes",
-        {},
-      );
-      return identityRequest(
-        "/passkey/replace-recovery-codes",
-        "POST",
-        {},
-        proof.actionId,
+      return withIdentityConfirmation(() =>
+        identityRequest("/passkey/replace-recovery-codes", "POST", {}),
       );
     }
     if (path === "/v1/public/auth/identity/passkey/delete-passkey") {
-      const proof = await performAction<InteractiveProof>("removePasskey", {
-        id: values.id,
-      });
-      return check(
-        await authClient.passkey.deletePasskey({
+      return withIdentityConfirmation(() =>
+        identityRequest("/passkey/delete-passkey", "POST", {
           id: String(values.id),
-          fetchOptions: proofHeaders(proof.actionId),
         }),
       );
     }
@@ -300,8 +301,7 @@ export const api = {
 };
 
 export async function registerPasskey(name: string) {
-  const proof = await performAction<InteractiveProof>("registerPasskey", {});
-  return registerWebAuthnPasskey(name, proof.actionId);
+  return withIdentityConfirmation(() => registerWebAuthnPasskey(name));
 }
 export function passkeyError(error: unknown) {
   return describeError(error).message;

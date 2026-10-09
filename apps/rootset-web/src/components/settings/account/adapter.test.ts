@@ -118,6 +118,10 @@ describe("account component bindings", () => {
       access: "edit",
       includeAdmin: false,
     });
+    expect(oauthPermissions("member", ["schema:manage"])).toMatchObject({
+      access: "edit",
+      includeAdmin: false,
+    });
     expect(
       oauthPermissions("viewer", ["rows:write", "schema:manage"]),
     ).toMatchObject({ access: "read", includeAdmin: false });

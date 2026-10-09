@@ -15,7 +15,7 @@ vi.mock("./api", () => ({
     reload() {},
   }),
   useMutation: () => ({ busy: false, run: vi.fn() }),
-  performAction: vi.fn(),
+  confirmIdentity: vi.fn(),
   write: vi.fn(),
 }));
 const props: SettingsPanelProps = {

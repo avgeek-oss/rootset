@@ -20,7 +20,7 @@ import { settingsScope } from "./navigation";
 import { useResource } from "./api";
 import { OrganisationSettings, MembersSettings } from "./accounts";
 import { PreferencesSettings } from "./preferences";
-import { AccountActionApproval } from "./security";
+import { IdentityConfirmation } from "./security";
 import {
   FieldsSettings,
   UniqueRulesSettings,
@@ -113,7 +113,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         {commonSettings && activeSection === "passkeys" ? (
           <Page>
             <div className="min-w-0">{content}</div>
-            <AccountActionApproval orgId={props.orgId} />
+            <IdentityConfirmation />
           </Page>
         ) : commonSettings ? (
           <ContentPage
@@ -139,7 +139,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
             }
           >
             <div className="content-grid min-w-0">{content}</div>
-            <AccountActionApproval orgId={props.orgId} />
+            <IdentityConfirmation />
           </ContentPage>
         ) : (
           <div className="rootset-settings">
@@ -148,7 +148,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
               {selection?.actions}
             </header>
             <div className="settings-content">{content}</div>
-            <AccountActionApproval orgId={props.orgId} />
+            <IdentityConfirmation />
           </div>
         )}
       </RelativeTimeProvider>

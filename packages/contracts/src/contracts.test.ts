@@ -5,12 +5,8 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import {
   CanonicalUtcDateTimeSchema,
-  AccountActionSchema,
   AccountNameSchema,
-  AccountActionTypeSchema,
   JsonValueSchema,
-  OperatorRepairAccountActionSchema,
-  OperatorRepairIntentSchema,
   ErrorCodeSchema,
   FieldDefinitionSchema,
   FieldInputSchema,
@@ -183,7 +179,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 74);
+  assert.equal(operations.length, 71);
   assert.equal(getOperation("createRow").readOnly, false);
   assert(
     operations.every((operation) =>
@@ -194,18 +190,6 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
   for (const operation of operations)
     assert.equal(getOperation(operation.id), operation);
   assert(!JSON.stringify(generateOpenApi()).includes('"team_key"'));
-  assert.equal(
-    AccountActionTypeSchema.safeParse("delete_account").success,
-    false,
-  );
-  assert.equal(
-    AccountActionTypeSchema.safeParse("transfer_ownership").success,
-    false,
-  );
-  assert.equal(
-    AccountActionTypeSchema.safeParse("delete_organisation").success,
-    false,
-  );
 });
 
 test("profile and installation organisation outputs omit removed lifecycle flags", () => {
@@ -950,11 +934,7 @@ test("published invitation authority requires an admin and only supported member
 
 test("mixed destructive tools and actual protocol routes have conservative explicit metadata", () => {
   const tools = generateMcpTools();
-  for (const name of [
-    "mutateRows",
-    "applySchemaChange",
-    "completeAccountAction",
-  ]) {
+  for (const name of ["mutateRows", "applySchemaChange"]) {
     const definition = operationMap[name]!;
     const tool = tools.find((entry) => entry.name === definition.toolName)!;
     assert.equal(
@@ -1109,7 +1089,6 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
     ...target,
     mutations: [update],
     repair: { reason: "  Correct source record  " },
-    approvalId: id,
   };
   const parsed = operation.inputSchema.parse(repair) as typeof repair;
   assert.equal(parsed.repair.reason, "Correct source record");
@@ -1177,14 +1156,14 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   );
   assert.equal(operation.successStatus, 201);
   assert.equal(operation.job, true);
-  assert.equal(operation.stepUp, "conditional");
+  assert.equal(operation.stepUp, "never");
   assert.equal(operation.personal, false);
   assert.equal("operator" in operation, false);
   assert.deepEqual(operation.scopes, ["rows:write"]);
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
-  assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 74);
+  assert.equal(operation.errors.includes("STEP_UP_REQUIRED"), false);
+  assert.equal(operations.length, 71);
   const api = generateOpenApi() as {
     paths: Record<
       string,
@@ -1198,7 +1177,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   const route = api.paths[operation.path]!.post!;
   assert.ok(route.responses["201"]);
   assert.ok(route.responses["202"]);
-  assert.equal(route["x-rootset-step-up"], "conditional");
+  assert.equal(route["x-rootset-step-up"], "never");
   assert.deepEqual(api.components.schemas.mutateRowsInput!.allOf, [
     {
       if: { required: ["repair"] },
@@ -1215,111 +1194,6 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.deepEqual(
     (tool.inputSchema as Record<string, unknown>).allOf,
     api.components.schemas.mutateRowsInput!.allOf,
-  );
-});
-
-test("operator repair approval intent preserves business keys and excludes credentials from its strict envelope", () => {
-  const values = JSON.parse(
-    '{"password":"business password","token":{"secret":"business secret"},"META":{"__proto__":{"marker":"retained"}}}',
-  );
-  const intent = {
-    orgId: id,
-    databaseId: id,
-    tableId: id,
-    expectedSchemaVersion: 1,
-    reason: "Correct master record",
-    updates: [{ rowId: id, expectedVersion: "1", values }],
-  };
-  const pending = {
-    id,
-    type: "operator_repair",
-    state: "pending",
-    expiresAt: "2024-01-01T00:00:00.000Z",
-    approvalUrl: "https://rootset.example/approve",
-    repairIntent: intent,
-  };
-  assert.equal(
-    AccountActionTypeSchema.safeParse("operator_repair").success,
-    true,
-  );
-  for (const schema of [
-    OperatorRepairAccountActionSchema,
-    AccountActionSchema,
-  ]) {
-    const parsed = schema.parse(pending);
-    assert.equal(
-      canonicalJson(parsed.repairIntent!.updates[0]!.values),
-      canonicalJson(values),
-    );
-    assert.equal(
-      Object.hasOwn(
-        parsed.repairIntent!.updates[0]!.values.META as object,
-        "__proto__",
-      ),
-      true,
-    );
-    assert.equal(
-      schema.safeParse({ ...pending, repairIntent: undefined }).success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({
-        ...pending,
-        state: "approved",
-        repairIntent: undefined,
-      }).success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({ ...pending, approvalId: id }).success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({
-        ...pending,
-        repairIntent: { ...intent, approvalId: id },
-      }).success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({ ...pending, result: { secret: "credential" } })
-        .success,
-      false,
-    );
-    assert.equal(
-      schema.safeParse({
-        ...pending,
-        state: "consumed",
-        repairIntent: undefined,
-        result: { jobId: id, state: "queued", statusUrl: "/job" },
-      }).success,
-      true,
-    );
-  }
-  for (const extra of [
-    { cookie: "credential" },
-    { token: "credential" },
-    { proof: "credential" },
-  ])
-    assert.equal(
-      OperatorRepairIntentSchema.safeParse({ ...intent, ...extra }).success,
-      false,
-    );
-  assert.equal(
-    OperatorRepairIntentSchema.safeParse({ ...intent, updates: [] }).success,
-    false,
-  );
-  assert.equal(
-    OperatorRepairIntentSchema.safeParse({
-      ...intent,
-      updates: [{ ...intent.updates[0], type: "create" }],
-    }).success,
-    false,
-  );
-  assert.equal(
-    AccountActionSchema.safeParse({ ...pending, type: "set_backup_policy" })
-      .success,
-    false,
   );
 });
 
@@ -1613,7 +1487,13 @@ test("personal keys have explicit permission ceilings and all actors use support
       operation.scopes.some(
         (scope) =>
           scope.endsWith(":manage") &&
-          !["profile:manage", "keys:manage"].includes(scope),
+          ![
+            "profile:manage",
+            "keys:manage",
+            "databases:manage",
+            "tables:manage",
+            "schema:manage",
+          ].includes(scope),
       )
     )
       assert.equal(operation.minimumRole, "admin", operation.id);

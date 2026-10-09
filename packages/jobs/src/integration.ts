@@ -495,7 +495,15 @@ test("V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute unde
     userId: newId(),
     orgId: actor.orgId,
     role: "viewer",
-    scopes: [],
+    scopes: [
+      "exports:read",
+      "jobs:read",
+      "jobs:cancel",
+      "jobs:retry",
+      "rows:read",
+      "tables:read",
+      "databases:read",
+    ],
     membershipVersion: 1,
   };
   let liveViewer: Actor | undefined = viewer;
@@ -833,18 +841,13 @@ test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserv
     (error: unknown) =>
       error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
   );
-  for (const changed of [
-    { source: "rest" as const },
-    { approvalId: newId() },
-    { stepUpApproved: true },
-  ])
+  for (const changed of [{ source: "rest" as const }])
     await assert.rejects(
       () =>
         service.enqueueOperation(actor, "countRows", input, {
           idempotencyKey: key,
           requestId: newId(),
-          source: "mcp",
-          ...changed,
+          source: changed.source,
         }),
       (error: unknown) =>
         error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
@@ -1003,7 +1006,6 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
         idempotencyKey: key,
         requestId: newId(),
         source: "mcp",
-        stepUpApproved: true,
         ...options,
         client,
       };
@@ -1067,8 +1069,6 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
   );
   assert.equal(original.input.operationContext.admissionSource, "mcp");
   assert.equal(original.input.operationContext.source, "mcp");
-  assert.equal(original.input.operationContext.admissionStepUpApproved, true);
-  assert.equal(original.input.operationContext.stepUpApproved, true);
   assert.equal(original.input.operationContext.idempotencyKey, key);
   assert.equal(original.input.operationContext.publicInput, undefined);
   assert.equal(
@@ -1091,12 +1091,7 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
     { ...business, databaseId: newId() },
   ])
     await assert.rejects(() => admit(key, input), conflict);
-  for (const options of [
-    { source: "rest" },
-    { stepUpApproved: false },
-    { stepUpApproved: undefined },
-    { approvalId: newId() },
-  ])
+  for (const options of [{ source: "rest" }])
     await assert.rejects(() => admit(key, business, options), conflict);
   for (const principal of [
     { ...actor, userId: newId() },
@@ -1125,11 +1120,8 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
     { admissionFields: ["orgId", "databaseId", "tableId", "absentField"] },
     { admissionBinding: "v1:" + "0".repeat(64) },
     { admissionSource: "rest", source: "rest" },
-    { admissionStepUpApproved: false, stepUpApproved: false },
-    { approvalId: newId() },
     { idempotencyKey: newId() },
     { admissionSource: 1 },
-    { admissionStepUpApproved: "true" },
     { admissionFields: undefined, admissionBinding: undefined },
   ];
   for (const changed of changedContexts) {
@@ -1195,7 +1187,6 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
       const context = {
         idempotencyKey: rollbackKey,
         source: "rest",
-        stepUpApproved: true,
         client,
       };
       await service.withOperationAdmission(

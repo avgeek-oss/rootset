@@ -133,7 +133,6 @@ function fixture() {
     },
     setupStatus: async () => ({}),
     claimSetup: async () => ({}),
-    approveAction: async () => ({}),
   };
   const deps: ApiDependencies = {
     pool,

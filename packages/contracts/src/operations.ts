@@ -23,8 +23,6 @@ import {
 } from "./values";
 import { QuerySpecSchema } from "./query";
 import {
-  AccountActionSchema,
-  AccountActionTypeSchema,
   ArtifactSchema,
   ConnectionSchema,
   ContextSchema,
@@ -59,7 +57,7 @@ export interface OperationDefinition {
   destructive: boolean;
   idempotent: boolean;
   idempotencyRequired: boolean;
-  stepUp: "never" | "conditional" | "required";
+  stepUp: "never" | "required";
   job: boolean;
   personal: boolean;
   minimumRole: Role;
@@ -76,7 +74,6 @@ const org = { orgId: IdSchema };
 const database = { ...org, databaseId: IdSchema };
 const table = { ...database, tableId: IdSchema };
 const expected = { expectedSchemaVersion: SchemaVersionSchema };
-const approval = { approvalId: IdSchema.optional() };
 const paging = {
   limit: z.number().int().min(1).max(limits.queryRows).optional(),
   cursor: z.string().max(131200).nullable().optional(),
@@ -177,14 +174,21 @@ function operation(
       ? "viewer"
       : scopes.some(
             (scope) =>
-              scope.endsWith(":manage") ||
+              (scope.endsWith(":manage") &&
+                ![
+                  "databases:manage",
+                  "tables:manage",
+                  "schema:manage",
+                ].includes(scope)) ||
               scope === "members:read" ||
               scope.startsWith("installation:"),
           )
         ? "admin"
-        : readOnly
-          ? "viewer"
-          : "member",
+        : scopes.some((scope) => scope.endsWith(":manage"))
+          ? "member"
+          : readOnly
+            ? "viewer"
+            : "member",
     resource: path.includes("{tableId}")
       ? "table"
       : path.includes("{databaseId}")
@@ -322,7 +326,7 @@ operation(
   "DELETE",
   "/v1/me/sessions/{id}",
   ["account:security"],
-  z.strictObject({ id: IdSchema, ...approval }),
+  z.strictObject({ id: IdSchema }),
   deleted,
   "Revoke an owned browser session.",
   { personal: true },
@@ -348,44 +352,6 @@ operation(
   deleted,
   "Revoke an owned OAuth grant and refresh family.",
   { personal: true },
-);
-operation(
-  "beginAccountAction",
-  "begin_account_action",
-  "POST",
-  "/v1/me/actions",
-  [],
-  z.strictObject({
-    type: AccountActionTypeSchema,
-    operationId: z.string().optional(),
-    input: JsonValueSchema,
-    ...org,
-  }),
-  AccountActionSchema,
-  "Start a bound sensitive action requiring browser approval.",
-  { personal: true },
-);
-operation(
-  "getAccountAction",
-  "get_account_action",
-  "GET",
-  "/v1/me/actions/{id}",
-  [],
-  z.strictObject({ id: IdSchema }),
-  AccountActionSchema,
-  "Inspect an owned action approval without factor secrets.",
-  { personal: true },
-);
-operation(
-  "completeAccountAction",
-  "complete_account_action",
-  "POST",
-  "/v1/me/actions/{id}/complete",
-  [],
-  z.strictObject({ id: IdSchema }),
-  AccountActionSchema,
-  "Consume approval and complete exactly the bound action.",
-  { personal: true, stepUp: "required", destructive: true },
 );
 operation(
   "getOrganisation",
@@ -431,11 +397,10 @@ operation(
     name: AccountNameSchema.optional(),
     role: RoleSchema.optional(),
     expectedVersion: VersionSchema,
-    ...approval,
   }),
   MemberSchema,
   "Update a member name or role while preserving at least one admin.",
-  { minimumRole: "admin", stepUp: "conditional" },
+  { minimumRole: "admin" },
 );
 operation(
   "removeMember",
@@ -447,11 +412,10 @@ operation(
     ...org,
     id: IdSchema,
     expectedVersion: VersionSchema,
-    ...approval,
   }),
   deleted,
   "Remove a member and invalidate delegated access.",
-  { minimumRole: "admin", stepUp: "conditional" },
+  { minimumRole: "admin" },
 );
 operation(
   "listInvitations",
@@ -499,7 +463,6 @@ const keyInput = {
   access: z.enum(["read", "edit"]),
   includeAdmin: z.boolean(),
   expiresAt: DateTimeSchema.nullable(),
-  ...approval,
 };
 operation(
   "listPersonalKeys",
@@ -525,7 +488,7 @@ operation(
     }),
   KeyCreatedSchema,
   "Create a personal key with read-only, edit or administrative permissions capped by your live role; secret appears once.",
-  { personal: true, stepUp: "conditional" },
+  { personal: true },
 );
 operation(
   "rotatePersonalKey",
@@ -540,11 +503,10 @@ operation(
     access: z.enum(["read", "edit"]).optional(),
     includeAdmin: z.boolean().optional(),
     expiresAt: DateTimeSchema.nullable().optional(),
-    ...approval,
   }),
   KeyCreatedSchema,
   "Rotate a personal key with bounded overlap and one-time secret display; preserve name, permissions and expiry unless explicitly changed.",
-  { personal: true, stepUp: "conditional" },
+  { personal: true },
 );
 operation(
   "revokePersonalKey",
@@ -581,7 +543,7 @@ operation(
     }),
   KeyCreatedSchema,
   "Create a workspace-owned API key with explicit permissions and expiry; the secret appears once and access is independent of its creator.",
-  { minimumRole: "admin", personal: true, stepUp: "conditional" },
+  { minimumRole: "admin", personal: true },
 );
 operation(
   "rotateTeamKey",
@@ -597,11 +559,10 @@ operation(
     access: z.enum(["read", "edit"]).optional(),
     includeAdmin: z.boolean().optional(),
     expiresAt: DateTimeSchema.nullable().optional(),
-    ...approval,
   }),
   KeyCreatedSchema,
   "Rotate a workspace API key with bounded overlap; preserve permissions and expiry unless explicitly changed. Administrators only.",
-  { minimumRole: "admin", personal: true, stepUp: "conditional" },
+  { minimumRole: "admin", personal: true },
 );
 operation(
   "revokeTeamKey",
@@ -656,7 +617,7 @@ operation(
   z.strictObject({ ...org, ...names }),
   DatabaseSchema,
   "Create a logical database with a managed PostgreSQL namespace.",
-  { minimumRole: "admin" },
+  { minimumRole: "member" },
 );
 operation(
   "getDatabase",
@@ -677,7 +638,7 @@ operation(
   z.strictObject({ ...database, ...names }),
   DatabaseSchema,
   "Update database presentation metadata.",
-  { minimumRole: "admin" },
+  { minimumRole: "member" },
 );
 operation(
   "deleteDatabase",
@@ -685,9 +646,9 @@ operation(
   "DELETE",
   D,
   ["databases:manage"],
-  z.strictObject({ ...database, ...approval }),
+  z.strictObject({ ...database }),
   JobAcceptedSchema,
-  "Start approved database deletion, removing its tables, rows and cell history.",
+  "Start administrator database deletion, removing its tables, rows and cell history.",
   { minimumRole: "admin", stepUp: "required", job: true, successStatus: 202 },
 );
 operation(
@@ -740,10 +701,10 @@ operation(
   "DELETE",
   T,
   ["tables:manage"],
-  z.strictObject({ ...table, ...expected, ...approval }),
+  z.strictObject({ ...table, ...expected }),
   JobAcceptedSchema,
-  "Start approved table deletion, removing its rows and cell history.",
-  { stepUp: "required", job: true, successStatus: 202 },
+  "Start administrator table deletion, removing its rows and cell history.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
 );
 operation(
   "getTableSchema",
@@ -1023,7 +984,6 @@ operation(
     .strictObject({
       ...table,
       ...expected,
-      ...approval,
       mutations: z.array(rowMutation).min(1).max(limits.mutationBatch),
       repair: z.strictObject({ reason: OperatorRepairReasonSchema }).optional(),
     })
@@ -1066,8 +1026,8 @@ operation(
         .max(limits.mutationBatch),
     }),
   ),
-  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, plus an explicit approval bound to the exact target, schema, revisions, values and reason, even for a recent session. Ordinary batches return the synchronous result.",
-  { destructive: true, job: true, stepUp: "conditional" },
+  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
+  { destructive: true, job: true },
 );
 operation(
   "getTableStatistics",
@@ -1373,12 +1333,6 @@ export const ProtocolAdapterInventory = Object.freeze([
     operationIds: ["getViewPreferences", "updateViewPreferences"],
     reason:
       "Browser convenience aliases execute the same typed personal table-view preference operations.",
-  },
-  {
-    path: "/api/internal/v1/account-actions/{id}/approve",
-    methods: ["POST"],
-    kind: "interactive",
-    operationId: "completeAccountAction",
   },
   {
     path: "/v1/openapi.json",

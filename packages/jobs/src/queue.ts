@@ -52,9 +52,7 @@ export class DurableQueue {
       | {
           binding: string;
           fields: string[];
-          approvalId?: string;
           source?: string;
-          stepUpApproved?: boolean;
           operatorRepair: boolean;
         }
       | undefined,
@@ -121,18 +119,14 @@ export class DurableQueue {
       : provenance?.source;
     if (
       provenance &&
-      ((originalContext.approvalId !== undefined &&
-        originalContext.approvalId !== provenance.approvalId) ||
-        (originalContext.source !== undefined &&
-          originalContext.source !== admittedSource) ||
-        (originalContext.stepUpApproved !== undefined &&
-          originalContext.stepUpApproved !== provenance.stepUpApproved) ||
+      ((originalContext.source !== undefined &&
+        originalContext.source !== admittedSource) ||
         (originalContext.idempotencyKey !== undefined &&
           originalContext.idempotencyKey !== idempotencyKey))
     )
       throw new RootsetError(
-        "STEP_UP_REQUIRED",
-        "Queued admission context does not match the approved request",
+        "ACCESS_DENIED",
+        "Queued admission context does not match the admitted request",
         403,
       );
     const persistedInput: Record<string, unknown> = {
@@ -144,15 +138,8 @@ export class DurableQueue {
               admissionBinding: provenance.binding,
               admissionFields: provenance.fields,
               admissionSource: provenance.source ?? null,
-              admissionStepUpApproved: provenance.stepUpApproved ?? null,
               idempotencyKey,
               ...(admittedSource ? { source: admittedSource } : {}),
-              ...(provenance.stepUpApproved !== undefined
-                ? { stepUpApproved: provenance.stepUpApproved }
-                : {}),
-              ...(provenance.approvalId
-                ? { approvalId: provenance.approvalId }
-                : {}),
             },
           }
         : {}),

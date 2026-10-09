@@ -19,7 +19,6 @@ import {
   jobsMutationSet,
   queuedMutationSet,
   runMutation,
-  resolveAdmissionApproval,
   operationAdmissionBinding,
   lockOperationAdmission,
 } from "@rootset/idempotency";
@@ -130,9 +129,7 @@ export class JobsService {
     key: string;
     binding: string;
     fields: string[];
-    approvalId?: string;
     source?: string;
-    stepUpApproved?: boolean;
     operatorRepair: boolean;
   }>();
   constructor(options: JobsOptions) {
@@ -165,9 +162,7 @@ export class JobsService {
         return {
           binding: current.binding,
           fields: current.fields,
-          approvalId: current.approvalId,
           source: current.source,
-          stepUpApproved: current.stepUpApproved,
           operatorRepair: current.operatorRepair,
         };
       },
@@ -265,17 +260,10 @@ export class JobsService {
         (field) => typeof field === "string" && field !== "operationContext",
       ) ||
       new Set(storedFields).size !== storedFields.length ||
-      (stored.approvalId !== undefined &&
-        typeof stored.approvalId !== "string") ||
       !Object.hasOwn(stored, "admissionSource") ||
       !(
         stored.admissionSource === null ||
         typeof stored.admissionSource === "string"
-      ) ||
-      !Object.hasOwn(stored, "admissionStepUpApproved") ||
-      !(
-        stored.admissionStepUpApproved === null ||
-        typeof stored.admissionStepUpApproved === "boolean"
       ) ||
       !this.queue.authenticInput(job)
     )
@@ -302,24 +290,19 @@ export class JobsService {
         409,
       );
     const source =
-        typeof stored.admissionSource === "string"
-          ? stored.admissionSource
-          : undefined,
-      stepUpApproved =
-        typeof stored.admissionStepUpApproved === "boolean"
-          ? stored.admissionStepUpApproved
-          : undefined;
+      typeof stored.admissionSource === "string"
+        ? stored.admissionSource
+        : undefined;
     if (
       stored.source !==
         (repairReason(job.operation_id, projected) !== undefined
           ? "operator"
           : source) ||
-      stored.stepUpApproved !== stepUpApproved ||
       stored.idempotencyKey !== job.idempotency_key
     )
       throw new RootsetError(
         "IDEMPOTENCY_CONFLICT",
-        "Queued admission source or approval state is inconsistent",
+        "Queued admission source is inconsistent",
         409,
       );
     let storedBinding: string;
@@ -329,9 +312,8 @@ export class JobsService {
         job.operation_id,
         projected,
         job.idempotency_key,
-        typeof stored.approvalId === "string" ? stored.approvalId : undefined,
         secret,
-        { source, stepUpApproved },
+        { source },
       );
     } catch {
       throw new RootsetError(
@@ -376,9 +358,6 @@ export class JobsService {
     return {
       binding: saved,
       source,
-      stepUpApproved,
-      approvalId:
-        typeof stored.approvalId === "string" ? stored.approvalId : undefined,
     };
   }
 
@@ -389,13 +368,11 @@ export class JobsService {
     if (
       job.kind !== "operation" ||
       job.operation_id !== "mutateRows" ||
-      !repairReason(job.operation_id, job.input) ||
-      admission.stepUpApproved !== true ||
-      !admission.approvalId
+      !repairReason(job.operation_id, job.input)
     )
       throw new RootsetError(
         "ACCESS_DENIED",
-        "Repair has no authenticated approved admission",
+        "Repair has no authenticated admission",
         403,
       );
     switch (admission.source) {
@@ -457,17 +434,14 @@ export class JobsService {
         500,
       );
     const key = this.requireKey(context.idempotencyKey);
-    const approvalId = resolveAdmissionApproval(input, {
-      approvalId: context.approvalId,
-    });
     const binding = operationAdmissionBinding(
       actor,
       operationId,
       input,
       key,
-      approvalId,
+
       secret,
-      { source: context.source, stepUpApproved: context.stepUpApproved },
+      { source: context.source },
     );
     const fields = Object.keys(input)
       .filter((field) => input[field] !== undefined)
@@ -506,9 +480,8 @@ export class JobsService {
         key,
         binding,
         fields,
-        approvalId,
+
         source: context.source,
-        stepUpApproved: context.stepUpApproved,
         operatorRepair: repairReason(operationId, input) !== undefined,
       },
       async () => {
@@ -707,19 +680,6 @@ export class JobsService {
       input = parsed.data as Record<string, unknown>;
     }
     const enqueue = async (client?: PoolClient) => {
-      if (
-        repair !== undefined &&
-        (!client ||
-          !context.client ||
-          !context.approvalId ||
-          !context.stepUpApproved ||
-          !this.config.recordRepairIntent)
-      )
-        throw new RootsetError(
-          "STEP_UP_REQUIRED",
-          "Operator repair requires a bound approved transaction",
-          403,
-        );
       const job = await this.queue.enqueue(
         actor,
         operationId,
@@ -731,23 +691,11 @@ export class JobsService {
             idempotencyKey: context.idempotencyKey,
             requestId: context.requestId,
             source: repair !== undefined ? "operator" : context.source,
-            approvalId: context.approvalId,
-            stepUpApproved: context.stepUpApproved,
           },
         },
         this.requireKey(context.idempotencyKey),
         client,
       );
-      if (repair !== undefined) {
-        const original = job.input.operationContext as OperationContext;
-        await this.config.recordRepairIntent!(client!, actor, {
-          jobId: job.id,
-          tableId: job.target_id,
-          reason: repairReason(job.operation_id, job.input)!,
-          approvalId: original.approvalId!,
-          requestId: original.requestId ?? job.id,
-        });
-      }
       return accepted(job);
     };
     if (queuedMutationSet.has(operationId) || repair !== undefined)

@@ -70,6 +70,8 @@ test(
       actor,
       {
         name: "Confirmation fixture",
+        access: "read",
+        includeAdmin: false,
         expiresAt: new Date(Date.now() + 86400000).toISOString(),
       },
       { idempotencyKey: newId() },

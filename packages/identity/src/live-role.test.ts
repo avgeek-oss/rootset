@@ -22,7 +22,6 @@ function fixture() {
     grant: true,
     scopes: ["rows:read", "rows:write"],
     job: undefined as Record<string, unknown> | undefined,
-    approval: true,
     checkouts: 0,
     onAuthorityLock: undefined as (() => void) | undefined,
   };
@@ -71,8 +70,6 @@ function fixture() {
         state.job.org_id === values[1]
       )
         rows = [state.job];
-    } else if (sql.includes("SELECT id FROM rootset_control.account_actions")) {
-      if (state.approval) rows = [{ id: values[0] }];
     } else if (!/^(BEGIN|COMMIT|ROLLBACK|SELECT set_config)/.test(sql)) {
       throw new Error(`Unexpected fixture query: ${sql}`);
     }
@@ -94,8 +91,6 @@ function fixture() {
     bootstrapSecret: randomBytes(32).toString("hex"),
     keyHashSecret: randomBytes(32).toString("hex"),
     encryptionKey: Buffer.alloc(32, 7).toString("base64"),
-
-    authoriseRepair: async () => undefined,
   });
   const actor: Actor = {
     kind: "personal_key",
@@ -187,82 +182,6 @@ test("revoked sessions cannot execute manually but verified membership retains s
   );
 });
 
-test("repair intent authenticates the persisted job and matches either an explicit request or the durable job fallback", async () => {
-  const { state, service, actor, client } = fixture();
-  state.role = "admin";
-  const jobId = newId(),
-    tableId = newId(),
-    approvalId = newId();
-  const operationContext: Record<string, unknown> = { approvalId };
-  state.job = {
-    id: jobId,
-    org_id: actor.orgId,
-    operation_id: "mutateRows",
-    target_id: tableId,
-    actor,
-    input: {
-      tableId,
-      repair: { reason: "Correct approved source transcription" },
-      operationContext,
-    },
-  };
-  const intent = {
-    jobId,
-    tableId,
-    approvalId,
-    reason: "Correct approved source transcription",
-    requestId: jobId,
-  };
-  await service.recordRepairIntent(client, actor, intent);
-  operationContext.requestId = newId();
-  await service.recordRepairIntent(client, actor, {
-    ...intent,
-    requestId: operationContext.requestId as string,
-  });
-  await assert.rejects(
-    () => service.recordRepairIntent(client, actor, intent),
-    (error) =>
-      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
-  );
-  await assert.rejects(
-    () =>
-      service.recordRepairIntent(client, { ...actor, userId: newId() }, intent),
-    (error) => error instanceof RootsetError && error.code === "ACCESS_DENIED",
-  );
-  state.approval = false;
-  await assert.rejects(
-    () => service.recordRepairIntent(client, actor, intent),
-    (error) =>
-      error instanceof RootsetError && error.code === "STEP_UP_REQUIRED",
-  );
-});
-
-test("key admission rechecks removal or session revocation under the user authority lock without an extra pool checkout", async () => {
-  for (const revoked of ["member", "session"] as const) {
-    const { state, service, actor } = fixture();
-    const session = { ...actor, kind: "session" as const };
-    state.onAuthorityLock = () => {
-      state[revoked] = false;
-    };
-    let executed = false;
-    await assert.rejects(
-      () =>
-        service.withOperationApproval(
-          session,
-          "createPersonalKey",
-          { orgId: actor.orgId, name: "Racing key" },
-          { idempotencyKey: newId() },
-          async () => {
-            executed = true;
-          },
-        ),
-      unauthenticated,
-    );
-    assert.equal(executed, false);
-    assert.equal(state.checkouts, 2);
-  }
-});
-
 test("stored API key ceilings survive role promotion and refresh forged actor permissions", async () => {
   const { state, service, actor } = fixture();
   state.role = "admin";
@@ -277,7 +196,7 @@ test("stored API key ceilings survive role promotion and refresh forged actor pe
   const edit = await service.refreshActor(read);
   assert.equal(edit.role, "member");
   assert.ok(edit.scopes.includes("rows:write"));
-  assert.ok(!edit.scopes.includes("schema:manage"));
+  assert.ok(edit.scopes.includes("schema:manage"));
   state.includeAdmin = true;
   assert.equal((await service.refreshActor(edit)).role, "admin");
   state.role = "viewer";

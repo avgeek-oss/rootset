@@ -713,9 +713,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     });
     await call(
       "createDatabase",
-      { orgId, name: "Edit denied" },
+      { orgId, name: "Edit allowed" },
       "rest",
-      403,
+      201,
       newId(),
       editKey.secret,
     );
@@ -877,9 +877,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         );
         await call(
           "createDatabase",
-          { orgId, name: "Team edit cannot manage" },
+          { orgId, name: "Team edit can create" },
           "rest",
-          403,
+          201,
           newId(),
           editTeam!.secret,
         );
@@ -957,15 +957,26 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
               );
               continue;
             }
-            await assert.rejects(
-              () =>
-                client.callTool({
-                  name: "rootset_create_database",
-                  arguments: { orgId, name: "Denied team MCP" },
-                }),
-              (error) =>
-                error instanceof StreamableHTTPError && error.code === 403,
-            );
+            const deleteDatabase = () =>
+              client.callTool({
+                name: "rootset_delete_database",
+                arguments: { orgId, databaseId, idempotencyKey: newId() },
+              });
+            if (team === readTeam)
+              await assert.rejects(
+                deleteDatabase,
+                (error) =>
+                  error instanceof StreamableHTTPError && error.code === 403,
+              );
+            else {
+              const denied = await deleteDatabase();
+              assert.equal(denied.isError, true);
+              assert.equal(
+                (denied.structuredContent as { error: { code: string } }).error
+                  .code,
+                "FORBIDDEN",
+              );
+            }
             if (team === readTeam)
               await assert.rejects(
                 () =>
@@ -1174,14 +1185,41 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             (error) =>
               error instanceof StreamableHTTPError && error.code === 403,
           );
-        await assert.rejects(
-          () =>
-            keyMcp.callTool({
-              name: "rootset_create_database",
-              arguments: { orgId, name: "MCP denied", idempotencyKey: newId() },
-            }),
-          (error) => error instanceof StreamableHTTPError && error.code === 403,
-        );
+        if (edit) {
+          assert.notEqual(
+            (
+              await keyMcp.callTool({
+                name: "rootset_create_database",
+                arguments: {
+                  orgId,
+                  name: "MCP edit allowed",
+                  idempotencyKey: newId(),
+                },
+              })
+            ).isError,
+            true,
+          );
+        }
+        const deleteDatabase = () =>
+          keyMcp.callTool({
+            name: "rootset_delete_database",
+            arguments: { orgId, databaseId, idempotencyKey: newId() },
+          });
+        if (!edit)
+          await assert.rejects(
+            deleteDatabase,
+            (error) =>
+              error instanceof StreamableHTTPError && error.code === 403,
+          );
+        else {
+          const denied = await deleteDatabase();
+          assert.equal(denied.isError, true);
+          assert.equal(
+            (denied.structuredContent as { error: { code: string } }).error
+              .code,
+            "FORBIDDEN",
+          );
+        }
       } finally {
         await keyMcp.close();
       }
@@ -1476,18 +1514,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         email: `replay-${newId().toLowerCase()}@rootset.example`,
         role: "viewer",
       },
-      beginAccountAction: {
-        orgId,
-        type: "create_key",
-        operationId: "createPersonalKey",
-        input: {
-          access: "edit",
-          includeAdmin: true,
-          expiresAt: "2030-01-01T00:00:00.000Z",
-          orgId,
-          name: "Replay-bound key approval",
-        },
-      },
     };
     const journalResults: Record<string, Record<string, unknown>> = {};
     for (const mode of ["rest", "mcp"] as const) {
@@ -1516,18 +1542,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           `${mode} ${operationId} stable outcome`,
         );
         journalResults[mode]![operationId] = first;
-        const changed =
-          operationId === "inviteMember"
-            ? { ...input, role: "member" }
-            : operationId === "beginAccountAction"
-              ? {
-                  ...input,
-                  input: {
-                    ...journalInputs.beginAccountAction.input,
-                    name: "Different bound approval",
-                  },
-                }
-              : { ...executedInput, cron: "0 5 * * *" };
+        const changed = { ...input, role: "member" };
         await journalCall(
           mode,
           operationId,
@@ -1538,18 +1553,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       }
     }
     const restInvitation = journalResults.rest!.inviteMember as { id: string },
-      mcpInvitation = journalResults.mcp!.inviteMember as { id: string },
-      restAction = journalResults.rest!.beginAccountAction as { id: string },
-      mcpAction = journalResults.mcp!.beginAccountAction as { id: string };
+      mcpInvitation = journalResults.mcp!.inviteMember as { id: string };
     assert.notEqual(
       restInvitation.id,
       mcpInvitation.id,
       "replay binding isolates credentials",
-    );
-    assert.notEqual(
-      restAction.id,
-      mcpAction.id,
-      "approval binding isolates credentials",
     );
     assert.equal(
       (
@@ -1565,15 +1573,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         await db.owner.query(
           "SELECT count(*)::int count FROM rootset_control.email_outbox WHERE template='invitation' AND to_address=$1",
           [journalInputs.inviteMember.email],
-        )
-      ).rows[0].count,
-      2,
-    );
-    assert.equal(
-      (
-        await db.owner.query(
-          "SELECT count(*)::int count FROM rootset_control.account_actions WHERE id=ANY($1::varchar[])",
-          [[restAction.id, mcpAction.id]],
         )
       ).rows[0].count,
       2,
@@ -1618,96 +1617,35 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       ).status,
       404,
     );
-    const approvedKeyInput = {
+    const directKeyInput = {
       access: "edit",
       includeAdmin: true,
       expiresAt: "2030-01-01T00:00:00.000Z",
       orgId,
-      name: "Delegated approved read key",
+      name: "Delegated direct key",
+      idempotencyKey: "runtime-direct-key",
     };
-    const withoutApproval = await client.callTool({
+    const directKey = await client.callTool({
       name: "rootset_create_personal_key",
-      arguments: {
-        ...approvedKeyInput,
-        idempotencyKey: "runtime-approved-key-unapproved",
-      },
+      arguments: directKeyInput,
     });
-    assert.equal(withoutApproval.isError, true);
-    assert.equal(
-      (withoutApproval.structuredContent as { error: { code: string } }).error
-        .code,
-      "STEP_UP_REQUIRED",
-    );
-    const startedAction = await client.callTool({
-      name: "rootset_begin_account_action",
-      arguments: {
-        orgId,
-        type: "create_key",
-        operationId: "createPersonalKey",
-        input: approvedKeyInput,
-        idempotencyKey: "runtime-approved-key-begin",
-      },
-    });
-    assert.notEqual(startedAction.isError, true);
-    const action = startedAction.structuredContent as {
-      id: string;
-      state: string;
+    assert.notEqual(directKey.isError, true);
+    const issued = directKey.structuredContent as {
+      key: { id: string };
+      secret?: string;
     };
-    assert.equal(action.state, "pending");
-    const earlyCompletion = await client.callTool({
-      name: "rootset_complete_account_action",
-      arguments: {
-        id: action.id,
-        idempotencyKey: "runtime-approved-key-early",
-      },
+    assert.equal(typeof issued.secret, "string");
+    const directReplay = await client.callTool({
+      name: "rootset_create_personal_key",
+      arguments: directKeyInput,
     });
-    assert.equal(earlyCompletion.isError, true);
-    const approval = await request(
-      `/api/internal/v1/account-actions/${action.id}/approve`,
-      "POST",
-      {},
-      { browser: true },
-    );
-    assert.equal(approval.status, 200);
-    assert.equal((await approval.json()).state, "approved");
-    const completedAction = await client.callTool({
-      name: "rootset_complete_account_action",
-      arguments: {
-        id: action.id,
-        idempotencyKey: "runtime-approved-key-complete",
-      },
-    });
-    assert.notEqual(completedAction.isError, true);
-    const completed = completedAction.structuredContent as {
-      state: string;
-      result: { key: { id: string }; secret?: string };
+    assert.notEqual(directReplay.isError, true);
+    const directKeyReplay = directReplay.structuredContent as {
+      key: { id: string };
+      secret?: string;
     };
-    assert.equal(completed.state, "consumed");
-    assert.equal(typeof completed.result.secret, "string");
-    const completedReplay = await client.callTool({
-      name: "rootset_complete_account_action",
-      arguments: {
-        id: action.id,
-        idempotencyKey: "runtime-approved-key-different-replay",
-      },
-    });
-    assert.notEqual(completedReplay.isError, true);
-    const completedAgain = completedReplay.structuredContent as {
-      state: string;
-      result: { key: { id: string }; secret?: string };
-    };
-    assert.equal(completedAgain.state, "consumed");
-    assert.equal(completedAgain.result.key.id, completed.result.key.id);
-    assert.equal(completedAgain.result.secret, undefined);
-    assert.equal(
-      (
-        await db.owner.query(
-          "SELECT count(*)::int count FROM rootset_control.api_keys WHERE name=$1",
-          ["Delegated approved read key"],
-        )
-      ).rows[0].count,
-      1,
-    );
+    assert.equal(directKeyReplay.key.id, issued.key.id);
+    assert.equal(directKeyReplay.secret, undefined);
     const mcpRead = await client.callTool({
       name: "rootset_get_row",
       arguments: { ...ids, rowId },
@@ -2156,7 +2094,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(historySecond.hasMore, false);
     assert.notEqual(historySecond.data[0].id, historyFirst.data[0].id);
     const usage = await call("getUsage", { orgId }, "rest");
-    assert.equal(usage.databases, 1);
+    assert.equal(usage.databases, 4);
     assert.equal(usage.tables, 1);
     assert.equal(usage.rows, 1);
     assert(usage.dataBytes > 0);
@@ -2544,14 +2482,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       }),
       scopeTokens = await issueMcpGrant(["tables:read", "tables:manage"]),
       currentSchema = await call("getTableSchema", ids),
-      targetActionInput = {
-        orgId,
-        type: "delete_table",
-        operationId: "deleteTable",
-        input: {
-          ...ids,
-          expectedSchemaVersion: currentSchema.table.schemaVersion,
-        },
+      targetInput = {
+        ...ids,
+        expectedSchemaVersion: currentSchema.table.schemaVersion,
       };
     await scopeClient.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
@@ -2560,31 +2493,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       }),
     );
-    const targetRestAction = await call(
-        "beginAccountAction",
-        targetActionInput,
-        "rest",
-        undefined,
-        "runtime-target-scope-rest-action",
-        scopeKey.secret,
-      ),
-      targetMcpResult = await scopeClient.callTool({
-        name: getOperation("beginAccountAction").toolName,
-        arguments: {
-          ...targetActionInput,
-          idempotencyKey: "runtime-target-scope-mcp-action",
-        },
-      });
-    assert.notEqual(targetMcpResult.isError, true);
-    const targetMcpAction = getOperation(
-      "beginAccountAction",
-    ).outputSchema.parse(targetMcpResult.structuredContent) as {
-      id: string;
-      state: string;
-    };
-    assert.equal(targetRestAction.state, "pending");
-    assert.equal(targetMcpAction.state, "pending");
-    assert.notEqual(targetRestAction.id, targetMcpAction.id);
     cookie = ownerCookie;
     viewerMember = (
       await db.owner.query(
@@ -2604,35 +2512,24 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       operations.length,
     );
     const targetRestDenied = await call(
-        "beginAccountAction",
-        targetActionInput,
-        "rest",
-        403,
-        "runtime-target-scope-rest-action",
-        scopeKey.secret,
-      ),
-      targetMcpDenied = await scopeClient.callTool({
-        name: getOperation("beginAccountAction").toolName,
-        arguments: {
-          ...targetActionInput,
-          idempotencyKey: "runtime-target-scope-mcp-action",
-        },
-      });
-    assert.equal(targetRestDenied.error.code, "FORBIDDEN");
-    assert.equal(targetMcpDenied.isError, true);
-    assert.equal(
-      (targetMcpDenied.structuredContent as { error: { code: string } }).error
-        .code,
-      "FORBIDDEN",
+      "deleteTable",
+      targetInput,
+      "rest",
+      403,
+      "runtime-target-scope-rest-action",
+      scopeKey.secret,
     );
-    assert.equal(
-      (
-        await db.owner.query(
-          "SELECT count(*)::int count FROM rootset_control.account_actions WHERE id=ANY($1::text[]) AND consumed_at IS NULL",
-          [[targetRestAction.id, targetMcpAction.id]],
-        )
-      ).rows[0].count,
-      2,
+    assert.equal(targetRestDenied.error.code, "FORBIDDEN");
+    await assert.rejects(
+      () =>
+        scopeClient.callTool({
+          name: getOperation("deleteTable").toolName,
+          arguments: {
+            ...targetInput,
+            idempotencyKey: "runtime-target-scope-mcp-action",
+          },
+        }),
+      (error) => error instanceof StreamableHTTPError && error.code === 403,
     );
     viewerMember = (
       await db.owner.query(

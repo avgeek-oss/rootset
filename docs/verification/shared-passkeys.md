@@ -57,17 +57,17 @@ handler and PostgreSQL storage using signed WebAuthn registration/assertion
 responses. Its authenticator creates an ECDSA key and CBOR attestation; it does
 not replace the server's cryptographic verifier with a success stub.
 
-| Behavior                                                              | Evidence                                                                                                                                                                                                                                                                                  |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Removed authenticator routes and action types cannot be used          | Removed-endpoints subtest expects 404 and refuses the old account action                                                                                                                                                                                                                  |
-| Enrollment requires recent proof and a verified authenticator         | Registration subtest refuses stale sessions, missing user verification, wrong origin, replay and `createSession` bypass                                                                                                                                                                   |
-| Password sign-in cannot issue an authenticated actor before a passkey | Pending-sign-in subtest verifies the signed password receipt has no usable browser session                                                                                                                                                                                                |
-| Challenges bind the exact sign-in or existing session                 | Assertion and fresh-verification subtests refuse swapped pending/session cookies, wrong owner and concurrent replay; valid reauthentication keeps the original session ID                                                                                                                 |
-| Recovery codes are protected and single-use                           | Replacement subtest checks hash-only storage, invalidation of old codes, expiry and concurrent consumption with one successful request                                                                                                                                                    |
-| Recovery cannot mint credentials or approve access                    | Recovery-authority subtest checks `authenticatedAt = 0`, permits a profile read, and refuses API-key issuance, key-action approval, email/password changes, passkey enrollment/removal/replacement and password fallback; the real OAuth service refuses consent without creating a grant |
-| A fresh passkey restores the intended authority                       | The same recovery-authority subtest performs a signed assertion bound to the recovery session, then completes the reviewed API-key action and OAuth consent                                                                                                                               |
-| Revocation invalidates outstanding proofs                             | Revoked-session/foreign-owner subtest refuses challenges after session or access revocation                                                                                                                                                                                               |
-| Recovery and member status follow actual enrollment                   | First/last-key subtest preserves codes when adding a key, removes them with the last key and verifies member status before/after enrollment and removal                                                                                                                                   |
+| Behavior                                                              | Evidence                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Removed authenticator routes and action types cannot be used          | Removed-endpoints subtest expects 404 and refuses the old account action                                                                                                                                                                                             |
+| Enrollment requires recent proof and a verified authenticator         | Registration subtest refuses stale sessions, missing user verification, wrong origin, replay and `createSession` bypass                                                                                                                                              |
+| Password sign-in cannot issue an authenticated actor before a passkey | Pending-sign-in subtest verifies the signed password receipt has no usable browser session                                                                                                                                                                           |
+| Challenges bind the exact sign-in or existing session                 | Assertion and fresh-verification subtests refuse swapped pending/session cookies, wrong owner and concurrent replay; valid reauthentication keeps the original session ID                                                                                            |
+| Recovery codes are protected and single-use                           | Replacement subtest checks hash-only storage, invalidation of old codes, expiry and concurrent consumption with one successful request                                                                                                                               |
+| Recovery cannot mint credentials or approve access                    | Recovery-authority subtest checks `authenticatedAt = 0`, permits a profile read, and refuses API-key issuance, email/password changes, passkey enrollment/removal/replacement and password fallback; the real OAuth service refuses consent without creating a grant |
+| A fresh passkey restores the intended authority                       | The same recovery-authority subtest performs a signed assertion bound to the recovery session, then completes the reviewed API-key action and OAuth consent                                                                                                          |
+| Revocation invalidates outstanding proofs                             | Revoked-session/foreign-owner subtest refuses challenges after session or access revocation                                                                                                                                                                          |
+| Recovery and member status follow actual enrollment                   | First/last-key subtest preserves codes when adding a key, removes them with the last key and verifies member status before/after enrollment and removal                                                                                                              |
 
 `email-change-security.test.ts` verifies that opening/inspecting a confirmation
 cannot change the account. New links hold their proof in a URL fragment; the
@@ -93,8 +93,8 @@ creation. `password-policy.test.ts` checks salted password hashing, verification
 bounded FIFO password-work queue. Password handling has no external breach-check
 service or operator tuning variables.
 
-The human-approved rename from Editor to Member changes the role name, not its
-capabilities. Role matrix tests, live-role credentials, browser guards and
+Members can create and edit databases, tables and fields. Database and table
+deletion requires an administrator. Role matrix tests, live-role credentials, browser guards and
 invitation contracts use Admin/Member/Viewer. The fresh-install baseline was
 regenerated from an isolated PostgreSQL 18 schema; repeat application and digest
 refusal preserve earlier databases. No original database or volume was reset.
@@ -107,7 +107,7 @@ the previous value. Rootset resource naming limits remain separate.
 
 The existing identity suite continues to cover verified-email setup and
 invitations, email changes, password reset, session/key revocation, role changes,
-last-Admin protection, sensitive-action expiry/replay and operator recovery.
+last-Admin protection, recent authentication, direct action replay and operator recovery.
 Password reset preserves passkeys; explicit operator recovery removes passkeys
 and their recovery codes and revokes delegated access.
 

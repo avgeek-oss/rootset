@@ -33,7 +33,7 @@ CREATE FUNCTION rootset_control.append_operator_repair_completion(organisation_a
 DECLARE j rootset_control.jobs%ROWTYPE; m rootset_control.mutations%ROWTYPE;
  t rootset_control.tables%ROWTYPE; d rootset_control.databases%ROWTYPE;
  saved_context jsonb; summary jsonb; audit_context jsonb; existing rootset_control.resource_history%ROWTYPE;
- reason text; approval text; principal_field text; schema_version_arg bigint;
+ reason text; principal_field text; schema_version_arg bigint;
  completion_count integer:=0;
 BEGIN
  IF organisation_arg IS DISTINCT FROM nullif(current_setting('rootset.org_id',true),'')
@@ -58,7 +58,7 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Repair table is not active' USING ERRCODE='42501'; END IF;
  SELECT * INTO d FROM rootset_control.databases WHERE id=t.database_id AND org_id=organisation_arg AND state='active';
  IF NOT FOUND THEN RAISE EXCEPTION 'Repair database is not active' USING ERRCODE='42501'; END IF;
- saved_context:=j.input->'operationContext'; reason:=j.input#>>'{repair,reason}'; approval:=saved_context->>'approvalId';
+ saved_context:=j.input->'operationContext'; reason:=j.input#>>'{repair,reason}';
  IF jsonb_typeof(j.input->'expectedSchemaVersion') IS DISTINCT FROM 'number'
     OR coalesce(j.input->>'expectedSchemaVersion','') !~ '^[1-9][0-9]{0,9}$' THEN
    RAISE EXCEPTION 'Repair schema version is not authorised' USING ERRCODE='42501';
@@ -77,10 +77,7 @@ BEGIN
    OR (SELECT sum(CASE WHEN ascii(code_point)>65535 THEN 2 ELSE 1 END)
        FROM regexp_split_to_table(reason,'') AS characters(code_point))>512
    OR reason<>btrim(reason,chr(9)||chr(10)||chr(11)||chr(12)||chr(13)||' '||U&'\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF')
-   OR approval IS NULL OR approval !~ '^[0-7][0-9A-HJKMNP-TV-Z]{25}$'
    OR saved_context->>'source' IS DISTINCT FROM 'operator'
-   OR saved_context->'stepUpApproved' IS DISTINCT FROM 'true'::jsonb
-   OR saved_context->'admissionStepUpApproved' IS DISTINCT FROM 'true'::jsonb
    OR saved_context->>'idempotencyKey' IS DISTINCT FROM j.idempotency_key
    OR coalesce(saved_context->>'admissionBinding','') !~ '^v1:[a-f0-9]{64}$'
    OR jsonb_typeof(saved_context->'admissionFields') IS DISTINCT FROM 'array'
@@ -120,7 +117,7 @@ BEGIN
         OR op.value->>'rowId' IS DISTINCT FROM m.outcome->'rows'->(op.position::integer-1)->>'id') THEN
    RAISE EXCEPTION 'Repair outcome does not match its updates' USING ERRCODE='42501';
  END IF;
- summary:=jsonb_build_object('reason',reason,'approvalId',approval,'jobId',job_arg,'mutationId',mutation_arg);
+ summary:=jsonb_build_object('reason',reason,'jobId',job_arg,'mutationId',mutation_arg);
  audit_context:=jsonb_build_object('requestId',m.context->>'requestId','source','operator','jobId',job_arg);
  FOR existing IN SELECT * FROM rootset_control.resource_history WHERE org_id=organisation_arg
    AND operation='operatorRepair' AND after_value->>'mutationId'=mutation_arg LOOP
@@ -466,23 +463,7 @@ SET LOCAL default_tablespace = '';
 
 SET LOCAL default_table_access_method = heap;
 
-CREATE TABLE rootset_control.account_actions (
-    id character varying(26) NOT NULL,
-    user_id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    actor_id text NOT NULL,
-    client_id text,
-    operation text NOT NULL,
-    payload_encrypted text NOT NULL,
-    digest text NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    approved_at timestamp with time zone,
-    consumed_at timestamp with time zone,
-    result jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
 
-ALTER TABLE ONLY rootset_control.account_actions FORCE ROW LEVEL SECURITY;
 
 
 CREATE TABLE rootset_control.api_admissions (
@@ -1165,8 +1146,6 @@ CREATE TABLE rootset_control.worker_heartbeats (
 
 ALTER TABLE ONLY rootset_control.cell_changes ATTACH PARTITION rootset_control.cell_changes_default DEFAULT;
 
-ALTER TABLE ONLY rootset_control.account_actions
-    ADD CONSTRAINT account_actions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY rootset_control.api_admissions
     ADD CONSTRAINT api_admissions_pkey PRIMARY KEY (id);
@@ -1427,11 +1406,7 @@ ALTER INDEX rootset_control.cell_changes_public_id ATTACH PARTITION rootset_cont
 
 CREATE TRIGGER history_usage AFTER INSERT OR DELETE ON rootset_control.cell_changes FOR EACH ROW EXECUTE FUNCTION rootset_control.track_history_metrics();
 
-ALTER TABLE ONLY rootset_control.account_actions
-    ADD CONSTRAINT account_actions_org_id_fkey FOREIGN KEY (org_id) REFERENCES rootset_control.organisations(id);
 
-ALTER TABLE ONLY rootset_control.account_actions
-    ADD CONSTRAINT account_actions_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
 
 ALTER TABLE ONLY rootset_control.api_keys
     ADD CONSTRAINT api_keys_creator_user_id_fkey FOREIGN KEY (creator_user_id) REFERENCES rootset_control.users(id);
@@ -1529,7 +1504,6 @@ ALTER TABLE ONLY rootset_control.view_preferences
 ALTER TABLE ONLY rootset_control.view_preferences
     ADD CONSTRAINT view_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
 
-ALTER TABLE rootset_control.account_actions ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.api_keys ENABLE ROW LEVEL SECURITY;
 
@@ -1550,7 +1524,6 @@ ALTER TABLE rootset_control.fields ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rootset_control.history_metrics ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY identity_org_isolation ON rootset_control.account_actions USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY identity_org_isolation ON rootset_control.api_keys USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 

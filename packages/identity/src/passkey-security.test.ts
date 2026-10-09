@@ -123,7 +123,7 @@ test(
       };
       assert.equal(await passkeyStatus(), false);
       await t.test(
-        "removed authenticator endpoints and action types cannot enroll or verify codes",
+        "removed authenticator endpoints cannot enroll or verify codes",
         async () => {
           for (const path of [
             "enable",
@@ -142,18 +142,6 @@ test(
               ).status,
               404,
             );
-          await assert.rejects(() =>
-            service.execute(
-              "beginAccountAction",
-              actor,
-              {
-                type: "enable_totp",
-                operationId: "enableTwoFactor",
-                input: {},
-              },
-              { idempotencyKey: newId() },
-            ),
-          );
         },
       );
       await t.test(
@@ -520,6 +508,9 @@ test(
           const keyInput = {
             orgId: recovered.orgId,
             name: "Recovery integration",
+            access: "read",
+            includeAdmin: false,
+            expiresAt: "2030-01-01T00:00:00.000Z",
           };
           const keyContext = { idempotencyKey: newId() };
           await assert.rejects(
@@ -562,29 +553,6 @@ test(
               (await call(path, body, recoverySessionCookie)).status,
               403,
             );
-          const ticket = (await service.execute(
-            "beginAccountAction",
-            recovered,
-            {
-              type: "create_key",
-              operationId: "createPersonalKey",
-              input: keyInput,
-            },
-            { idempotencyKey: newId() },
-          )) as { id: string };
-          await assert.rejects(
-            () => service.approveAction(ticket.id, recovered),
-            stepUp,
-          );
-          assert.equal(
-            (
-              await fixture.owner.query(
-                "SELECT approved_at FROM rootset_control.account_actions WHERE id=$1",
-                [ticket.id],
-              )
-            ).rows[0].approved_at,
-            null,
-          );
           const oauth = new OAuthService(fixture.identity, {
             baseURL: origin,
             scopes: ["rows:read"],
@@ -656,22 +624,21 @@ test(
           const refreshed = await service.refreshActor(recovered);
           assert.equal(refreshed.id, recovered.id);
           assert.ok(refreshed.authenticatedAt! > Date.now() - 10000);
-          await service.approveAction(ticket.id, recovered);
           const created = (await service.execute(
-            "completeAccountAction",
+            "createPersonalKey",
             recovered,
-            { id: ticket.id },
-            { idempotencyKey: newId() },
-          )) as { result: { key: { id: string }; secret: string } };
-          assert.ok(created.result.secret);
+            keyInput,
+            keyContext,
+          )) as { key: { id: string }; secret: string };
+          assert.ok(created.secret);
           const replay = (await service.execute(
-            "completeAccountAction",
+            "createPersonalKey",
             recovered,
-            { id: ticket.id },
-            { idempotencyKey: newId() },
-          )) as { result: { key: { id: string }; secret?: string } };
-          assert.equal(replay.result.key.id, created.result.key.id);
-          assert.equal(replay.result.secret, undefined);
+            keyInput,
+            keyContext,
+          )) as { key: { id: string }; secret?: string };
+          assert.equal(replay.key.id, created.key.id);
+          assert.equal(replay.secret, undefined);
           const allowed = (await decide())!;
           assert.equal(allowed.status, 200);
           assert.equal(

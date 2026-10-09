@@ -1,10 +1,5 @@
 "use client";
 
-import type {
-  AccountActionSchema,
-  OperatorRepairIntent,
-} from "@rootset/contracts";
-import type { z } from "zod";
 import { RootsetClient, browserApiOrigin } from "@rootset/web-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
@@ -14,75 +9,48 @@ const client = new RootsetClient({
   baseUrl: () => `${browserApiOrigin()}/api/internal/v1`,
 });
 
-export interface AccountActionTicket {
-  id: string;
-  type?: z.infer<typeof AccountActionSchema>["type"];
-  repairIntent?: OperatorRepairIntent;
-  operationId?: string;
-  status?: string;
-  state?: string;
-  expiresAt: string;
-  approvalUrl: string;
-}
-export interface ApprovalOptions {
+export interface ActionOptions {
   idempotencyKey?: string;
 }
-type ApprovalHandler = (
-  ticket: AccountActionTicket,
-  options?: ApprovalOptions,
-) => Promise<unknown>;
-let approvalHandler: ApprovalHandler | undefined;
-let approvalOrganisation: string | undefined;
-export function registerApprovalHandler(
-  handler: ApprovalHandler,
-  orgId: string,
-) {
-  approvalHandler = handler;
-  approvalOrganisation = orgId;
+let identityHandler: (() => Promise<void>) | undefined;
+export function registerIdentityHandler(handler: () => Promise<void>) {
+  identityHandler = handler;
   return () => {
-    if (approvalHandler === handler) {
-      approvalHandler = undefined;
-      approvalOrganisation = undefined;
-    }
+    if (identityHandler === handler) identityHandler = undefined;
   };
 }
-
+export async function confirmIdentity(): Promise<void> {
+  if (!identityHandler)
+    throw new Error("Open settings to confirm your identity.");
+  await identityHandler();
+}
+export async function withIdentityConfirmation<T>(
+  work: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (
+      !["STEP_UP_REQUIRED", "RECENT_AUTH_REQUIRED"].includes(
+        describeError(error).code,
+      )
+    )
+      throw error;
+    await confirmIdentity();
+    return work();
+  }
+}
 export async function performAction<T = unknown>(
   operationId: string,
   input: Record<string, unknown>,
-  options?: ApprovalOptions,
+  options?: ActionOptions,
 ): Promise<T> {
-  const actionTypes: Record<string, string> = {
-    changePassword: "change_password",
-    changeEmail: "change_email",
-    registerPasskey: "register_passkey",
-    removePasskey: "remove_passkey",
-    rotateRecoveryCodes: "rotate_recovery_codes",
-    signOutEverywhere: "sign_out_everywhere",
-    createPersonalKey: "create_key",
-    rotatePersonalKey: "rotate_key",
-    createTeamKey: "create_key",
-    rotateTeamKey: "rotate_key",
-    deleteDatabase: "delete_database",
-    deleteTable: "delete_table",
+  const headers = {
+    "Idempotency-Key": options?.idempotencyKey ?? crypto.randomUUID(),
   };
-  const ticket = await write<AccountActionTicket>(
-    "/me/actions",
-    "POST",
-    {
-      type: actionTypes[operationId],
-      operationId,
-      input,
-      orgId:
-        typeof input.orgId === "string" ? input.orgId : approvalOrganisation,
-    },
-    options?.idempotencyKey
-      ? { "Idempotency-Key": options.idempotencyKey }
-      : undefined,
+  return withIdentityConfirmation(() =>
+    client.operation<T>(operationId, input, { headers }),
   );
-  if (!approvalHandler)
-    throw new Error("Open settings to approve this account action.");
-  return (await approvalHandler({ ...ticket, operationId }, options)) as T;
 }
 
 export interface SettingsError {
@@ -216,24 +184,12 @@ export function useResource<T>(
 export type MutationResult<T> =
   { ok: true; value: T } | { ok: false; error: SettingsError };
 export function showSettingsError(error: SettingsError, retry?: () => void) {
-  const approval =
-    typeof error.details?.approvalUrl === "string"
-      ? error.details.approvalUrl
-      : undefined;
+  if (error.code === "ACTION_CANCELLED") return;
   return toast.danger(error.message, {
     description: error.requestId ? `Reference: ${error.requestId}` : undefined,
-    ...(approval
-      ? {
-          timeout: 0,
-          actionProps: {
-            children: "Confirm identity",
-            onPress: () =>
-              window.open(approval, "_blank", "noopener,noreferrer"),
-          },
-        }
-      : retry
-        ? { timeout: 0, actionProps: { children: "Try again", onPress: retry } }
-        : {}),
+    ...(retry
+      ? { timeout: 0, actionProps: { children: "Try again", onPress: retry } }
+      : {}),
   });
 }
 

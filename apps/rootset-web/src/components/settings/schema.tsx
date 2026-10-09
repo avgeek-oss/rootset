@@ -17,7 +17,6 @@ import { PageSelectionTitle } from "./account/page-selection-title";
 import { fieldConstraints } from "./field-constraints";
 import {
   organisationPath,
-  performAction,
   tablePath,
   useMutation,
   useResource,
@@ -130,7 +129,7 @@ export function TableDangerZone(props: SettingsPanelProps) {
       <Loading {...schema} retry={schema.reload} />
       <Section
         title="Delete table"
-        description="Deleting this table removes access to its rows and fields in Rootset, the API and MCP, and deletes their cell changelogs. You will need to confirm your identity before deletion. This cannot be undone in Rootset."
+        description="Deleting this table removes access to its rows and fields in Rootset, the API and MCP, and deletes their cell changelogs. This cannot be undone in Rootset."
       >
         <Button
           variant="danger-soft"
@@ -145,10 +144,7 @@ export function TableDangerZone(props: SettingsPanelProps) {
             )
               await mutation.run(
                 () =>
-                  performAction("deleteTable", {
-                    orgId: props.orgId,
-                    databaseId: props.databaseId,
-                    tableId: props.tableId,
+                  write(schema.path!, "DELETE", {
                     expectedSchemaVersion: schema.data.table.schemaVersion,
                   }),
                 "Table deletion requested.",

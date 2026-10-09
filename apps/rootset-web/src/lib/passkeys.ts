@@ -20,11 +20,11 @@ function requireSupport() {
       "Passkeys require a supported browser on HTTPS or localhost.",
     );
 }
-export async function registerWebAuthnPasskey(name: string, actionId: string) {
+export async function registerWebAuthnPasskey(name: string) {
   requireSupport();
   const options = await identityRequest<
     Parameters<typeof startRegistration>[0]["optionsJSON"]
-  >(`${endpoint}/generate-register-options`, "GET", undefined, actionId);
+  >(`${endpoint}/generate-register-options`, "GET");
   const response = await startRegistration({
     optionsJSON: options,
   });
@@ -32,7 +32,6 @@ export async function registerWebAuthnPasskey(name: string, actionId: string) {
     `${endpoint}/verify-registration`,
     "POST",
     { name, response },
-    actionId,
   );
 }
 export async function verifyPasskeySecondFactor(
@@ -42,13 +41,7 @@ export async function verifyPasskeySecondFactor(
   requireSupport();
   const options = await identityRequest<
     Parameters<typeof startAuthentication>[0]["optionsJSON"]
-  >(
-    `${endpoint}/generate-authenticate-options`,
-    "GET",
-    undefined,
-    undefined,
-    signal,
-  );
+  >(`${endpoint}/generate-authenticate-options`, "GET", undefined, signal);
   signal.throwIfAborted();
   const cancel = () => WebAuthnAbortService.cancelCeremony();
   signal.addEventListener("abort", cancel, { once: true });

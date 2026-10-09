@@ -244,6 +244,9 @@ test("FLD-15 actual REST/MCP eleven-type create/patch boundary matrix with nativ
       await must("createPersonalKey", {
         orgId,
         name: "Field matrix REST",
+        access: "edit",
+        includeAdmin: true,
+        expiresAt: "2030-01-01T00:00:00.000Z",
       })
     ).secret as string;
     const databaseId = (

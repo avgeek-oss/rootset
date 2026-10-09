@@ -9,10 +9,9 @@ import {
   runMutation,
   stripMutationSecrets,
   operationAdmissionBinding,
-  resolveAdmissionApproval,
 } from "./index";
 
-test("Queued admission HMAC preserves exact business/proof and principal binding without retaining raw secrets", () => {
+test("Queued admission HMAC preserves exact business input and principal binding without retaining raw secrets", () => {
   const actor: Actor = {
     kind: "oauth",
     id: "oauth:" + newId(),
@@ -23,14 +22,12 @@ test("Queued admission HMAC preserves exact business/proof and principal binding
     role: "admin",
     scopes: [],
   };
-  const proof = newId(),
-    key = newId(),
+  const key = newId(),
     secret = randomBytes(32).toString("hex");
   const input = {
     orgId: actor.orgId,
     databaseId: newId(),
     id: newId(),
-    approvalId: proof,
     query: {
       value: {
         password: "ordinary business value",
@@ -41,15 +38,13 @@ test("Queued admission HMAC preserves exact business/proof and principal binding
   const sign = (
     principal = actor,
     body = input,
-    approval = proof,
-    context = { source: "rest", stepUpApproved: true },
+    context = { source: "rest" },
   ) =>
     operationAdmissionBinding(
       principal,
       "deleteDatabase",
       body,
       key,
-      approval,
       secret,
       context,
     );
@@ -90,31 +85,8 @@ test("Queued admission HMAC preserves exact business/proof and principal binding
   ])
     assert.notEqual(sign(principal), first);
   const otherProof = newId();
-  assert.notEqual(
-    sign(actor, { ...input, approvalId: otherProof }, otherProof),
-    first,
-  );
-  assert.throws(
-    () => sign(actor, input, otherProof),
-    (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-  );
-  assert.notEqual(
-    sign(actor, input, proof, { source: "mcp", stepUpApproved: true }),
-    first,
-  );
-  assert.notEqual(
-    sign(actor, input, proof, { source: "rest", stepUpApproved: false }),
-    first,
-  );
-  assert.equal(
-    resolveAdmissionApproval({ approvalId: proof }, { actionId: proof }),
-    proof,
-  );
-  assert.throws(
-    () =>
-      resolveAdmissionApproval({ approvalId: proof }, { actionId: newId() }),
-    (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-  );
+  assert.notEqual(sign(actor, { ...input, id: otherProof }), first);
+  assert.notEqual(sign(actor, input, { source: "mcp" }), first);
 });
 
 test("Replay redaction preserves domain codes and credential IDs while removing explicit one-time secrets", () => {

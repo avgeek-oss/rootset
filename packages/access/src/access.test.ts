@@ -35,9 +35,6 @@ test("roles separate admin management, member row writes and viewer reads", () =
       "org:manage",
       "members:read",
       "members:manage",
-      "databases:manage",
-      "tables:manage",
-      "schema:manage",
       "installation:manage",
     ])
       assert.equal(
@@ -45,7 +42,12 @@ test("roles separate admin management, member row writes and viewer reads", () =
         role === "admin",
         `${role}:${scope}`,
       );
-    for (const scope of ["rows:write"])
+    for (const scope of [
+      "rows:write",
+      "databases:manage",
+      "tables:manage",
+      "schema:manage",
+    ])
       assert.equal(
         roleAllows(role, scope),
         role !== "viewer",
@@ -163,7 +165,7 @@ test("OAuth delegation cannot exceed live role or existing OAuth consent", () =>
   assert.doesNotThrow(() =>
     assertDelegation(base, ["rows:read", "rows:write"]),
   );
-  assert.throws(() => assertDelegation(base, ["schema:manage"]));
+  assert.doesNotThrow(() => assertDelegation(base, ["schema:manage"]));
   assert.throws(() =>
     assertDelegation({ ...base, role: "viewer" }, ["rows:write"]),
   );

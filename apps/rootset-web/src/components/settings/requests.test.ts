@@ -86,30 +86,13 @@ describe("Settings transport contract", () => {
       })?.input.expiresAt,
     ).toBeNull();
   });
-  it("requires canonical account-action type and organisation binding", () => {
-    expect(() =>
-      resolveSettingsOperation("/me/actions", "POST", {
-        operationId: "changePassword",
-        input: {},
-      }),
-    ).toThrow();
+  it("does not expose removed account-action operations", () => {
+    expect(resolveSettingsOperation("/me/actions", "POST", {})).toBeUndefined();
     expect(
-      resolveSettingsOperation("/me/actions", "POST", {
-        type: "change_password",
-        operationId: "changePassword",
-        orgId,
-        input: {},
-      })?.operationId,
-    ).toBe("beginAccountAction");
-  });
-  it("leaves only documented browser approval adapters outside the public operation map", () => {
-    expect(
-      resolveSettingsOperation(
-        `/account-actions/${memberId}/approve`,
-        "POST",
-        {},
-      ),
+      resolveSettingsOperation(`/me/actions/${memberId}`, "GET"),
     ).toBeUndefined();
-    expect(resolveSettingsOperation("/context", "GET")).toBeUndefined();
+    expect(
+      resolveSettingsOperation(`/me/actions/${memberId}/complete`, "POST", {}),
+    ).toBeUndefined();
   });
 });

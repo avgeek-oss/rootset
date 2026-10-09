@@ -983,8 +983,7 @@ async function repairOptions(
 ): Promise<MutationOptions> {
   const fence = { jobId: newId(), leaseToken: newId() },
     table = await storage!.getTable(actor, tableId),
-    approvalId = newId(),
-    originalKey = `approved-repair-${fence.jobId}`,
+    originalKey = `direct-repair-${fence.jobId}`,
     requestId = `repair-request-${fence.jobId}`,
     admittedActor = { ...suppliedRepairActor, membershipVersion: 1 },
     publicInput = {
@@ -1005,26 +1004,21 @@ async function repairOptions(
     },
     admission = {
       source: "mcp",
-      stepUpApproved: true,
     },
     operationContext = {
       idempotencyKey: originalKey,
       requestId,
       source: "operator",
-      approvalId,
-      stepUpApproved: true,
       admissionBinding: operationAdmissionBinding(
         admittedActor,
         "mutateRows",
         publicInput,
         originalKey,
-        approvalId,
         "trusted-storage-fixture-admission-secret-at-least32-bytes",
         admission,
       ),
       admissionFields: Object.keys(publicInput).sort(),
       admissionSource: admission.source,
-      admissionStepUpApproved: admission.stepUpApproved,
     },
     input = { ...publicInput, operationContext },
     requester = `${admittedActor.kind}:${admittedActor.id}`;
@@ -1067,7 +1061,6 @@ async function repairOptions(
       jobFence: fence,
       repair: {
         reason,
-        approvalId,
         jobId: fence.jobId,
       },
       beforePublish: async () => undefined,
@@ -1207,9 +1200,7 @@ async function assertRepairCapability(
     );
   for (const [path, value] of [
     ["{operationContext,admissionSource}", "worker"],
-    ["{operationContext,stepUpApproved}", false],
     ["{operationContext,admissionBinding}", "invalid"],
-    ["{operationContext,approvalId}", "unbound"],
     ["{operationContext,requestId}", "different original request"],
     ["{mutations,0,expectedVersion}", "0"],
     ["{mutations,0,expectedVersion}", "9223372036854775808"],
@@ -1275,7 +1266,7 @@ async function assertRepairCapability(
 }
 
 test(
-  "Supplied approved repair commits native history, one redacted completion and durable outcome together; replay and no-op preserve exact effects",
+  "Supplied direct repair commits native history, one redacted completion and durable outcome together; replay and no-op preserve exact effects",
   { skip: !configured },
   async () => {
     const table = await storage!.createTable(actor, databaseId, {
@@ -1377,7 +1368,7 @@ test(
           ...input.context!,
           repair: {
             ...input.context!.repair!,
-            reason: "A different approved business reason",
+            reason: "A different business reason",
           },
         },
       }),

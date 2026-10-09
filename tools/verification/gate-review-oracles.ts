@@ -22,7 +22,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-06",
-    "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.",
+    "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and direct password/passkey confirmation work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.",
   ],
   [
     "V1-07",

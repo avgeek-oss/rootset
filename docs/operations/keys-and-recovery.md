@@ -6,7 +6,7 @@ protected configuration separately from database and artifact backups.
 ## Encryption key
 
 `ROOTSET_ENCRYPTION_KEY` is one 32-byte key encoded as 64 hexadecimal characters.
-It protects email/action payloads and stored artifacts. Keep its original value
+It protects email payloads and stored artifacts. Keep its original value
 for the lifetime of the installation and its recovery copies. A replacement
 key cannot decrypt existing data. Rootset does not support a keyring or an
 automatic re-encryption/rotation workflow.
@@ -24,8 +24,7 @@ restarts. Changing it can invalidate sessions, API keys and pagination
 cursors; it does not replace the encryption key.
 
 Personal API keys require a name, permissions and expiry. Choose Read-only for
-viewing data and history, Edit for row writes, or Administrative for database,
-schema and team management. The UI offers 30 days, 90 days, 1 year and Never
+viewing data and history, Edit for row writes and creating/editing databases, tables and fields, or Administrative for deleting databases/tables and team management. The UI offers 30 days, 90 days, 1 year and Never
 (for administrators). API/MCP creation requires `access` (`read` or `edit`),
 `includeAdmin` (true only for Administrative with edit access), and `expiresAt`
 (an ISO timestamp or null for Never).

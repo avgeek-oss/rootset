@@ -178,7 +178,7 @@ export type listSessionsOutput = {
   nextCursor?: unknown;
   hasMore?: boolean;
 };
-export type revokeSessionInput = { id: string; approvalId?: string };
+export type revokeSessionInput = { id: string };
 export type revokeSessionOutput = { deleted: boolean; mutationId?: string };
 export type listConnectionsInput = Record<string, never>;
 export type listConnectionsOutput = {
@@ -198,146 +198,6 @@ export type listConnectionsOutput = {
 };
 export type revokeConnectionInput = { id: string };
 export type revokeConnectionOutput = { deleted: boolean; mutationId?: string };
-export type beginAccountActionInput = {
-  type:
-    | "update_member"
-    | "remove_member"
-    | "change_password"
-    | "change_email"
-    | "register_passkey"
-    | "remove_passkey"
-    | "rotate_recovery_codes"
-    | "sign_out_everywhere"
-    | "create_key"
-    | "rotate_key"
-    | "delete_database"
-    | "delete_table"
-    | "update_installation_configuration"
-    | "test_email"
-    | "operator_repair";
-  operationId?: string;
-  input: null | boolean | number | string | unknown[] | Record<string, unknown>;
-  orgId: string;
-};
-export type beginAccountActionOutput = {
-  id: string;
-  state: "pending" | "approved" | "consumed" | "expired" | "denied";
-  expiresAt: string;
-  approvalUrl: string;
-  type:
-    | "update_member"
-    | "remove_member"
-    | "change_password"
-    | "change_email"
-    | "register_passkey"
-    | "remove_passkey"
-    | "rotate_recovery_codes"
-    | "sign_out_everywhere"
-    | "create_key"
-    | "rotate_key"
-    | "delete_database"
-    | "delete_table"
-    | "update_installation_configuration"
-    | "test_email"
-    | "operator_repair";
-  repairIntent?: {
-    orgId: string;
-    databaseId: string;
-    tableId: string;
-    expectedSchemaVersion: number;
-    reason: string;
-    updates: {
-      rowId: string;
-      expectedVersion: string;
-      values: Record<
-        string,
-        null | boolean | number | string | unknown[] | Record<string, unknown>
-      >;
-    }[];
-  };
-  result?:
-    null | boolean | number | string | unknown[] | Record<string, unknown>;
-};
-export type getAccountActionInput = { id: string };
-export type getAccountActionOutput = {
-  id: string;
-  state: "pending" | "approved" | "consumed" | "expired" | "denied";
-  expiresAt: string;
-  approvalUrl: string;
-  type:
-    | "update_member"
-    | "remove_member"
-    | "change_password"
-    | "change_email"
-    | "register_passkey"
-    | "remove_passkey"
-    | "rotate_recovery_codes"
-    | "sign_out_everywhere"
-    | "create_key"
-    | "rotate_key"
-    | "delete_database"
-    | "delete_table"
-    | "update_installation_configuration"
-    | "test_email"
-    | "operator_repair";
-  repairIntent?: {
-    orgId: string;
-    databaseId: string;
-    tableId: string;
-    expectedSchemaVersion: number;
-    reason: string;
-    updates: {
-      rowId: string;
-      expectedVersion: string;
-      values: Record<
-        string,
-        null | boolean | number | string | unknown[] | Record<string, unknown>
-      >;
-    }[];
-  };
-  result?:
-    null | boolean | number | string | unknown[] | Record<string, unknown>;
-};
-export type completeAccountActionInput = { id: string };
-export type completeAccountActionOutput = {
-  id: string;
-  state: "pending" | "approved" | "consumed" | "expired" | "denied";
-  expiresAt: string;
-  approvalUrl: string;
-  type:
-    | "update_member"
-    | "remove_member"
-    | "change_password"
-    | "change_email"
-    | "register_passkey"
-    | "remove_passkey"
-    | "rotate_recovery_codes"
-    | "sign_out_everywhere"
-    | "create_key"
-    | "rotate_key"
-    | "delete_database"
-    | "delete_table"
-    | "update_installation_configuration"
-    | "test_email"
-    | "operator_repair";
-  repairIntent?: {
-    orgId: string;
-    databaseId: string;
-    tableId: string;
-    expectedSchemaVersion: number;
-    reason: string;
-    updates: {
-      rowId: string;
-      expectedVersion: string;
-      values: Record<
-        string,
-        null | boolean | number | string | unknown[] | Record<string, unknown>
-      >;
-    }[];
-  };
-  result?:
-    null | boolean | number | string | unknown[] | Record<string, unknown>;
-};
 export type getOrganisationInput = { orgId: string };
 export type getOrganisationOutput = {
   id: string;
@@ -378,7 +238,6 @@ export type updateMemberInput = {
   name?: string;
   role?: "admin" | "member" | "viewer";
   expectedVersion: string;
-  approvalId?: string;
 };
 export type updateMemberOutput = {
   id: string;
@@ -395,7 +254,6 @@ export type removeMemberInput = {
   orgId: string;
   id: string;
   expectedVersion: string;
-  approvalId?: string;
 };
 export type removeMemberOutput = { deleted: boolean; mutationId?: string };
 export type listInvitationsInput = {
@@ -459,7 +317,6 @@ export type createPersonalKeyInput = {
   access: "read" | "edit";
   includeAdmin: boolean;
   expiresAt: string | null;
-  approvalId?: string;
 };
 export type createPersonalKeyOutput = {
   key: {
@@ -486,7 +343,6 @@ export type rotatePersonalKeyInput = {
   access?: "read" | "edit";
   includeAdmin?: boolean;
   expiresAt?: string | null;
-  approvalId?: string;
 };
 export type rotatePersonalKeyOutput = {
   key: {
@@ -537,7 +393,6 @@ export type createTeamKeyInput = {
   access: "read" | "edit";
   includeAdmin: boolean;
   expiresAt: string | null;
-  approvalId?: string;
 };
 export type createTeamKeyOutput = {
   key: {
@@ -565,7 +420,6 @@ export type rotateTeamKeyInput = {
   access?: "read" | "edit";
   includeAdmin?: boolean;
   expiresAt?: string | null;
-  approvalId?: string;
 };
 export type rotateTeamKeyOutput = {
   key: {
@@ -660,11 +514,7 @@ export type updateDatabaseOutput = {
   createdAt: string;
   updatedAt: string;
 };
-export type deleteDatabaseInput = {
-  orgId: string;
-  databaseId: string;
-  approvalId?: string;
-};
+export type deleteDatabaseInput = { orgId: string; databaseId: string };
 export type deleteDatabaseOutput = {
   jobId: string;
   state:
@@ -1096,7 +946,6 @@ export type deleteTableInput = {
   databaseId: string;
   tableId: string;
   expectedSchemaVersion: number;
-  approvalId?: string;
 };
 export type deleteTableOutput = {
   jobId: string;
@@ -3720,7 +3569,6 @@ export type mutateRowsInput = {
   databaseId: string;
   tableId: string;
   expectedSchemaVersion: number;
-  approvalId?: string;
   mutations: (
     | {
         type: "create";
@@ -4527,21 +4375,6 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
-  beginAccountAction: {
-    path: "/v1/me/actions",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  getAccountAction: {
-    path: "/v1/me/actions/{id}",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  completeAccountAction: {
-    path: "/v1/me/actions/{id}/complete",
-    method: "POST",
-    idempotencyRequired: true,
-  },
   getOrganisation: {
     path: "/v1/orgs/{orgId}",
     method: "GET",
@@ -5011,36 +4844,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<revokeConnectionOutput>;
-  }
-  beginAccountAction(
-    input: beginAccountActionInput,
-    options?: CallOptions,
-  ): Promise<beginAccountActionOutput> {
-    return this.call(
-      "beginAccountAction",
-      input,
-      options,
-    ) as Promise<beginAccountActionOutput>;
-  }
-  getAccountAction(
-    input: getAccountActionInput,
-    options?: CallOptions,
-  ): Promise<getAccountActionOutput> {
-    return this.call(
-      "getAccountAction",
-      input,
-      options,
-    ) as Promise<getAccountActionOutput>;
-  }
-  completeAccountAction(
-    input: completeAccountActionInput,
-    options?: CallOptions,
-  ): Promise<completeAccountActionOutput> {
-    return this.call(
-      "completeAccountAction",
-      input,
-      options,
-    ) as Promise<completeAccountActionOutput>;
   }
   getOrganisation(
     input: getOrganisationInput,

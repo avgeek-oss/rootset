@@ -21,7 +21,7 @@ test("credentialed browser preflight is limited to the configured UI origin", as
       Origin: webOrigin,
       "Access-Control-Request-Method": "POST",
       "Access-Control-Request-Headers":
-        "content-type,idempotency-key,x-rootset-action-id",
+        "content-type,idempotency-key,x-rootset-organisation-id",
     },
   });
   assert.equal(preflight.status, 204);
@@ -36,7 +36,7 @@ test("credentialed browser preflight is limited to the configured UI origin", as
   );
   assert.match(
     preflight.headers.get("Access-Control-Allow-Headers") ?? "",
-    /X-Rootset-Action-ID/,
+    /X-Rootset-Organisation-Id/,
   );
   const foreign = await app.request("/api/internal/v1/context", {
     method: "OPTIONS",
@@ -63,7 +63,7 @@ test("credentialed browser preflight is limited to the configured UI origin", as
 
 test("session mutation rejects a foreign origin before authentication", async () => {
   const response = await app.request(
-    "/api/internal/v1/account-actions/01K6DVWSFS9MR156YW1H5XZ440/approve",
+    "/api/internal/v1/orgs/01K6DVWSFS9MR156YW1H5XZ440/databases",
     {
       method: "POST",
       headers: {
@@ -75,7 +75,7 @@ test("session mutation rejects a foreign origin before authentication", async ()
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
   const apiHost = await app.request(
-    "/api/internal/v1/account-actions/01K6DVWSFS9MR156YW1H5XZ440/approve",
+    "/api/internal/v1/orgs/01K6DVWSFS9MR156YW1H5XZ440/databases",
     {
       method: "POST",
       headers: { Origin: apiOrigin, Cookie: "rootset.session_token=fixture" },

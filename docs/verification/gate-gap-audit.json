@@ -76,7 +76,7 @@
     {
       "id": "V1-06",
       "area": "Installation and accounts",
-      "requirement": "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and explicit sensitive-action approval work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.",
+      "requirement": "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and direct sensitive actions work with recent identity confirmation, role enforcement and expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.",
       "status": "pending",
       "testSources": [
         {

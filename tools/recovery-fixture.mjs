@@ -5,7 +5,6 @@ import { newId } from "../packages/contracts/src/index.ts";
 import { createPool } from "../packages/database/src/index.ts";
 import { TableStorage } from "../packages/table-storage/src/index.ts";
 import { ArtifactStore } from "../packages/jobs/src/artifacts.ts";
-import { encryptProtected } from "../packages/email/src/index.ts";
 import { loadConfig } from "../packages/core/src/config.ts";
 
 const url = new URL(process.env.ROOTSET_TEST_DATABASE_URL ?? "");
@@ -30,8 +29,7 @@ const store = new ArtifactStore(app, {
   encryptionKey: config.encryptionKey,
 });
 let orgId = newId();
-const userId = newId(),
-  actionId = newId();
+const userId = newId();
 const marker = randomBytes(32).toString("hex");
 try {
   const migrations = (
@@ -95,18 +93,6 @@ try {
     },
     { idempotencyKey: "recovery-proof-row" },
   );
-  const payload = { name: "Rootset recovery proof", marker };
-  await owner.query(
-    "INSERT INTO rootset_control.account_actions(id,user_id,org_id,actor_id,operation,payload_encrypted,digest,expires_at) VALUES($1,$2,$3,$4,'updateProfile',$5,$6,now()+interval '7 days')",
-    [
-      actionId,
-      userId,
-      orgId,
-      userId,
-      encryptProtected(payload, config),
-      createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
-    ],
-  );
   const bytes = Buffer.from(
     JSON.stringify({ rootsetRecoveryProof: 1, marker }) + "\n",
   );
@@ -129,7 +115,6 @@ try {
     databaseId: database.id,
     tableId: table.id,
     rowId: row.id,
-    actionId,
     artifactId: artifact.id,
     markerSha256: createHash("sha256").update(marker).digest("hex"),
     plaintextSha256: createHash("sha256").update(bytes).digest("hex"),

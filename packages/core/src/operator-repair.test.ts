@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
 import { decryptProtected, type EmailPayload } from "@rootset/email";
 import {
-  AccountActionSchema,
   JobAcceptedSchema,
   JobSchema,
   limits,
@@ -38,7 +37,7 @@ function assertBusinessValues(
 }
 
 test(
-  "AUD03 approved operator repair preserves exact business intent and atomically journals normal row/history effects",
+  "AUD03 direct operator repair preserves exact business intent and atomically journals normal row/history effects",
   { timeout: 60000 },
   async (t) => {
     const fixture = await isolatedDatabase();
@@ -103,7 +102,7 @@ test(
         .getSetCookie()
         .map((value) => value.split(";")[0])
         .join("; ");
-      let actor = (await service.resolveActor(
+      const actor = (await service.resolveActor(
         new Request("http://localhost:6313/v1/auth/get-session", {
           headers: { cookie },
         }),
@@ -153,7 +152,7 @@ test(
         databaseId: database.id,
         tableId: table.id,
         expectedSchemaVersion: 1,
-        repair: { reason: "  Correct approved source transcription  " },
+        repair: { reason: "  Correct source transcription  " },
         mutations: [
           {
             type: "update",
@@ -178,209 +177,25 @@ test(
         NUMBER: 2,
       };
       await t.test(
-        "Admin repair and missing/changed proof cannot admit repair; typed display and exact replay retain business password/token/secret keys",
+        "Admin repair runs directly, preserves data and records its durable outcome",
         async () => {
-          actor = await service.refreshActor(actor);
-          const before = await counts();
-          await assert.rejects(
-            () => execute("mutateRows", input(row, values)),
-            (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-          );
-          assert.deepEqual(await counts(), before);
-          const key = newId(),
-            business = input(row, values);
-          const action = AccountActionSchema.parse(
-            await execute(
-              "beginAccountAction",
-              {
-                orgId: actor.orgId,
-                type: "operator_repair",
-                operationId: "mutateRows",
-                input: business,
-              },
-              { idempotencyKey: key },
-            ),
-          );
-          const replay = AccountActionSchema.parse(
-            await execute(
-              "beginAccountAction",
-              {
-                orgId: actor.orgId,
-                type: "operator_repair",
-                operationId: "mutateRows",
-                input: business,
-              },
-              { idempotencyKey: key },
-            ),
-          );
-          assert.deepEqual(replay, action);
-          assert.equal(
-            action.repairIntent?.reason,
-            "Correct approved source transcription",
-          );
-          assertBusinessValues(
-            action.repairIntent?.updates[0]?.values,
-            values,
-            true,
-          );
-          const viewed = AccountActionSchema.parse(
-            await execute("getAccountAction", { id: action.id }),
-          );
-          assertBusinessValues(
-            viewed.repairIntent?.updates[0]?.values,
-            values,
-            true,
-          );
-          assert.equal(JSON.stringify(action).includes(password), false);
-          await service.approveAction(action.id, actor);
-          await assert.rejects(
-            () =>
-              execute("mutateRows", {
-                ...business,
-                mutations: [
-                  {
-                    ...business.mutations[0],
-                    values: { ...values, NUMBER: 3 },
-                  },
-                ],
-                approvalId: action.id,
-              }),
-            (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-          );
-          assert.deepEqual(await counts(), before);
-          const admissionKey = newId();
+          const business = input(row, values),
+            key = newId();
           const admitted = JobAcceptedSchema.parse(
-            await execute(
-              "mutateRows",
-              { ...business, approvalId: action.id },
-              { idempotencyKey: admissionKey },
-            ),
-          );
-          const pending = (
-            await fixture.owner.query(
-              "SELECT org_id,kind,operation_id,actor,requester_id,target_type,target_id,input,state FROM rootset_control.jobs WHERE id=$1",
-              [admitted.jobId],
-            )
-          ).rows[0];
-          assert.equal(pending.org_id, actor.orgId);
-          assert.equal(pending.kind, "operation");
-          assert.equal(pending.operation_id, "mutateRows");
-          assert.equal(pending.state, "queued");
-          assert.equal(pending.requester_id, `${actor.kind}:${actor.id}`);
-          assert.equal(pending.target_type, "table");
-          assert.equal(pending.target_id, table.id);
-          for (const field of [
-            "kind",
-            "id",
-            "orgId",
-            "userId",
-            "credentialId",
-            "clientId",
-          ] as const)
-            assert.equal(pending.actor[field], actor[field]);
-          assert.equal(pending.actor.role, "admin");
-          assert.equal(
-            pending.input.repair.reason,
-            "Correct approved source transcription",
-          );
-          assert.equal(pending.input.approvalId, action.id);
-          assert.equal(pending.input.operationContext.approvalId, action.id);
-          assert.equal(pending.input.operationContext.source, "operator");
-          assert.equal(pending.input.operationContext.stepUpApproved, true);
-          assert.equal(
-            pending.input.operationContext.admissionSource,
-            "browser",
-          );
-          assert.equal(
-            pending.input.operationContext.admissionStepUpApproved,
-            true,
-          );
-          assert.match(
-            pending.input.operationContext.admissionBinding,
-            /^v1:[a-f0-9]{64}$/,
-          );
-          const staged = await fixture.owner.query(
-            "UPDATE rootset_control.control_mutation_replays SET expires_at=clock_timestamp()-interval '1 hour' WHERE org_id=$1 AND operation_id='mutateRows' AND outcome->>'jobId'=$2 RETURNING operation_id",
-            [actor.orgId, admitted.jobId],
-          );
-          assert.equal(staged.rowCount, 1);
-          assert.equal(
-            (
-              await fixture.owner.query(
-                "SELECT consumed_at IS NOT NULL AND expires_at>clock_timestamp() AS admitted FROM rootset_control.account_actions WHERE id=$1",
-                [action.id],
-              )
-            ).rows[0].admitted,
-            true,
+            await execute("mutateRows", business, { idempotencyKey: key }),
           );
           assert.deepEqual(
-            await execute(
-              "mutateRows",
-              { ...business, approvalId: action.id },
-              { idempotencyKey: admissionKey },
-            ),
+            await execute("mutateRows", business, { idempotencyKey: key }),
             admitted,
           );
-          for (const [changed, context] of [
-            [{ ...business, approvalId: action.id }, { surface: "mcp" }],
-            [{ ...business, approvalId: newId() }, {}],
-            [
-              {
-                ...business,
-                approvalId: action.id,
-                mutations: [
-                  {
-                    ...business.mutations[0],
-                    values: { ...values, NUMBER: 3 },
-                  },
-                ],
-              },
-              {},
-            ],
-          ] as const)
-            await assert.rejects(
-              () =>
-                execute("mutateRows", changed, {
-                  idempotencyKey: admissionKey,
-                  ...context,
-                }),
-              (error) =>
-                (error as { code: string }).code === "IDEMPOTENCY_CONFLICT",
-            );
           await assert.rejects(
             () =>
               execute(
                 "mutateRows",
-                { ...business, approvalId: action.id },
-                { idempotencyKey: admissionKey, actionId: newId() },
+                { ...business, repair: { reason: "Different reason" } },
+                { idempotencyKey: key },
               ),
-            (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-          );
-          await assert.rejects(
-            () => execute("mutateRows", { ...business, approvalId: action.id }),
-            (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-          );
-          const consumed = AccountActionSchema.parse(
-            await execute("getAccountAction", { id: action.id }),
-          );
-          assert.equal(consumed.state, "consumed");
-          assert.deepEqual(consumed.result, admitted);
-          assert.equal(consumed.repairIntent, undefined);
-          const nativeIntent = (
-            await fixture.owner.query(
-              "SELECT jsonb_build_object('actionId',input#>>'{operationContext,approvalId}','reason',input#>>'{repair,reason}') AS outcome FROM rootset_control.jobs WHERE id=$1 AND operation_id='mutateRows'",
-              [admitted.jobId],
-            )
-          ).rows;
-          assert.equal(nativeIntent.length, 1);
-          assert.equal(nativeIntent[0].outcome.actionId, action.id);
-          assert.equal(
-            JSON.stringify(nativeIntent).includes("corrected business datum"),
-            false,
-          );
-          assert.equal(
-            (await runtime.storage.getRow(actor, table.id, row.id)).version,
-            row.version,
+            { code: "IDEMPOTENCY_CONFLICT" },
           );
           assert.equal(await runtime.jobs.runOnce(actor.orgId), true);
           const job = (
@@ -392,40 +207,14 @@ test(
           assert.equal(job.state, "succeeded");
           row = await runtime.storage.getRow(actor, table.id, row.id);
           assertBusinessValues(row.values, values, false);
-          const outcome = (
-            await fixture.owner.query(
-              "SELECT result FROM rootset_control.operation_outcomes WHERE job_id=$1",
-              [admitted.jobId],
-            )
-          ).rows[0];
-          assert.deepEqual(outcome.result, job.result);
-          const changes = (
-            await fixture.owner.query(
-              "SELECT old_value,new_value,actor,context FROM rootset_control.cell_changes WHERE mutation_id=$1",
-              [job.result.mutationId],
-            )
-          ).rows;
-          assert.equal(changes.length, 3);
-          assert.ok(
-            changes.every(
-              (change) =>
-                change.context.source === "operator" &&
-                change.context.jobId === admitted.jobId &&
-                change.actor.userId === actor.userId,
-            ),
-          );
           const completion = (
             await fixture.owner.query(
-              "SELECT after_value,context FROM rootset_control.resource_history WHERE operation='operatorRepair' AND after_value->>'mutationId'=$1",
+              "SELECT after_value FROM rootset_control.resource_history WHERE operation='operatorRepair' AND after_value->>'mutationId'=$1",
               [job.result.mutationId],
             )
           ).rows;
           assert.equal(completion.length, 1);
-          assert.equal(completion[0].after_value.approvalId, action.id);
-          assert.equal(
-            JSON.stringify(completion).includes("corrected business datum"),
-            false,
-          );
+          assert.equal(completion[0].after_value.approvalId, undefined);
         },
       );
       await t.test(
@@ -490,21 +279,8 @@ test(
                 values: { NUMBER: 2 },
               })),
             };
-            const action = AccountActionSchema.parse(
-              await execute("beginAccountAction", {
-                orgId: actor.orgId,
-                type: "operator_repair",
-                operationId: "mutateRows",
-                input: business,
-              }),
-            );
-            await service.approveAction(action.id, actor);
             return JobAcceptedSchema.parse(
-              await execute(
-                "mutateRows",
-                { ...business, approvalId: action.id },
-                { surface: "mcp" },
-              ),
+              await execute("mutateRows", business, { surface: "mcp" }),
             );
           };
           const excessive = await admit(rows);
@@ -565,17 +341,8 @@ test(
         "A durable outcome failure rolls back repair rows, native receipt, history and completion in the same transaction",
         async () => {
           const business = input(row, { NUMBER: 6 });
-          const action = AccountActionSchema.parse(
-            await execute("beginAccountAction", {
-              orgId: actor.orgId,
-              type: "operator_repair",
-              operationId: "mutateRows",
-              input: business,
-            }),
-          );
-          await service.approveAction(action.id, actor);
           const admitted = JobAcceptedSchema.parse(
-            await execute("mutateRows", { ...business, approvalId: action.id }),
+            await execute("mutateRows", business),
           );
           const before = await counts();
           const record = runtime.core.recordOperationOutcome;
@@ -627,17 +394,8 @@ test(
         "Current Admin role revocation after admission blocks worker publication with no row/history/completion effects",
         async () => {
           const business = input(row, { NUMBER: 5 });
-          const action = AccountActionSchema.parse(
-            await execute("beginAccountAction", {
-              orgId: actor.orgId,
-              type: "operator_repair",
-              operationId: "mutateRows",
-              input: business,
-            }),
-          );
-          await service.approveAction(action.id, actor);
           const admitted = JobAcceptedSchema.parse(
-            await execute("mutateRows", { ...business, approvalId: action.id }),
+            await execute("mutateRows", business),
           );
           const before = await counts();
           await fixture.owner.query(

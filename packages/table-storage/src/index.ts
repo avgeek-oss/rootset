@@ -82,7 +82,7 @@ export interface MutationContext {
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
   beforePublish?: () => Promise<unknown>;
-  repair?: { reason: string; approvalId: string; jobId: string };
+  repair?: { reason: string; jobId: string };
 }
 export interface MutationOptions {
   idempotencyKey?: string;
@@ -1280,7 +1280,7 @@ export class TableStorage {
         if (rules.rowCount && !input.removeDependencies)
           fail(
             "VALIDATION_FAILED",
-            "Field has unique-rule dependencies; explicit removal approval is required",
+            "Field has unique-rule dependencies; select removal of the dependent rules",
           );
         for (const r of rules.rows) await this.removeRule(c, t, r);
         await c.query(
@@ -1409,12 +1409,11 @@ export class TableStorage {
           input.context.jobId !== repair.jobId ||
           input.context.jobFence.jobId !== repair.jobId
         )
-          fail("ACCESS_DENIED", "Repair requires a bound approved worker", 403);
+          fail("ACCESS_DENIED", "Repair requires a authorised worker", 403);
         const reason = OperatorRepairReasonSchema.safeParse(repair.reason);
         if (
           !reason.success ||
           !SchemaVersionSchema.safeParse(input.expectedSchemaVersion).success ||
-          !IdSchema.safeParse(repair.approvalId).success ||
           !IdSchema.safeParse(repair.jobId).success ||
           !input.idempotencyKey ||
           input.idempotencyKey.length > 128 ||
@@ -1440,7 +1439,6 @@ export class TableStorage {
           ? {
               repair: {
                 reason: repair.reason,
-                approvalId: repair.approvalId,
                 jobId: repair.jobId,
               },
             }

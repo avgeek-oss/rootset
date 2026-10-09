@@ -63,21 +63,4 @@ describe("settings feedback", () => {
       actionProps: { children: "Try again", onPress: retry },
     });
   });
-  it("retains the identity approval action when an API requires it", () => {
-    showSettingsError({
-      code: "STEP_UP_REQUIRED",
-      message: "Confirm your identity.",
-      details: { approvalUrl: "https://example.test/approve" },
-    });
-    expect(toast.danger).toHaveBeenCalledWith(
-      "Confirm your identity.",
-      expect.objectContaining({
-        timeout: 0,
-        actionProps: {
-          children: "Confirm identity",
-          onPress: expect.any(Function),
-        },
-      }),
-    );
-  });
 });

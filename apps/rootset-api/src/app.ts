@@ -38,7 +38,6 @@ import { McpReadRegistry, validMcpRequestId } from "./mcp-read-registry.js";
 export interface OperationContext {
   requestId: string;
   idempotencyKey?: string;
-  actionId?: string;
   surface: "browser" | "rest" | "mcp";
   responseBudget: number;
   request?: Request;
@@ -77,7 +76,6 @@ export interface ApiDependencies {
     resolveActor(request: Request, audience: string): Promise<Actor | null>;
     setupStatus(): Promise<unknown>;
     claimSetup(input: unknown): Promise<unknown>;
-    approveAction(id: string, actor: Actor): Promise<unknown>;
   };
   oauth: OAuthService;
   getAdmissionLimits?: () => Promise<AdmissionLimits> | AdmissionLimits;
@@ -268,7 +266,6 @@ export function createApp(deps: ApiDependencies) {
     ["/api/internal/v1/tables/:id/windows/query", "queryRows"],
     ["/.well-known/*", "oauthMetadata"],
     ["/api/internal/v1/oauth/requests/*", "oauthConsent"],
-    ["/api/internal/v1/account-actions/:id/approve", "approveAccountAction"],
     ["/api/internal/v1/oauth/requests/:id", "oauthConsentPreview"],
     ["/api/internal/v1/oauth/requests/:id/decision", "oauthConsentDecision"],
   ]);
@@ -352,7 +349,7 @@ export function createApp(deps: ApiDependencies) {
       );
       c.header(
         "Access-Control-Allow-Headers",
-        "Accept, Authorization, Content-Type, Idempotency-Key, If-Match, X-Rootset-Action-ID, X-Rootset-Organisation-Id",
+        "Accept, Authorization, Content-Type, Idempotency-Key, If-Match, X-Rootset-Organisation-Id",
       );
       c.header("Access-Control-Expose-Headers", "X-Request-ID");
       c.header("Vary", "Origin");
@@ -588,11 +585,6 @@ export function createApp(deps: ApiDependencies) {
       (await deps.oauth.handler(c.req.raw)) ??
       json({ error: "invalid_request" }, 404),
   );
-  app.post("/api/internal/v1/account-actions/:id/approve", async (c) => {
-    assertBrowserOrigin(c.req.raw, webOrigin);
-    const actor = await authenticate(deps, c.req.raw, true);
-    return json(await deps.identity.approveAction(c.req.param("id"), actor));
-  });
   app.post("/api/internal/v1/tables/:id/windows/query", async (c) => {
     assertBrowserOrigin(c.req.raw, webOrigin);
     const actor = await authenticate(deps, c.req.raw, true),
@@ -757,8 +749,7 @@ export function createApp(deps: ApiDependencies) {
             c.req.raw,
             pathInput.rowId as string,
           );
-        const idempotencyKey = c.req.header("Idempotency-Key"),
-          actionId = c.req.header("Rootset-Action-Id");
+        const idempotencyKey = c.req.header("Idempotency-Key");
         if (
           operation.idempotencyRequired &&
           (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,255}$/.test(idempotencyKey))
@@ -775,7 +766,6 @@ export function createApp(deps: ApiDependencies) {
           request: c.req.raw,
           numericLexemes,
           ...(idempotencyKey ? { idempotencyKey } : {}),
-          ...(actionId ? { actionId } : {}),
         };
         const release = await enterActor(actor, operation.readOnly);
         try {

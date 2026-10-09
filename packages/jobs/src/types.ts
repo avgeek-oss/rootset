@@ -15,8 +15,6 @@ export interface OperationContext {
   idempotencyKey?: string;
   requestId?: string;
   source?: string;
-  approvalId?: string;
-  stepUpApproved?: boolean;
 }
 export interface ArtifactConfig {
   endpoint?: string;
@@ -32,17 +30,6 @@ export interface ArtifactConfig {
   tempDirectory?: string;
 }
 export interface JobsConfig {
-  recordRepairIntent?: (
-    client: PoolClient,
-    actor: Actor,
-    intent: {
-      jobId: string;
-      tableId: string;
-      reason: string;
-      approvalId: string;
-      requestId: string;
-    },
-  ) => Promise<void>;
   idempotencySecret?: string;
   authoriseHistoryPolicy?: (
     actor: Actor,

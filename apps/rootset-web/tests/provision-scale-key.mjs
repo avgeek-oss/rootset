@@ -37,16 +37,6 @@ try {
     .getByLabel(/^Expires on/)
     .fill(new Date().toISOString().slice(0, 10));
   await page.getByRole("button", { name: "Create key", exact: true }).click();
-  const approval = page.getByRole("dialog", {
-    name: "Approve account action",
-    exact: true,
-  });
-  await expect(approval.locator(".action-review")).toContainText(
-    "Local five-million-row HTTP verification",
-  );
-  await approval
-    .getByRole("button", { name: "Approve action", exact: true })
-    .click();
   const secret = page.getByLabel("API key secret", { exact: true });
   await expect(secret).toBeVisible();
   const value = await secret.inputValue();
@@ -58,7 +48,7 @@ try {
       databaseId,
       tableId,
       source:
-        "Actual rendered personal-key creation and immutable recent-auth approval; UTC date-precision expiry today",
+        "Actual rendered personal-key creation with session authentication",
     }),
     { mode: 0o600 },
   );

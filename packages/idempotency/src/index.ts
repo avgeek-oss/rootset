@@ -5,7 +5,6 @@ import {
   limits,
   RootsetError,
   ViewPreferencesResultSchema,
-  OperatorRepairAccountActionSchema,
   type Actor,
 } from "@rootset/contracts";
 import { type PoolClient, type Queryable } from "@rootset/database";
@@ -16,7 +15,6 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "updateViewPreferences",
   "revokeSession",
   "revokeConnection",
-  "beginAccountAction",
   "updateOrganisation",
   "updateMember",
   "removeMember",
@@ -51,37 +49,15 @@ export const mutationSet: ReadonlySet<string> = new Set([
 export type MutationLookup =
   { found: false } | { found: true; result: unknown };
 
-export function resolveAdmissionApproval(
-  input: Record<string, unknown>,
-  context: { approvalId?: string; actionId?: string } = {},
-): string | undefined {
-  const claims = [
-    input.approvalId,
-    input.actionId,
-    context.approvalId,
-    context.actionId,
-  ].filter((value) => value !== undefined);
-  const ids = claims.map((value) => IdSchema.parse(value));
-  if (new Set(ids).size > 1)
-    throw new RootsetError(
-      "STEP_UP_REQUIRED",
-      "Approval claims identify different requests",
-      403,
-    );
-  return ids[0];
-}
-
 export function operationAdmissionBinding(
   actor: Actor,
   operationId: string,
   input: Record<string, unknown>,
   key: string,
-  approvalId: string | undefined,
   secret: string,
-  context: { source?: string; stepUpApproved?: boolean } = {},
+  context: { source?: string } = {},
 ): string {
   binding(actor, operationId, input, key, secret);
-  const effective = resolveAdmissionApproval(input, { approvalId });
   return (
     "v1:" +
     createHmac("sha256", secret)
@@ -100,10 +76,8 @@ export function operationAdmissionBinding(
             operationId,
             key,
             input: inputValue(input),
-            approvalId: effective ?? null,
             context: {
               source: context.source ?? null,
-              stepUpApproved: context.stepUpApproved ?? null,
             },
           },
           { maxDepth: 96 },
@@ -162,10 +136,7 @@ export async function lockOperationAdmission(
 function inputValue(input: unknown): unknown {
   if (!input || typeof input !== "object" || Array.isArray(input)) return input;
   return Object.fromEntries(
-    Object.entries(input).filter(
-      ([key, value]) =>
-        key !== "approvalId" && key !== "actionId" && value !== undefined,
-    ),
+    Object.entries(input).filter(([, value]) => value !== undefined),
   );
 }
 function binding(
@@ -231,14 +202,6 @@ export function stripMutationSecrets(value: unknown): unknown {
 }
 
 function mutationOutcome(operationId: string, value: unknown): unknown {
-  if (
-    operationId === "beginAccountAction" &&
-    value &&
-    typeof value === "object" &&
-    "type" in value &&
-    value.type === "operator_repair"
-  )
-    return OperatorRepairAccountActionSchema.parse(value);
   if (operationId !== "updateViewPreferences")
     return stripMutationSecrets(value);
   const result = ViewPreferencesResultSchema.safeParse(value);

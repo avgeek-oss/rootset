@@ -4,7 +4,7 @@ import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useEffect, useState } from "react";
 import {
   databasePath,
-  performAction,
+  confirmIdentity,
   useMutation,
   useResource,
   write,
@@ -95,15 +95,12 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
                 `Delete ${name} and all its tables? This action cannot be undone in Rootset.`,
                 "Delete database",
               )
-            )
-              await mutation.run(
-                () =>
-                  performAction("deleteDatabase", {
-                    orgId: props.orgId,
-                    databaseId: props.databaseId,
-                  }),
-                "Database deletion requested.",
-              );
+            ) {
+              await mutation.run(async () => {
+                await confirmIdentity();
+                return write(path, "DELETE");
+              }, "Database deletion requested.");
+            }
           }}
         >
           Delete database

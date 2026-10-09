@@ -5,11 +5,8 @@ const management = [
   "organisation",
   "members",
   "team-api-keys",
-  "database",
   "database-danger-zone",
-  "table",
-  "fields",
-  "rules",
+  "table-danger-zone",
 ] as const;
 const personalAndRead = [
   "profile",
@@ -23,6 +20,14 @@ const personalAndRead = [
   "exports",
 ] as const;
 describe("settings role boundaries", () => {
+  it.each(["database", "table", "fields", "rules"] as const)(
+    "allows editors and administrators to %s",
+    (section) => {
+      expect(canOpenSettings(section, "member")).toBe(true);
+      expect(canOpenSettings(section, "admin")).toBe(true);
+      expect(canOpenSettings(section, "viewer")).toBe(false);
+    },
+  );
   it.each(management)(
     "admits only admins to %s, including direct links",
     (section) => {

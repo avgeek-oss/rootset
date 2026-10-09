@@ -179,7 +179,7 @@ export async function prepareScaleTarget(
         userId: record.user_id,
         inheritedRole: subject.role,
         source:
-          "Actual rendered recent-auth approval issuance; one credential record copied to original restored subject for QA performance, outside auth/recovery evidence.",
+          "Actual rendered recent-auth key issuance; one credential record copied to original restored subject for QA performance, outside auth/recovery evidence.",
       };
     } finally {
       await source.end();

@@ -46,8 +46,6 @@ export async function createRuntime(
       },
       oauthResolver: (request, audience) =>
         oauth.resolveActor(request, audience === "mcp" ? "mcp" : "api"),
-      authoriseRepair: (actor, input) =>
-        core.authorise(actor, "mutateRows", input),
     });
     const observer = new OperationalObserver({
       operatorPool: identityPool,
@@ -75,8 +73,6 @@ export async function createRuntime(
       config: {
         metadataPaging: paging,
         idempotencySecret: config.keyHashSecret,
-        recordRepairIntent: (client, actor, intent) =>
-          identity.recordRepairIntent(client, actor, intent),
         authoriseHistoryPolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
           await storage.getTable(current, target.tableId);
@@ -110,7 +106,6 @@ export async function createRuntime(
             await core.executeWorker(id, actor, input, {
               ...context,
               surface: "worker",
-              actionId: context.approvalId,
             }),
           ),
       },
@@ -135,12 +130,6 @@ export async function createRuntime(
       paging,
     });
     identity.setPaging(core.paging);
-    identity.setExecutor((id, actor, input, context) =>
-      core.execute(id, actor, input, {
-        ...context,
-        surface: context.surface === "api" ? "rest" : context.surface,
-      }),
-    );
     return {
       pool,
       admissionPool,

@@ -155,7 +155,6 @@ test(
           : oauth.resolveActor(request, audience),
       setupStatus: async () => ({ claimed: true }),
       claimSetup: async () => ({ claimed: true }),
-      approveAction: async () => ({ approved: true }),
     };
     // This integration isolates transport and permission plumbing. Domain CRUD is exercised by the candidate verification suite.
     let transportFailure: Error | undefined;

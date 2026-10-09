@@ -19,7 +19,7 @@ vi.mock("@avgeek-oss/design-system", async (importOriginal) => ({
 vi.mock("./api", () => ({
   useResource: () => ({ data: null, loading: false, error: null }),
 }));
-vi.mock("./security", () => ({ AccountActionApproval: () => null }));
+vi.mock("./security", () => ({ IdentityConfirmation: () => null }));
 vi.mock("./account/last-synced-time", () => ({
   RelativeTimeProvider: ({ children }: { children: ReactNode }) => children,
 }));

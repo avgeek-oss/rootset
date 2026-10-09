@@ -286,6 +286,7 @@ export function Loading({
   useEffect(() => {
     if (!error) return;
     const id = showSettingsError(error, retry);
+    if (!id) return;
     return () => toast.close(id);
   }, [error, retry]);
   return null;

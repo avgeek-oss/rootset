@@ -16,7 +16,7 @@ import {
   resourcePath,
   unwrapData,
 } from "@rootset/web-client";
-import { AuthPage, AsyncActionButton } from "@avgeek-oss/design-system";
+import { AuthPage } from "@avgeek-oss/design-system";
 import {
   QueryError,
   QueryLoading,
@@ -28,14 +28,8 @@ import {
   type Database,
   type DatabaseSummary,
   type Table,
-  type OperatorRepairIntent,
 } from "@rootset/contracts";
 import type { z } from "zod";
-import { RepairIntentReview } from "./repair-intent-review";
-import {
-  repairReviewUnavailable,
-  repairReviewError,
-} from "./repair-review-status";
 import { AuthScreen } from "./auth-screen";
 import { EmailChangeConfirmation } from "./email-change-confirmation";
 import { ReauthenticationDialog } from "./settings/account/reauthentication-dialog";
@@ -176,8 +170,8 @@ export function RootsetApp() {
   const table = tables.data?.find((entry) => entry.id === selectedTableId);
   const preferences = context.data?.preferences ?? defaultPreferences;
   const canManage = context.data?.principal.role === "admin";
-  const canCreateDatabase = canManage;
   const canEdit = canManage || context.data?.principal.role === "member";
+  const canCreateDatabase = canEdit;
 
   const requestedOrganisation =
     parameters.get("organisationId") ?? parameters.get("orgId");
@@ -305,11 +299,6 @@ export function RootsetApp() {
     );
   if (path === "/consent" || path === "/oauth/consent")
     return <ConsentScreen />;
-  if (
-    path.startsWith("/account-action/") ||
-    path.startsWith("/account-actions/")
-  )
-    return <AccountActionApproval id={path.split("/").at(-1)!} />;
   if (
     context.error instanceof ApiError &&
     context.error.status === 401 &&
@@ -710,7 +699,7 @@ export function RootsetApp() {
                   table={table}
                   preferences={preferences}
                   canEdit={canEdit}
-                  canManage={canManage}
+                  canManage={canEdit}
                   onSettings={(section) =>
                     openSettings(section as SettingsSection)
                   }
@@ -726,7 +715,7 @@ export function RootsetApp() {
                   tables={tables.data ?? []}
                   pending={tables.isPending}
                   error={tables.error?.message ?? ""}
-                  canCreate={canManage}
+                  canCreate={canEdit}
                   onCreate={() => {
                     setCreate("table");
                     setMutationError(null);
@@ -757,9 +746,9 @@ export function RootsetApp() {
                       ? database
                         ? "Add a structured table, then define its fields."
                         : "Keep related master data together in one database."
-                      : "An admin can create databases, tables, and fields for this installation."}
+                      : "An editor or administrator can create databases, tables, and fields for this installation."}
                   </p>
-                  {(database ? canManage : canCreateDatabase) && (
+                  {(database ? canEdit : canCreateDatabase) && (
                     <Button
                       onPress={() => setCreate(database ? "table" : "database")}
                     >
@@ -973,197 +962,6 @@ function ConsentScreen() {
             </>
           )
         )}
-      </AuthFrame>
-    </AuthPage>
-  );
-}
-
-function AccountActionApproval({ id }: { id: string }) {
-  const request = useQuery({
-    queryKey: ["account-action", id],
-    queryFn: ({ signal }) =>
-      client.request<{
-        type: string;
-        repairIntent?: OperatorRepairIntent;
-        state: string;
-        expiresAt: string;
-        clientName?: string;
-        target?: string;
-        display?: {
-          operationId: string;
-          clientName?: string;
-          targetName?: string;
-          summary?: string;
-        };
-        result?: {
-          operationId?: string;
-          input?: Record<string, unknown>;
-          clientId?: string;
-        };
-      }>(`/me/actions/${encodeURIComponent(id)}`, { signal }),
-  });
-  const [approved, setApproved] = useState(false);
-  const [verified, setVerified] = useState(false);
-  const session = authClient.useSession();
-  const [proofOpen, setProofOpen] = useState(false);
-  const security = useQuery({
-    queryKey: ["approval-security", session.data?.user.id],
-    queryFn: ({ signal }) =>
-      client.request<{ twoFactorEnabled: boolean }>("/me/security", { signal }),
-    enabled: Boolean(session.data),
-  });
-  const [pending, setPending] = useState(false);
-  const repairUnavailable = repairReviewUnavailable(request.data);
-  async function finishReauthentication() {
-    const details = await request.refetch();
-    if (details.error) throw details.error;
-    setProofOpen(false);
-    setVerified(true);
-  }
-  async function approve() {
-    if (
-      repairUnavailable ||
-      !request.data ||
-      request.isPending ||
-      request.isError ||
-      request.data.state !== "pending"
-    ) {
-      throw new Error(
-        repairUnavailable
-          ? repairReviewError
-          : "This request is not available for approval.",
-      );
-    }
-    setPending(true);
-    try {
-      await client.request(
-        `/account-actions/${encodeURIComponent(id)}/approve`,
-        { method: "POST", body: {} },
-      );
-      setApproved(true);
-    } finally {
-      setPending(false);
-    }
-  }
-  if (!session.data)
-    return (
-      <AuthScreen
-        path="/login"
-        claimed
-        onSignedIn={() => void finishReauthentication()}
-      />
-    );
-  return (
-    <AuthPage>
-      <AuthFrame
-        title="Approve account action"
-        description="Review the request and confirm your identity."
-      >
-        {request.data && (
-          <>
-            <p>
-              {(request.data.display?.clientName ?? request.data.clientName)
-                ? `${request.data.display?.clientName ?? request.data.clientName} requests`
-                : "You requested"}{" "}
-              <strong>{request.data.type.replaceAll("_", " ")}</strong>
-              {(request.data.display?.targetName ?? request.data.target)
-                ? ` for ${request.data.display?.targetName ?? request.data.target}`
-                : ""}
-              .
-            </p>
-            {request.data.display?.summary && (
-              <p>{request.data.display.summary}</p>
-            )}
-            {request.data.result?.clientId && (
-              <p>Requesting client: {request.data.result.clientId}</p>
-            )}
-            {request.data.type === "operator_repair" &&
-              request.data.repairIntent &&
-              !repairUnavailable && (
-                <RepairIntentReview
-                  key={id}
-                  intent={request.data.repairIntent}
-                />
-              )}
-            {repairUnavailable && (
-              <p role="alert" className="error-message">
-                {repairReviewError}
-              </p>
-            )}
-            {request.data.type !== "operator_repair" &&
-              request.data.result?.input && (
-                <dl className="action-review">
-                  {Object.entries(request.data.result.input).map(
-                    ([name, value]) => (
-                      <div key={name}>
-                        <dt>
-                          {name.replaceAll(/([A-Z])/g, " $1").toLowerCase()}
-                        </dt>
-                        <dd>
-                          {typeof value === "object" && value !== null ? (
-                            <pre>{JSON.stringify(value, null, 2)}</pre>
-                          ) : (
-                            String(value ?? "null")
-                          )}
-                        </dd>
-                      </div>
-                    ),
-                  )}
-                </dl>
-              )}
-            <p>Expires {new Date(request.data.expiresAt).toLocaleString()}.</p>
-          </>
-        )}
-        {request.isError && (
-          <p className="error-message" role="alert">
-            {request.error.message}
-          </p>
-        )}
-        {approved ? (
-          <p role="status">
-            Approved. Return to the requesting application to complete the
-            action.
-          </p>
-        ) : verified ? (
-          <>
-            <p>
-              Your identity is verified. Approve the action described above to
-              let the requesting application complete it.
-            </p>
-            <AsyncActionButton
-              pendingLabel="Approving…"
-              isDisabled={
-                pending ||
-                request.isPending ||
-                request.isError ||
-                repairUnavailable ||
-                request.data?.state !== "pending"
-              }
-              onAction={approve}
-            >
-              Approve this action
-            </AsyncActionButton>
-          </>
-        ) : (
-          <Button
-            isDisabled={
-              security.isPending ||
-              security.isError ||
-              request.isPending ||
-              request.isError ||
-              repairUnavailable
-            }
-            onPress={() => setProofOpen(true)}
-          >
-            Confirm identity
-          </Button>
-        )}
-        <ReauthenticationDialog
-          isOpen={proofOpen}
-          onOpenChange={setProofOpen}
-          hasPasskey={Boolean(security.data?.twoFactorEnabled)}
-          onConfirmed={finishReauthentication}
-        />
       </AuthFrame>
     </AuthPage>
   );

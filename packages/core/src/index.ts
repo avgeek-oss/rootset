@@ -2,7 +2,6 @@ import {
   getOperation,
   limits,
   operatorsByType,
-  operationMap,
   assertValueLexemes,
   assertFieldDefinitionLexemes,
   assertQueryLexemes,
@@ -19,11 +18,7 @@ import {
 import { assertAccess } from "@rootset/access";
 import { withOrg, type Pool, type PoolClient } from "@rootset/database";
 import type { IdentityService } from "@rootset/identity";
-import {
-  lookupMutation,
-  mutationSet,
-  resolveAdmissionApproval,
-} from "@rootset/idempotency";
+import { lookupMutation, mutationSet } from "@rootset/idempotency";
 import type {
   TableStorage,
   DatabaseRecord,
@@ -43,7 +38,6 @@ import { mapSchemaJournal } from "./schema-journal.js";
 export interface OperationContext {
   requestId?: string;
   idempotencyKey?: string;
-  actionId?: string;
   surface?: "browser" | "rest" | "mcp" | "worker" | "operator";
   responseBudget?: number;
   request?: Request;
@@ -53,7 +47,7 @@ export interface OperationContext {
   beforePublish?: () => Promise<void>;
   admissionSource?: string;
   numericLexemes?: readonly NumberLexeme[];
-  approvalClient?: PoolClient;
+  client?: PoolClient;
 }
 export function readSignal(context: {
   request?: Request;
@@ -426,35 +420,6 @@ export class RootsetCore {
         "Idempotency-Key is required",
         400,
       );
-    if (!worker && operationId === "beginAccountAction") {
-      const bound = this.options.identity.validateAccountActionRequest(
-        actor,
-        input,
-        {
-          ...context,
-          surface: context.surface === "operator" ? "worker" : context.surface,
-        },
-      );
-      if (operationMap[bound.operationId])
-        await this.authorise(actor, bound.operationId, bound.input);
-      if (
-        bound.operationId === "mutateRows" &&
-        Array.isArray(bound.input.mutations)
-      ) {
-        const table = await this.options.storage.getTable(
-          actor,
-          str(bound.input.tableId),
-        );
-        bound.input.mutations.forEach((_, i) =>
-          assertValueLexemes(table.fields, lexemes, [
-            "input",
-            "mutations",
-            i,
-            "values",
-          ]),
-        );
-      }
-    }
     const repair = operationId === "mutateRows" && input.repair !== undefined;
     const queued =
       !worker &&
@@ -491,7 +456,9 @@ export class RootsetCore {
       );
       if (replay.found) return replay.result;
     }
-    const perform = async (approvedContext: OperationContext) => {
+    if (!worker && operationId === "deleteDatabase")
+      this.options.identity.assertDatabaseDeletion(actor);
+    const perform = async (effectiveContext: OperationContext) => {
       if (
         !worker &&
         (asynchronous.has(operationId) || repair) &&
@@ -501,19 +468,17 @@ export class RootsetCore {
       )
         return this.options.jobs.enqueueOperation(actor, operationId, input, {
           idempotencyKey:
-            approvedContext.idempotencyKey ??
+            effectiveContext.idempotencyKey ??
             (operationId === "countRows" ? `count:${newId()}` : undefined),
-          requestId: approvedContext.requestId,
-          source: approvedContext.surface,
-          approvalId: approvedContext.actionId,
-          client: approvedContext.approvalClient,
-          stepUpApproved: true,
+          requestId: effectiveContext.requestId,
+          source: effectiveContext.surface,
+          client: effectiveContext.client,
         });
       let output = await this.dispatch(
         operationId,
         actor,
         input,
-        approvedContext,
+        effectiveContext,
       );
       if (
         worker &&
@@ -547,41 +512,7 @@ export class RootsetCore {
         );
       return JSON.parse(JSON.stringify(output)) as unknown;
     };
-    const runApproved = async (effectiveContext: OperationContext) => {
-      if (
-        operation.stepUp !== "never" &&
-        !worker &&
-        (operationId !== "mutateRows" || repair)
-      ) {
-        const approvalContext = {
-          ...effectiveContext,
-          actionId:
-            effectiveContext.actionId ??
-            (typeof input.approvalId === "string"
-              ? input.approvalId
-              : undefined),
-          surface:
-            effectiveContext.surface === "operator"
-              ? ("worker" as const)
-              : effectiveContext.surface,
-        };
-        return this.options.identity.withOperationApproval(
-          actor,
-          operationId,
-          input,
-          approvalContext,
-          (client) =>
-            perform({
-              ...effectiveContext,
-              actionId: approvalContext.actionId,
-              approvalClient: client,
-            }),
-        );
-      }
-      return perform(effectiveContext);
-    };
     if (queued) {
-      const approvalId = resolveAdmissionApproval(input, context);
       const idempotencyKey =
         context.idempotencyKey ??
         (operationId === "countRows" ? `count:${newId()}` : undefined);
@@ -594,23 +525,20 @@ export class RootsetCore {
             idempotencyKey,
             requestId: context.requestId,
             source: context.surface ?? "rest",
-            approvalId,
-            stepUpApproved: true,
             client,
           },
           (client) =>
-            runApproved({
+            perform({
               ...context,
               idempotencyKey,
-              approvalClient: client,
-              actionId: approvalId,
+              client,
             }),
         );
-      return context.approvalClient
-        ? admit(context.approvalClient)
+      return context.client
+        ? admit(context.client)
         : withOrg(this.options.identityPool, actor.orgId, admit);
     }
-    return runApproved(context);
+    return perform(context);
   }
   private async schemaResult(actor: Actor, tableId: string) {
     const table = await this.options.storage.getTable(actor, tableId);
@@ -642,11 +570,7 @@ export class RootsetCore {
         requestId: ctx.requestId,
         source: ctx.surface,
         jobFence: ctx.jobFence,
-        approvalId:
-          ctx.actionId ??
-          (typeof input.approvalId === "string" ? input.approvalId : undefined),
-        stepUpApproved: true,
-        client: ctx.approvalClient,
+        client: ctx.client,
       });
     switch (id) {
       case "listDatabases":
@@ -960,13 +884,12 @@ export class RootsetCore {
           repair &&
           (ctx.surface !== "worker" ||
             !ctx.jobId ||
-            !ctx.actionId ||
             !ctx.jobFence ||
             !ctx.beforePublish)
         )
           throw new RootsetError(
             "ACCESS_DENIED",
-            "Operator repair can execute only through its approved durable job",
+            "Operator repair can execute only through its authorised durable job",
             403,
           );
         const repairBudget = repair
@@ -995,7 +918,6 @@ export class RootsetCore {
                   source: "operator" as const,
                   repair: {
                     reason: repair.reason,
-                    approvalId: ctx.actionId!,
                     jobId: ctx.jobId!,
                   },
                 },
