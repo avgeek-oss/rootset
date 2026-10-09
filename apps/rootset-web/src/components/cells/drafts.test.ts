@@ -185,7 +185,7 @@ describe("draft initialisation and bounded display", () => {
     const definition = field("date-time");
     const original = "2026-11-01T06:30:00.000Z";
     const initial = createCellDraft(definition, original, "America/New_York");
-    expect(initial.text).toBe("2026-11-01T01:30:00.000");
+    expect(initial.text).toBe("2026-11-01T01:30");
     expect(parseCellDraft(definition, initial, "America/New_York")).toBe(
       original,
     );
@@ -194,11 +194,11 @@ describe("draft initialisation and bounded display", () => {
   it("keeps UTC time labels and date-only display under every timezone", () => {
     expect(
       formatCellValue(field("time"), "12:00:00.000Z", "Asia/Kolkata"),
-    ).toBe("12:00:00.000 UTC");
+    ).toBe("12:00 UTC");
     expect(formatCellValue(field("date"), "2026-10-02", "Pacific/Apia")).toBe(
       "2026-10-02",
     );
-    expect(formatCellValue(field("boolean"), false)).toBe("False");
+    expect(formatCellValue(field("boolean"), false)).toBe("false");
     expect(formatCellValue(field("integer"), 0)).toBe("0");
     expect(formatCellValue(field("text"), null)).toBe("—");
   });
@@ -225,7 +225,7 @@ describe("draft initialisation and bounded display", () => {
         "en-US",
         preferences,
       ),
-    ).toBe("6:30:01 PM UTC");
+    ).toBe("6:30 PM UTC");
     expect(
       formatCellValue(
         field("date-time"),
@@ -234,7 +234,7 @@ describe("draft initialisation and bounded display", () => {
         "en-US",
         preferences,
       ),
-    ).toBe("6:30:01 PM, 02/10/2026");
+    ).toBe("6:30 PM, 02/10/2026");
     expect(
       formatCellValue(field("date-time"), "0001-01-01T00:00:00.000Z", {
         timeZone: "America/New_York",
@@ -242,14 +242,14 @@ describe("draft initialisation and bounded display", () => {
         dateFormat: "year-month-day",
         timeFormat: "24-hour-seconds",
       }),
-    ).toBe("19:03:58, 0001-12-31 BCE");
+    ).toBe("19:03, 0001-12-31 BCE");
     expect(
       formatCellValue(field("date-time"), "2026-10-02T13:00:01.250Z", {
         timeZone: "Asia/Kolkata",
         locale: "en-US",
         ...preferences,
       }),
-    ).toBe("6:30:01 PM, 02/10/2026");
+    ).toBe("6:30 PM, 02/10/2026");
   });
 
   it("renders every display format while editors preserve UTC values and fractions", () => {
@@ -263,7 +263,7 @@ describe("draft initialisation and bounded display", () => {
           timeFormat: time.id,
         };
         expect(formatCellValue(field("date-time"), instant, options)).toBe(
-          `${time.label}, ${date.label}`,
+          `${time.label.replace(/:45/, "")}, ${date.label}`,
         );
         expect(
           formatCellValue(field("date"), "2026-09-16", {
@@ -276,13 +276,13 @@ describe("draft initialisation and bounded display", () => {
             ...options,
             timeZone: "Asia/Kolkata",
           }),
-        ).toBe(`${time.label} UTC`);
+        ).toBe(`${time.label.replace(/:45/, "")} UTC`);
         const editor = createCellDraft(
           field("date-time"),
           instant,
           "Asia/Kolkata",
         );
-        expect(editor.text).toBe("2026-09-16T20:00:45.123");
+        expect(editor.text).toBe("2026-09-16T20:00");
         expect(parseCellDraft(field("date-time"), editor, "Asia/Kolkata")).toBe(
           instant,
         );
@@ -294,6 +294,53 @@ describe("draft initialisation and bounded display", () => {
           ),
         ).toBe(timeValue);
       }
+  });
+
+  it("preserves existing precision until a temporal value is edited", () => {
+    for (const [type, original, next, expected] of [
+      ["time", "12:34:56.789Z", "12:35", "12:35:00.000Z"],
+      [
+        "date-time",
+        "2026-10-09T12:34:56.789Z",
+        "2026-10-09T18:05",
+        "2026-10-09T12:35:00.000Z",
+      ],
+    ] as const) {
+      const definition = field(type);
+      const initial = createCellDraft(definition, original, "Asia/Kolkata");
+      expect(parseCellDraft(definition, initial, "Asia/Kolkata")).toBe(
+        original,
+      );
+      expect(
+        parseCellDraft(
+          definition,
+          {
+            ...initial,
+            text: next,
+            selectedInstant: undefined,
+          },
+          "Asia/Kolkata",
+        ),
+      ).toBe(expected);
+      expect(
+        parseCellDraft(
+          definition,
+          { ...initial, isNull: true },
+          "Asia/Kolkata",
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it("rejects seconds and milliseconds in temporal editor drafts", () => {
+    for (const value of ["12:34:56", "12:34:56.789"]) {
+      expect(() => parseCellDraft(field("time"), draft(value))).toThrow(
+        /hours and minutes/,
+      );
+      expect(() =>
+        parseCellDraft(field("date-time"), draft(`2026-10-09T${value}`)),
+      ).toThrow(/hours and minutes/);
+    }
   });
 
   it("bounds large JSON previews and does not traverse hidden branches", () => {

@@ -1202,7 +1202,15 @@ export function Spreadsheet({
           : undefined;
       },
       renderCell: ({ row }) => (
-        <span data-cell-loaded={Object.hasOwn(row.values, field.name)}>
+        <span
+          data-cell-loaded={Object.hasOwn(row.values, field.name)}
+          className={
+            field.type === "boolean" &&
+            typeof row.values[field.name] === "boolean"
+              ? `cell-boolean-${row.values[field.name]}`
+              : undefined
+          }
+        >
           {!Object.hasOwn(row.values, field.name)
             ? "Loading…"
             : formatCellValue(field, row.values[field.name] ?? null, {

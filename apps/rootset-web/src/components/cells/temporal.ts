@@ -219,13 +219,12 @@ export function formatUtcDateTime(
               day: "numeric",
               hour: "numeric",
               minute: "2-digit",
-              second: "2-digit",
               era: "short",
             }
           : {
               timeZone,
               dateStyle: "medium",
-              timeStyle: "medium",
+              timeStyle: "short",
             },
       ),
   ).format(Date.parse(canonical));

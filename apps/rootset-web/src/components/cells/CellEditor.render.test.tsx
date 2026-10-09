@@ -56,6 +56,31 @@ describe("cell editor save boundaries", () => {
     expect(html).toContain("Saving this value");
   });
 
+  it.each([
+    ["time", "12:34:56.789Z", "time", "12:34"],
+    [
+      "date-time",
+      "2026-10-09T12:34:56.789Z",
+      "datetime-local",
+      "2026-10-09T12:34",
+    ],
+  ] as const)(
+    "limits %s controls to minutes",
+    (type, value, inputType, displayed) => {
+      const html = renderToStaticMarkup(
+        createElement(CellEditor, {
+          field: { ...definition, type },
+          value,
+          onCommit: () => true,
+          onCancel() {},
+        }),
+      );
+      expect(html).toContain(`type="${inputType}"`);
+      expect(html).toContain('step="60"');
+      expect(html).toContain(`value="${displayed}"`);
+    },
+  );
+
   it("keeps a boundary UTC instant editable in the preferred timezone", () => {
     const html = renderToStaticMarkup(
       createElement(CellEditor, {
@@ -67,7 +92,7 @@ describe("cell editor save boundaries", () => {
       }),
     );
     expect(html).toMatch(
-      /<input\b[^>]*type="text"[^>]*value="0000-12-31T19:03:58.000"/,
+      /<input\b[^>]*type="text"[^>]*value="0000-12-31T19:03"/,
     );
     expect(html).toContain("local year 0000 represents 0001 BCE");
   });

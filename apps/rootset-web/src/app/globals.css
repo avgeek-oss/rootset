@@ -29,6 +29,7 @@
   --rs-selected: color-mix(in oklab, var(--accent) 9%, var(--surface));
   --rs-danger: var(--danger);
   --rs-focus: var(--focus);
+  --rs-boolean-false: oklch(0.45 0.11 55);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -44,6 +45,7 @@
   --default: oklch(0.235 0.004 155);
   --border: oklch(0.285 0.004 155);
   --separator: oklch(0.235 0.004 155);
+  --rs-boolean-false: oklch(0.78 0.11 55);
 }
 body {
   font-size: 14px;
@@ -288,12 +290,33 @@ h1 {
 .rootset-grid {
   height: 100%;
   --rdg-color-scheme: light;
+  --rdg-selection-width: 1px;
+  --rdg-selection-color: var(--accent);
+  --rdg-row-selected-background-color: color-mix(
+    in oklab,
+    var(--accent) 6%,
+    var(--rdg-background-color)
+  );
+  border-block-start: 0;
+  border-inline-start: 0;
 }
 :root[data-theme="dark"] .rootset-grid {
   --rdg-color-scheme: dark;
 }
 .rootset-grid .range-selected {
   background: var(--rdg-row-selected-background-color);
+}
+/* RDG exposes frozen shadows as direct children with sticky inline offsets. */
+.rootset-grid > div[style*="inset-inline-start"],
+.rootset-grid > div[style*="inset-inline-end"] {
+  width: 6px;
+  filter: opacity(0.35);
+}
+.rootset-grid .cell-boolean-true {
+  color: var(--accent);
+}
+.rootset-grid .cell-boolean-false {
+  color: var(--rs-boolean-false);
 }
 .rootset-grid .rdg-editor-container {
   overflow: visible;
@@ -508,14 +531,14 @@ h1 {
   display: block;
   width: 100%;
   height: 32px;
-  border: 2px solid var(--rdg-selection-color);
+  border: var(--rdg-selection-width) solid var(--rdg-selection-color);
   border-radius: 0;
   padding: 0 6px;
   background: var(--rdg-background-color);
   color: var(--rdg-color);
   font-family: inherit;
   font-size: var(--rdg-font-size);
-  line-height: 28px;
+  line-height: 30px;
   resize: none;
 }
 .inline-cell-form > .cell-input:focus-visible {

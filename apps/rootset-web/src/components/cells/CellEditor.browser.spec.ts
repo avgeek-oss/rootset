@@ -723,12 +723,12 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   await showTable(page);
   const dialog = await openEditor(page, "DATETIME");
   const input = dialog.getByLabel("DATETIME", { exact: true });
-  await expect(input).toHaveValue("2026-10-02T18:00:00.123");
-  await input.fill("2026-10-03T01:30:00.25");
+  await expect(input).toHaveValue("2026-10-02T18:00");
+  await input.fill("2026-10-03T01:30");
   await submitEditor(dialog);
   await expect(dialog).not.toBeVisible();
   let current = await readRow(page);
-  expect(current.values.DATETIME).toBe("2026-10-02T20:00:00.250Z");
+  expect(current.values.DATETIME).toBe("2026-10-02T20:00:00.000Z");
   expect(current.values.DATE).toBe(cellBrowserValues.DATE);
   expect(current.values.TIME).toBe(cellBrowserValues.TIME);
   await expect(await cell(page, "DATE")).toHaveText("02/10/2026");
@@ -920,10 +920,8 @@ test("add row presents all typed fields in one form and keeps validation drafts"
     .getByRole("combobox", { name: "BOOLEAN", exact: true })
     .selectOption("false");
   await form.getByLabel("DATE", { exact: true }).fill("2026-10-09");
-  await form.getByLabel("TIME", { exact: true }).fill("12:34:56.789");
-  await form
-    .getByLabel("DATETIME", { exact: true })
-    .fill("2026-10-09T12:34:56.789");
+  await form.getByLabel("TIME", { exact: true }).fill("12:34");
+  await form.getByLabel("DATETIME", { exact: true }).fill("2026-10-09T12:34");
   await form.getByLabel("JSON", { exact: true }).fill('{"sample":true}');
   const created = page.waitForResponse(
     (response) =>
@@ -940,8 +938,8 @@ test("add row presents all typed fields in one form and keeps validation drafts"
     FLOAT: 2.75,
     BOOLEAN: false,
     DATE: "2026-10-09",
-    TIME: "12:34:56.789Z",
-    DATETIME: "2026-10-09T12:34:56.789Z",
+    TIME: "12:34:00.000Z",
+    DATETIME: "2026-10-09T12:34:00.000Z",
     JSON: { sample: true },
   });
   await expect(form).not.toBeVisible();

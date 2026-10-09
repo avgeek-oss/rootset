@@ -22,6 +22,7 @@ export interface CellDraft {
   text: string;
   isNull: boolean;
   selectedInstant?: string;
+  originalTemporalValue?: string;
 }
 
 const numberFormatters = new Map<string, Intl.NumberFormat>();
@@ -63,12 +64,17 @@ export function createCellDraft(
       return { text: canonicalJson(value), isNull: false };
     case "date-time":
       return {
-        text: utcDateTimeToLocal(String(value), timeZone),
+        text: utcDateTimeToLocal(String(value), timeZone).slice(0, -7),
         isNull: false,
         selectedInstant: String(value),
+        originalTemporalValue: String(value),
       };
     case "time":
-      return { text: utcTimeToInput(String(value)), isNull: false };
+      return {
+        text: utcTimeToInput(String(value)).slice(0, 5),
+        isNull: false,
+        originalTemporalValue: String(value),
+      };
     default:
       return { text: String(value), isNull: false };
   }
@@ -80,6 +86,21 @@ export function parseCellDraft(
   timeZone = "UTC",
 ): JsonValue {
   if (draft.isNull) return validateCell(field, null);
+  if (
+    draft.originalTemporalValue &&
+    (field.type === "time" || field.type === "date-time")
+  ) {
+    const original = createCellDraft(
+      field,
+      draft.originalTemporalValue,
+      timeZone,
+    );
+    if (
+      draft.text === original.text &&
+      draft.selectedInstant === original.selectedInstant
+    )
+      return validateCell(field, draft.originalTemporalValue);
+  }
   let value: JsonValue;
   switch (field.type) {
     case "text":
@@ -108,9 +129,13 @@ export function parseCellDraft(
       value = draft.text;
       break;
     case "time":
+      if (!/^\d{2}:\d{2}$/.test(draft.text))
+        throw new Error("Enter a time in hours and minutes.");
       value = timeInputToUtc(draft.text);
       break;
     case "date-time":
+      if (!/^\d{4,5}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draft.text))
+        throw new Error("Enter a local date and time in hours and minutes.");
       value = localDateTimeToUtc(draft.text, timeZone, draft.selectedInstant);
       break;
     case "json":
@@ -228,10 +253,10 @@ export function formatCellValue(
       const [date, clock] = utcDateTimeToLocal(String(value), timeZone).split(
         "T",
       );
-      return `${formatDisplayTime(clock!, preferences.timeFormat)}, ${formatDisplayDate(date!, preferences.dateFormat)}`;
+      return `${formatDisplayTime(clock!, preferences.timeFormat.startsWith("12") ? "12-hour" : "24-hour")}, ${formatDisplayDate(date!, preferences.dateFormat)}`;
     }
     case "time":
-      return `${preferences ? formatDisplayTime(utcTimeToInput(String(value)), preferences.timeFormat) : utcTimeToInput(String(value))} UTC`;
+      return `${preferences ? formatDisplayTime(utcTimeToInput(String(value)), preferences.timeFormat.startsWith("12") ? "12-hour" : "24-hour") : utcTimeToInput(String(value)).slice(0, 5)} UTC`;
     case "date":
       return preferences
         ? formatDisplayDate(String(value), preferences.dateFormat)
@@ -241,7 +266,7 @@ export function formatCellValue(
     case "float":
       return numberFormatter(locale, false).format(Number(value));
     case "boolean":
-      return value ? "True" : "False";
+      return value ? "true" : "false";
     case "json":
       return jsonCellPreview(value);
     case "text":

@@ -21,3 +21,7 @@ Current verification uses `src/components/cells/CellEditor.browser.spec.ts` agai
 Older reports and standalone scripts under `tests/` describe the former custom DOM renderer, earlier authentication/navigation and prelaunch fixtures. Their recorded timings and accessibility results are historical; they do not establish acceptance of React Data Grid. Full-scale browser and native-assistive-technology sign-off remains pending.
 
 Account settings use the published Avgeek design-system patterns. Browser requests go directly to the configured public API origin; the Next service serves the UI shell independently. Credentials and disposable local fixture data are never committed to browser evidence.
+
+Rootset overrides the grid selection tokens with its green accent, a 1px outline and a 6% accent fill. The top and left outside borders are omitted where the shell already separates the table. Frozen shadow overlays keep RDG’s scroll visibility behavior, with a shorter 6px fade at 35% of the default strength. Boolean cells and their inline select display lowercase green `true` and orange `false`.
+
+Time and datetime cells display and accept hours and minutes. Datetime edits still convert the chosen local time to UTC and require an explicit offset for repeated DST times. API/storage formats retain their canonical UTC representation. Opening and leaving an existing temporal cell preserves its original stored precision; changing its value creates a minute-precision value.

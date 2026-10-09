@@ -54,7 +54,10 @@ export function CellInput({
     spellCheck: false,
     "data-1p-ignore": true,
     "data-lpignore": "true",
-    className: "cell-input",
+    className:
+      field.type === "boolean" && !draft.isNull
+        ? `cell-input cell-boolean-${draft.text}`
+        : "cell-input",
   };
   return (
     <>
@@ -77,8 +80,8 @@ export function CellInput({
           }
         >
           {!field.required && <option value="null">Not set (null)</option>}
-          <option value="false">False</option>
-          <option value="true">True</option>
+          <option value="false">false</option>
+          <option value="true">true</option>
         </select>
       ) : field.type === "text" || field.type === "json" ? (
         <textarea
@@ -109,7 +112,7 @@ export function CellInput({
           }
           step={
             field.type === "time" || field.type === "date-time"
-              ? "0.001"
+              ? "60"
               : undefined
           }
           value={draft.isNull ? "" : draft.text}
