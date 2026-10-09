@@ -45,7 +45,8 @@ or a GitHub Packages token on the host.
 
 Container images become available after the first reviewed release. The
 [release procedure](development/documentation.md#publish-release-images) builds
-Linux AMD64 and ARM64 images and attaches the installation files to a draft release.
+Linux AMD64 and ARM64 images, tests their installation and restart on both native
+architectures, then publishes the release with its image manifest and installation files.
 
 ## Run from source
 

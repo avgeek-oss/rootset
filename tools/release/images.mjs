@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 export async function inspectPublicImage(
   repository,
@@ -65,6 +65,23 @@ export async function inspectPublicImage(
     );
   }
   return `ghcr.io/${prefix}@${index.digest}`;
+}
+export async function readReleaseImages(path, version, commit) {
+  assert.match(version, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/);
+  assert.match(commit, /^[0-9a-f]{40}$/);
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  assert.equal(manifest.version, version);
+  assert.equal(manifest.commit, commit);
+  assert.deepEqual(manifest.platforms, ["linux/amd64", "linux/arm64"]);
+  assert.deepEqual(Object.keys(manifest.images).sort(), ["api", "web"]);
+  for (const service of ["api", "web"])
+    assert.match(
+      manifest.images[service],
+      new RegExp(
+        `^ghcr\\.io/avgeek-oss/rootset-${service}@sha256:[0-9a-f]{64}$`,
+      ),
+    );
+  return manifest;
 }
 if (
   process.argv[1] &&

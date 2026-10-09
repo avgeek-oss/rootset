@@ -44,10 +44,15 @@ committing them. Never capture real customer records or visible API key secrets.
 4. On first publication, make both GHCR packages public. Anonymous image pulls
    must succeed before the workflow can attach the installation files; rerun
    the failed manifest job after correcting visibility.
-5. Review the draft release and `rootset-images.json`. The manifest verifies
-   anonymous access, Linux AMD64/ARM64 coverage, image content digests and matching
-   source/version labels. It attaches `compose.images.yaml` and `rootset.env.example`.
-6. Publish the reviewed draft separately. Publishing the documentation through
-   Mintlify and deploying an application installation are separate actions.
+5. Both native Linux runners pull the immutable API and UI images anonymously,
+   verify their architecture and source/version labels, then run the existing
+   disposable installation and preserved-restart gate. They do not rebuild the
+   application. Reports are retained as workflow artifacts.
+6. Once both installation gates pass, the workflow attaches `rootset-images.json`,
+   `compose.images.yaml` and `rootset.env.example` to the release and publishes it.
+   A failed gate prevents publication.
 
-The workflow does not deploy Rootset or publish its draft release automatically.
+The workflow starts only when manually dispatched for a reviewed tag. It follows
+the Towbar and Mill prepare, build, manifest, installation-check and publish
+sequence. It publishes the validated release automatically but does not deploy
+Rootset. See [Release planning](release.md) for versioning and release gates.

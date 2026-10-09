@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { requireVerifiedChecks } from "./check.mjs";
-import { inspectPublicImage } from "./images.mjs";
+import { inspectPublicImage, readReleaseImages } from "./images.mjs";
+import { verifyPulledImage } from "./verify-installation.mjs";
 
 const version = "0.1.0";
 const commit = "a".repeat(40);
@@ -130,4 +134,75 @@ test("wrong source, version and content digests block publication", async () => 
       return response;
     }),
   );
+});
+
+test("installation accepts only the reviewed immutable API and web manifest", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "rootset-release-"));
+  const path = join(directory, "images.json");
+  const manifest = () => ({
+    version,
+    commit,
+    platforms: ["linux/amd64", "linux/arm64"],
+    images: {
+      api: `ghcr.io/avgeek-oss/rootset-api@sha256:${"1".repeat(64)}`,
+      web: `ghcr.io/avgeek-oss/rootset-web@sha256:${"2".repeat(64)}`,
+    },
+  });
+  try {
+    await writeFile(path, JSON.stringify(manifest()));
+    assert.deepEqual(
+      await readReleaseImages(path, version, commit),
+      manifest(),
+    );
+    for (const change of [
+      (input) => (input.version = "0.2.0"),
+      (input) => (input.commit = "b".repeat(40)),
+      (input) => input.platforms.pop(),
+      (input) => delete input.images.web,
+      (input) => (input.images.api = "ghcr.io/avgeek-oss/rootset-api:latest"),
+      (input) => (input.images.web = input.images.api),
+    ]) {
+      const input = manifest();
+      change(input);
+      await writeFile(path, JSON.stringify(input));
+      await assert.rejects(readReleaseImages(path, version, commit));
+    }
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("installation rejects a pulled image from another platform or source", () => {
+  const image = () => ({
+    Os: "linux",
+    Architecture: "arm64",
+    Config: {
+      Labels: {
+        "org.opencontainers.image.source":
+          "https://github.com/avgeek-oss/rootset",
+        "org.opencontainers.image.revision": commit,
+        "org.opencontainers.image.version": version,
+      },
+    },
+  });
+  assert.doesNotThrow(() =>
+    verifyPulledImage(image(), "arm64", version, commit),
+  );
+  for (const change of [
+    (input) => (input.Architecture = "amd64"),
+    (input) => (input.Os = "windows"),
+    (input) =>
+      (input.Config.Labels["org.opencontainers.image.version"] = "0.2.0"),
+    (input) =>
+      (input.Config.Labels["org.opencontainers.image.revision"] = "b".repeat(
+        40,
+      )),
+    (input) =>
+      (input.Config.Labels["org.opencontainers.image.source"] =
+        "https://github.com/example/rootset"),
+  ]) {
+    const input = image();
+    change(input);
+    assert.throws(() => verifyPulledImage(input, "arm64", version, commit));
+  }
 });
