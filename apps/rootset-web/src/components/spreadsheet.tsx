@@ -18,9 +18,19 @@ import {
   type CellKeyDownArgs,
   type CellKeyboardEvent,
 } from "react-data-grid";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
+import { Pagination } from "@avgeek-oss/design-system/navigation/pagination";
+import {
+  ResourceName,
+  ResourceTable,
+} from "@avgeek-oss/design-system/patterns/resource-table";
 import { Dropdown, Tooltip } from "@heroui/react";
 import { Filter, Columns3, Eraser, History, Trash2 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
@@ -1760,7 +1770,8 @@ function CellHistory({
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const cursor = cursors.at(-1);
   const history = useQuery({
-    queryKey: ["cell-history", row.id, field.id, cursor],
+    queryKey: ["cell-history", tablePath, row.id, field.id, cursor, 10],
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
       client.request<{
         data: {
@@ -1774,7 +1785,7 @@ function CellHistory({
         nextCursor: string | null;
         hasMore: boolean;
       }>(
-        `${tablePath}/rows/${row.id}/cells/${field.id}/history?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        `${tablePath}/rows/${row.id}/cells/${field.id}/history?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         { signal },
       ),
   });
@@ -1786,62 +1797,91 @@ function CellHistory({
         </p>
       ) : (
         <>
-          <p>
-            The latest 200 saved changes to this cell are kept automatically.
-            Each entry shows the previous value, new value, and when it changed.
-          </p>
-          {history.data.data.length ? (
-            <ol className="history-list">
-              {history.data.data.map((change) => (
-                <li key={change.id}>
-                  <header>
-                    <time dateTime={change.timestamp}>
-                      {new Intl.DateTimeFormat(preferences.locale, {
+          <div
+            aria-busy={history.isFetching}
+            className="max-h-[55dvh] overflow-y-auto"
+          >
+            <ResourceTable
+              ariaLabel={`${field.name} cell history`}
+              items={history.data.data}
+              getRowKey={(change) => change.id}
+              mobileLayout="stacked"
+              emptyTitle="No retained changes for this cell"
+              emptyDescription=""
+              columns={[
+                {
+                  key: "timestamp",
+                  header: "Changed at",
+                  className: "whitespace-nowrap tabular-nums",
+                  cell: (change) => (
+                    <ResourceName
+                      name={
+                        <time dateTime={change.timestamp}>
+                          {new Intl.DateTimeFormat(preferences.locale, {
+                            timeZone: preferences.timezone,
+                            dateStyle: "medium",
+                          }).format(new Date(change.timestamp))}
+                        </time>
+                      }
+                      description={new Intl.DateTimeFormat(preferences.locale, {
                         timeZone: preferences.timezone,
-                        dateStyle: "medium",
                         timeStyle: "medium",
                       }).format(new Date(change.timestamp))}
-                    </time>
-                    <span>
-                      {change.actor.kind} · {change.operation}
-                    </span>
-                  </header>
-                  <div className="history-values">
-                    <pre>{JSON.stringify(change.before, null, 2)}</pre>
-                    <span aria-label="changed to">→</span>
-                    <pre>{JSON.stringify(change.after, null, 2)}</pre>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p>No retained changes for this cell.</p>
+                    />
+                  ),
+                },
+                {
+                  key: "before",
+                  header: "Previous value",
+                  cell: (change) => <HistoryValue value={change.before} />,
+                },
+                {
+                  key: "after",
+                  header: "New value",
+                  cell: (change) => <HistoryValue value={change.after} />,
+                },
+              ]}
+            />
+          </div>
+          {history.data.data.length > 0 && (
+            <fieldset
+              disabled={history.isFetching}
+              className="mt-4 min-w-0 border-0 p-0"
+            >
+              <Pagination
+                className="[&_.pagination__content]:flex-wrap"
+                page={cursors.length}
+                totalPages={history.data.hasMore ? null : cursors.length}
+                hasNextPage={Boolean(history.data.nextCursor)}
+                onPageChange={(page) => {
+                  if (history.isFetching || page === cursors.length) return;
+                  if (page < cursors.length) {
+                    setCursors((previous) => previous.slice(0, page));
+                  } else if (history.data.nextCursor) {
+                    setCursors((previous) => [
+                      ...previous,
+                      history.data.nextCursor,
+                    ]);
+                  }
+                }}
+              />
+            </fieldset>
           )}
-          <footer>
-            <Button
-              variant="secondary"
-              isDisabled={cursors.length === 1 || history.isFetching}
-              onPress={() => setCursors((previous) => previous.slice(0, -1))}
-            >
-              Previous changes
-            </Button>
-            <Button
-              variant="secondary"
-              isDisabled={
-                !history.data.hasMore ||
-                !history.data.nextCursor ||
-                history.isFetching
-              }
-              onPress={() =>
-                setCursors((previous) => [...previous, history.data.nextCursor])
-              }
-            >
-              More changes
-            </Button>
-          </footer>
         </>
       )}
     </Dialog>
+  );
+}
+
+function HistoryValue({ value }: { value: JsonValue }) {
+  const text = value === null ? "Null" : JSON.stringify(value);
+  return (
+    <TooltipText
+      tooltip={text}
+      className="block max-w-56 truncate font-mono tabular-nums"
+    >
+      {text}
+    </TooltipText>
   );
 }
 

@@ -451,37 +451,6 @@ h1 {
   padding: 7px 10px;
   min-width: 90px;
 }
-.history-list {
-  list-style: none;
-  margin: 15px 0;
-  padding: 0;
-}
-.history-list li {
-  border-top: 1px solid var(--rs-border);
-  padding: 14px 0;
-}
-.history-list header {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--rs-muted);
-  font-size: 12px;
-}
-.history-values {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 25px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-}
-.history-values pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 260px;
-  overflow: auto;
-  padding: 10px;
-  background: var(--rs-subtle);
-  font-size: 12px;
-}
 .action-review {
   display: grid;
   gap: 10px;
