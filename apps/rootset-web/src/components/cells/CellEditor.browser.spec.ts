@@ -183,6 +183,14 @@ async function openEditor(page: Page, key: string): Promise<Locator> {
     exact: true,
   });
   await expect(dialog).toBeVisible();
+  const gridFont = await page
+    .getByRole("grid")
+    .evaluate((element) => getComputedStyle(element).fontSize);
+  await expect(dialog.locator(".cell-input").first()).toHaveCSS(
+    "font-size",
+    gridFont,
+  );
+  await expect(dialog.getByRole("button")).toHaveCount(0);
   await expect
     .poll(() =>
       dialog.evaluate((element) => element.scrollWidth - element.clientWidth),
@@ -207,11 +215,12 @@ async function fillAndSave(
     );
   if (keyboard)
     await input.press(key === "NAME" ? "ControlOrMeta+Enter" : "Enter");
-  else
-    await dialog
-      .getByRole("button", { name: /^(Save value|Retry save)$/ })
-      .click();
+  else await submitEditor(dialog);
   await expect(dialog).not.toBeVisible();
+}
+
+async function submitEditor(editor: Locator) {
+  await editor.locator(".cell-input").first().press("ControlOrMeta+Enter");
 }
 
 async function saveResponse(page: Page, action: () => Promise<void>) {
@@ -397,7 +406,7 @@ test("eight inline editors commit actual typed canonical values", async ({
   await booleanDialog
     .getByRole("combobox", { name: "BOOLEAN", exact: true })
     .selectOption("true");
-  await booleanDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(booleanDialog);
   await expect(booleanDialog).not.toBeVisible();
   await fillAndSave(page, "DATE", "2024-02-29");
   await fillAndSave(page, "TIME", "08:09:10.125");
@@ -440,22 +449,25 @@ test("required fields and bounds keep invalid drafts without committing", async 
   ).toHaveCount(0);
   const integerInput = integerDialog.getByLabel("INTEGER", { exact: true });
   await integerInput.fill("");
-  await integerDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(integerDialog);
   await expect(integerDialog.getByRole("alert")).toContainText("whole number");
   await expect(integerInput).toHaveValue("");
+  await (await cell(page, "NAME")).click();
+  await expect(integerDialog).toBeVisible();
+  expect((await readRow(page)).version).toBe(before.version);
   await integerInput.fill("1000001");
-  await integerDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(integerDialog);
   await expect(integerDialog.getByRole("alert")).toContainText("maximum");
   await expect(integerInput).toHaveValue("1000001");
   await integerInput.press("Escape");
   const textDialog = await openEditor(page, "NAME");
   await textDialog.getByLabel("NAME", { exact: true }).fill("😀".repeat(25));
-  await textDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(textDialog);
   await expect(textDialog.getByRole("alert")).toContainText("character limit");
   await expect(textDialog.getByLabel("NAME", { exact: true })).toHaveValue(
     "😀".repeat(25),
   );
-  await textDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await textDialog.getByLabel("NAME", { exact: true }).press("Escape");
   expect((await readRow(page)).version).toBe(before.version);
   await expect(
     api(page).operation("updateRow", {
@@ -484,23 +496,19 @@ test("server uniqueness rejection retains the typed draft and leaves history unc
   const dialog = await openEditor(page, "NAME");
   const input = dialog.getByLabel("NAME", { exact: true });
   await input.fill(String(duplicateRow.values.NAME));
-  const response = await saveResponse(page, () =>
-    dialog.getByRole("button", { name: "Save value" }).click(),
-  );
+  const response = await saveResponse(page, () => submitEditor(dialog));
   expect(response.status()).toBe(409);
   expect((await response.json()).error.code).toBe("UNIQUE_CONFLICT");
   await expect(input).toHaveValue("Taken");
   await expect(dialog.getByRole("alert")).toContainText(
     /unique|duplicate|already exists/i,
   );
-  await expect(
-    dialog.getByRole("button", { name: "Retry save" }),
-  ).toBeEnabled();
+  await expect(input).toBeEnabled();
   expect((await readRow(page)).version).toBe(before.version);
   expect((await history()).data).toEqual(priorHistory.data);
   await captureEvidence(page, "server-rejection-preserved-draft");
   await input.fill("Recovered");
-  await dialog.getByRole("button", { name: "Retry save" }).click();
+  await submitEditor(dialog);
   await expect(dialog).not.toBeVisible();
   expect((await readRow(page)).values.NAME).toBe("Recovered");
 });
@@ -520,16 +528,16 @@ test("real concurrent row changes require explicit conflict review before retry"
     expectedSchemaVersion: schema.table.schemaVersion,
     values: { NAME: "Other editor" },
   });
-  const response = await saveResponse(page, () =>
-    dialog.getByRole("button", { name: "Save value" }).click(),
-  );
+  const response = await saveResponse(page, () => submitEditor(dialog));
   expect(response.status()).toBe(409);
   expect((await response.json()).error.code).toBe("ROW_VERSION_CONFLICT");
   await expect(input).toHaveValue("My draft");
   await expect(
     dialog.getByText(/Current committed value: Other editor/),
   ).toBeVisible();
-  await expect(dialog.locator("button[type=submit]")).toBeDisabled();
+  const conflictedVersion = (await readRow(page)).version;
+  await input.press("Enter");
+  expect((await readRow(page)).version).toBe(conflictedVersion);
   await captureEvidence(page, "row-conflict-preserved-draft");
   await dialog
     .getByRole("button", {
@@ -537,9 +545,31 @@ test("real concurrent row changes require explicit conflict review before retry"
     })
     .click();
   await expect(input).toHaveValue("My draft");
-  await dialog.locator("button[type=submit]").click();
+  await submitEditor(dialog);
   await expect(dialog).not.toBeVisible();
   expect((await readRow(page)).values.NAME).toBe("My draft");
+
+  const beforeMatchingConflict = await readRow(page);
+  const matchingEditor = await openEditor(page, "NAME");
+  await matchingEditor
+    .getByLabel("NAME", { exact: true })
+    .fill("Already current");
+  await api(page).operation("updateRow", {
+    ...target(),
+    rowId: beforeMatchingConflict.id,
+    expectedVersion: beforeMatchingConflict.version,
+    expectedSchemaVersion: schema.table.schemaVersion,
+    values: { NAME: "Already current" },
+  });
+  await submitEditor(matchingEditor);
+  await matchingEditor
+    .getByRole("button", {
+      name: "Keep my draft and retry against the current version",
+    })
+    .click();
+  await submitEditor(matchingEditor);
+  await expect(matchingEditor).not.toBeVisible();
+  await expect(await cell(page, "NAME")).toHaveText("Already current");
 
   const current = await readRow(page);
   await (await cell(page, "FLOAT")).click({ button: "right" });
@@ -567,9 +597,7 @@ test("real concurrent row changes require explicit conflict review before retry"
       name: "Keep my draft and retry against the current version",
     })
     .click();
-  await nullEditor
-    .getByRole("button", { name: /^(Save value|Retry save)$/ })
-    .click();
+  await submitEditor(nullEditor);
   await expect(nullEditor).not.toBeVisible();
   expect((await readRow(page)).values.FLOAT).toBeNull();
 });
@@ -624,11 +652,10 @@ test("pending real database work disables repeated save and cancel", async ({
     const dialog = await openEditor(page, "NAME");
     const input = dialog.getByLabel("NAME", { exact: true });
     await input.fill("After wait");
-    await dialog.getByRole("button", { name: "Save value" }).click();
-    await expect(dialog.locator("button[type=submit]")).toBeDisabled();
-    await expect(
-      dialog.getByRole("button", { name: "Cancel", exact: true }),
-    ).toBeDisabled();
+    await submitEditor(dialog);
+    await expect(input).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("status")).toHaveText("Saving this value…");
     await expect
       .poll(
@@ -678,11 +705,7 @@ test("keyboard cancel returns grid focus and Tab/Enter navigate and commit", asy
   const integerInput = integerDialog.getByLabel("INTEGER", { exact: true });
   await integerInput.fill("29");
   await integerInput.press("Tab");
-  await expect(
-    integerDialog.getByRole("button", { name: "Cancel", exact: true }),
-  ).toBeFocused();
-  await integerInput.focus();
-  await integerInput.press("Enter");
+  await expect(await cell(page, "FLOAT")).toBeFocused();
   await expect(integerDialog).not.toBeVisible();
   expect((await readRow(page)).values.INTEGER).toBe(29);
 });
@@ -702,7 +725,7 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   const input = dialog.getByLabel("DATETIME", { exact: true });
   await expect(input).toHaveValue("2026-10-02T18:00:00.123");
   await input.fill("2026-10-03T01:30:00.25");
-  await dialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dialog);
   await expect(dialog).not.toBeVisible();
   let current = await readRow(page);
   expect(current.values.DATETIME).toBe("2026-10-02T20:00:00.250Z");
@@ -718,17 +741,17 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   const dstDialog = await openEditor(page, "DATETIME");
   const dstInput = dstDialog.getByLabel("DATETIME", { exact: true });
   await dstInput.fill("2026-03-08T02:30");
-  await dstDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dstDialog);
   await expect(dstDialog.getByRole("alert")).toContainText("does not exist");
   await expect(dstInput).toHaveValue("2026-03-08T02:30");
   await dstInput.fill("2026-11-01T01:30");
-  await dstDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dstDialog);
   await expect(dstDialog.getByRole("alert")).toContainText("occurs twice");
   await dstDialog
     .getByRole("combobox", { name: "This local time occurs twice" })
     .selectOption({ label: "UTC-05:00 · 2026-11-01T06:30:00.000Z" });
   await captureEvidence(page, "explicit-dst-choice");
-  await dstDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dstDialog);
   await expect(dstDialog).not.toBeVisible();
   current = await readRow(page);
   expect(current.values.DATETIME).toBe("2026-11-01T06:30:00.000Z");
@@ -745,15 +768,15 @@ test("JSON validates strictly, invalid drafts stay visible, and previews stay bo
   const input = dialog.getByRole("textbox", { name: "JSON", exact: true });
   await expect(input).toBeVisible();
   await input.fill('{"key":1,"key":2}');
-  await dialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dialog);
   await expect(dialog.getByRole("alert")).toContainText(/duplicate/i);
   await expect(input).toHaveValue('{"key":1,"key":2}');
   await captureEvidence(page, "json-validation-preserved-draft");
   await input.fill("9007199254740993");
-  await dialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dialog);
   await expect(dialog.getByRole("alert")).toContainText(/safe integer/i);
   await input.fill('{"list":[1,null,false]}');
-  await dialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(dialog);
   await expect(dialog).not.toBeVisible();
   expect((await readRow(page)).values.JSON).toEqual({ list: [1, null, false] });
 });
@@ -774,14 +797,14 @@ test("nullable boolean false and top-level JSON null remain distinct", async ({
   await populatedDialog
     .getByRole("combobox", { name: "BOOLEAN", exact: true })
     .selectOption("false");
-  await populatedDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(populatedDialog);
   await expect(populatedDialog).not.toBeVisible();
   expect((await readRow(page)).values.BOOLEAN).toBe(false);
   const jsonDialog = await openEditor(page, "JSON");
   await jsonDialog
     .getByRole("textbox", { name: "JSON", exact: true })
     .fill("null");
-  await jsonDialog.getByRole("button", { name: "Save value" }).click();
+  await submitEditor(jsonDialog);
   await expect(jsonDialog).not.toBeVisible();
   expect((await readRow(page)).values.JSON).toBeNull();
 });
@@ -815,7 +838,13 @@ test("compact rows select on click, edit on double-click, and expose header acti
     page.getByRole("heading", { name: tableName, exact: true }),
   ).toHaveCount(0);
   await expect(header).toHaveCSS("font-weight", "500");
-  const beforeDiscard = await readRow(page);
+  const beforeLeave = await readRow(page);
+  await nameCell.dblclick();
+  await (await cell(page, "INTEGER")).click();
+  await expect(
+    page.getByRole("group", { name: "Edit NAME", exact: true }),
+  ).toHaveCount(0);
+  expect((await readRow(page)).version).toBe(beforeLeave.version);
   await nameCell.dblclick();
   await expect(
     page.getByRole("dialog", { name: "Edit NAME", exact: true }),
@@ -825,7 +854,12 @@ test("compact rows select on click, edit on double-click, and expose header acti
   await expect(
     page.getByRole("dialog", { name: "Keep your draft?", exact: true }),
   ).toHaveCount(0);
-  expect((await readRow(page)).version).toBe(beforeDiscard.version);
+  await expect
+    .poll(async () => (await readRow(page)).values.NAME)
+    .toBe("Unsaved draft");
+  expect((await readRow(page)).version).toBe(
+    (BigInt(beforeLeave.version) + 1n).toString(),
+  );
   await expect(
     page.getByRole("group", { name: "Edit NAME", exact: true }),
   ).toHaveCount(0);
@@ -837,7 +871,10 @@ test("compact rows select on click, edit on double-click, and expose header acti
   await expect(
     page.getByRole("dialog", { name: "Keep your draft?", exact: true }),
   ).toHaveCount(0);
-  expect((await readRow(page)).version).toBe(beforeDiscard.version);
+  expect((await readRow(page)).values.NAME).toBe("Another unsaved draft");
+  expect((await readRow(page)).version).toBe(
+    (BigInt(beforeLeave.version) + 2n).toString(),
+  );
   await addRow.getByRole("button", { name: "Cancel", exact: true }).click();
   await nameCell.click({ button: "right" });
   await expect(

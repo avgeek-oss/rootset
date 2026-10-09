@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { FieldDefinition, JsonValue } from "@rootset/contracts";
 import {
   createCellDraft,
@@ -13,8 +13,9 @@ import { CellInput } from "./CellInput";
 export interface CellEditorProps {
   field: FieldDefinition;
   value: JsonValue;
-  onCommit: (value: JsonValue) => void | Promise<void>;
+  onCommit: (value: JsonValue, move?: -1 | 1) => boolean | Promise<boolean>;
   onCancel: () => void;
+  submitRef?: Ref<() => Promise<boolean>>;
   timeZone?: string;
   locale?: string;
   pending?: boolean;
@@ -29,6 +30,7 @@ export function CellEditor({
   value,
   onCommit,
   onCancel,
+  submitRef,
   timeZone = "UTC",
   locale = "en-GB",
   pending = false,
@@ -47,7 +49,8 @@ export function CellEditor({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const submitted = useRef(false);
+  const submitted = useRef<Promise<boolean> | null>(null);
+  const cancelled = useRef(false);
   const id = useId();
   const feedbackId = `${id}-feedback`;
   const busy = pending || submitting;
@@ -76,32 +79,37 @@ export function CellEditor({
     return result;
   }
 
-  async function submit(event?: FormEvent) {
-    event?.preventDefault();
+  function submit(move?: -1 | 1): Promise<boolean> {
+    if (submitted.current) return submitted.current;
     if (
+      cancelled.current ||
       busy ||
       commitDisabled ||
-      submitted.current ||
       hasConflict ||
       validate()
     )
-      return;
-    submitted.current = true;
+      return Promise.resolve(false);
     setSubmitting(true);
     setSubmissionError(null);
-    try {
-      await onCommit(parseCellDraft(field, draft, timeZone));
-    } catch (cause) {
-      setSubmissionError(
-        cause instanceof Error
-          ? cause.message
-          : "The value could not be saved. Your draft is kept here.",
-      );
-    } finally {
-      submitted.current = false;
-      setSubmitting(false);
-    }
+    submitted.current = (async () => {
+      try {
+        return await onCommit(parseCellDraft(field, draft, timeZone), move);
+      } catch (cause) {
+        setSubmissionError(
+          cause instanceof Error
+            ? cause.message
+            : "The value could not be saved. Your draft is kept here.",
+        );
+        return false;
+      } finally {
+        submitted.current = null;
+        setSubmitting(false);
+      }
+    })();
+    return submitted.current;
   }
+
+  useImperativeHandle(submitRef, () => () => submit());
 
   return (
     <form
@@ -109,17 +117,47 @@ export function CellEditor({
       aria-label={`Edit ${field.name}`}
       lang={locale}
       noValidate
-      onSubmit={(event) => void submit(event)}
+      aria-busy={busy}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (
+          next instanceof Element &&
+          next.closest(
+            '.inline-cell-editor, [role="grid"], [aria-label="Table actions"]',
+          )
+        )
+          return;
+        void submit();
+      }}
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.nativeEvent.isComposing) return;
         if (event.key === "Escape") {
           event.preventDefault();
-          if (!busy) onCancel();
+          if (!busy) {
+            cancelled.current = true;
+            onCancel();
+          }
         }
         if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
           event.preventDefault();
           void submit();
+        }
+        if (event.key === "Tab") {
+          const inputs = event.currentTarget.querySelectorAll(
+            "input, textarea, select",
+          );
+          const boundary = event.shiftKey
+            ? inputs[0]
+            : inputs[inputs.length - 1];
+          if (event.target === boundary) {
+            event.preventDefault();
+            void submit(event.shiftKey ? -1 : 1);
+          }
         }
         if (
           !event.nativeEvent.isComposing &&
@@ -133,40 +171,17 @@ export function CellEditor({
         }
       }}
     >
-      <div className="inline-cell-controls">
-        <CellInput
-          field={field}
-          draft={draft}
-          onChange={change}
-          timeZone={timeZone}
-          disabled={busy}
-          invalid={!!message}
-          autoFocus={canFocus}
-          describedBy={message ? feedbackId : undefined}
-          inline
-        />
-        <button
-          type="button"
-          aria-label="Cancel"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          ×
-        </button>
-        <button
-          type="submit"
-          aria-label={
-            busy
-              ? "Saving…"
-              : error || submissionError
-                ? "Retry save"
-                : "Save value"
-          }
-          disabled={busy || hasConflict || commitDisabled}
-        >
-          {busy ? "…" : "✓"}
-        </button>
-      </div>
+      <CellInput
+        field={field}
+        draft={draft}
+        onChange={change}
+        timeZone={timeZone}
+        disabled={busy}
+        invalid={!!message}
+        autoFocus={canFocus}
+        describedBy={message ? feedbackId : undefined}
+        inline
+      />
       {message && (
         <p id={feedbackId} className="inline-cell-error" role="alert">
           {message}
@@ -187,7 +202,7 @@ export function CellEditor({
       <span className="sr-only" role="status">
         {busy
           ? "Saving this value…"
-          : "Enter saves; Shift+Enter adds a line; Escape cancels."}
+          : "Enter saves; Tab saves and moves; leaving the cell saves; Shift+Enter adds a line; Escape cancels."}
       </span>
     </form>
   );

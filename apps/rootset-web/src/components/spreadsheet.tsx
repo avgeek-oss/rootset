@@ -169,6 +169,7 @@ export function Spreadsheet({
   const contextAnchor = useRef<Element | null>(null);
   const gridRef = useRef<DataGridHandle>(null);
   const closeEditor = useRef<(() => void) | null>(null);
+  const submitEditor = useRef<(() => Promise<boolean>) | null>(null);
   const extendSelection = useRef(false);
   const cache = useRef(new RowWindowCache());
   const abort = useRef<AbortController | null>(null);
@@ -460,10 +461,9 @@ export function Spreadsheet({
     }
   }
 
-  function leaveEditor(action: () => void) {
+  async function leaveEditor(action: () => void) {
     if (saving) return;
-    closeEditor.current?.();
-    setDraft(null);
+    if (draft && !(await submitEditor.current?.())) return;
     action();
   }
 
@@ -492,6 +492,16 @@ export function Spreadsheet({
         error: "This table is currently read-only. Your draft is still here.",
       });
       return false;
+    }
+    if (
+      !draft.error &&
+      rows.find((row) => row.id === draft.row.id)?.version ===
+        draft.row.version &&
+      JSON.stringify(value) ===
+        JSON.stringify(draft.row.values[draft.field.name] ?? null)
+    ) {
+      setDraft(null);
+      return true;
     }
     setSaving(true);
     try {
@@ -965,6 +975,7 @@ export function Spreadsheet({
         onContextMenu={(event) => event.stopPropagation()}
       >
         <CellEditor
+          submitRef={submitEditor}
           field={draft.field}
           value={
             draft.initialValue !== undefined
@@ -974,8 +985,26 @@ export function Spreadsheet({
           initialInput={draft.initialInput}
           timeZone={preferences.timezone}
           locale={preferences.locale}
-          onCommit={async (value) => {
-            if (await commitCell(value)) onClose?.();
+          onCommit={async (value, move) => {
+            const saved = await commitCell(value);
+            if (saved) {
+              onClose?.();
+              if (move) {
+                let row = editingRow;
+                let column =
+                  fields.findIndex((field) => field.id === draft.field.id) +
+                  move;
+                if (column < 0) {
+                  row--;
+                  column = fields.length - 1;
+                } else if (column === fields.length) {
+                  row++;
+                  column = 0;
+                }
+                if (row >= 0 && row < rows.length) focusCell(row, column);
+              }
+            }
+            return saved;
           }}
           onCancel={() => {
             setDraft(null);

@@ -514,41 +514,22 @@ h1 {
   font-style: normal;
   text-align: left;
 }
-.inline-cell-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  min-height: 32px;
-}
-.inline-cell-controls > .cell-input:first-child {
-  flex: 1;
-  width: 0;
-}
-.inline-cell-controls .cell-input {
-  border: 0;
-  border-radius: 0;
-  padding: 3px 6px;
+.inline-cell-form > .cell-input {
+  display: block;
+  width: 100%;
   height: 32px;
-  line-height: 24px;
+  border: 2px solid var(--rdg-selection-color);
+  border-radius: 0;
+  padding: 0 6px;
+  background: var(--rdg-background-color);
+  color: var(--rdg-color);
+  font-family: inherit;
+  font-size: var(--rdg-font-size);
+  line-height: 28px;
   resize: none;
 }
-.inline-cell-controls .cell-input:focus-visible {
+.inline-cell-form > .cell-input:focus-visible {
   outline: none;
-}
-.inline-cell-controls button {
-  width: 26px;
-  height: 32px;
-  border: 0;
-  background: transparent;
-  color: var(--rs-muted);
-  cursor: pointer;
-}
-.inline-cell-controls button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
-}
-.inline-cell-controls button:hover {
-  background: var(--rs-subtle);
 }
 .inline-cell-error,
 .inline-cell-feedback {
@@ -570,12 +551,8 @@ h1 {
   }
 }
 @media (pointer: coarse) {
-  .inline-cell-controls button {
-    min-width: 44px;
-    height: 44px;
-  }
-  .inline-cell-controls .cell-input {
-    height: 44px;
+  .inline-cell-form > .cell-input {
+    font-size: 16px;
   }
 }
 @media (hover: hover) and (pointer: fine) {

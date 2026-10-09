@@ -16,13 +16,12 @@ describe("cell editor save boundaries", () => {
       createElement(CellEditor, {
         field: definition,
         value: "draft",
-        onCommit() {},
+        onCommit: () => true,
         onCancel() {},
         conflict: "",
       }),
     );
-    const submitButton = html.match(/<button\b[^>]*type="submit"[^>]*>/)?.[0];
-    expect(submitButton).toContain("disabled");
+    expect(html).toContain("The row changed before this value was saved.");
     expect(html).toContain("(empty text)");
     expect(html).toContain("draft");
   });
@@ -33,7 +32,7 @@ describe("cell editor save boundaries", () => {
         field: definition,
         value: "server value",
         initialInput: "k",
-        onCommit() {},
+        onCommit: () => true,
         onCancel() {},
       }),
     );
@@ -41,21 +40,19 @@ describe("cell editor save boundaries", () => {
     expect(html).not.toContain("server value");
   });
 
-  it("disables duplicate submits and cancellation while a save is pending", () => {
+  it("disables the input and announces a pending save without adding controls", () => {
     const html = renderToStaticMarkup(
       createElement(CellEditor, {
         field: definition,
         value: "draft",
-        onCommit() {},
+        onCommit: () => true,
         onCancel() {},
         pending: true,
       }),
     );
-    const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map(
-      (match) => match[0],
-    );
-    expect(buttons).toHaveLength(2);
-    expect(buttons.every((button) => button.includes("disabled"))).toBe(true);
+    expect(html).not.toContain("<button");
+    expect(html).toMatch(/<textarea\b[^>]*disabled/);
+    expect(html).toContain('aria-busy="true"');
     expect(html).toContain("Saving this value");
   });
 
@@ -65,7 +62,7 @@ describe("cell editor save boundaries", () => {
         field: { ...definition, type: "date-time" },
         value: "0001-01-01T00:00:00.000Z",
         timeZone: "America/New_York",
-        onCommit() {},
+        onCommit: () => true,
         onCancel() {},
       }),
     );
