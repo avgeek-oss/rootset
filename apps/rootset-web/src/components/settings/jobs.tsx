@@ -1,5 +1,7 @@
 "use client";
 
+import { Chip } from "@avgeek-oss/design-system/data-display/chip";
+import { statusColor } from "./status-color";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { browserArtifactDownloadPath } from "@rootset/web-client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -17,7 +19,7 @@ import {
   useResource,
   write,
 } from "./api";
-import { Choice, Empty, Form, Loading, Status } from "./ui";
+import { Choice, Empty, Form, Loading } from "./ui";
 import type { Artifact, Job, SettingsPanelProps } from "./types";
 
 interface JobAccepted {
@@ -89,7 +91,11 @@ export function ExportRequestsTable({
         {
           key: "status",
           header: "Status",
-          cell: (request) => <Status value={request.state} />,
+          cell: (request) => (
+            <Chip color={statusColor(request.state)}>
+              <Chip.Label>{request.state.replaceAll("_", " ")}</Chip.Label>
+            </Chip>
+          ),
         },
         {
           key: "rows",

@@ -350,15 +350,6 @@ export function useConfirmation() {
 export function DateLabel({ value }: { value?: string | null }) {
   return <span>{value ? new Date(value).toLocaleString() : "—"}</span>;
 }
-export function Status({ value }: { value: string }) {
-  return (
-    <span
-      className={`settings-status settings-status-${value.replace(/[^a-z_]/g, "")}`}
-    >
-      {value.replaceAll("_", " ")}
-    </span>
-  );
-}
 export function RecordList({ children }: { children: ReactNode }) {
   return <ul className="settings-records">{children}</ul>;
 }

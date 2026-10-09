@@ -1,5 +1,7 @@
 "use client";
 
+import { Chip } from "@avgeek-oss/design-system/data-display/chip";
+import { statusColor } from "./status-color";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Label, ListBox, Select } from "@heroui/react";
 import { limits } from "@rootset/contracts";
@@ -29,7 +31,6 @@ import {
   Loading,
   Record,
   Section,
-  Status,
   Toggle,
   useConfirmation,
 } from "./ui";
@@ -40,7 +41,7 @@ import {
   type TableSchemaResult,
 } from "./types";
 
-import { FIELD_TYPE_OPTIONS } from "./field-type-options";
+import { FIELD_TYPE_OPTIONS, FieldTypeIcon } from "./field-type-options";
 import { fieldDraft, parseFieldDraft, type FieldDraft } from "./field-draft";
 
 const EMPTY_SCHEMA: TableSchemaResult = {
@@ -755,9 +756,14 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
               {
                 key: "status",
                 header: "Status",
-                cell: (rule) => (
-                  <Status value={rule.state ?? rule.status ?? "unknown"} />
-                ),
+                cell: (rule) => {
+                  const status = rule.state ?? rule.status ?? "unknown";
+                  return (
+                    <Chip color={statusColor(status)}>
+                      <Chip.Label>{status.replaceAll("_", " ")}</Chip.Label>
+                    </Chip>
+                  );
+                },
               },
               {
                 key: "actions",
@@ -866,7 +872,27 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
             >
               <Label>Fields</Label>
               <Select.Trigger>
-                <Select.Value />
+                <Select.Value>
+                  {fieldIds.length > 0 ? (
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {fieldIds.map((id) => {
+                        const field = fields.find((item) => item.id === id);
+                        if (!field) return null;
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-2"
+                          >
+                            <FieldTypeIcon type={field.type} />
+                            {field.name}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    "Choose fields"
+                  )}
+                </Select.Value>
                 <Select.Indicator />
               </Select.Trigger>
               <Select.Popover>
@@ -877,7 +903,10 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                       id={field.id}
                       textValue={field.name}
                     >
-                      {field.name}
+                      <span className="flex items-center gap-2">
+                        <FieldTypeIcon type={field.type} />
+                        {field.name}
+                      </span>
                       <ListBox.ItemIndicator />
                     </ListBox.Item>
                   ))}

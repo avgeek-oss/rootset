@@ -28,15 +28,19 @@ const icons: Record<TableField["type"], typeof TextFontIcon> = {
   json: SourceCodeIcon,
 };
 
-export const FIELD_TYPE_OPTIONS = FIELD_TYPES.map((type) => ({
-  value: type,
-  label: type,
-  icon: (
+export function FieldTypeIcon({ type }: { type: TableField["type"] }) {
+  return (
     <HugeiconsIcon
       icon={icons[type]}
       size={16}
       aria-hidden="true"
       className="shrink-0"
     />
-  ),
+  );
+}
+
+export const FIELD_TYPE_OPTIONS = FIELD_TYPES.map((type) => ({
+  value: type,
+  label: type,
+  icon: <FieldTypeIcon type={type} />,
 }));

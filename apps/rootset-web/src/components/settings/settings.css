@@ -149,27 +149,6 @@
   margin: 1rem 0;
   overflow-wrap: anywhere;
 }
-.settings-status {
-  display: inline-block;
-  color: var(--muted);
-  font-size: 0.8rem;
-  padding: 0.1rem 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-}
-.settings-status-active,
-.settings-status-succeeded {
-  color: var(--success);
-}
-.settings-status-failed,
-.settings-status-disabled {
-  color: var(--danger);
-}
-.settings-status-running,
-.settings-status-verifying,
-.settings-status-partially_completed {
-  color: var(--warning);
-}
 .settings-scope-list {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
