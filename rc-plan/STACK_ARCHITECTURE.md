@@ -106,7 +106,7 @@ Fetch bounded row windows and evict distant data. Deep navigation uses the query
 window/anchor contract rather than unlimited OFFSET. Render visible rows with
 small overscan and all fields; never load five million rows into the browser.
 
-Single tap and keyboard entry open the typed editor. Preserve text, strict number,
+Single click selects a cell. Double-click, Enter/F2 and keyboard entry open its typed inline editor. Preserve text, strict number,
 boolean/null, date, UTC time, timezone-aware date-time and JSON editors. Enter/F2,
 Tab/Shift-Tab, arrows and Escape must work without losing drafts. Conflicts show
 current values and retain the user's draft until a deliberate retry.

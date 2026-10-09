@@ -65,7 +65,6 @@ let editableRow: Row;
 let duplicateRow: Row;
 let wideRow: Row;
 let originalPreferences: Preferences;
-let databaseName: string;
 let previousTestStart = 0;
 
 function api(page: Page): RootsetClient {
@@ -144,15 +143,9 @@ async function setPreferences(page: Page, patch: Partial<Preferences>) {
 }
 
 async function showTable(page: Page) {
-  await page.goto("/");
-  await page
-    .locator(".database-list")
-    .getByRole("button", { name: databaseName, exact: true })
-    .click();
-  await page
-    .getByRole("complementary", { name: "Tables" })
-    .getByRole("button", { name: tableName, exact: true })
-    .click();
+  await page.goto(
+    `/?databaseId=${fixture.databaseId}&tableId=${schema.table.id}`,
+  );
   await expect(
     page.getByRole("grid", { name: `${tableName} spreadsheet` }),
   ).toBeVisible();
@@ -181,8 +174,8 @@ async function cell(
 }
 
 async function openEditor(page: Page, key: string): Promise<Locator> {
-  await (await cell(page, key)).click();
-  const dialog = page.getByRole("dialog", {
+  await (await cell(page, key)).dblclick();
+  const dialog = page.getByRole("group", {
     name: `Edit ${field(key).name}`,
     exact: true,
   });
@@ -193,18 +186,6 @@ async function openEditor(page: Page, key: string): Promise<Locator> {
     )
     .toBeLessThanOrEqual(1);
   return dialog;
-}
-
-async function setCheckbox(
-  dialog: Locator,
-  name: string | RegExp,
-  checked: boolean,
-) {
-  const control = dialog.getByRole("checkbox", { name });
-  if ((await control.isChecked()) !== checked)
-    await dialog.getByText(name, { exact: typeof name === "string" }).click();
-  if (checked) await expect(control).toBeChecked();
-  else await expect(control).not.toBeChecked();
 }
 
 async function fillAndSave(
@@ -302,11 +283,6 @@ test.beforeAll(async ({ browser }) => {
       "getPreferences",
       {},
     );
-    const database = await client.operation<{ name: string }>("getDatabase", {
-      orgId: fixture.orgId,
-      databaseId: fixture.databaseId,
-    });
-    databaseName = database.name;
     schema = await client.operation<TableSchemaResult>("createTable", {
       orgId: fixture.orgId,
       databaseId: fixture.databaseId,
@@ -402,7 +378,7 @@ test.afterAll(async ({ browser }) => {
   }
 });
 
-test("eight single-tap editors commit actual typed canonical values", async ({
+test("eight inline editors commit actual typed canonical values", async ({
   page,
 }) => {
   annotate("UI-04", "FLD-15");
@@ -410,13 +386,14 @@ test("eight single-tap editors commit actual typed canonical values", async ({
   await fillAndSave(page, "INTEGER", "17", true);
   await fillAndSave(page, "FLOAT", "-1.25");
   const booleanDialog = await openEditor(page, "BOOLEAN");
-  await setCheckbox(booleanDialog, /^BOOLEAN:/, true);
+  await booleanDialog
+    .getByRole("combobox", { name: "BOOLEAN", exact: true })
+    .selectOption("true");
   await booleanDialog.getByRole("button", { name: "Save value" }).click();
   await expect(booleanDialog).not.toBeVisible();
   await fillAndSave(page, "DATE", "2024-02-29");
   await fillAndSave(page, "TIME", "08:09:10.125");
   await fillAndSave(page, "DATETIME", "2026-10-03T14:20:01.25");
-  await expect(page.getByTestId("json-cell-editor")).toHaveCount(0);
   const jsonDialog = await openEditor(page, "JSON");
   const jsonInput = jsonDialog.getByRole("textbox", {
     name: "JSON",
@@ -657,7 +634,7 @@ test("keyboard cancel returns grid focus and Tab/Enter navigate and commit", asy
     `cell-${editableRow.id}-${field("INTEGER").id}`,
   );
   await page.keyboard.press("Enter");
-  const integerDialog = page.getByRole("dialog", {
+  const integerDialog = page.getByRole("group", {
     name: "Edit INTEGER",
     exact: true,
   });
@@ -712,23 +689,19 @@ test("timezone preferences convert only date-times and resolve DST explicitly", 
   await dstDialog.getByRole("button", { name: "Save value" }).click();
   await expect(dstDialog.getByRole("alert")).toContainText("occurs twice");
   await dstDialog
-    .getByRole("button", { name: /This local time occurs twice/ })
-    .click();
-  const offsetChoice = page.getByRole("option", { name: /UTC-05:00/ });
-  await expect(offsetChoice).toBeVisible();
+    .getByRole("combobox", { name: "This local time occurs twice" })
+    .selectOption({ label: "UTC-05:00 · 2026-11-01T06:30:00.000Z" });
   await captureEvidence(page, "explicit-dst-choice");
-  await offsetChoice.click();
   await dstDialog.getByRole("button", { name: "Save value" }).click();
   await expect(dstDialog).not.toBeVisible();
   current = await readRow(page);
   expect(current.values.DATETIME).toBe("2026-11-01T06:30:00.000Z");
 });
 
-test("JSON is lazy, invalid drafts stay visible, and previews stay bounded", async ({
+test("JSON validates strictly, invalid drafts stay visible, and previews stay bounded", async ({
   page,
 }) => {
   annotate("UI-17", "FLD-11");
-  await expect(page.getByTestId("json-cell-editor")).toHaveCount(0);
   const preview = await cell(page, "JSON", wideRow.id);
   expect((await preview.innerText()).length).toBeLessThanOrEqual(160);
   expect(await preview.innerText()).toContain("…");
@@ -738,7 +711,7 @@ test("JSON is lazy, invalid drafts stay visible, and previews stay bounded", asy
   await input.fill('{"key":1,"key":2}');
   await dialog.getByRole("button", { name: "Save value" }).click();
   await expect(dialog.getByRole("alert")).toContainText(/duplicate/i);
-  await expect(input).toHaveText('{"key":1,"key":2}');
+  await expect(input).toHaveValue('{"key":1,"key":2}');
   await captureEvidence(page, "json-validation-preserved-draft");
   await input.fill("9007199254740993");
   await dialog.getByRole("button", { name: "Save value" }).click();
@@ -753,16 +726,18 @@ test("nullable boolean false and top-level JSON null remain distinct", async ({
   page,
 }) => {
   annotate("FLD-05", "FLD-11", "FLD-13");
-  const booleanDialog = await openEditor(page, "BOOLEAN");
-  await setCheckbox(booleanDialog, "Clear cell (null)", true);
-  await booleanDialog.getByRole("button", { name: "Save value" }).click();
-  await expect(booleanDialog).not.toBeVisible();
+  await (await cell(page, "BOOLEAN")).click({ button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Set to null", exact: true })
+    .click();
+  await expect
+    .poll(async () => (await readRow(page)).values.BOOLEAN)
+    .toBeNull();
   expect((await readRow(page)).values.BOOLEAN).toBeNull();
   const populatedDialog = await openEditor(page, "BOOLEAN");
-  await setCheckbox(populatedDialog, "Clear cell (null)", false);
-  await expect(
-    populatedDialog.getByRole("checkbox", { name: /^BOOLEAN:/ }),
-  ).not.toBeChecked();
+  await populatedDialog
+    .getByRole("combobox", { name: "BOOLEAN", exact: true })
+    .selectOption("false");
   await populatedDialog.getByRole("button", { name: "Save value" }).click();
   await expect(populatedDialog).not.toBeVisible();
   expect((await readRow(page)).values.BOOLEAN).toBe(false);
@@ -773,4 +748,106 @@ test("nullable boolean false and top-level JSON null remain distinct", async ({
   await jsonDialog.getByRole("button", { name: "Save value" }).click();
   await expect(jsonDialog).not.toBeVisible();
   expect((await readRow(page)).values.JSON).toBeNull();
+});
+
+test("compact rows select on click, edit on double-click, and expose header actions", async ({
+  page,
+}) => {
+  const header = page.getByRole("columnheader", {
+    name: "NAME Resize NAME",
+    exact: true,
+  });
+  await expect(header).not.toContainText("text");
+  await page.getByRole("button", { name: "Filter", exact: true }).hover();
+  await header.getByText("NAME", { exact: true }).hover();
+  await expect(page.getByRole("tooltip")).toContainText("text");
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole("tooltip")).not.toBeVisible();
+  const nameCell = await cell(page, "NAME");
+  await expect(nameCell).toHaveCSS("height", "32px");
+  await nameCell.click();
+  await expect(
+    page.getByRole("group", { name: "Edit NAME", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Show selected cell history" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Delete selected row" }),
+  ).toHaveCount(0);
+  await nameCell.dblclick();
+  await expect(
+    page.getByRole("dialog", { name: "Edit NAME", exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("NAME", { exact: true }).press("Escape");
+  await expect(
+    page.getByRole("group", { name: "Edit NAME", exact: true }),
+  ).toHaveCount(0);
+  await nameCell.click({ button: "right" });
+  await expect(
+    page.getByRole("menuitem", { name: "Set to null", exact: true }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("menu", { name: "Cell actions", exact: true }),
+  ).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Row navigation", exact: true })
+    .click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Go to row", exact: true }).click();
+  const jump = page.getByRole("dialog", { name: "Go to row", exact: true });
+  await jump
+    .getByRole("textbox", { name: "Row number", exact: true })
+    .fill("2");
+  await jump.getByRole("button", { name: "Go to row", exact: true }).click();
+  await expect(
+    page.getByRole("rowheader", { name: "2", exact: true }),
+  ).toBeVisible();
+});
+
+test("add row presents all typed fields in one form and keeps validation drafts", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Add row", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "Add row", exact: true });
+  await expect(form.getByLabel("NAME", { exact: true })).toBeVisible();
+  await expect(form.getByLabel("INTEGER", { exact: true })).toBeVisible();
+  await form.getByLabel("NAME", { exact: true }).fill("Added inline form");
+  await form.getByLabel("INTEGER", { exact: true }).fill("1.5");
+  await form.getByRole("button", { name: "Add row", exact: true }).click();
+  await expect(form.getByRole("alert")).toContainText("whole number");
+  await expect(form.getByLabel("NAME", { exact: true })).toHaveValue(
+    "Added inline form",
+  );
+  await form.getByLabel("INTEGER", { exact: true }).fill("42");
+  await form.getByLabel("FLOAT", { exact: true }).fill("2.75");
+  await form
+    .getByRole("combobox", { name: "BOOLEAN", exact: true })
+    .selectOption("false");
+  await form.getByLabel("DATE", { exact: true }).fill("2026-10-09");
+  await form.getByLabel("TIME", { exact: true }).fill("12:34:56.789");
+  await form
+    .getByLabel("DATETIME", { exact: true })
+    .fill("2026-10-09T12:34:56.789");
+  await form.getByLabel("JSON", { exact: true }).fill('{"sample":true}');
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/rows"),
+  );
+  await form.getByRole("button", { name: "Add row", exact: true }).click();
+  const response = await created;
+  expect(response.ok()).toBe(true);
+  const result = await response.json();
+  expect(result.row.values).toEqual({
+    NAME: "Added inline form",
+    INTEGER: 42,
+    FLOAT: 2.75,
+    BOOLEAN: false,
+    DATE: "2026-10-09",
+    TIME: "12:34:56.789Z",
+    DATETIME: "2026-10-09T12:34:56.789Z",
+    JSON: { sample: true },
+  });
+  await expect(form).not.toBeVisible();
 });

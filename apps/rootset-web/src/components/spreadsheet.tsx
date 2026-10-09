@@ -10,8 +10,15 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { NumberField, Label } from "@heroui/react";
-import { Filter, Plus, Columns3, History, Trash2 } from "./ui/icons";
+import { NumberField, Label, Dropdown, Checkbox, Tooltip } from "@heroui/react";
+import { CellInput } from "./cells/CellInput";
+import {
+  createCellDraft,
+  parseCellDraft,
+  validateCellDraft,
+  type CellDraft as InputDraft,
+} from "./cells/drafts";
+import { Filter, Plus, Columns3 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
@@ -61,12 +68,13 @@ interface CellDraft {
   row: Row;
   field: FieldDefinition;
   initialInput?: string;
+  initialValue?: JsonValue;
   error?: string;
   conflict?: string;
   schemaConflict?: boolean;
   notice?: string;
 }
-const rowHeight = 44;
+const rowHeight = 32;
 const windowLimit = 200;
 const preferencesEmpty = {
   columnOrder: [] as string[],
@@ -74,14 +82,6 @@ const preferencesEmpty = {
   frozenColumns: 0,
   hiddenColumns: [] as string[],
 };
-
-function copyCell(value: JsonValue | undefined): string {
-  return value === undefined || value === null
-    ? ""
-    : typeof value === "object"
-      ? JSON.stringify(value)
-      : String(value);
-}
 
 export function Spreadsheet({
   orgId,
@@ -161,6 +161,12 @@ export function Spreadsheet({
   const [filterCombination, setFilterCombination] =
     useState<FilterCombination>("and");
   const [jump, setJump] = useState(1);
+  const [jumpVisible, setJumpVisible] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    row?: Row;
+    field?: FieldDefinition;
+  } | null>(null);
+  const contextAnchor = useRef<Element | null>(null);
   const [draftExit, setDraftExit] = useState<(() => void) | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new RowWindowCache());
@@ -555,19 +561,15 @@ export function Spreadsheet({
     focusCell(row, column);
   }
 
-  async function commitCell(value: JsonValue) {
+  async function commitCell(value: JsonValue, target = draft) {
+    const draft = target;
     if (!draft || saving) return;
     if (draft.schemaConflict) return;
     if (!writable) {
-      setDraft((previous) =>
-        previous
-          ? {
-              ...previous,
-              error:
-                "This table is currently read-only. Your draft is still here.",
-            }
-          : null,
-      );
+      setDraft({
+        ...draft,
+        error: "This table is currently read-only. Your draft is still here.",
+      });
       return;
     }
     setSaving(true);
@@ -640,40 +642,56 @@ export function Spreadsheet({
           /* The original mutation error remains visible if access has been revoked. */
         }
       }
-      setDraft((previous) =>
-        previous
-          ? {
-              ...previous,
-              error:
-                failure instanceof Error
-                  ? failure.message
-                  : "The value could not be saved",
-              schemaConflict:
-                failure instanceof ApiError &&
-                failure.code === "SCHEMA_VERSION_CONFLICT",
-              ...(current
-                ? {
-                    conflict: formatCellValue(
-                      previous.field,
-                      current.values[previous.field.name] ?? null,
-                      {
-                        timeZone: preferences.timezone,
-                        locale: preferences.locale,
-                      },
-                    ),
-                    row: current,
-                  }
-                : {}),
-            }
-          : null,
-      );
+      setDraft((retained) => {
+        const previous = retained ?? draft;
+        return {
+          ...previous,
+          error:
+            failure instanceof Error
+              ? failure.message
+              : "The value could not be saved",
+          schemaConflict:
+            failure instanceof ApiError &&
+            failure.code === "SCHEMA_VERSION_CONFLICT",
+          ...(current
+            ? {
+                conflict: formatCellValue(
+                  previous.field,
+                  current.values[previous.field.name] ?? null,
+                  {
+                    timeZone: preferences.timezone,
+                    locale: preferences.locale,
+                  },
+                ),
+                row: current,
+              }
+            : {}),
+        };
+      });
     } finally {
       setSaving(false);
     }
   }
 
   function onKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
     if (draft) return;
+    if (
+      event.key === "ContextMenu" ||
+      (event.shiftKey && event.key === "F10")
+    ) {
+      event.preventDefault();
+      if (selection) {
+        contextAnchor.current = document.getElementById(
+          `cell-${rows[selection.row]?.id}-${fields[selection.column]?.id}`,
+        );
+        setContextMenu({
+          row: rows[selection.row],
+          field: fields[selection.column],
+        });
+      }
+      return;
+    }
     const current = selection ?? { row: 0, column: 0, endRow: 0, endColumn: 0 };
     if (
       ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Tab"].includes(
@@ -1020,6 +1038,106 @@ export function Spreadsheet({
     });
   }
 
+  const editor = draft ? (
+    <div
+      className="inline-cell-editor"
+      role="group"
+      aria-label={`Edit ${draft.field.name}`}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
+    >
+      <CellEditor
+        field={draft.field}
+        value={
+          draft.initialValue !== undefined
+            ? draft.initialValue
+            : (draft.row.values[draft.field.name] ?? null)
+        }
+        initialInput={draft.initialInput}
+        timeZone={preferences.timezone}
+        locale={preferences.locale}
+        onCommit={commitCell}
+        onCancel={() => {
+          setDraft(null);
+          gridRef.current?.focus();
+        }}
+        pending={saving}
+        commitDisabled={draft.schemaConflict}
+        error={draft.error}
+        conflict={draft.conflict}
+      />
+      {draft.conflict !== undefined && (
+        <Button
+          variant="secondary"
+          onPress={() =>
+            setDraft((previous) =>
+              previous
+                ? { ...previous, conflict: undefined, error: undefined }
+                : null,
+            )
+          }
+        >
+          Keep my draft and retry against the current version
+        </Button>
+      )}
+      {draft.notice && (
+        <p className="notice" role="status">
+          {draft.notice}
+        </p>
+      )}
+      {draft.schemaConflict && (
+        <Button
+          variant="secondary"
+          isDisabled={saving || schema.isFetching}
+          onPress={() => {
+            void schema.refetch().then((result) => {
+              const current = result.data?.fields.find(
+                (field) => field.id === draft.field.id,
+              );
+              if (!current || current.type !== draft.field.type) {
+                setDraft((previous) =>
+                  previous
+                    ? {
+                        ...previous,
+                        error: current
+                          ? `This field now uses ${current.type}. Your draft remains here. Cancel explicitly and reopen the cell to use its new editor.`
+                          : "This field has been removed. Your draft remains here; cancel explicitly after copying any values you need.",
+                      }
+                    : null,
+                );
+                return;
+              }
+              setDraft((previous) =>
+                previous
+                  ? {
+                      ...previous,
+                      field: current,
+                      schemaConflict: false,
+                      notice:
+                        "The current schema is loaded. Review its validation, then save your retained draft.",
+                      error: undefined,
+                    }
+                  : null,
+              );
+            });
+          }}
+        >
+          Reload schema and review draft
+        </Button>
+      )}
+    </div>
+  ) : null;
+  const renderedRows = Array.from(
+    { length: visible.end - visible.start },
+    (_, index) => visible.start + index,
+  );
+  const editingRow = draft
+    ? rows.findIndex((row) => row.id === draft.row.id)
+    : -1;
+  if (editingRow >= 0 && !renderedRows.includes(editingRow))
+    renderedRows.push(editingRow);
+
   return (
     <section className="spreadsheet-pane" aria-labelledby="table-title">
       <header className="table-header">
@@ -1036,7 +1154,7 @@ export function Spreadsheet({
             Filter{query.where ? " · active" : ""}
           </Button>
           {writable && (
-            <Button onPress={() => setAddRow(true)}>
+            <Button onPress={() => preserveDraft(() => setAddRow(true))}>
               <Plus size={17} />
               Add row
             </Button>
@@ -1113,10 +1231,10 @@ export function Spreadsheet({
       ) : (
         <>
           <div className="sr-only" id="grid-instructions">
-            Tap a cell to edit. Arrow keys navigate; Enter or F2 edits; Tab
-            moves across columns; Escape cancels. Hold Shift to select a
-            rectangle. Times are UTC. Date-times display in{" "}
-            {preferences.timezone}.
+            Double-click a cell to edit. Right-click for cell actions. Arrow
+            keys navigate; Enter or F2 edits; Tab moves across columns; Escape
+            cancels. Hold Shift to select a rectangle. Times are UTC. Date-times
+            display in {preferences.timezone}.
             {copying && (
               <span role="status"> Preparing selection for copy…</span>
             )}
@@ -1127,7 +1245,7 @@ export function Spreadsheet({
             role="grid"
             aria-label={`${table.name} spreadsheet`}
             aria-rowcount={currentTotal === undefined ? -1 : currentTotal + 1}
-            aria-colcount={fields.length}
+            aria-colcount={fields.length + 1}
             aria-describedby="grid-instructions"
             aria-busy={loading}
             tabIndex={0}
@@ -1174,8 +1292,47 @@ export function Spreadsheet({
                 aria-rowindex={1}
                 style={{ width: Math.max(gridWidth, viewport.width) }}
               >
-                <div className="row-header column-number" aria-hidden="true">
-                  #
+                <div
+                  className="row-header column-number"
+                  role="columnheader"
+                  aria-colindex={1}
+                >
+                  <button
+                    type="button"
+                    aria-label="Row navigation"
+                    aria-haspopup="menu"
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "ContextMenu" ||
+                        (event.shiftKey && event.key === "F10")
+                      ) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const anchor = event.currentTarget;
+                        preserveDraft(() => {
+                          contextAnchor.current = anchor;
+                          setContextMenu({});
+                        });
+                      }
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      const anchor = event.currentTarget;
+                      preserveDraft(() => {
+                        contextAnchor.current = anchor;
+                        setContextMenu({});
+                      });
+                    }}
+                    onClick={(event) => {
+                      const anchor = event.currentTarget;
+                      preserveDraft(() => {
+                        contextAnchor.current = anchor;
+                        setContextMenu({});
+                      });
+                    }}
+                  >
+                    #
+                  </button>
                 </div>
                 {columns.map(({ index, left, width, frozen }) => {
                   const field = fields[index]!;
@@ -1184,18 +1341,21 @@ export function Spreadsheet({
                       className={`column-header ${frozen ? "frozen" : ""}`}
                       key={field.id}
                       role="columnheader"
-                      aria-colindex={index + 1}
+                      aria-colindex={index + 2}
                       style={{
                         left: frozen ? 52 + left : undefined,
                         width,
                       }}
                     >
-                      <span title={`${field.name} · ${field.type}`}>
-                        {field.name}
-                        <small>
+                      <Tooltip delay={250} closeDelay={0}>
+                        <Tooltip.Trigger className="column-name" tabIndex={0}>
+                          {field.name}
+                        </Tooltip.Trigger>
+                        <Tooltip.Content placement="top">
                           {field.type === "time" ? "UTC time" : field.type}
-                        </small>
-                      </span>
+                          {field.required ? " · required" : ""}
+                        </Tooltip.Content>
+                      </Tooltip>
                       <span
                         className="column-resizer"
                         role="separator"
@@ -1267,11 +1427,11 @@ export function Spreadsheet({
                   );
                 })}
               </div>
-              {rows.slice(visible.start, visible.end).map((row, index) => {
-                const rowIndex = visible.start + index;
+              {renderedRows.map((rowIndex) => {
+                const row = rows[rowIndex]!;
                 return (
                   <div
-                    className="grid-row"
+                    className={`grid-row ${draft?.row.id === row.id ? "editing-row" : ""}`}
                     key={row.id}
                     role="row"
                     aria-rowindex={windowStart + rowIndex + 2}
@@ -1298,17 +1458,20 @@ export function Spreadsheet({
                           columnIndex <=
                             Math.max(selection.column, selection.endColumn);
                         const value = row.values[field.name] ?? null;
+                        const editing =
+                          draft?.row.id === row.id &&
+                          draft.field.id === field.id;
                         return (
                           <div
                             id={`cell-${row.id}-${field.id}`}
-                            className={`grid-cell ${selected ? "selected" : ""} ${frozen ? "frozen" : ""} ${field.type === "integer" || field.type === "float" ? "numeric" : ""} ${value === null ? "null-cell" : ""}`}
+                            className={`grid-cell ${editing ? "editing-cell" : ""} ${selected ? "selected" : ""} ${frozen ? "frozen" : ""} ${field.type === "integer" || field.type === "float" ? "numeric" : ""} ${value === null ? "null-cell" : ""}`}
                             key={field.id}
                             role="gridcell"
                             data-cell-loaded={Object.hasOwn(
                               row.values,
                               field.name,
                             )}
-                            aria-colindex={columnIndex + 1}
+                            aria-colindex={columnIndex + 2}
                             aria-selected={!!selected}
                             aria-readonly={!writable}
                             style={{
@@ -1317,26 +1480,41 @@ export function Spreadsheet({
                               height: rowHeight,
                             }}
                             onClick={(event) => {
-                              if (event.shiftKey)
-                                focusCell(rowIndex, columnIndex, true);
-                              else if (writable)
-                                editCell(rowIndex, columnIndex);
-                              else focusCell(rowIndex, columnIndex);
+                              if (!editing)
+                                preserveDraft(() =>
+                                  focusCell(
+                                    rowIndex,
+                                    columnIndex,
+                                    event.shiftKey,
+                                  ),
+                                );
+                            }}
+                            onDoubleClick={() => {
+                              if (!editing)
+                                preserveDraft(() =>
+                                  editCell(rowIndex, columnIndex),
+                                );
                             }}
                             onContextMenu={(event) => {
                               event.preventDefault();
-                              focusCell(rowIndex, columnIndex);
-                              setHistory({ row, field });
+                              const anchor = event.currentTarget;
+                              preserveDraft(() => {
+                                focusCell(rowIndex, columnIndex);
+                                contextAnchor.current = anchor;
+                                setContextMenu({ row, field });
+                              });
                             }}
                           >
-                            {!Object.hasOwn(row.values, field.name)
-                              ? "Loading…"
-                              : formatCellValue(field, value, {
-                                  timeZone: preferences.timezone,
-                                  locale: preferences.locale,
-                                  dateFormat: preferences.dateFormat,
-                                  timeFormat: preferences.timeFormat,
-                                })}
+                            {editing
+                              ? editor
+                              : !Object.hasOwn(row.values, field.name)
+                                ? "Loading…"
+                                : formatCellValue(field, value, {
+                                    timeZone: preferences.timezone,
+                                    locale: preferences.locale,
+                                    dateFormat: preferences.dateFormat,
+                                    timeFormat: preferences.timeFormat,
+                                  })}
                           </div>
                         );
                       },
@@ -1353,174 +1531,124 @@ export function Spreadsheet({
                     : "This table has no rows yet."}
                 </p>
                 {writable && (
-                  <Button onPress={() => setAddRow(true)}>Add first row</Button>
+                  <Button onPress={() => preserveDraft(() => setAddRow(true))}>
+                    Add first row
+                  </Button>
                 )}
               </div>
             )}
           </div>
-          <footer className="grid-footer">
-            <form
-              className="jump-control"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!canJump || loading) return;
-                preserveDraft(() => void loadWindow(jump - 1));
-              }}
-            >
-              <NumberField
-                className="jump-field"
-                variant="secondary"
-                value={jump}
-                onChange={setJump}
-                minValue={1}
-                maxValue={
-                  currentTotal === undefined
-                    ? undefined
-                    : Math.max(1, currentTotal)
-                }
-                step={1}
-                formatOptions={{ useGrouping: false }}
-                isDisabled={loading || currentTotal === 0}
-              >
-                <Label>Go to row</Label>
-                <NumberField.Group>
-                  <NumberField.Input autoComplete="off" />
-                </NumberField.Group>
-              </NumberField>
-              <Button
-                type="submit"
-                variant="secondary"
-                isDisabled={loading || !canJump}
-              >
-                Go
-              </Button>
-            </form>
-            <span className="live-status" role="status">
-              {loading
-                ? "Loading…"
-                : error || staleResults
-                  ? "Previous results"
-                  : "Live view"}
-            </span>
-            {selection && (
-              <div className="selection-actions">
-                <button
-                  className="icon-button"
-                  aria-label="Show selected cell history"
-                  onClick={() =>
-                    setHistory({
-                      row: rows[selection.row]!,
-                      field: fields[selection.column]!,
-                    })
-                  }
-                >
-                  <History size={17} />
-                </button>
-                {writable && (
-                  <button
-                    className="icon-button danger-text"
-                    aria-label="Delete selected row"
-                    disabled={saving}
-                    onClick={() => void deleteSelectedRow()}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            )}
-          </footer>
         </>
+      )}
+      {draft && editingRow < 0 && (
+        <div className="retained-cell-draft">{editor}</div>
       )}
       <div className="sr-only" role="status" aria-live="polite">
         {announcement}
       </div>
-      {draft && (
-        <Dialog
-          title={`Edit ${draft.field.name}`}
-          closeDisabled={saving}
-          onClose={() => {
-            if (!saving) {
-              setDraft(null);
-              gridRef.current?.focus();
-            }
+      {contextMenu && (
+        <Dropdown
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) setContextMenu(null);
           }}
-          wide={draft.field.type === "json"}
         >
-          <CellEditor
-            field={draft.field}
-            value={draft.row.values[draft.field.name] ?? null}
-            initialInput={draft.initialInput}
-            timeZone={preferences.timezone}
-            locale={preferences.locale}
-            onCommit={commitCell}
-            onCancel={() => {
-              setDraft(null);
-              gridRef.current?.focus();
-            }}
-            pending={saving}
-            commitDisabled={draft.schemaConflict}
-            error={draft.error}
-            conflict={draft.conflict}
-          />
-          {draft.conflict !== undefined && (
-            <Button
-              variant="secondary"
-              onPress={() =>
-                setDraft((previous) =>
-                  previous
-                    ? { ...previous, conflict: undefined, error: undefined }
-                    : null,
+          <Dropdown.Popover
+            triggerRef={contextAnchor}
+            placement="bottom start"
+            className="grid-context-menu"
+          >
+            <Dropdown.Menu
+              aria-label={contextMenu.field ? "Cell actions" : "Row navigation"}
+              autoFocus="first"
+              onAction={(key) => {
+                const current = contextMenu;
+                setContextMenu(null);
+                if (key === "jump") setJumpVisible(true);
+                else if (
+                  key === "null" &&
+                  current.row &&
+                  current.field &&
+                  !current.field.required &&
+                  writable
                 )
-              }
-            >
-              Keep my draft and retry against the current version
-            </Button>
-          )}
-          {draft.notice && (
-            <p className="notice" role="status">
-              {draft.notice}
-            </p>
-          )}
-          {draft.schemaConflict && (
-            <Button
-              variant="secondary"
-              isDisabled={saving || schema.isFetching}
-              onPress={() => {
-                void schema.refetch().then((result) => {
-                  const current = result.data?.fields.find(
-                    (field) => field.id === draft.field.id,
-                  );
-                  if (!current || current.type !== draft.field.type) {
-                    setDraft((previous) =>
-                      previous
-                        ? {
-                            ...previous,
-                            error: current
-                              ? `This field now uses ${current.type}. Your draft remains here. Cancel explicitly and reopen the cell to use its new editor.`
-                              : "This field has been removed. Your draft remains here; cancel explicitly after copying any values you need.",
-                          }
-                        : null,
-                    );
-                    return;
-                  }
-                  setDraft((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          field: current,
-                          schemaConflict: false,
-                          notice:
-                            "The current schema is loaded. Review its validation, then save your retained draft.",
-                          error: undefined,
-                        }
-                      : null,
-                  );
-                });
+                  void commitCell(null, {
+                    row: current.row,
+                    field: current.field,
+                    initialValue: null,
+                  });
+                else if (key === "history" && current.row && current.field)
+                  setHistory({ row: current.row, field: current.field });
+                else if (key === "delete") void deleteSelectedRow();
               }}
             >
-              Reload schema and review draft
-            </Button>
-          )}
+              {contextMenu.field ? (
+                <>
+                  <Dropdown.Item
+                    id="null"
+                    isDisabled={
+                      !writable || saving || contextMenu.field.required
+                    }
+                  >
+                    Set to null
+                  </Dropdown.Item>
+                  <Dropdown.Item id="history">View cell history</Dropdown.Item>
+                  {writable && (
+                    <Dropdown.Item id="delete" isDisabled={saving}>
+                      Delete row
+                    </Dropdown.Item>
+                  )}
+                </>
+              ) : (
+                <Dropdown.Item
+                  id="jump"
+                  isDisabled={loading || currentTotal === 0}
+                >
+                  Go to row
+                </Dropdown.Item>
+              )}
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      )}
+      {jumpVisible && (
+        <Dialog title="Go to row" onClose={() => setJumpVisible(false)}>
+          <form
+            className="form-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canJump || loading) return;
+              setJumpVisible(false);
+              void loadWindow(jump - 1);
+            }}
+          >
+            <NumberField
+              variant="secondary"
+              value={jump}
+              onChange={setJump}
+              minValue={1}
+              maxValue={
+                currentTotal === undefined
+                  ? undefined
+                  : Math.max(1, currentTotal)
+              }
+              step={1}
+              formatOptions={{ useGrouping: false }}
+            >
+              <Label>Row number</Label>
+              <NumberField.Group>
+                <NumberField.Input autoComplete="off" autoFocus />
+              </NumberField.Group>
+            </NumberField>
+            <div className="action-row">
+              <Button variant="secondary" onPress={() => setJumpVisible(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" isDisabled={loading || !canJump}>
+                Go to row
+              </Button>
+            </div>
+          </form>
         </Dialog>
       )}
       {history && (
@@ -1769,12 +1897,33 @@ function AddRowDialog({
   onCreated: () => void;
   preferences: Preferences;
 }) {
-  const [values, setValues] = useState<Record<string, JsonValue>>({});
-  const [editing, setEditing] = useState<FieldDefinition | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, InputDraft>>(() =>
+    Object.fromEntries(
+      fields.map((field) => [
+        field.name,
+        createCellDraft(field, field.default ?? null, preferences.timezone),
+      ]),
+    ),
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validation, setValidation] = useState<Record<string, string>>({});
   const attempt = useRef(new MutationAttempt());
+  const submitted = useRef(false);
   async function create() {
+    if (submitted.current) return;
+    const errors: Record<string, string> = {};
+    const values: Record<string, JsonValue> = {};
+    for (const field of fields) {
+      const draft = drafts[field.name]!;
+      const message = validateCellDraft(field, draft, preferences.timezone);
+      if (message) errors[field.name] = message;
+      else
+        values[field.name] = parseCellDraft(field, draft, preferences.timezone);
+    }
+    setValidation(errors);
+    if (Object.keys(errors).length) return;
+    submitted.current = true;
     setPending(true);
     setError(null);
     try {
@@ -1792,76 +1941,98 @@ function AddRowDialog({
         failure instanceof Error ? failure.message : "Row could not be added",
       );
     } finally {
+      submitted.current = false;
       setPending(false);
     }
   }
   return (
-    <Dialog
-      title="Add row"
-      closeDisabled={pending}
-      onClose={() => {
-        if (!pending) onClose();
-      }}
-      wide
-    >
-      {editing ? (
-        <CellEditor
-          field={editing}
-          value={values[editing.name] ?? editing.default ?? null}
-          timeZone={preferences.timezone}
-          locale={preferences.locale}
-          onCommit={(value) => {
-            setValues((previous) => ({ ...previous, [editing.name]: value }));
-            setEditing(null);
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      ) : (
-        <>
-          <p>
-            Omitted fields use their configured defaults. Set an explicit null
-            by opening a field and clearing it.
+    <Dialog title="Add row" closeDisabled={pending} onClose={onClose} wide>
+      <form
+        className="form-stack"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          void create();
+        }}
+        onKeyDown={(event) => {
+          if (
+            event.key === "Enter" &&
+            (event.ctrlKey || event.metaKey) &&
+            !event.nativeEvent.isComposing
+          ) {
+            event.preventDefault();
+            void create();
+          }
+        }}
+      >
+        <div className="add-row-fields">
+          {fields.map((field, index) => {
+            const draft = drafts[field.name]!;
+            const feedbackId = `add-row-${field.id}-error`;
+            function change(next: InputDraft) {
+              setDrafts((previous) => ({ ...previous, [field.name]: next }));
+              setValidation((previous) => {
+                const result = { ...previous };
+                delete result[field.name];
+                return result;
+              });
+            }
+            return (
+              <div className="add-row-input" key={field.id}>
+                <CellInput
+                  field={field}
+                  draft={draft}
+                  onChange={change}
+                  timeZone={preferences.timezone}
+                  autoFocus={
+                    index === 0 &&
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(pointer: fine)").matches
+                  }
+                  disabled={pending}
+                  invalid={!!validation[field.name]}
+                  describedBy={validation[field.name] ? feedbackId : undefined}
+                />
+                {!field.required && field.type !== "boolean" && (
+                  <Checkbox
+                    aria-label={`Set ${field.name} to null`}
+                    isSelected={draft.isNull}
+                    isDisabled={pending}
+                    onChange={(selected) =>
+                      change({ ...draft, isNull: selected })
+                    }
+                  >
+                    <Checkbox.Content>
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                      Set to null
+                    </Checkbox.Content>
+                  </Checkbox>
+                )}
+                {validation[field.name] && (
+                  <p id={feedbackId} className="error-message" role="alert">
+                    {validation[field.name]}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
           </p>
-          <div className="add-row-fields">
-            {fields.map((field) => (
-              <button
-                key={field.id}
-                className="add-row-field"
-                onClick={() => setEditing(field)}
-              >
-                <span>
-                  {field.name}
-                  {field.required ? " *" : ""}
-                  <small>{field.type}</small>
-                </span>
-                <strong>
-                  {field.name in values
-                    ? formatCellValue(field, values[field.name] ?? null, {
-                        timeZone: preferences.timezone,
-                        locale: preferences.locale,
-                      })
-                    : field.default !== undefined
-                      ? `Default: ${copyCell(field.default)}`
-                      : "Not set"}
-                </strong>
-              </button>
-            ))}
-          </div>
-          {error && (
-            <p className="error-message" role="alert">
-              {error}
-            </p>
-          )}
-          <footer className="action-row">
-            <Button variant="secondary" isDisabled={pending} onPress={onClose}>
-              Cancel
-            </Button>
-            <Button isDisabled={pending} onPress={() => void create()}>
-              {pending ? "Adding…" : "Add row"}
-            </Button>
-          </footer>
-        </>
-      )}
+        )}
+        <div className="action-row">
+          <Button variant="secondary" isDisabled={pending} onPress={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" isDisabled={pending}>
+            {pending ? "Adding…" : error ? "Retry add row" : "Add row"}
+          </Button>
+        </div>
+      </form>
     </Dialog>
   );
 }
