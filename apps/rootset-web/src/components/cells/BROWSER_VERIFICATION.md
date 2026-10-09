@@ -1,6 +1,6 @@
 # Cell editor browser verification
 
-Run this suite against the real local Rootset web, API, worker, PostgreSQL and SMTP mailbox. It creates its own three-row, eight-type table in the existing `UI verification` database. It does not intercept requests or replace API responses.
+Run this suite against the React Data Grid UI and the real local Rootset API, worker, PostgreSQL and SMTP mailbox. It creates its own three-row, eight-type table in the existing `UI verification` database. It does not intercept requests or replace API responses.
 
 The normal prerequisites are a bootstrapped, verified fixture owner in `apps/rootset-web/.env.browser-test`, actual organisation/database IDs in `apps/rootset-web/test-results/browser/fixture.json`, and a worker delivering email to Mailpit. The provisioning script invites a separate Admin, registers the invited account, follows its email verification link, signs in and accepts the invitation. Its password is retained only in the ignored, mode-0600 `apps/rootset-web/.env.cells-browser-test` file.
 
@@ -16,9 +16,9 @@ The default web URL is `http://localhost:4300`, API URL is `http://localhost:431
 | Eight types     | Open a cell with a double-click; save text, integer, float, boolean, date, UTC time, local date-time and JSON; read the committed typed values through the API.                                       |
 | Validation      | Reject empty required text, invalid integers and bounds while retaining input; verify no row revision advances.                                                                                       |
 | Rejected save   | Save a duplicate name against an actual native unique rule; verify HTTP conflict, retained draft, unchanged row/history and successful corrected retry.                                               |
-| Concurrent edit | Change the same row through another actual API request before saving; require explicit review of the current committed value before retry.                                                            |
+| Concurrent edit | Change the same row through another actual API request before saving, including the context-menu null action; require explicit review before retry.                                                   |
 | Pending save    | Hold `SELECT … FOR UPDATE` on the fixture row in PostgreSQL; verify the API waits on a real lock, repeated saves/cancel are disabled, and the value commits after releasing the lock.                 |
-| Keyboard        | Escape cancels and returns grid focus; Tab selects the next grid cell; Enter opens/commits; the editor participates in normal focus order.                                                            |
+| Keyboard        | Escape cancels and returns focus to the selected grid cell; Tab selects the next grid cell; Enter opens/commits; the editor participates in normal focus order.                                       |
 | Preferences     | Change actual account preferences; verify Kolkata local editing stores UTC, date/UTC-time remain stable, New York nonexistent local times reject and repeated local times require a specific instant. |
 | JSON            | Check bounded previews for a large value, inline editing, retained duplicate-key/unsafe-number input, and valid corrected saves.                                                                      |
 | Null semantics  | Verify nullable boolean null, false and JSON top-level null remain distinct.                                                                                                                          |

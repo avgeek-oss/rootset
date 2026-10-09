@@ -52,33 +52,3 @@ export class RowWindowCache {
     this.bytes = 0;
   }
 }
-
-export function visibleRange(
-  scroll: number,
-  viewport: number,
-  rowHeight: number,
-  count: number,
-  overscan = 4,
-) {
-  const start = Math.max(0, Math.floor(scroll / rowHeight) - overscan);
-  const end = Math.min(
-    count,
-    Math.ceil((scroll + viewport) / rowHeight) + overscan,
-  );
-  return { start, end };
-}
-
-export function columnLayout(widths: number[], frozen = 0) {
-  let left = 0;
-  const columns: {
-    index: number;
-    left: number;
-    width: number;
-    frozen: boolean;
-  }[] = [];
-  widths.forEach((width, index) => {
-    columns.push({ index, left, width, frozen: index < frozen });
-    left += width;
-  });
-  return columns;
-}

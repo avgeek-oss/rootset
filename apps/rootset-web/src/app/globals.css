@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@avgeek-oss/design-system/styles.css";
+@import "react-data-grid/lib/styles.css";
 
 :root {
   color-scheme: light;
@@ -286,119 +287,23 @@ h1 {
     padding-bottom: 8px;
   }
 }
-.grid-description {
-  font-size: 11px;
-  color: var(--rs-muted);
-  padding: 7px 14px;
-  border-bottom: 1px solid var(--rs-border);
-}
-.grid-viewport {
+.grid-container {
+  flex: 1;
   min-height: 0;
-  flex: 1;
-  position: relative;
-  overflow: auto;
-  overscroll-behavior: none;
-  background: var(--rs-canvas);
 }
-.grid-viewport:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
+.rootset-grid {
+  height: 100%;
+  --rdg-color-scheme: light;
 }
-.grid-canvas {
-  position: relative;
+:root[data-theme="dark"] .rootset-grid {
+  --rdg-color-scheme: dark;
 }
-.grid-header {
-  display: flex;
-  position: sticky;
-  top: 0;
-  height: 38px;
-  z-index: 10;
-  background: var(--rs-subtle);
-  border-bottom: 1px solid var(--rs-border);
+.rootset-grid .range-selected {
+  background: var(--rdg-row-selected-background-color);
 }
-.column-header {
-  position: relative;
-  flex-shrink: 0;
-  top: 0;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  border-right: 1px solid var(--rs-border);
-  background: var(--rs-subtle);
-  padding-left: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.column-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.column-resizer {
-  width: 8px;
-  height: 38px;
-  flex-shrink: 0;
-  cursor: col-resize;
-  touch-action: none;
-}
-.grid-row {
-  position: absolute;
-  display: flex;
-}
-.grid-cell {
-  position: relative;
-  flex-shrink: 0;
-  top: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-right: 1px solid var(--rs-border);
-  border-bottom: 1px solid var(--rs-border);
-  background: var(--rs-canvas);
-  padding: 5px 12px;
-  line-height: 21px;
-  cursor: cell;
-  font-size: 13px;
-}
-.grid-cell.numeric {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.grid-cell.null-cell {
-  color: var(--rs-muted);
-  font-style: italic;
-}
-.grid-cell.selected {
-  background: var(--rs-selected);
-  box-shadow: inset 0 0 0 1px var(--rs-accent);
-}
-.frozen {
-  position: sticky;
-  z-index: 3;
-  box-shadow: 1px 0 var(--rs-border);
-}
-.row-header {
-  position: sticky;
-  left: 0;
-  flex-shrink: 0;
-  top: 0;
-  width: 52px;
-  height: 32px;
-  border-right: 1px solid var(--rs-border);
-  border-bottom: 1px solid var(--rs-border);
-  background: var(--rs-subtle);
-  z-index: 4;
-  color: var(--rs-muted);
-  font-size: 10px;
-  padding: 7px 5px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.column-number {
-  height: 38px;
-  padding-top: 10px;
+.rootset-grid .rdg-editor-container {
+  overflow: visible;
+  z-index: 2;
 }
 .empty-state {
   display: flex;
@@ -414,15 +319,6 @@ h1 {
 .empty-state p {
   color: var(--rs-muted);
   max-width: 48ch;
-}
-.empty-grid {
-  position: absolute;
-  inset: 45px 0 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
 }
 .startup-state {
   min-height: 100dvh;
@@ -603,40 +499,16 @@ h1 {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
-.column-number {
-  padding: 0;
-}
-.column-number button {
-  width: 100%;
-  height: 100%;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: context-menu;
-}
-.grid-context-menu {
-  min-width: 12rem;
-}
-.editing-row {
-  z-index: 6;
-}
-.grid-cell.editing-cell {
-  overflow: visible;
-  padding: 0;
-  z-index: 5;
-}
 .inline-cell-editor {
   position: absolute;
   left: 0;
   top: 0;
   width: 100%;
-  min-width: 180px;
-  background: var(--rs-canvas);
-  color: var(--rs-text);
+  background: var(--rdg-background-color, var(--rs-canvas));
+  color: var(--rdg-color, var(--rs-text));
   white-space: normal;
   font-style: normal;
   text-align: left;
-  box-shadow: 0 0 0 1px var(--focus);
 }
 .inline-cell-controls {
   display: flex;
@@ -709,15 +581,6 @@ h1 {
   .sidebar-identity:hover {
     background: var(--default);
   }
-  .grid-cell:hover {
-    background: var(--rs-subtle);
-  }
-  .grid-cell.selected:hover {
-    background: var(--rs-selected);
-  }
-  .column-resizer:hover {
-    background: var(--rs-focus);
-  }
 }
 @media (max-width: 800px) {
   .table-header {
@@ -749,9 +612,6 @@ h1 {
   }
 }
 @media (forced-colors: active) {
-  .grid-cell.selected {
-    outline: 2px solid Highlight;
-  }
   .nav-item.selected {
     outline: 1px solid Highlight;
   }

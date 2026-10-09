@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RowWindowCache, columnLayout, visibleRange } from "./window-cache";
+import { RowWindowCache } from "./window-cache";
 import type { Row } from "@rootset/contracts";
 
 const row: Row = {
@@ -26,23 +26,5 @@ describe("bounded viewport storage", () => {
     const cache = new RowWindowCache(100, 5);
     cache.set({ key: "huge", start: 0, rows: [row], nextCursor: null });
     expect(cache.size).toBe(0);
-  });
-  it("bounds DOM rows independently of a five-million logical range", () => {
-    expect(visibleRange(10_000_000, 700, 36, 5_000_000)).toEqual({
-      start: 277773,
-      end: 277802,
-    });
-    const columns = columnLayout(
-      Array.from({ length: 200 }, () => 180),
-      1,
-    );
-    expect(columns).toHaveLength(200);
-    expect(columns[0]).toEqual({ index: 0, left: 0, width: 180, frozen: true });
-    expect(columns.at(-1)).toEqual({
-      index: 199,
-      left: 35_820,
-      width: 180,
-      frozen: false,
-    });
   });
 });

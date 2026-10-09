@@ -167,7 +167,9 @@ async function cell(
     },
     Math.max(0, index * 180 - 180),
   );
-  const locator = page.locator(`#cell-${rowId}-${definition.id}`);
+  const locator = grid.locator(
+    `[data-row-id="${rowId}"] > [aria-colindex="${index + 2}"]`,
+  );
   await expect(locator).toBeVisible();
   await expect(locator).not.toHaveText("Loading…");
   return locator;
@@ -532,6 +534,38 @@ test("real concurrent row changes require explicit conflict review before retry"
   await dialog.locator("button[type=submit]").click();
   await expect(dialog).not.toBeVisible();
   expect((await readRow(page)).values.NAME).toBe("My draft");
+
+  const current = await readRow(page);
+  await (await cell(page, "FLOAT")).click({ button: "right" });
+  await api(page).operation("updateRow", {
+    ...target(),
+    rowId: current.id,
+    expectedVersion: current.version,
+    expectedSchemaVersion: schema.table.schemaVersion,
+    values: { FLOAT: 23 },
+  });
+  const nullResponse = await saveResponse(page, () =>
+    page.getByRole("menuitem", { name: "Set to null", exact: true }).click(),
+  );
+  expect(nullResponse.status()).toBe(409);
+  const nullEditor = page.getByRole("group", {
+    name: "Edit FLOAT",
+    exact: true,
+  });
+  await expect(
+    nullEditor.getByText(/Current committed value: 23/),
+  ).toBeVisible();
+  await expect(nullEditor.getByLabel("FLOAT", { exact: true })).toHaveValue("");
+  await nullEditor
+    .getByRole("button", {
+      name: "Keep my draft and retry against the current version",
+    })
+    .click();
+  await nullEditor
+    .getByRole("button", { name: /^(Save value|Retry save)$/ })
+    .click();
+  await expect(nullEditor).not.toBeVisible();
+  expect((await readRow(page)).values.FLOAT).toBeNull();
 });
 
 test("pending real database work disables repeated save and cancel", async ({
@@ -625,14 +659,10 @@ test("keyboard cancel returns grid focus and Tab/Enter navigate and commit", asy
   await input.fill("Discard me");
   await input.press("Escape");
   await expect(dialog).not.toBeVisible();
-  const grid = page.getByRole("grid", { name: `${tableName} spreadsheet` });
-  await expect(grid).toBeFocused();
+  await expect(await cell(page, "NAME")).toBeFocused();
   expect((await readRow(page)).version).toBe(before.version);
   await page.keyboard.press("Tab");
-  await expect(grid).toHaveAttribute(
-    "aria-activedescendant",
-    `cell-${editableRow.id}-${field("INTEGER").id}`,
-  );
+  await expect(await cell(page, "INTEGER")).toBeFocused();
   await page.keyboard.press("Enter");
   const integerDialog = page.getByRole("group", {
     name: "Edit INTEGER",
@@ -754,7 +784,7 @@ test("compact rows select on click, edit on double-click, and expose header acti
   page,
 }) => {
   const header = page.getByRole("columnheader", {
-    name: "NAME Resize NAME",
+    name: "NAME",
     exact: true,
   });
   await expect(header).not.toContainText("text");
@@ -801,8 +831,10 @@ test("compact rows select on click, edit on double-click, and expose header acti
     .fill("2");
   await jump.getByRole("button", { name: "Go to row", exact: true }).click();
   await expect(
-    page.getByRole("rowheader", { name: "2", exact: true }),
-  ).toBeVisible();
+    page
+      .getByRole("grid")
+      .locator(`[role="row"][aria-rowindex="2"] > [aria-colindex="1"]`),
+  ).toHaveText("2");
 });
 
 test("add row presents all typed fields in one form and keeps validation drafts", async ({

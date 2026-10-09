@@ -6,8 +6,17 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
+  type RefObject,
+  type ReactNode,
 } from "react";
+import {
+  DataGrid,
+  Row as DataGridRow,
+  type Column,
+  type DataGridHandle,
+  type CellKeyDownArgs,
+  type CellKeyboardEvent,
+} from "react-data-grid";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { NumberField, Label, Dropdown, Checkbox, Tooltip } from "@heroui/react";
@@ -32,11 +41,7 @@ import {
   type Table,
   type TableSchemaResult,
 } from "@rootset/contracts";
-import {
-  RowWindowCache,
-  columnLayout,
-  visibleRange,
-} from "../lib/window-cache";
+import { RowWindowCache } from "../lib/window-cache";
 import { parseTsvCells, type TsvCell } from "../lib/clipboard";
 import { parsePastedCell } from "../lib/pasted-cell";
 import {
@@ -127,11 +132,6 @@ export function Spreadsheet({
   const [accessRevoked, setAccessRevoked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
-  const [viewport, setViewport] = useState({
-    top: 0,
-    height: 600,
-    width: 1000,
-  });
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [draft, setDraft] = useState<CellDraft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -168,14 +168,15 @@ export function Spreadsheet({
   } | null>(null);
   const contextAnchor = useRef<Element | null>(null);
   const [draftExit, setDraftExit] = useState<(() => void) | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<DataGridHandle>(null);
+  const closeEditor = useRef<(() => void) | null>(null);
+  const extendSelection = useRef(false);
   const cache = useRef(new RowWindowCache());
   const abort = useRef<AbortController | null>(null);
   const copyAbort = useRef<AbortController | null>(null);
   const sessionId = useRef<string | undefined>(undefined);
   const cellAttempt = useRef(new MutationAttempt());
   const pasteAttempt = useRef(new MutationAttempt());
-  const scrollFrame = useRef<number | null>(null);
   const viewportTiming = useRef<{
     context: string;
     startedAt: number;
@@ -194,26 +195,6 @@ export function Spreadsheet({
   });
   const staleResults = !!windowInfo && displayedNavigation !== navigationDigest;
   const fields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
-  const widths = useMemo(
-    () =>
-      fields.map(
-        (field) =>
-          viewPrefs.columnWidths[field.id] ??
-          (field.type === "json" ? 240 : 180),
-      ),
-    [fields, viewPrefs.columnWidths],
-  );
-  const visible = visibleRange(
-    viewport.top,
-    viewport.height,
-    rowHeight,
-    rows.length,
-  );
-  const columns = useMemo(
-    () => columnLayout(widths, viewPrefs.frozenColumns),
-    [widths, viewPrefs.frozenColumns],
-  );
-  const gridWidth = widths.reduce((total, width) => total + width, 52);
   const currentTotal =
     windowInfo?.window?.total ?? (!query.where ? table.rowCount : undefined);
   const canJump =
@@ -254,15 +235,13 @@ export function Spreadsheet({
     frame = requestAnimationFrame(() => {
       // The second frame follows a populated DOM's paint opportunity.
       frame = requestAnimationFrame(() => {
-        const element = gridRef.current;
+        const element = gridRef.current?.element;
         const cells = element?.querySelectorAll('[role="gridcell"]');
         if (
           !element ||
           !cells?.length ||
           !element.getClientRects().length ||
-          Array.from(cells).some(
-            (cell) => cell.getAttribute("data-cell-loaded") !== "true",
-          )
+          element.querySelector('[data-cell-loaded="false"]') !== null
         )
           return;
         timing.emitted = true;
@@ -276,7 +255,7 @@ export function Spreadsheet({
             tableId: table.id,
             schemaVersion: schema.data?.table.schemaVersion,
             rows: rows.length,
-            columns: columns.length,
+            columns: fields.length,
           },
         });
         performance.measure("rootset:grid:navigation-viewport", {
@@ -297,26 +276,11 @@ export function Spreadsheet({
     table.id,
     schema.data?.table.schemaVersion,
     rows,
-    columns.length,
+    fields.length,
     loading,
     staleResults,
     accessRevoked,
   ]);
-  useEffect(() => {
-    const element = gridRef.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry)
-        setViewport((previous) => ({
-          ...previous,
-          height: entry.contentRect.height,
-          width: entry.contentRect.width,
-        }));
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [schema.data?.fields.length]);
-
   const loadWindow = useCallback(
     async (
       position: number | "first" | "middle" | "last" = "first",
@@ -373,10 +337,23 @@ export function Spreadsheet({
           const lastId = currentRows.current[selected.endRow]?.id;
           const first = response.data.findIndex((row) => row.id === firstId);
           const last = response.data.findIndex((row) => row.id === lastId);
-          setSelection(
+          const nextSelection =
             first < 0 || last < 0
               ? null
-              : { ...selected, row: first, endRow: last },
+              : { ...selected, row: first, endRow: last };
+          if (!closeEditor.current)
+            gridRef.current?.setActivePosition(
+              {
+                rowIdx: nextSelection?.row ?? -1,
+                idx: nextSelection ? nextSelection.column + 1 : 0,
+              },
+              { shouldFocus: false },
+            );
+          setSelection(nextSelection);
+        } else if (!closeEditor.current) {
+          gridRef.current?.setActivePosition(
+            { rowIdx: -1, idx: 0 },
+            { shouldFocus: false },
           );
         }
         cache.current.set({
@@ -385,10 +362,7 @@ export function Spreadsheet({
           rows: response.data,
           nextCursor: response.page.nextCursor,
         });
-        if (gridRef.current) {
-          gridRef.current.scrollTop = 0;
-          setViewport((previous) => ({ ...previous, top: 0 }));
-        }
+        gridRef.current?.scrollToCell({ rowIdx: 0 });
         setAnnouncement(
           `Loaded ${response.data.length} rows starting at row ${start + 1}. Results are live.`,
         );
@@ -461,14 +435,6 @@ export function Spreadsheet({
     currentSelection.current = selection;
   }, [rows, selection]);
   useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
-  useEffect(
-    () => () => {
-      if (scrollFrame.current !== null)
-        cancelAnimationFrame(scrollFrame.current);
-    },
-    [],
-  );
-
   async function saveView(next: typeof preferencesEmpty) {
     setViewPrefs(next);
     try {
@@ -500,77 +466,31 @@ export function Spreadsheet({
     else action();
   }
 
-  function focusCell(row: number, column: number, extend = false) {
-    if (!rows.length || !fields.length) return;
-    const nextRow = Math.max(0, Math.min(rows.length - 1, row));
-    const nextColumn = Math.max(0, Math.min(fields.length - 1, column));
-    setSelection((previous) =>
-      extend && previous
-        ? { ...previous, endRow: nextRow, endColumn: nextColumn }
-        : {
-            row: nextRow,
-            column: nextColumn,
-            endRow: nextRow,
-            endColumn: nextColumn,
-          },
+  function focusCell(row: number, column: number) {
+    gridRef.current?.setActivePosition(
+      { rowIdx: row, idx: column + 1 },
+      { shouldFocus: true },
     );
-    const field = fields[nextColumn]!;
-    setAnnouncement(
-      `Row ${windowStart + nextRow + 1}, ${field.name}, ${formatCellValue(field, rows[nextRow]!.values[field.name] ?? null, { timeZone: preferences.timezone, locale: preferences.locale, dateFormat: preferences.dateFormat, timeFormat: preferences.timeFormat })}`,
-    );
-    const element = gridRef.current;
-    if (element) {
-      const top = nextRow * rowHeight;
-      const left = widths
-        .slice(0, nextColumn)
-        .reduce((sum, width) => sum + width, 52);
-      if (top < element.scrollTop) element.scrollTop = top;
-      else if (top + rowHeight > element.scrollTop + element.clientHeight - 38)
-        element.scrollTop = top + rowHeight - element.clientHeight + 38;
-      if (nextColumn >= viewPrefs.frozenColumns) {
-        const pinnedWidth = widths
-          .slice(0, viewPrefs.frozenColumns)
-          .reduce((sum, width) => sum + width, 52);
-        if (left < element.scrollLeft + pinnedWidth)
-          element.scrollLeft = left - pinnedWidth;
-        else if (
-          left + widths[nextColumn]! >
-          element.scrollLeft + element.clientWidth
-        )
-          element.scrollLeft = left + widths[nextColumn]! - element.clientWidth;
-      }
-      element.focus();
-    }
   }
 
-  function editCell(row: number, column: number, initialInput?: string) {
-    const selectedRow = rows[row],
-      field = fields[column];
-    if (!selectedRow || !field || !writable) return;
-    if (!Object.hasOwn(selectedRow.values, field.name)) {
-      setError(
-        "This column is loading. Wait for the current window, then edit the cell.",
-      );
-      return;
-    }
+  function beginEdit(row: Row, field: FieldDefinition, initialInput?: string) {
+    if (!writable || saving || !Object.hasOwn(row.values, field.name)) return;
     setDraft({
-      row: selectedRow,
+      row,
       field,
       ...(initialInput !== undefined ? { initialInput } : {}),
     });
-    focusCell(row, column);
   }
 
   async function commitCell(value: JsonValue, target = draft) {
     const draft = target;
-    if (!draft || saving) return;
-    if (draft.schemaConflict) return;
+    if (!draft || saving || draft.schemaConflict) return false;
     if (!writable) {
       setDraft({
         ...draft,
         error: "This table is currently read-only. Your draft is still here.",
       });
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -594,7 +514,6 @@ export function Spreadsheet({
       setDraft(null);
       cellAttempt.current.clear();
       setAnnouncement(`${draft.field.name} saved.`);
-      gridRef.current?.focus();
       onChanged();
       if (
         query.where ||
@@ -604,6 +523,7 @@ export function Spreadsheet({
         )
       )
         void loadWindow(windowStart);
+      return true;
     } catch (failure) {
       if (
         failure instanceof ApiError &&
@@ -668,82 +588,77 @@ export function Spreadsheet({
             : {}),
         };
       });
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  function onKey(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget) return;
-    if (draft) return;
+  async function setCellNull(row: Row, field: FieldDefinition) {
+    const saved = await commitCell(null, { row, field, initialValue: null });
+    if (saved) return;
+    const rowIdx = rows.findIndex((candidate) => candidate.id === row.id);
+    const idx = fields.findIndex((candidate) => candidate.id === field.id) + 1;
+    if (rowIdx >= 0 && idx > 0)
+      gridRef.current?.setActivePosition(
+        { rowIdx, idx },
+        { enableEditor: true },
+      );
+  }
+
+  function onKey(args: CellKeyDownArgs<Row>, event: CellKeyboardEvent) {
+    if (args.mode === "EDIT") {
+      event.preventGridDefault();
+      return;
+    }
+    const { row, column, rowIdx } = args;
+    if (!row || !column || rowIdx < 0) return;
     if (
       event.key === "ContextMenu" ||
       (event.shiftKey && event.key === "F10")
     ) {
       event.preventDefault();
-      if (selection) {
-        contextAnchor.current = document.getElementById(
-          `cell-${rows[selection.row]?.id}-${fields[selection.column]?.id}`,
-        );
-        setContextMenu({
-          row: rows[selection.row],
-          field: fields[selection.column],
-        });
-      }
-      return;
-    }
-    const current = selection ?? { row: 0, column: 0, endRow: 0, endColumn: 0 };
-    if (
-      ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Tab"].includes(
-        event.key,
-      )
-    ) {
-      event.preventDefault();
-      let row = current.endRow,
-        column = current.endColumn;
-      if (event.key === "ArrowDown") row++;
-      if (event.key === "ArrowUp") row--;
-      if (event.key === "ArrowLeft") column--;
-      if (event.key === "ArrowRight") column++;
-      if (event.key === "Tab") {
-        column += event.shiftKey ? -1 : 1;
-        if (column >= fields.length) {
-          column = 0;
-          row++;
-        }
-        if (column < 0) {
-          column = fields.length - 1;
-          row--;
-        }
-      }
-      focusCell(row, column, event.shiftKey && event.key !== "Tab");
-    } else if (event.key === "Enter" || event.key === "F2") {
-      event.preventDefault();
-      editCell(current.row, current.column);
-    } else if (
-      event.key.length === 1 &&
-      !event.metaKey &&
-      !event.ctrlKey &&
-      !event.altKey
-    ) {
-      event.preventDefault();
-      editCell(current.row, current.column, event.key);
+      event.preventGridDefault();
+      contextAnchor.current =
+        event.target instanceof Element
+          ? event.target.closest('[role="gridcell"]')
+          : null;
+      setContextMenu(
+        column.key === "__row_number"
+          ? {}
+          : { row, field: fields.find((field) => field.id === column.key) },
+      );
     } else if (
       (event.ctrlKey || event.metaKey) &&
       event.key.toLowerCase() === "c"
     ) {
       event.preventDefault();
+      event.preventGridDefault();
       void copySelection();
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      focusCell(event.ctrlKey || event.metaKey ? 0 : current.row, 0);
-    } else if (event.key === "End") {
-      event.preventDefault();
-      focusCell(
-        event.ctrlKey || event.metaKey ? rows.length - 1 : current.row,
-        fields.length - 1,
-      );
-    } else if (event.key === "Escape") setSelection(null);
+    } else if (
+      ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
+    ) {
+      extendSelection.current = event.shiftKey;
+    } else if (
+      event.key === "Enter" ||
+      event.key === "F2" ||
+      (event.key.length === 1 &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey)
+    ) {
+      const field = fields.find((field) => field.id === column.key);
+      if (field) {
+        event.preventDefault();
+        event.preventGridDefault();
+        if (saving) return;
+        beginEdit(row, field, event.key.length === 1 ? event.key : undefined);
+        args.setActivePosition(
+          { rowIdx, idx: column.idx },
+          { enableEditor: true },
+        );
+      }
+    }
   }
 
   async function copySelection() {
@@ -1038,105 +953,200 @@ export function Spreadsheet({
     });
   }
 
-  const editor = draft ? (
-    <div
-      className="inline-cell-editor"
-      role="group"
-      aria-label={`Edit ${draft.field.name}`}
-      onClick={(event) => event.stopPropagation()}
-      onDoubleClick={(event) => event.stopPropagation()}
-      onContextMenu={(event) => event.stopPropagation()}
-    >
-      <CellEditor
-        field={draft.field}
-        value={
-          draft.initialValue !== undefined
-            ? draft.initialValue
-            : (draft.row.values[draft.field.name] ?? null)
-        }
-        initialInput={draft.initialInput}
-        timeZone={preferences.timezone}
-        locale={preferences.locale}
-        onCommit={commitCell}
-        onCancel={() => {
-          setDraft(null);
-          gridRef.current?.focus();
-        }}
-        pending={saving}
-        commitDisabled={draft.schemaConflict}
-        error={draft.error}
-        conflict={draft.conflict}
-      />
-      {draft.conflict !== undefined && (
-        <Button
-          variant="secondary"
-          onPress={() =>
-            setDraft((previous) =>
-              previous
-                ? { ...previous, conflict: undefined, error: undefined }
-                : null,
-            )
+  function renderEditor(onClose?: () => void) {
+    return draft ? (
+      <div
+        className="inline-cell-editor"
+        role="group"
+        aria-label={`Edit ${draft.field.name}`}
+        onClick={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => event.stopPropagation()}
+      >
+        <CellEditor
+          field={draft.field}
+          value={
+            draft.initialValue !== undefined
+              ? draft.initialValue
+              : (draft.row.values[draft.field.name] ?? null)
           }
-        >
-          Keep my draft and retry against the current version
-        </Button>
-      )}
-      {draft.notice && (
-        <p className="notice" role="status">
-          {draft.notice}
-        </p>
-      )}
-      {draft.schemaConflict && (
-        <Button
-          variant="secondary"
-          isDisabled={saving || schema.isFetching}
-          onPress={() => {
-            void schema.refetch().then((result) => {
-              const current = result.data?.fields.find(
-                (field) => field.id === draft.field.id,
-              );
-              if (!current || current.type !== draft.field.type) {
+          initialInput={draft.initialInput}
+          timeZone={preferences.timezone}
+          locale={preferences.locale}
+          onCommit={async (value) => {
+            if (await commitCell(value)) onClose?.();
+          }}
+          onCancel={() => {
+            setDraft(null);
+            onClose?.();
+          }}
+          pending={saving}
+          commitDisabled={draft.schemaConflict}
+          error={draft.error}
+          conflict={draft.conflict}
+        />
+        {draft.conflict !== undefined && (
+          <Button
+            variant="secondary"
+            onPress={() =>
+              setDraft((previous) =>
+                previous
+                  ? { ...previous, conflict: undefined, error: undefined }
+                  : null,
+              )
+            }
+          >
+            Keep my draft and retry against the current version
+          </Button>
+        )}
+        {draft.notice && (
+          <p className="notice" role="status">
+            {draft.notice}
+          </p>
+        )}
+        {draft.schemaConflict && (
+          <Button
+            variant="secondary"
+            isDisabled={saving || schema.isFetching}
+            onPress={() => {
+              void schema.refetch().then((result) => {
+                const current = result.data?.fields.find(
+                  (field) => field.id === draft.field.id,
+                );
+                if (!current || current.type !== draft.field.type) {
+                  setDraft((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          error: current
+                            ? `This field now uses ${current.type}. Your draft remains here. Cancel explicitly and reopen the cell to use its new editor.`
+                            : "This field has been removed. Your draft remains here; cancel explicitly after copying any values you need.",
+                        }
+                      : null,
+                  );
+                  return;
+                }
                 setDraft((previous) =>
                   previous
                     ? {
                         ...previous,
-                        error: current
-                          ? `This field now uses ${current.type}. Your draft remains here. Cancel explicitly and reopen the cell to use its new editor.`
-                          : "This field has been removed. Your draft remains here; cancel explicitly after copying any values you need.",
+                        field: current,
+                        schemaConflict: false,
+                        notice:
+                          "The current schema is loaded. Review its validation, then save your retained draft.",
+                        error: undefined,
                       }
                     : null,
                 );
-                return;
-              }
-              setDraft((previous) =>
-                previous
-                  ? {
-                      ...previous,
-                      field: current,
-                      schemaConflict: false,
-                      notice:
-                        "The current schema is loaded. Review its validation, then save your retained draft.",
-                      error: undefined,
-                    }
-                  : null,
-              );
-            });
-          }}
-        >
-          Reload schema and review draft
-        </Button>
-      )}
-    </div>
-  ) : null;
-  const renderedRows = Array.from(
-    { length: visible.end - visible.start },
-    (_, index) => visible.start + index,
-  );
+              });
+            }}
+          >
+            Reload schema and review draft
+          </Button>
+        )}
+      </div>
+    ) : null;
+  }
   const editingRow = draft
     ? rows.findIndex((row) => row.id === draft.row.id)
     : -1;
-  if (editingRow >= 0 && !renderedRows.includes(editingRow))
-    renderedRows.push(editingRow);
+  const gridColumns: Column<Row>[] = [
+    {
+      key: "__row_number",
+      name: "#",
+      width: 52,
+      frozen: true,
+      resizable: false,
+      renderHeaderCell: ({ tabIndex }) => (
+        <button
+          type="button"
+          aria-label="Row navigation"
+          aria-haspopup="menu"
+          tabIndex={tabIndex}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            const anchor = event.currentTarget;
+            preserveDraft(() => {
+              contextAnchor.current = anchor;
+              setContextMenu({});
+            });
+          }}
+          onClick={(event) => {
+            const anchor = event.currentTarget;
+            preserveDraft(() => {
+              contextAnchor.current = anchor;
+              setContextMenu({});
+            });
+          }}
+          onKeyDown={(event) => {
+            if (
+              event.key === "ContextMenu" ||
+              (event.shiftKey && event.key === "F10")
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              const anchor = event.currentTarget;
+              preserveDraft(() => {
+                contextAnchor.current = anchor;
+                setContextMenu({});
+              });
+            }
+          }}
+        >
+          #
+        </button>
+      ),
+      renderCell: ({ rowIdx }) => windowStart + rowIdx + 1,
+    },
+    ...fields.map((field, index): Column<Row> => ({
+      key: field.id,
+      name: field.name,
+      width:
+        viewPrefs.columnWidths[field.id] ?? (field.type === "json" ? 240 : 180),
+      frozen: index < viewPrefs.frozenColumns,
+      editable: (row) => writable && Object.hasOwn(row.values, field.name),
+      renderHeaderCell: ({ tabIndex }) => (
+        <Tooltip delay={250} closeDelay={0}>
+          <Tooltip.Trigger tabIndex={tabIndex}>{field.name}</Tooltip.Trigger>
+          <Tooltip.Content placement="top">
+            {field.type === "time" ? "UTC time" : field.type}
+            {field.required ? " · required" : ""}
+          </Tooltip.Content>
+        </Tooltip>
+      ),
+      cellClass: (row) => {
+        if (!selection) return undefined;
+        const rowIdx = rows.findIndex((candidate) => candidate.id === row.id);
+        return rowIdx >= Math.min(selection.row, selection.endRow) &&
+          rowIdx <= Math.max(selection.row, selection.endRow) &&
+          index >= Math.min(selection.column, selection.endColumn) &&
+          index <= Math.max(selection.column, selection.endColumn)
+          ? "range-selected"
+          : undefined;
+      },
+      renderCell: ({ row }) => (
+        <span data-cell-loaded={Object.hasOwn(row.values, field.name)}>
+          {!Object.hasOwn(row.values, field.name)
+            ? "Loading…"
+            : formatCellValue(field, row.values[field.name] ?? null, {
+                timeZone: preferences.timezone,
+                locale: preferences.locale,
+                dateFormat: preferences.dateFormat,
+                timeFormat: preferences.timeFormat,
+              })}
+        </span>
+      ),
+      renderEditCell: ({ onClose }) => (
+        <GridEditorBridge closeRef={closeEditor} onClose={onClose}>
+          {renderEditor(onClose)}
+        </GridEditorBridge>
+      ),
+      editorOptions: {
+        commitOnOutsideClick: false,
+        closeOnExternalRowChange: false,
+      },
+    })),
+  ];
 
   return (
     <section className="spreadsheet-pane" aria-labelledby="table-title">
@@ -1240,308 +1250,119 @@ export function Spreadsheet({
             )}
           </div>
           <div
-            className="grid-viewport"
-            ref={gridRef}
-            role="grid"
-            aria-label={`${table.name} spreadsheet`}
-            aria-rowcount={currentTotal === undefined ? -1 : currentTotal + 1}
-            aria-colcount={fields.length + 1}
-            aria-describedby="grid-instructions"
-            aria-busy={loading}
-            tabIndex={0}
-            aria-activedescendant={
-              selection
-                ? `cell-${rows[selection.endRow]?.id}-${fields[selection.endColumn]?.id}`
-                : undefined
-            }
-            onKeyDown={onKey}
-            data-cache-windows={cache.current.size}
-            data-cache-bytes={cache.current.byteSize}
+            className="grid-container"
+            onMouseDownCapture={(event) => {
+              if (
+                draft &&
+                event.target instanceof Element &&
+                event.target.closest('[role="columnheader"]')
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
             onPaste={(event) => {
               if (!draft) {
                 event.preventDefault();
                 previewPaste(event.clipboardData.getData("text/plain"));
               }
             }}
-            onScroll={(event) => {
-              const element = event.currentTarget;
-              if (
-                element.scrollTop === viewport.top ||
-                scrollFrame.current !== null
-              )
-                return;
-              scrollFrame.current = requestAnimationFrame(() => {
-                scrollFrame.current = null;
-                setViewport((previous) => ({
-                  ...previous,
-                  top: element.scrollTop,
-                }));
-              });
-            }}
           >
-            <div
-              className="grid-canvas"
-              style={{
-                width: Math.max(gridWidth, viewport.width),
-                height: 38 + rows.length * rowHeight,
+            <DataGrid
+              ref={gridRef}
+              columns={gridColumns}
+              rows={rows}
+              rowKeyGetter={(row) => row.id}
+              rowHeight={rowHeight}
+              className="rootset-grid"
+              aria-label={`${table.name} spreadsheet`}
+              aria-describedby="grid-instructions"
+              defaultColumnOptions={{ resizable: true }}
+              onCellMouseDown={(args, event) => {
+                extendSelection.current = event.shiftKey;
+                if (draft) {
+                  event.preventGridDefault();
+                  preserveDraft(() => args.setActivePosition());
+                }
               }}
-            >
-              <div
-                className="grid-header"
-                role="row"
-                aria-rowindex={1}
-                style={{ width: Math.max(gridWidth, viewport.width) }}
-              >
-                <div
-                  className="row-header column-number"
-                  role="columnheader"
-                  aria-colindex={1}
-                >
-                  <button
-                    type="button"
-                    aria-label="Row navigation"
-                    aria-haspopup="menu"
-                    onKeyDown={(event) => {
-                      if (
-                        event.key === "ContextMenu" ||
-                        (event.shiftKey && event.key === "F10")
-                      ) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        const anchor = event.currentTarget;
-                        preserveDraft(() => {
-                          contextAnchor.current = anchor;
-                          setContextMenu({});
-                        });
-                      }
-                    }}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      const anchor = event.currentTarget;
-                      preserveDraft(() => {
-                        contextAnchor.current = anchor;
-                        setContextMenu({});
-                      });
-                    }}
-                    onClick={(event) => {
-                      const anchor = event.currentTarget;
-                      preserveDraft(() => {
-                        contextAnchor.current = anchor;
-                        setContextMenu({});
-                      });
-                    }}
-                  >
-                    #
-                  </button>
-                </div>
-                {columns.map(({ index, left, width, frozen }) => {
-                  const field = fields[index]!;
-                  return (
-                    <div
-                      className={`column-header ${frozen ? "frozen" : ""}`}
-                      key={field.id}
-                      role="columnheader"
-                      aria-colindex={index + 2}
-                      style={{
-                        left: frozen ? 52 + left : undefined,
-                        width,
-                      }}
-                    >
-                      <Tooltip delay={250} closeDelay={0}>
-                        <Tooltip.Trigger className="column-name" tabIndex={0}>
-                          {field.name}
-                        </Tooltip.Trigger>
-                        <Tooltip.Content placement="top">
-                          {field.type === "time" ? "UTC time" : field.type}
-                          {field.required ? " · required" : ""}
-                        </Tooltip.Content>
-                      </Tooltip>
-                      <span
-                        className="column-resizer"
-                        role="separator"
-                        aria-label={`Resize ${field.name}`}
-                        aria-orientation="vertical"
-                        aria-valuenow={width}
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (
-                            event.key === "ArrowLeft" ||
-                            event.key === "ArrowRight"
-                          ) {
-                            event.preventDefault();
-                            void saveView({
-                              ...viewPrefs,
-                              columnWidths: {
-                                ...viewPrefs.columnWidths,
-                                [field.id]: Math.max(
-                                  80,
-                                  Math.min(
-                                    2000,
-                                    width +
-                                      (event.key === "ArrowRight" ? 20 : -20),
-                                  ),
-                                ),
-                              },
-                            });
-                          }
-                        }}
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.currentTarget.setPointerCapture(
-                            event.pointerId,
-                          );
-                          const startX = event.clientX;
-                          const target = event.currentTarget;
-                          let nextWidth = width;
-                          function move(pointer: PointerEvent) {
-                            nextWidth = Math.max(
-                              80,
-                              Math.min(2000, width + pointer.clientX - startX),
-                            );
-                            setViewPrefs((previous) => ({
-                              ...previous,
-                              columnWidths: {
-                                ...previous.columnWidths,
-                                [field.id]: nextWidth,
-                              },
-                            }));
-                          }
-                          function end() {
-                            target.removeEventListener("pointermove", move);
-                            target.removeEventListener("pointerup", end);
-                            void saveView({
-                              ...viewPrefs,
-                              columnWidths: {
-                                ...viewPrefs.columnWidths,
-                                [field.id]: nextWidth,
-                              },
-                            });
-                          }
-                          target.addEventListener("pointermove", move);
-                          target.addEventListener("pointerup", end, {
-                            once: true,
-                          });
-                        }}
-                      />
-                    </div>
+              onCellDoubleClick={({ row, column }, event) => {
+                const field = fields.find((field) => field.id === column.key);
+                if (draft || saving || !field || !writable)
+                  event.preventGridDefault();
+                else beginEdit(row, field);
+              }}
+              onCellContextMenu={({ row, column, rowIdx }, event) => {
+                event.preventDefault();
+                event.preventGridDefault();
+                const anchor = event.currentTarget;
+                preserveDraft(() => {
+                  focusCell(rowIdx, column.idx - 1);
+                  contextAnchor.current = anchor;
+                  setContextMenu(
+                    column.key === "__row_number"
+                      ? {}
+                      : {
+                          row,
+                          field: fields.find(
+                            (field) => field.id === column.key,
+                          ),
+                        },
                   );
-                })}
-              </div>
-              {renderedRows.map((rowIndex) => {
-                const row = rows[rowIndex]!;
-                return (
-                  <div
-                    className={`grid-row ${draft?.row.id === row.id ? "editing-row" : ""}`}
-                    key={row.id}
-                    role="row"
-                    aria-rowindex={windowStart + rowIndex + 2}
-                    style={{
-                      top: 38 + rowIndex * rowHeight,
-                      width: Math.max(gridWidth, viewport.width),
-                      height: rowHeight,
-                    }}
-                  >
-                    <div className="row-header" role="rowheader">
-                      {windowStart + rowIndex + 1}
-                    </div>
-                    {columns.map(
-                      ({ index: columnIndex, left, width, frozen }) => {
-                        const field = fields[columnIndex]!;
-                        const selected =
-                          selection &&
-                          rowIndex >=
-                            Math.min(selection.row, selection.endRow) &&
-                          rowIndex <=
-                            Math.max(selection.row, selection.endRow) &&
-                          columnIndex >=
-                            Math.min(selection.column, selection.endColumn) &&
-                          columnIndex <=
-                            Math.max(selection.column, selection.endColumn);
-                        const value = row.values[field.name] ?? null;
-                        const editing =
-                          draft?.row.id === row.id &&
-                          draft.field.id === field.id;
-                        return (
-                          <div
-                            id={`cell-${row.id}-${field.id}`}
-                            className={`grid-cell ${editing ? "editing-cell" : ""} ${selected ? "selected" : ""} ${frozen ? "frozen" : ""} ${field.type === "integer" || field.type === "float" ? "numeric" : ""} ${value === null ? "null-cell" : ""}`}
-                            key={field.id}
-                            role="gridcell"
-                            data-cell-loaded={Object.hasOwn(
-                              row.values,
-                              field.name,
-                            )}
-                            aria-colindex={columnIndex + 2}
-                            aria-selected={!!selected}
-                            aria-readonly={!writable}
-                            style={{
-                              left: frozen ? 52 + left : undefined,
-                              width,
-                              height: rowHeight,
-                            }}
-                            onClick={(event) => {
-                              if (!editing)
-                                preserveDraft(() =>
-                                  focusCell(
-                                    rowIndex,
-                                    columnIndex,
-                                    event.shiftKey,
-                                  ),
-                                );
-                            }}
-                            onDoubleClick={() => {
-                              if (!editing)
-                                preserveDraft(() =>
-                                  editCell(rowIndex, columnIndex),
-                                );
-                            }}
-                            onContextMenu={(event) => {
-                              event.preventDefault();
-                              const anchor = event.currentTarget;
-                              preserveDraft(() => {
-                                focusCell(rowIndex, columnIndex);
-                                contextAnchor.current = anchor;
-                                setContextMenu({ row, field });
-                              });
-                            }}
-                          >
-                            {editing
-                              ? editor
-                              : !Object.hasOwn(row.values, field.name)
-                                ? "Loading…"
-                                : formatCellValue(field, value, {
-                                    timeZone: preferences.timezone,
-                                    locale: preferences.locale,
-                                    dateFormat: preferences.dateFormat,
-                                    timeFormat: preferences.timeFormat,
-                                  })}
-                          </div>
-                        );
+                });
+              }}
+              onActivePositionChange={({ rowIdx, column }) => {
+                if (rowIdx < 0 || !column || column.idx === 0) {
+                  setSelection(null);
+                  return;
+                }
+                const index = column.idx - 1;
+                const extend = extendSelection.current;
+                setSelection((previous) =>
+                  extend && previous
+                    ? { ...previous, endRow: rowIdx, endColumn: index }
+                    : {
+                        row: rowIdx,
+                        column: index,
+                        endRow: rowIdx,
+                        endColumn: index,
                       },
-                    )}
-                  </div>
                 );
-              })}
-            </div>
-            {!rows.length && !loading && (
-              <div className="empty-grid">
-                <p>
-                  {query.where
-                    ? "No rows match this filter."
-                    : "This table has no rows yet."}
-                </p>
-                {writable && (
-                  <Button onPress={() => preserveDraft(() => setAddRow(true))}>
-                    Add first row
-                  </Button>
-                )}
-              </div>
-            )}
+                extendSelection.current = false;
+              }}
+              onCellKeyDown={onKey}
+              onColumnResize={(column, width) =>
+                void saveView({
+                  ...viewPrefs,
+                  columnWidths: {
+                    ...viewPrefs.columnWidths,
+                    [column.key]: width,
+                  },
+                })
+              }
+              renderers={{
+                renderRow: (key, props) => (
+                  <DataGridRow
+                    key={key}
+                    {...props}
+                    data-row-id={props.row.id}
+                  />
+                ),
+                noRowsFallback: (
+                  <div className="empty-state">
+                    {loading
+                      ? "Loading rows…"
+                      : query.where
+                        ? "No rows match this filter."
+                        : "This table has no rows yet."}
+                  </div>
+                ),
+              }}
+            />
           </div>
         </>
       )}
       {draft && editingRow < 0 && (
-        <div className="retained-cell-draft">{editor}</div>
+        <div className="retained-cell-draft">{renderEditor()}</div>
       )}
       <div className="sr-only" role="status" aria-live="polite">
         {announcement}
@@ -1553,11 +1374,7 @@ export function Spreadsheet({
             if (!open) setContextMenu(null);
           }}
         >
-          <Dropdown.Popover
-            triggerRef={contextAnchor}
-            placement="bottom start"
-            className="grid-context-menu"
-          >
+          <Dropdown.Popover triggerRef={contextAnchor} placement="bottom start">
             <Dropdown.Menu
               aria-label={contextMenu.field ? "Cell actions" : "Row navigation"}
               autoFocus="first"
@@ -1572,11 +1389,7 @@ export function Spreadsheet({
                   !current.field.required &&
                   writable
                 )
-                  void commitCell(null, {
-                    row: current.row,
-                    field: current.field,
-                    initialValue: null,
-                  });
+                  void setCellNull(current.row, current.field);
                 else if (key === "history" && current.row && current.field)
                   setHistory({ row: current.row, field: current.field });
                 else if (key === "delete") void deleteSelectedRow();
@@ -1752,6 +1565,7 @@ export function Spreadsheet({
           <Button
             onPress={() => {
               const action = draftExit;
+              closeEditor.current?.();
               setDraft(null);
               setDraftExit(null);
               action();
@@ -2035,4 +1849,22 @@ function AddRowDialog({
       </form>
     </Dialog>
   );
+}
+
+function GridEditorBridge({
+  children,
+  onClose,
+  closeRef,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+  closeRef: RefObject<(() => void) | null>;
+}) {
+  useEffect(() => {
+    closeRef.current = onClose;
+    return () => {
+      closeRef.current = null;
+    };
+  }, [onClose, closeRef]);
+  return children;
 }
