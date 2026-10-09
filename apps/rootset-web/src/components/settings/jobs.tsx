@@ -8,9 +8,7 @@ import {
 } from "@rootset/web-client";
 import { useEffect, useRef, useState } from "react";
 import {
-  databasePath,
   organisationPath,
-  performAction,
   read,
   tablePath,
   useMutation,
@@ -19,14 +17,11 @@ import {
 } from "./api";
 import {
   Choice,
-  DateLabel,
   Empty,
   Feedback,
-  Field,
   Form,
   Loading,
   Record,
-  RecordList,
   Section,
   Status,
   Toggle,
@@ -35,7 +30,6 @@ import {
 import { JobResultDetails } from "./job-result";
 import type {
   Artifact,
-  Backup,
   Job,
   SettingsPanelProps,
   TableSchemaResult,
@@ -213,265 +207,6 @@ export function JobTracker({
       )}
       {confirmation.dialog}
     </div>
-  );
-}
-
-export function BackupsSettings(props: SettingsPanelProps) {
-  const path = props.databaseId
-    ? databasePath(props.orgId, props.databaseId)
-    : undefined;
-  const backups = useResource<Backup[]>(
-    path ? `${path}/backups` : undefined,
-    [],
-  );
-  const mutation = useMutation(() => {
-    backups.reload();
-    props.onChanged?.();
-  });
-  const deletion = useMutation();
-  const confirmation = useConfirmation();
-  const [jobId, setJobId] = useState("");
-  const [restoreId, setRestoreId] = useState("");
-  const [restoreMode, setRestoreMode] = useState("new");
-  const [restoreName, setRestoreName] = useState("");
-  const [targetId, setTargetId] = useState(props.databaseId ?? "");
-  const [restorePreview, setRestorePreview] = useState<{
-    compatible?: boolean;
-    warnings?: string[];
-    rowCount?: number;
-    tableCount?: number;
-  }>();
-  if (!path) return <Empty>Select a database to manage backups.</Empty>;
-  return (
-    <>
-      <Feedback {...mutation} />
-      <Feedback {...deletion} />
-      <Section
-        title="Manual backups"
-        description="Back up all tables, schema and retained history on demand. Each backup is encrypted in the object storage configured by the installation environment and verified with an isolated restore."
-      >
-        <Button
-          isDisabled={mutation.busy}
-          onPress={async () => {
-            const result = await mutation.run(
-              () => write<JobAccepted>(`${path}/backups`, "POST", {}),
-              "Backup queued. Upload and restore validation must finish before success.",
-            );
-            if (result.ok) setJobId(result.value.jobId);
-          }}
-        >
-          Back up now
-        </Button>
-        <Loading {...backups} retry={backups.reload} />
-        <RecordList>
-          {backups.data.map((backup) => (
-            <Record
-              key={backup.id}
-              title={<DateLabel value={backup.createdAt} />}
-              description={
-                <>
-                  <Status value={backup.state} /> · verified{" "}
-                  <DateLabel value={backup.verifiedAt} />
-                  {backup.sizeBytes !== undefined && (
-                    <> · {(backup.sizeBytes / 1048576).toFixed(1)} MiB</>
-                  )}
-                  {backup.error && <p>{backup.error}</p>}
-                </>
-              }
-            >
-              <Button
-                variant="secondary"
-
-                onPress={() => {
-                  if (backup.jobId) setJobId(backup.jobId);
-                }}
-              >
-                View progress
-              </Button>
-              <Button
-                variant="secondary"
-
-                isDisabled={backup.state !== "succeeded"}
-                onPress={() => {
-                  setRestoreId(backup.id);
-                  setRestorePreview(undefined);
-                }}
-              >
-                Restore
-              </Button>
-              <Button
-                variant="danger-soft"
-
-                isDisabled={mutation.busy || deletion.busy}
-                onPress={async () => {
-                  if (
-                    await confirmation.confirm(
-                      "Delete recovery point?",
-                      "Rootset preserves the last verified recovery point unless an authorised policy explicitly permits its removal.",
-                      "Delete backup",
-                    )
-                  ) {
-                    const accepted = await deletion.run(
-                      () =>
-                        write<JobAccepted>(
-                          `${path}/backups/${backup.id}`,
-                          "DELETE",
-                        ),
-                      "Backup deletion queued. Removal is confirmed only when the job succeeds.",
-                    );
-                    if (accepted.ok) setJobId(accepted.value.jobId);
-                  }
-                }}
-              >
-                Delete
-              </Button>
-            </Record>
-          ))}
-        </RecordList>
-        {!backups.loading && !backups.error && !backups.data.length && (
-          <Empty>No backups yet.</Empty>
-        )}
-      </Section>
-      {restoreId && (
-        <Section
-          title="Restore backup"
-          description="New-database restore is the default. Replacement restore requires a current recovery point, identity approval, and an atomic validated cutover."
-        >
-          <Form
-            busy={mutation.busy}
-            submit="Preview restore"
-            onSubmit={async () => {
-              const result = await mutation.run(
-                () =>
-                  write<NonNullable<typeof restorePreview>>(
-                    `${path}/backups/${restoreId}/restore-preview`,
-                    "POST",
-                    {
-                      mode: restoreMode,
-                      name: restoreName || undefined,
-                      targetDatabaseId:
-                        restoreMode === "replace" ? targetId : undefined,
-                    },
-                  ),
-                "Restore preview complete.",
-              );
-              if (result.ok) setRestorePreview(result.value);
-            }}
-          >
-            <Choice
-              label="Restore target"
-              value={restoreMode}
-              onChange={(value) => {
-                setRestoreMode(value);
-                setRestorePreview(undefined);
-              }}
-              options={[
-                { value: "new", label: "Create a new database" },
-                { value: "replace", label: "Replace an existing database" },
-              ]}
-            />
-            {restoreMode === "new" ? (
-              <Field
-                label="New database name"
-                value={restoreName}
-                onChange={(value) => {
-                  setRestoreName(value);
-                  setRestorePreview(undefined);
-                }}
-                required
-              />
-            ) : (
-              <Field
-                label="Target database ID"
-                value={targetId}
-                onChange={(value) => {
-                  setTargetId(value);
-                  setRestorePreview(undefined);
-                }}
-                required
-              />
-            )}
-          </Form>
-          {restorePreview && (
-            <div className="settings-preview">
-              <p>
-                {restorePreview.compatible === false
-                  ? "This restore is not compatible."
-                  : "Restore preview completed."}
-              </p>
-              {restorePreview.tableCount !== undefined && (
-                <p>
-                  {restorePreview.tableCount} tables ·{" "}
-                  {restorePreview.rowCount?.toLocaleString()} rows
-                </p>
-              )}
-              {restorePreview.warnings?.map((warning) => (
-                <p key={warning}>{warning}</p>
-              ))}
-              <Button
-                isDisabled={
-                  mutation.busy || restorePreview.compatible === false
-                }
-                onPress={async () => {
-                  if (
-                    await confirmation.confirm(
-                      "Start restore?",
-                      restoreMode === "replace"
-                        ? "This replaces the target database after validation. Writes are blocked during publication and identity approval is required."
-                        : "Rootset creates a separate database and exposes it after validation succeeds.",
-                      "Start restore",
-                    )
-                  ) {
-                    const result = await mutation.run(
-                      () =>
-                        restoreMode === "replace"
-                          ? performAction<JobAccepted>("restoreBackup", {
-                              orgId: props.orgId,
-                              databaseId: props.databaseId,
-                              id: restoreId,
-                              mode: restoreMode,
-                              targetDatabaseId: targetId,
-                            })
-                          : write<JobAccepted>(
-                              `${path}/backups/${restoreId}/restores`,
-                              "POST",
-                              {
-                                mode: restoreMode,
-                                name: restoreName || undefined,
-                                targetDatabaseId:
-                                  restoreMode === "replace"
-                                    ? targetId
-                                    : undefined,
-                              },
-                            ),
-                      "Restore queued.",
-                    );
-                    if (result.ok) setJobId(result.value.jobId);
-                  }
-                }}
-              >
-                Start restore
-              </Button>
-            </div>
-          )}
-        </Section>
-      )}
-      {jobId && (
-        <Section title="Current backup or restore">
-          <JobTracker
-            orgId={props.orgId}
-            jobId={jobId}
-            onTerminal={(job) => {
-              if (job.state === "succeeded") {
-                backups.reload();
-                props.onChanged?.();
-              }
-            }}
-          />
-        </Section>
-      )}
-      {confirmation.dialog}
-    </>
   );
 }
 

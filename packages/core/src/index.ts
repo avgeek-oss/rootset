@@ -211,7 +211,6 @@ function mutations(input: unknown): RowOperation[] {
   });
 }
 const asynchronous = new Set([
-  "deleteBackup",
   "deleteDatabase",
   "deleteTable",
   "applySchemaChange",
@@ -225,8 +224,6 @@ const queuedFamilies = new Set([
   "validateImport",
   "importRows",
   "exportRows",
-  "createBackup",
-  "restoreBackup",
   "archiveHistory",
 ]);
 const jobOperations = new Set([
@@ -240,12 +237,6 @@ const jobOperations = new Set([
   "importRows",
   "exportRows",
   "getArtifact",
-  "listBackups",
-  "getBackup",
-  "createBackup",
-  "deleteBackup",
-  "previewRestore",
-  "restoreBackup",
   "listJobs",
   "getJob",
   "cancelJob",
@@ -343,21 +334,7 @@ export class RootsetCore {
         personal: true,
         orgId,
       });
-    if (operationId === "restoreBackup" && input.mode === "replace") {
-      const replacementId =
-        typeof input.targetDatabaseId === "string"
-          ? input.targetDatabaseId
-          : databaseId;
-      if (replacementId) {
-        await this.options.storage.getDatabase(actor, replacementId);
-        for (const scope of op.scopes)
-          assertAccess(actor, {
-            scope,
-            orgId,
-            roles: ["admin"],
-          });
-      }
-    }
+
     return actor;
   }
   async execute(

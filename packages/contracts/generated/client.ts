@@ -26,7 +26,7 @@ export type ErrorCode =
   | "RATE_LIMITED"
   | "CAPACITY_LIMIT"
   | "SCHEMA_MAINTENANCE"
-  | "BACKUP_UNVERIFIED"
+  | "ARTIFACT_UNVERIFIED"
   | "ARTIFACT_EXPIRED"
   | "CONFIGURATION_INVALID"
   | "DEPENDENCY_UNAVAILABLE"
@@ -83,27 +83,6 @@ export type getProfileOutput = {
   createdAt: string;
   updatedAt: string;
 };
-export type listNotificationsInput = { limit?: number; cursor?: string | null };
-export type listNotificationsOutput = {
-  notifications: {
-    id: string;
-    type: "backup.succeeded" | "backup.failed" | "backup.cancelled";
-    occurredAt: string;
-    createdAt: string;
-    payload: {
-      title: string;
-      message: string;
-      databaseId: string;
-      databaseName: string;
-      backupId: string;
-    };
-    readAt: string | null;
-  }[];
-  unreadCount: number;
-  nextCursor: string | null;
-};
-export type markAllNotificationsReadInput = Record<string, never>;
-export type markAllNotificationsReadOutput = { ok: true };
 export type updateProfileInput = { name: string };
 export type updateProfileOutput = {
   id: string;
@@ -231,10 +210,8 @@ export type beginAccountActionInput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
-    | "restore_backup"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -260,10 +237,8 @@ export type beginAccountActionOutput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
-    | "restore_backup"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -304,10 +279,8 @@ export type getAccountActionOutput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
-    | "restore_backup"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -348,10 +321,8 @@ export type completeAccountActionOutput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_backup_policy"
     | "set_history_retention_policy"
     | "archive_history"
-    | "restore_backup"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -3358,8 +3329,7 @@ export type getCellHistoryOutput = {
       clientId?: string;
     };
     source: string;
-    operation:
-      "create" | "update" | "delete" | "conversion" | "restore" | "repair";
+    operation: "create" | "update" | "delete" | "conversion" | "repair";
     before:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
     after:
@@ -3523,8 +3493,7 @@ export type queryHistoryOutput = {
       clientId?: string;
     };
     source: string;
-    operation:
-      "create" | "update" | "delete" | "conversion" | "restore" | "repair";
+    operation: "create" | "update" | "delete" | "conversion" | "repair";
     before:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
     after:
@@ -3806,7 +3775,7 @@ export type getArtifactInput = { orgId: string; id: string };
 export type getArtifactOutput = {
   id: string;
   orgId: string;
-  kind: "import" | "export" | "report" | "backup" | "history_archive";
+  kind: "import" | "export" | "report" | "history_archive";
   format: "csv" | "jsonl" | "json" | "archive";
   sizeBytes: number;
   checksum: string;
@@ -3937,127 +3906,6 @@ export type getHistoryArchiveOutput = {
   manifest?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
   error?: string;
-};
-export type listBackupsInput = {
-  orgId: string;
-  databaseId: string;
-  limit?: number;
-  cursor?: string | null;
-};
-export type listBackupsOutput = {
-  data: {
-    id: string;
-    databaseId: string;
-    orgId: string;
-    jobId: string;
-    state:
-      | "queued"
-      | "snapshotting"
-      | "uploading"
-      | "verifying"
-      | "succeeded"
-      | "failed"
-      | "cancelled";
-    createdAt: string;
-    verifiedAt: string | null;
-    sizeBytes?: number;
-    checksum?: string;
-    manifest?:
-      null | boolean | number | string | unknown[] | Record<string, unknown>;
-    error?: string;
-    notificationState?: "pending" | "sent" | "failed" | "disabled";
-    cleanupError?: { code: string; message: string };
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
-export type getBackupInput = { orgId: string; databaseId: string; id: string };
-export type getBackupOutput = {
-  id: string;
-  databaseId: string;
-  orgId: string;
-  jobId: string;
-  state:
-    | "queued"
-    | "snapshotting"
-    | "uploading"
-    | "verifying"
-    | "succeeded"
-    | "failed"
-    | "cancelled";
-  createdAt: string;
-  verifiedAt: string | null;
-  sizeBytes?: number;
-  checksum?: string;
-  manifest?:
-    null | boolean | number | string | unknown[] | Record<string, unknown>;
-  error?: string;
-  notificationState?: "pending" | "sent" | "failed" | "disabled";
-  cleanupError?: { code: string; message: string };
-};
-export type createBackupInput = { orgId: string; databaseId: string };
-export type createBackupOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
-};
-export type deleteBackupInput = {
-  orgId: string;
-  databaseId: string;
-  id: string;
-};
-export type deleteBackupOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
-};
-export type previewRestoreInput = {
-  orgId: string;
-  databaseId: string;
-  id: string;
-  mode: "new" | "replace";
-  name?: string;
-  targetDatabaseId?: string;
-  approvalId?: string;
-};
-export type previewRestoreOutput = {
-  compatible: boolean;
-  mode: "new" | "replace";
-  requiresApproval: boolean;
-  requiresRecoveryPoint: boolean;
-  warnings: string[];
-};
-export type restoreBackupInput = {
-  orgId: string;
-  databaseId: string;
-  id: string;
-  mode: "new" | "replace";
-  name?: string;
-  targetDatabaseId?: string;
-  approvalId?: string;
-};
-export type restoreBackupOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
 };
 export type listJobsInput = {
   orgId: string;
@@ -4243,16 +4091,6 @@ const routes = {
     path: "/v1/me/profile",
     method: "GET",
     idempotencyRequired: false,
-  },
-  listNotifications: {
-    path: "/v1/me/notifications",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  markAllNotificationsRead: {
-    path: "/v1/me/notifications/read-all",
-    method: "POST",
-    idempotencyRequired: true,
   },
   updateProfile: {
     path: "/v1/me/profile",
@@ -4614,36 +4452,6 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
-  listBackups: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  getBackup: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  createBackup: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  deleteBackup: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}",
-    method: "DELETE",
-    idempotencyRequired: true,
-  },
-  previewRestore: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}/restore-preview",
-    method: "POST",
-    idempotencyRequired: false,
-  },
-  restoreBackup: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups/{id}/restores",
-    method: "POST",
-    idempotencyRequired: true,
-  },
   listJobs: {
     path: "/v1/orgs/{orgId}/jobs",
     method: "GET",
@@ -4758,26 +4566,6 @@ export class RootsetClient {
     options?: CallOptions,
   ): Promise<getProfileOutput> {
     return this.call("getProfile", input, options) as Promise<getProfileOutput>;
-  }
-  listNotifications(
-    input: listNotificationsInput,
-    options?: CallOptions,
-  ): Promise<listNotificationsOutput> {
-    return this.call(
-      "listNotifications",
-      input,
-      options,
-    ) as Promise<listNotificationsOutput>;
-  }
-  markAllNotificationsRead(
-    input: markAllNotificationsReadInput,
-    options?: CallOptions,
-  ): Promise<markAllNotificationsReadOutput> {
-    return this.call(
-      "markAllNotificationsRead",
-      input,
-      options,
-    ) as Promise<markAllNotificationsReadOutput>;
   }
   updateProfile(
     input: updateProfileInput,
@@ -5443,62 +5231,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<getHistoryArchiveOutput>;
-  }
-  listBackups(
-    input: listBackupsInput,
-    options?: CallOptions,
-  ): Promise<listBackupsOutput> {
-    return this.call(
-      "listBackups",
-      input,
-      options,
-    ) as Promise<listBackupsOutput>;
-  }
-  getBackup(
-    input: getBackupInput,
-    options?: CallOptions,
-  ): Promise<getBackupOutput> {
-    return this.call("getBackup", input, options) as Promise<getBackupOutput>;
-  }
-  createBackup(
-    input: createBackupInput,
-    options?: CallOptions,
-  ): Promise<createBackupOutput> {
-    return this.call(
-      "createBackup",
-      input,
-      options,
-    ) as Promise<createBackupOutput>;
-  }
-  deleteBackup(
-    input: deleteBackupInput,
-    options?: CallOptions,
-  ): Promise<deleteBackupOutput> {
-    return this.call(
-      "deleteBackup",
-      input,
-      options,
-    ) as Promise<deleteBackupOutput>;
-  }
-  previewRestore(
-    input: previewRestoreInput,
-    options?: CallOptions,
-  ): Promise<previewRestoreOutput> {
-    return this.call(
-      "previewRestore",
-      input,
-      options,
-    ) as Promise<previewRestoreOutput>;
-  }
-  restoreBackup(
-    input: restoreBackupInput,
-    options?: CallOptions,
-  ): Promise<restoreBackupOutput> {
-    return this.call(
-      "restoreBackup",
-      input,
-      options,
-    ) as Promise<restoreBackupOutput>;
   }
   listJobs(
     input: listJobsInput,

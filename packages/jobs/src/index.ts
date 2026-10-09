@@ -25,7 +25,6 @@ import {
   lockOperationAdmission,
 } from "@rootset/idempotency";
 import { ArtifactStore } from "./artifacts.js";
-import { BackupRunner, RecoveryPending } from "./backups.js";
 import { ImportRunner } from "./imports.js";
 import {
   HistoryArchiveRunner,
@@ -51,7 +50,6 @@ export * from "./types.js";
 export * from "./queue.js";
 export * from "./artifacts.js";
 export * from "./schedule.js";
-export * from "./backups.js";
 export * from "./imports.js";
 export * from "./archives.js";
 
@@ -172,7 +170,6 @@ function historyPolicyView(row: HistoryPolicyRow | null) {
 export class JobsService {
   readonly queue: DurableQueue;
   readonly artifacts: ArtifactStore;
-  readonly backups: BackupRunner;
   readonly imports: ImportRunner;
   readonly archives: HistoryArchiveRunner;
   readonly config: JobsOptions["config"];
@@ -228,13 +225,6 @@ export class JobsService {
       },
     );
     this.artifacts = new ArtifactStore(options.pool, options.config.artifacts);
-    this.backups = new BackupRunner(
-      this.queue,
-      this.artifacts,
-      this.storage,
-      this.config.failpoint,
-      (job) => this.jobActor(job),
-    );
     this.imports = new ImportRunner(
       this.queue,
       this.artifacts,
@@ -337,14 +327,6 @@ export class JobsService {
       if (operationId === "retryJob")
         await this.authorise(actor, original.operation_id, target(original));
     }
-    if (
-      (operationId === "restoreBackup" || operationId === "previewRestore") &&
-      input.mode === "replace" &&
-      typeof input.targetDatabaseId === "string"
-    )
-      actor = await this.authorise(actor, operationId, {
-        databaseId: input.targetDatabaseId,
-      });
     return actor;
   }
 
@@ -648,10 +630,7 @@ export class JobsService {
       (typeof input.idempotencyKey === "string"
         ? input.idempotencyKey
         : undefined);
-    if (
-      jobsMutationSet.has(operationId) ||
-      (queuedMutationSet.has(operationId) && operationId !== "deleteBackup")
-    )
+    if (jobsMutationSet.has(operationId) || queuedMutationSet.has(operationId))
       return this.runReceipt(
         actor,
         operationId,
@@ -827,108 +806,7 @@ export class JobsService {
           String(input.tableId),
           String(input.id),
         );
-      case "listBackups":
-        return this.listBackups(actor, String(input.databaseId), input);
-      case "getBackup":
-        return this.getBackup(
-          actor,
-          String(input.databaseId),
-          String(input.id),
-        );
-      case "createBackup": {
-        await this.storage.getDatabase(actor, String(input.databaseId));
-        const job = await this.queue.enqueue(
-          actor,
-          operationId,
-          "backup",
-          { type: "database", id: String(input.databaseId) },
-          {
-            ...input,
-            maxRuntimeSeconds: 3600,
-            ...(context.requestId
-              ? { operationContext: { requestId: context.requestId } }
-              : {}),
-          },
-          this.requireKey(idempotencyKey),
-          context.client,
-          { manualBackupRuntime: true },
-        );
-        await this.backups.ensureRecord(
-          actor,
-          job,
-          String(input.databaseId),
-          undefined,
-          context.client,
-        );
-        return accepted(job);
-      }
-      case "deleteBackup":
-        return this.enqueueOperation(actor, operationId, input, context);
-      case "previewRestore": {
-        const loaded = await this.backups.load(actor, String(input.id));
-        if (loaded.backup.database_id !== input.databaseId)
-          throw new RootsetError(
-            "RESOURCE_NOT_FOUND",
-            "Backup not found in this database",
-            404,
-          );
-        if (input.mode === "replace") {
-          const targetId = String(input.targetDatabaseId ?? input.databaseId);
-          await this.authorise(actor, "restoreBackup", {
-            databaseId: targetId,
-          });
-          await this.storage.getDatabase(actor, targetId);
-        }
-        return {
-          compatible: true,
-          mode: input.mode,
-          requiresApproval: input.mode === "replace",
-          requiresRecoveryPoint: input.mode === "replace",
-          warnings:
-            input.mode === "replace"
-              ? [
-                  "Replacement takes a current verified recovery backup and a write barrier before atomic publication.",
-                ]
-              : [],
-        };
-      }
-      case "restoreBackup": {
-        const loaded = await this.backups.load(actor, String(input.id));
-        if (loaded.backup.database_id !== input.databaseId)
-          throw new RootsetError(
-            "RESOURCE_NOT_FOUND",
-            "Backup not found in this database",
-            404,
-          );
-        if (input.mode === "replace" && !context.stepUpApproved)
-          throw new RootsetError(
-            "STEP_UP_REQUIRED",
-            "Replacement restore requires approval bound to this action",
-            403,
-          );
-        if (input.mode === "replace")
-          await this.authorise(actor, operationId, {
-            databaseId: String(input.targetDatabaseId ?? input.databaseId),
-          });
-        return accepted(
-          await this.queue.enqueue(
-            actor,
-            operationId,
-            "restore",
-            { type: "database", id: String(input.databaseId) },
-            {
-              ...input,
-              stepUpApproved:
-                input.mode === "replace" && !!context.stepUpApproved,
-              ...(context.requestId
-                ? { operationContext: { requestId: context.requestId } }
-                : {}),
-            },
-            this.requireKey(idempotencyKey),
-            context.client,
-          ),
-        );
-      }
+
       case "listJobs":
         return this.listJobs(actor, input);
       case "getJob":
@@ -1016,7 +894,7 @@ export class JobsService {
       const job = await this.queue.enqueue(
         actor,
         operationId,
-        operationId === "deleteBackup" ? "delete_backup" : "operation",
+        "operation",
         { type, id },
         {
           ...input,
@@ -1139,11 +1017,9 @@ export class JobsService {
     const operation =
       artifact.purpose === "history-archive"
         ? "getHistoryArchive"
-        : artifact.purpose.startsWith("backup")
-          ? "getBackup"
-          : artifact.purpose.startsWith("import")
-            ? "validateImport"
-            : "exportRows";
+        : artifact.purpose.startsWith("import")
+          ? "validateImport"
+          : "exportRows";
     await this.authorise(
       actor,
       operation,
@@ -1184,13 +1060,11 @@ export class JobsService {
       kind:
         artifact.purpose === "history-archive"
           ? "history_archive"
-          : artifact.purpose.startsWith("backup")
-            ? "backup"
-            : artifact.purpose === "import-rejections"
-              ? "report"
-              : artifact.purpose.startsWith("import")
-                ? "import"
-                : "export",
+          : artifact.purpose === "import-rejections"
+            ? "report"
+            : artifact.purpose.startsWith("import")
+              ? "import"
+              : "export",
       format: artifact.format,
       sizeBytes: Number(artifact.byte_length),
       checksum: artifact.checksum!,
@@ -1523,10 +1397,7 @@ export class JobsService {
       job.kind === "history_archive" && typeof job.input.policyId === "string"
         ? await this.scheduledHistoryActor(job)
         : await this.authorise(job.actor, job.operation_id, target(job));
-    if (job.kind === "restore" && job.input.mode === "replace")
-      await this.authorise(actor, "restoreBackup", {
-        databaseId: String(job.input.targetDatabaseId ?? job.target_id),
-      });
+
     return actor;
   }
 
@@ -1537,46 +1408,6 @@ export class JobsService {
       this.queue.workerPool,
       job.org_id,
       async (client): Promise<JsonValue | undefined> => {
-        if (job.kind === "backup") {
-          const row = (
-            await client.query<{
-              id: string;
-              verified_at: Date;
-              manifest: import("./backups.js").BackupManifest;
-            }>(
-              "SELECT id,verified_at,manifest FROM rootset_control.backups WHERE job_id=$1 AND database_id=$2 AND state='succeeded' AND verified_at IS NOT NULL",
-              [job.id, job.target_id],
-            )
-          ).rows[0];
-          if (row)
-            return {
-              backupId: row.id,
-              state: "succeeded",
-              verifiedAt: row.verified_at.toISOString(),
-              rowCount: row.manifest.rowCount,
-              historyCount: row.manifest.historyCount,
-            };
-        }
-        if (job.kind === "restore") {
-          const row = (
-            await client.query<{
-              result: JsonValue;
-              recovery_backup_id: string | null;
-            }>(
-              "SELECT result,recovery_backup_id FROM rootset_control.restore_publications WHERE job_id=$1 AND state='published'",
-              [job.id],
-            )
-          ).rows[0];
-          if (row)
-            return {
-              ...(row.result as Record<string, JsonValue>),
-              state: "succeeded",
-              backupId: String(job.input.id),
-              ...(row.recovery_backup_id
-                ? { recoveryBackupId: row.recovery_backup_id }
-                : {}),
-            };
-        }
         if (job.kind === "history_archive") {
           const row = (
             await client.query<HistoryArchiveRecord>(
@@ -1594,15 +1425,7 @@ export class JobsService {
               rowEvents: Number(row.row_count),
             };
         }
-        if (job.kind === "delete_backup") {
-          const outcome = (
-            await client.query<{ result: JsonValue }>(
-              "SELECT result FROM rootset_control.operation_outcomes WHERE job_id=$1 AND org_id=$2 AND operation_id='deleteBackup' AND job_input_digest=$3",
-              [job.id, job.org_id, job.input_digest],
-            )
-          ).rows[0];
-          if (outcome) return outcome.result;
-        }
+
         return undefined;
       },
     );
@@ -1611,10 +1434,7 @@ export class JobsService {
   private async reconciledResult(
     job: JobRecord,
   ): Promise<JsonValue | undefined> {
-    if (
-      ["operation", "delete_backup"].includes(job.kind) &&
-      this.config.reconcileOperation
-    ) {
+    if (job.kind === "operation" && this.config.reconcileOperation) {
       const outcome = await this.config.reconcileOperation(job);
       if (outcome !== undefined) return outcome;
     }
@@ -1622,298 +1442,11 @@ export class JobsService {
   }
 
   private async synchronizeTerminalRecords(orgId: string): Promise<void> {
-    const backups = await withOrg(
-      this.queue.workerPool,
-      orgId,
-      async (client) => {
-        await client.query(
-          "UPDATE rootset_control.history_archives a SET state=j.state,updated_at=now() FROM rootset_control.jobs j WHERE a.job_id=j.id AND j.state IN ('failed','cancelled') AND a.state NOT IN ('succeeded','failed','cancelled')",
-        );
-        return (
-          await client.query<{ id: string; job: JobRecord }>(
-            "UPDATE rootset_control.backups b SET state=j.state,updated_at=now() FROM rootset_control.jobs j WHERE b.job_id=j.id AND j.state IN ('failed','cancelled') AND b.state NOT IN ('succeeded','failed','cancelled','deleted','deleting') RETURNING b.id,to_jsonb(j) AS job",
-          )
-        ).rows;
-      },
-    );
-    for (const backup of backups)
-      await this.notifyBackup(backup.job.actor, backup.job, {
-        backupId: backup.id,
-        state: backup.job.state,
-      });
-  }
-
-  private async listBackups(
-    actor: Actor,
-    databaseId: string,
-    input: Record<string, unknown>,
-  ) {
-    await this.storage.getDatabase(actor, databaseId);
-    const limit = Math.min(100, Math.max(1, Number(input.limit ?? 50)));
-    const paging = this.config.metadataPaging;
-    if (!paging)
-      throw new RootsetError(
-        "CONFIGURATION_INVALID",
-        "Metadata cursor signing is not configured",
-        503,
-      );
-    const request = {
-      resource: `backups:${actor.orgId}:${databaseId}`,
-      limit,
-      cursor: typeof input.cursor === "string" ? input.cursor : null,
-    };
-    const position = paging.read(actor, request);
-    const rows = await withOrg(
-      this.queue.pool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<{ id: string }>(
-            "SELECT id FROM rootset_control.backups WHERE database_id=$1 AND state NOT IN ('deleted','deleting') AND ($2::text IS NULL OR id>$2) ORDER BY id ASC LIMIT $3",
-            [databaseId, position.afterId, limit + 1],
-          )
-        ).rows,
-    );
-    const page = paging.paginate(rows, actor, request);
-    return {
-      data: await Promise.all(
-        page.data.map((row) => this.getBackup(actor, databaseId, row.id)),
+    await withOrg(this.queue.workerPool, orgId, (client) =>
+      client.query(
+        "UPDATE rootset_control.history_archives a SET state=j.state,updated_at=now() FROM rootset_control.jobs j WHERE a.job_id=j.id AND j.state IN ('failed','cancelled') AND a.state NOT IN ('succeeded','failed','cancelled')",
       ),
-      nextCursor: page.nextCursor,
-    };
-  }
-
-  private async getBackup(actor: Actor, databaseId: string, id: string) {
-    const backup = await withOrg(
-      this.queue.pool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<Record<string, unknown>>(
-            "SELECT b.*,j.error FROM rootset_control.backups b JOIN rootset_control.jobs j ON j.id=b.job_id WHERE b.id=$1 AND b.database_id=$2 AND b.state NOT IN ('deleted','deleting')",
-            [id, databaseId],
-          )
-        ).rows[0],
     );
-    if (!backup)
-      throw new RootsetError("RESOURCE_NOT_FOUND", "Backup not found", 404);
-    if (
-      ["pending", "failed"].includes(String(backup.notification_state)) &&
-      typeof backup.notification_delivery_id === "string" &&
-      this.config.notificationStatus
-    ) {
-      const state = await this.config.notificationStatus(
-        backup.notification_delivery_id,
-      );
-      if (state !== backup.notification_state)
-        await withOrg(this.queue.workerPool, actor.orgId, (client) =>
-          client.query(
-            "UPDATE rootset_control.backups SET notification_state=$2 WHERE id=$1 AND notification_delivery_id=$3",
-            [id, state, backup.notification_delivery_id],
-          ),
-        );
-      backup.notification_state = state;
-    }
-    const manifest = backup.manifest as Record<string, unknown> | null;
-    return {
-      id: backup.id,
-      databaseId: backup.database_id,
-      orgId: actor.orgId,
-      jobId: backup.job_id,
-      state: backup.state,
-      notificationState: backup.notification_state,
-      ...(backup.cleanup_error
-        ? {
-            cleanupError: {
-              code: String(
-                (backup.cleanup_error as Record<string, unknown>).code,
-              ),
-              message: String(
-                (backup.cleanup_error as Record<string, unknown>).message,
-              ),
-            },
-          }
-        : {}),
-      createdAt: (backup.created_at as Date).toISOString(),
-      verifiedAt: backup.verified_at
-        ? (backup.verified_at as Date).toISOString()
-        : null,
-      ...(manifest
-        ? {
-            manifest,
-            sizeBytes: (manifest.rows as Array<{ byteLength: number }>).reduce(
-              (sum, row) => sum + row.byteLength,
-              Number((manifest.history as { byteLength: number }).byteLength),
-            ),
-          }
-        : {}),
-      ...(backup.error
-        ? { error: String((backup.error as Record<string, unknown>).message) }
-        : {}),
-    };
-  }
-
-  private async deleteBackup(actor: Actor, job: JobRecord): Promise<JsonValue> {
-    const databaseId = job.target_id,
-      id = String(job.input.id);
-    let ids = Array.isArray(job.checkpoint.deleteArtifacts)
-      ? job.checkpoint.deleteArtifacts.map(String)
-      : undefined;
-    if (!ids) {
-      ids = await this.queue.fenced(job, async (client) => {
-        await client.query(
-          "SELECT pg_advisory_xact_lock(hashtextextended($1,1))",
-          [databaseId],
-        );
-        const backup = (
-          await client.query<{
-            state: string;
-            manifest: {
-              rows: Array<{ artifactId: string }>;
-              history: { artifactId: string };
-            } | null;
-            manifest_artifact_id: string | null;
-          }>(
-            "SELECT * FROM rootset_control.backups WHERE id=$1 AND database_id=$2 FOR UPDATE",
-            [id, databaseId],
-          )
-        ).rows[0];
-        if (!backup)
-          throw new RootsetError("RESOURCE_NOT_FOUND", "Backup not found", 404);
-        const active = await client.query(
-          "SELECT 1 FROM rootset_control.jobs j JOIN rootset_control.backups b ON b.job_id=j.id WHERE b.id=$1 AND j.state IN ('queued','running')",
-          [id],
-        );
-        if (active.rowCount)
-          throw new RootsetError(
-            "JOB_FAILED",
-            "An active backup must finish or be cancelled before deletion",
-            409,
-          );
-        if (backup.state === "succeeded") {
-          const others = await client.query(
-            "SELECT 1 FROM rootset_control.backups WHERE database_id=$1 AND id<>$2 AND state='succeeded' AND verified_at IS NOT NULL LIMIT 1",
-            [databaseId, id],
-          );
-          if (!others.rowCount)
-            throw new RootsetError(
-              "BACKUP_UNVERIFIED",
-              "The last verified recovery point is protected",
-              409,
-            );
-        }
-        const reference = await client.query(
-          "SELECT 1 FROM rootset_control.restore_publications WHERE recovery_backup_id=$1 AND state IN ('preparing','staged','verified') LIMIT 1",
-          [id],
-        );
-        if (reference.rowCount)
-          throw new RootsetError(
-            "BACKUP_UNVERIFIED",
-            "An active replacement restore needs this recovery point",
-            409,
-          );
-        const artifacts = [
-          ...(backup.manifest?.rows ?? []).map((row) => row.artifactId),
-          ...(backup.manifest?.history
-            ? [backup.manifest.history.artifactId]
-            : []),
-          ...(backup.manifest_artifact_id ? [backup.manifest_artifact_id] : []),
-        ];
-        job.checkpoint = {
-          ...job.checkpoint,
-          deleteBackupId: id,
-          deleteArtifacts: artifacts,
-          deletedArtifacts: 0,
-        };
-        job.progress = { ...job.progress, committed: 1 };
-        await client.query(
-          "UPDATE rootset_control.backups SET state='deleting',updated_at=now() WHERE id=$1 AND state<>'deleted'",
-          [id],
-        );
-        await client.query(
-          "UPDATE rootset_control.jobs SET checkpoint=$2,progress=$3,stage='deleting_artifacts',updated_at=now() WHERE id=$1",
-          [job.id, job.checkpoint, job.progress],
-        );
-        return artifacts;
-      });
-    }
-    for (
-      let position = Number(job.checkpoint.deletedArtifacts ?? 0);
-      position < ids.length;
-      position++
-    ) {
-      actor = await this.jobActor(job);
-      const artifact = await this.queue.fenced(job, async (client) => {
-        const row = (
-          await client.query<ArtifactRecord>(
-            "SELECT * FROM rootset_control.artifacts WHERE id=$1",
-            [ids![position]],
-          )
-        ).rows[0];
-        if (!row || row.state === "deleted") return null;
-        if (
-          row.target_id !== databaseId ||
-          !row.object_key.startsWith(
-            `rootset/${actor.orgId}/database/${databaseId}/`,
-          )
-        )
-          throw new RootsetError(
-            "ACCESS_DENIED",
-            "Backup cleanup object is outside its owned namespace",
-            403,
-          );
-        await client.query(
-          "UPDATE rootset_control.artifacts SET state='deleting',updated_at=now() WHERE id=$1",
-          [row.id],
-        );
-        return row;
-      });
-      if (artifact)
-        await this.artifacts.client.send(
-          new DeleteObjectCommand({
-            Bucket: this.artifacts.config.bucket,
-            Key: artifact.object_key,
-          }),
-          {
-            abortSignal: AbortSignal.timeout(
-              Math.max(
-                1,
-                Math.min(
-                  30000,
-                  (job.deadline ?? Date.now() + 30000) - Date.now(),
-                ),
-              ),
-            ),
-          },
-        );
-      await this.queue.fenced(job, async (client) => {
-        if (artifact)
-          await client.query(
-            "UPDATE rootset_control.artifacts SET state='deleted',updated_at=now() WHERE id=$1",
-            [artifact.id],
-          );
-        job.checkpoint = { ...job.checkpoint, deletedArtifacts: position + 1 };
-        job.progress = { ...job.progress, committed: position + 2 };
-        await client.query(
-          "UPDATE rootset_control.jobs SET checkpoint=$2,progress=$3,updated_at=now() WHERE id=$1",
-          [job.id, job.checkpoint, job.progress],
-        );
-      });
-      await this.config.failpoint?.("backupDelete.afterObject", job.id);
-    }
-    actor = await this.jobActor(job);
-    const result: JsonValue = { deleted: true };
-    await this.queue.fenced(job, async (client) => {
-      await client.query(
-        "UPDATE rootset_control.backups SET state='deleted',manifest=NULL,manifest_artifact_id=NULL,updated_at=now() WHERE id=$1 AND database_id=$2",
-        [id, databaseId],
-      );
-      await client.query(
-        "INSERT INTO rootset_control.operation_outcomes(job_id,org_id,operation_id,job_input_digest,result) VALUES($1,$2,$3,$4,$5) ON CONFLICT(job_id) DO NOTHING",
-        [job.id, job.org_id, job.operation_id, job.input_digest, result],
-      );
-    });
-    return result;
   }
 
   async cleanupArtifacts(orgId: string): Promise<number> {
@@ -1922,38 +1455,6 @@ export class JobsService {
       await client.query(
         "SELECT set_config('idle_in_transaction_session_timeout','600000',true)",
       );
-      const namespaces = (
-        await client.query<{
-          id: string;
-          actor: Actor;
-          database_id: string;
-          manifest: import("./types.js").RestoreResult;
-        }>(`SELECT j.id,j.actor,p.database_id,p.manifest FROM rootset_control.jobs j
-        JOIN rootset_control.restore_provenance p ON p.job_id=j.id JOIN rootset_control.databases d ON d.id=p.database_id
-        WHERE j.state IN ('failed','cancelled') AND coalesce((p.manifest->>'verification')::boolean,false) AND p.state NOT IN ('discarded','published') AND d.state<>'active'
-        ORDER BY j.updated_at LIMIT 5 FOR UPDATE OF j SKIP LOCKED`)
-      ).rows;
-      for (const namespace of namespaces) {
-        await this.storage.discardRestore(namespace.actor, namespace.manifest);
-        await client.query(
-          "UPDATE rootset_control.backups SET cleanup_error=NULL,updated_at=now() WHERE job_id=$1",
-          [namespace.id],
-        );
-      }
-    });
-    await withOrg(this.queue.workerPool, orgId, async (client) => {
-      const stale = (
-        await client.query<{
-          id: string;
-        }>(`SELECT j.id FROM rootset_control.jobs j JOIN rootset_control.backups b ON b.job_id=j.id
-        WHERE j.state IN ('failed','cancelled') AND j.updated_at<now()-interval '24 hours' AND b.verified_at IS NULL AND b.cleanup_error IS NULL AND b.manifest IS NOT NULL
-        ORDER BY j.updated_at LIMIT 10 FOR UPDATE OF j SKIP LOCKED`)
-      ).rows;
-      for (const job of stale)
-        await client.query(
-          "UPDATE rootset_control.backups SET manifest=NULL,manifest_artifact_id=NULL,updated_at=now() WHERE job_id=$1 AND verified_at IS NULL",
-          [job.id],
-        );
       const staleArchives = (
         await client.query<{
           id: string;
@@ -1974,9 +1475,8 @@ export class JobsService {
       async (client) =>
         (
           await client.query<ArtifactRecord>(`SELECT a.* FROM rootset_control.artifacts a
-      WHERE a.state<>'deleted' AND (((a.purpose NOT LIKE 'backup%' AND a.purpose<>'history-archive') AND a.expires_at<=now() AND a.state IN ('upload_pending','uploading','ready','failed','deleting')) OR a.metadata->>'cleanupPending'='true'
-        OR ((a.purpose LIKE 'backup%' OR a.purpose='history-archive') AND a.created_at<now()-interval '24 hours'
-          AND NOT EXISTS(SELECT 1 FROM rootset_control.backups b WHERE b.manifest_artifact_id=a.id OR b.manifest->'rows' @> jsonb_build_array(jsonb_build_object('artifactId',a.id)) OR b.manifest#>>'{history,artifactId}'=a.id)
+      WHERE a.state<>'deleted' AND ((a.purpose<>'history-archive' AND a.expires_at<=now() AND a.state IN ('upload_pending','uploading','ready','failed','deleting')) OR a.metadata->>'cleanupPending'='true'
+        OR (a.purpose='history-archive' AND a.created_at<now()-interval '24 hours'
           AND NOT EXISTS(SELECT 1 FROM rootset_control.history_archives h WHERE h.artifact_id=a.id)
           AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.manifest->>'artifactId'=a.id)))
       AND NOT EXISTS(SELECT 1 FROM rootset_control.jobs j WHERE j.id=a.job_id AND j.state IN ('queued','running'))
@@ -2036,16 +1536,10 @@ export class JobsService {
     const reconciled = await this.queue.reconcilePending(orgId, (job) =>
       this.reconciledResult(job),
     );
-    for (const completed of reconciled)
-      if (completed.kind === "backup")
-        await this.notifyBackup(
-          completed.actor,
-          completed,
-          completed.result as Record<string, JsonValue>,
-        );
+
     const job = await this.queue.claim(orgId);
     await this.synchronizeTerminalRecords(orgId);
-    await this.releaseFinishedRestoreBarriers(orgId);
+
     if (!job) return reconciled.length > 0;
     job.deadline =
       Date.now() + Number(job.input.maxRuntimeSeconds ?? 3600) * 1000;
@@ -2071,10 +1565,7 @@ export class JobsService {
     );
     heartbeat.unref();
     try {
-      if (
-        ["operation", "delete_backup"].includes(job.kind) &&
-        this.config.reconcileOperation
-      ) {
+      if (job.kind === "operation" && this.config.reconcileOperation) {
         const prior = await this.config.reconcileOperation(job);
         if (prior !== undefined) {
           await this.queue.finish(job, "succeeded", prior);
@@ -2083,38 +1574,14 @@ export class JobsService {
       }
       const prior = await this.reconciledDomain(job);
       if (prior !== undefined) {
-        if (job.kind === "backup")
-          await this.notifyBackup(
-            job.actor,
-            job,
-            prior as Record<string, JsonValue>,
-          );
         await this.queue.finish(job, "succeeded", prior);
         return true;
       }
       const actor = await this.jobActor(job);
       if (job.cancel_requested) throw new JobCancelled();
       let result: JsonValue;
-      if (job.kind === "backup") {
-        result = await this.backups.run(
-          actor,
-          job,
-          job.target_id,
-          typeof job.input.recoveryFor === "string"
-            ? job.input.recoveryFor
-            : undefined,
-        );
-        await this.notifyBackup(
-          actor,
-          job,
-          result as Record<string, JsonValue>,
-        );
-      } else if (job.kind === "history_archive")
+      if (job.kind === "history_archive")
         result = await this.archives.run(actor, job);
-      else if (job.kind === "delete_backup")
-        result = await this.deleteBackup(actor, job);
-      else if (job.kind === "restore")
-        result = await this.backups.restore(actor, job);
       else if (job.kind === "import" || job.kind === "validate_import") {
         let artifact = await this.artifacts.get(
           actor,
@@ -2197,25 +1664,14 @@ export class JobsService {
           event: "job_failed",
           jobId: job.id,
           operationId: job.operation_id,
-          code:
-            diagnostic.code ??
-            (error instanceof RecoveryPending
-              ? "RECOVERY_PENDING"
-              : "JOB_FAILED"),
+          code: diagnostic.code ?? "JOB_FAILED",
           ...(diagnostic.constraint
             ? { constraint: diagnostic.constraint }
             : {}),
           ...(diagnostic.table ? { table: diagnostic.table } : {}),
         }),
       );
-      if (error instanceof RecoveryPending) {
-        await withOrg(this.queue.workerPool, orgId, (client) =>
-          client.query(
-            "UPDATE rootset_control.jobs SET state='queued',stage='waiting_recovery',attempt=greatest(0,attempt-1),lease_token=NULL,lease_until=NULL,next_attempt_at=now()+interval '2 seconds',updated_at=now() WHERE id=$1 AND lease_token=$2",
-            [job.id, job.lease_token],
-          ),
-        );
-      } else {
+      {
         await this.queue.fail(job, error);
         const terminal = await withOrg(
           this.queue.workerPool,
@@ -2238,76 +1694,11 @@ export class JobsService {
               [job.id, terminal!.state],
             ),
           );
-        if (
-          job.kind === "backup" &&
-          ["failed", "cancelled"].includes(terminal?.state ?? "")
-        )
-          await this.notifyBackup(job.actor, job, {
-            backupId: String(job.checkpoint.backupId ?? ""),
-            state: "failed",
-          });
       }
     } finally {
       clearInterval(heartbeat);
-      await this.releaseFinishedRestoreBarriers(orgId);
     }
     return true;
-  }
-
-  private async releaseFinishedRestoreBarriers(orgId: string) {
-    const held = await withOrg(
-      this.queue.workerPool,
-      orgId,
-      async (client) =>
-        (
-          await client.query<{
-            database_id: string;
-            job_id: string;
-            actor: Actor;
-          }>(`SELECT b.database_id,b.job_id,j.actor FROM rootset_control.restore_write_barriers b JOIN rootset_control.jobs j ON j.id=b.job_id
-      WHERE j.state IN ('succeeded','failed','cancelled','partially_completed') ORDER BY j.created_at LIMIT 20`)
-        ).rows,
-    );
-    for (const barrier of held)
-      await this.storage.releaseRestoreBarrier(
-        barrier.actor,
-        barrier.database_id,
-        { jobId: barrier.job_id, terminal: true },
-      );
-  }
-
-  private async notifyBackup(
-    actor: Actor,
-    job: JobRecord,
-    result: Record<string, JsonValue>,
-  ): Promise<void> {
-    const backupId = String(result.backupId ?? "");
-    if (!backupId) return;
-    let state = "pending";
-    let deliveryId: string | null = null;
-    try {
-      if (!this.config.notify)
-        throw new Error("Notification adapter not configured");
-      const delivery = await this.config.notify({
-        orgId: actor.orgId,
-        databaseId: job.target_id,
-        backupId,
-        state: String(result.state),
-        ...(typeof result.verifiedAt === "string"
-          ? { verifiedAt: result.verifiedAt }
-          : {}),
-      });
-      state = delivery?.state ?? "pending";
-      deliveryId = delivery?.deliveryId ?? null;
-    } catch {
-      state = "failed";
-    }
-    await withOrg(this.queue.workerPool, actor.orgId, (client) =>
-      client.query(
-        "UPDATE rootset_control.backups SET notification_state=$2,notification_delivery_id=coalesce($3,notification_delivery_id) WHERE id=$1",
-        [backupId, state, deliveryId],
-      ),
-    );
   }
 
   private async export(actor: Actor, job: JobRecord): Promise<JsonValue> {

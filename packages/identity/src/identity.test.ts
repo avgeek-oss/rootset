@@ -684,33 +684,6 @@ test(
             ).rows[0].count,
             1,
           );
-          let queued = 0;
-          await service.withOperationApproval(
-            actor,
-            "restoreBackup",
-            { mode: "new" },
-            { idempotencyKey: newId() },
-            async () => {
-              queued++;
-              return {};
-            },
-          );
-          assert.equal(queued, 1);
-          await assert.rejects(() =>
-            service.withOperationApproval(
-              {
-                ...actor,
-                kind: "oauth",
-                id: newId(),
-                credentialId: newId(),
-                clientId: "missing-grant",
-              },
-              "restoreBackup",
-              { mode: "replace" },
-              {},
-              async () => ({}),
-            ),
-          );
         },
       );
       await t.test(
@@ -757,27 +730,6 @@ test(
           );
           assert.ok(keyActor);
           assert.equal(keyActor!.kind, "personal_key");
-          assert.deepEqual(
-            await service.withOperationApproval(
-              keyActor!,
-              "restoreBackup",
-              { mode: "new" },
-              { idempotencyKey: newId() },
-              async () => ({ admitted: true }),
-            ),
-            { admitted: true },
-          );
-          await assert.rejects(
-            () =>
-              service.withOperationApproval(
-                keyActor!,
-                "restoreBackup",
-                { mode: "replace" },
-                { idempotencyKey: newId() },
-                async () => ({ admitted: true }),
-              ),
-            (error) => (error as { code: string }).code === "STEP_UP_REQUIRED",
-          );
           await execute("revokePersonalKey", actor, {
             id: created.key.id,
           });
@@ -1334,7 +1286,7 @@ test(
           const policyActor = await service.refreshPolicyActor(principal);
           assert.equal(policyActor.userId, actor.userId);
           assert.equal(policyActor.role, "admin");
-          assert.ok(policyActor.scopes.includes("backups:manage"));
+          assert.ok(policyActor.scopes.includes("schema:manage"));
         },
       );
       await t.test(

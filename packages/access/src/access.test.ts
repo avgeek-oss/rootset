@@ -36,7 +36,6 @@ test("roles separate admin management, member row writes and viewer reads", () =
       "databases:manage",
       "tables:manage",
       "schema:manage",
-      "backups:manage",
       "installation:manage",
     ])
       assert.equal(

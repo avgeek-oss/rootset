@@ -24,26 +24,22 @@ or live memberships to perform that conversion.
 
 ## Prepare an installation recovery copy
 
-A logical database backup includes table data and history, but excludes account
-credentials and much installation state. Full recovery needs PostgreSQL state
-and SQL privileges, referenced objects, protected configuration and retained keys.
+Rootset does not provide database backup or restore operations. Full installation recovery uses PostgreSQL/provider tooling and needs SQL privileges, referenced objects, protected configuration and retained keys.
 
 1. Identify the installation/project, source version, PostgreSQL major, baseline
    digest, object bucket and encryption-key recovery copy. Retain the existing images and configuration.
-2. Verify a recent logical backup by encrypted readback and isolated restore.
-   Record its data cutoff and validation result; uploaded is not verified.
-3. Stop new changes and let jobs reach safe checkpoints. Stop this installation's
+2. Stop new changes and let jobs reach safe checkpoints. Stop this installation's
    web/API/worker while keeping PostgreSQL/object storage available for copying.
    Preserve lease, checkpoint and schema-journal state.
-4. Use the PostgreSQL/provider's supported backup procedure in a protected
+3. Use the PostgreSQL/provider's supported backup procedure in a protected
    directory (`umask 077`). Retain the single database owner credential and ownership information.
    A dedicated-cluster physical backup with WAL preserves database state. Shared-cluster procedures must not copy unrelated data
    or credentials.
-5. Copy the complete referenced Rootset object set with provider tooling while
+4. Copy the complete referenced Rootset object set with provider tooling while
    writers remain stopped. Record nonempty inventory, lengths and checksums.
    Retain protected configuration and the installation encryption key. Encrypt the recovery set and protect its recovery
    key separately.
-6. Validate the PostgreSQL backup/manifest and object inventory. Mark an interrupted
+5. Validate the PostgreSQL backup/manifest and object inventory. Mark an interrupted
    copy failed; restart the source only after its copy is complete or safely
    abandoned. Keep source volumes and original objects intact.
 
@@ -65,8 +61,7 @@ Record only redacted metadata in a shared incident report.
    sign-in procedures where the target origin differs.
 4. Compare the single organisation, memberships/roles, identity/control records,
    jobs/journals, schemas, typed values, revisions, uniqueness, row/cell history
-   and artifact counts/checksums. Decrypt a nonempty object set and verify a
-   logical restore; an empty bucket proves neither object nor key recovery.
+   and artifact counts/checksums. Decrypt a nonempty object set and verify its contents; an empty bucket proves neither object nor key recovery.
 5. Start target services, check readiness and resume leases/checkpoints without
    duplicate effects. Exercise authentication, live key authority and a new edit
    with history. Record actual recovery duration, snapshot/WAL cutoff and any
@@ -76,16 +71,4 @@ Keep the original available until the recovered state is reviewed. A real cutove
 or deployment requires the user's authorization. Source-preserving recovery,
 failed restore/cutover and fresh installation are distinct checklist checks.
 
-## Logical restore
-
-Admins may restore a verified database backup as a new logical database. Validate
-schema, values, history, constraints and manifests before exposure. Failed or
-unfinished captured indexes/rules remain inactive. Replacement restore needs
-explicit approval, a recovery point, staged validation and atomic cutover; failure
-preserves the existing generation. See the
-[storage contract](../../rc-plan/MDM_DATABASE_ARCHITECTURE.md#imports-exports-and-backups).
-
-Repository recovery helpers use isolated synthetic fixtures. Check their current
-arguments and target restrictions before running them; a historical retained
-fixture from the former schema is not automatically compatible with this baseline.
-The [verification guide](../verification/README.md) records remaining rehearsals.
+Repository recovery helpers use isolated synthetic fixtures. Check their current arguments and target restrictions before running them; a historical retained fixture from the former schema is not automatically compatible with this baseline.

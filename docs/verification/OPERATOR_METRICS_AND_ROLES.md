@@ -13,7 +13,7 @@ rewriting an already completed response.
 
 Report actual pool occupancy, request/error/duration counters, connection and
 transaction pressure, disk/WAL/temp usage, data/index/history growth, job queue
-age/leases, fresh worker heartbeat, verified backup age, object/SMTP failures and
+age/leases, fresh worker heartbeat, object/SMTP failures and
 email retries. State whether a metric is process-local or installation-wide.
 Restarted process counters are not a lifetime installation total.
 

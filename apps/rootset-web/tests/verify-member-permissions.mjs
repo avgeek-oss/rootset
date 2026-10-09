@@ -84,7 +84,7 @@ try {
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Add row", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Table settings", exact: true }),
   ).toHaveCount(0);

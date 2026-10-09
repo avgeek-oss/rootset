@@ -35,7 +35,6 @@ their separate Rootset limits.
 | Read tables and history; export readable data              | Yes   | Yes    | Yes    |
 | Create, edit and delete rows; import data                  | Yes   | Yes    | No     |
 | Manage databases, schema, uniqueness and indexes           | Yes   | No     | No     |
-| Manage backups and restores                                | Yes   | No     | No     |
 | Invite people and change/remove memberships                | Yes   | No     | No     |
 | Manage own profile, factors, preferences and personal keys | Yes   | Yes    | Yes    |
 
@@ -91,7 +90,7 @@ Once a user registers a passkey, successful password verification creates a boun
 The first passkey returns ten random recovery codes once. Only SHA-256 hashes of their normalized 128-bit values are stored in `auth_recovery_codes`. A recovery code completes a pending password sign-in and is consumed atomically with that pending proof, so concurrent attempts cannot both succeed. A recovery-created session has no fresh-proof timestamp: read access remains available, but key issuance, credential changes, passkey management and approval require an actual passkey assertion bound to that session. Adding another passkey preserves codes; replacement invalidates the previous set; removing the last key removes its codes. Password reset preserves passkeys. Access revocation invalidates pending sign-in and bound challenge receipts. Explicit host-authorized operator recovery removes passkeys/codes and revokes sessions and delegated credentials.
 
 Sensitive account changes, credential changes and
-replacement restore require current authentication and explicit approval of the
+destructive schema changes require current authentication and explicit approval of the
 intended action. A cached session or old approval cannot approve a changed
 request. Changes to email verify the new address and handle uniqueness races;
 revocation invalidates affected sessions and grants. Email-change links hold
@@ -178,43 +177,9 @@ contains a previous database or table identifier.
 
 Legacy `/settings/security` and `/settings/2fa` links resolve to Passkeys; keys/connections aliases resolve to API Keys. Account pages consume published `ProfileImageSettings`, `ProfileSettings`, `EmailChangeSettings`, `PasswordChangeSettings`, `PasskeySettings`, `SessionsSettings`, and the shared API/MCP patterns. Shared labels, dialogs and fixed copy stay in the library. Recovery-code saving belongs to the passkey ceremony, with no separate recovery-code administration panel.
 
-Sensitive operations continue to use Rootset's immutable approval checks. The browser verifies the matching server ticket before approving and completing it. Identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Restore, delete and operator repair keep their separate explicit review.
+Sensitive operations continue to use Rootset's immutable approval checks. The browser verifies the matching server ticket before approving and completing it. Identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Delete and operator repair keep their separate explicit review.
 
 The browser-only `/v1/auth/email-change` GET/DELETE endpoint reads or cancels only
 the signed-in user's pending confirmation. Cancellation invalidates its token and
 expires unsent outbox work. Cross-origin mutations and bearer-key requests are
 rejected. These controls reuse the existing email-change table and add no schema.
-
-## Incoming notifications
-
-The shared NotificationMenu in the application header displays durable events for
-the signed-in user. Opening the menu refreshes it without acknowledging events.
-“Mark all as read” is the explicit acknowledgement action, shared across devices.
-The feed contains all unread events regardless of age and read receipts whose
-first read time is within the preceding 24 hours. Aging out changes presentation
-only: events, delivery records and receipts remain stored.
-
-V1 publishes manual backup completion, failure and cancellation to the verified
-requester. The event and recipient receipt are committed with the existing
-encrypted email outbox entry, using the backup ID and terminal state as their
-deduplication key. SMTP retry does not duplicate the incoming event or reset its
-read time. The feed is independent of whether the email has been delivered.
-
-Notification events carry the organisation, stable event ID, type, occurred time,
-created time and a bounded domain payload. Receipts are keyed by organisation,
-user and event. The identity service publishes them after checking current
-authority; forced row-level security applies to both tables. Live membership and verification checks
-apply to listing and marking, including personal keys and consented OAuth.
-Removing membership retains historical receipts while denying further access.
-
-The badge reports the complete unread count, independent of the current page.
-Pages are bounded to 50 by the UI and at most 100 by the API. Signed cursors bind
-the actor, credential, organisation, membership revision and page size, and retain
-PostgreSQL timestamp microseconds. Previous/Next reaches all eligible events
-without mounting an unbounded list. Failed reads retain committed rows and show
-Retry; failed acknowledgement uses one danger toast and preserves read state.
-
-Mark-all updates only unread receipts in its database statement snapshot. Later
-arrivals remain unread. Existing first-read timestamps are immutable, including
-a repeated request with a new idempotency key. Replaying the same key returns the
-original result without acknowledging events that arrived after that request.

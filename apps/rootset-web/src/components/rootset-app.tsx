@@ -39,7 +39,6 @@ import {
 import { AuthScreen } from "./auth-screen";
 import { EmailChangeConfirmation } from "./email-change-confirmation";
 import { ReauthenticationDialog } from "./settings/account/reauthentication-dialog";
-import { NotificationCenter } from "./notification-center";
 import { authClient } from "../lib/auth-client";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { Spreadsheet } from "./spreadsheet";
@@ -470,9 +469,6 @@ export function RootsetApp() {
               showThemeSwitcher={false}
               actions={
                 <>
-                  <NotificationCenter
-                    key={`${context.data.organisation?.id}:${context.data.principal.id}`}
-                  />
                   <ThemeSwitcher isDisabled={savingTheme} />
                 </>
               }

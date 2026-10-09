@@ -81,23 +81,7 @@ async function paste(text) {
     page.getByRole("dialog", { name: "Review paste", exact: true }),
   ).toBeVisible();
 }
-async function addRow(name) {
-  await page
-    .getByRole("button", { name: "Add row", exact: true })
-    .first()
-    .click();
-  const dialog = page.getByRole("dialog", { name: "Add row", exact: true });
-  await dialog.locator(".add-row-field").filter({ hasText: "NAME" }).click();
-  await dialog.getByRole("textbox", { name: /^NAME/ }).fill(name);
-  await dialog.getByRole("button", { name: "Save value", exact: true }).click();
-  await responseTo("/rows", () =>
-    dialog.getByRole("button", { name: "Add row", exact: true }).click(),
-  );
-  await expect(dialog).not.toBeVisible();
-  await expect(
-    page.getByRole("gridcell").filter({ hasText: name }).first(),
-  ).toBeVisible();
-}
+
 try {
   const signed = await context.request.post(
     new URL("/v1/auth/sign-in/email", apiURL).href,
@@ -181,10 +165,17 @@ try {
   await page
     .getByRole("button", { name: "Close settings", exact: true })
     .click();
-  await addRow("First");
-  await addRow("Second");
+  await request("POST", `${path}/rows`, {
+    values: { NAME: "First" },
+    idempotencyKey: randomUUID(),
+  });
+  await request("POST", `${path}/rows`, {
+    values: { NAME: "Second" },
+    idempotencyKey: randomUUID(),
+  });
+  await page.reload();
   report.checks.push({
-    name: "UI database table fields and row creation",
+    name: "UI database/table/field creation with API-created fixture rows",
     status: "passed",
   });
 
@@ -274,15 +265,15 @@ try {
     page.getByRole("gridcell").filter({ hasText: /^Beta$/ }),
   ).toBeVisible();
   const toolbar = page.getByRole("toolbar", { name: "Table actions" });
-  await expect(toolbar.getByRole("button")).toHaveCount(2);
+  await expect(toolbar.getByRole("button")).toHaveCount(1);
   await expect(
     toolbar.getByRole("button", { name: "Filter", exact: true }),
   ).toBeVisible();
   await expect(
-    toolbar.getByRole("button", { name: "Add row", exact: true }),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Add row", exact: true }),
+  ).toHaveCount(0);
   report.checks.push({
-    name: "Typed modal filter, cancelled draft isolation, clear filters and Filter/Add row header actions",
+    name: "Typed modal filter, cancelled draft isolation, clear filters and floating Filter action without Add row",
     status: "passed",
   });
   await expect(page.locator(".grid-footer")).toContainText("Live view");

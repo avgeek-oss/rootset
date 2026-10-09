@@ -819,7 +819,7 @@ test("nullable boolean false and top-level JSON null remain distinct", async ({
   expect((await readRow(page)).values.JSON).toBeNull();
 });
 
-test("compact rows select on click, edit on double-click, and expose header actions", async ({
+test("V1-27 compact rows select on click, edit on double-click, and expose header actions", async ({
   page,
 }) => {
   const header = page.getByRole("columnheader", {
@@ -873,19 +873,9 @@ test("compact rows select on click, edit on double-click, and expose header acti
   await expect(
     page.getByRole("group", { name: "Edit NAME", exact: true }),
   ).toHaveCount(0);
-  await openEditor(page, "NAME");
-  await page.getByLabel("NAME", { exact: true }).fill("Another unsaved draft");
-  await page.getByRole("button", { name: "Add row", exact: true }).click();
-  const addRow = page.getByRole("dialog", { name: "Add row", exact: true });
-  await expect(addRow).toBeVisible();
   await expect(
-    page.getByRole("dialog", { name: "Keep your draft?", exact: true }),
+    page.getByRole("button", { name: "Add row", exact: true }),
   ).toHaveCount(0);
-  expect((await readRow(page)).values.NAME).toBe("Another unsaved draft");
-  expect((await readRow(page)).version).toBe(
-    (BigInt(beforeLeave.version) + 2n).toString(),
-  );
-  await addRow.getByRole("button", { name: "Cancel", exact: true }).click();
   await nameCell.click({ button: "right" });
   await expect(
     page.getByRole("menuitem", { name: "Set to null", exact: true }),
@@ -908,49 +898,4 @@ test("compact rows select on click, edit on double-click, and expose header acti
       .getByRole("grid")
       .locator(`[role="row"][aria-rowindex="2"] > [aria-colindex="1"]`),
   ).toHaveText("2");
-});
-
-test("add row presents all typed fields in one form and keeps validation drafts", async ({
-  page,
-}) => {
-  await page.getByRole("button", { name: "Add row", exact: true }).click();
-  const form = page.getByRole("dialog", { name: "Add row", exact: true });
-  await expect(form.getByLabel("NAME", { exact: true })).toBeVisible();
-  await expect(form.getByLabel("INTEGER", { exact: true })).toBeVisible();
-  await form.getByLabel("NAME", { exact: true }).fill("Added inline form");
-  await form.getByLabel("INTEGER", { exact: true }).fill("1.5");
-  await form.getByRole("button", { name: "Add row", exact: true }).click();
-  await expect(form.getByRole("alert")).toContainText("whole number");
-  await expect(form.getByLabel("NAME", { exact: true })).toHaveValue(
-    "Added inline form",
-  );
-  await form.getByLabel("INTEGER", { exact: true }).fill("42");
-  await form.getByLabel("FLOAT", { exact: true }).fill("2.75");
-  await form
-    .getByRole("combobox", { name: "BOOLEAN", exact: true })
-    .selectOption("false");
-  await form.getByLabel("DATE", { exact: true }).fill("2026-10-09");
-  await form.getByLabel("TIME", { exact: true }).fill("12:34");
-  await form.getByLabel("DATETIME", { exact: true }).fill("2026-10-09T12:34");
-  await form.getByLabel("JSON", { exact: true }).fill('{"sample":true}');
-  const created = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname.endsWith("/rows"),
-  );
-  await form.getByRole("button", { name: "Add row", exact: true }).click();
-  const response = await created;
-  expect(response.ok()).toBe(true);
-  const result = await response.json();
-  expect(result.row.values).toEqual({
-    NAME: "Added inline form",
-    INTEGER: 42,
-    FLOAT: 2.75,
-    BOOLEAN: false,
-    DATE: "2026-10-09",
-    TIME: "12:34:00.000Z",
-    DATETIME: "2026-10-09T12:34:00.000Z",
-    JSON: { sample: true },
-  });
-  await expect(form).not.toBeVisible();
 });

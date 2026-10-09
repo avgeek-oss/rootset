@@ -13,7 +13,7 @@ automatic re-encryption/rotation workflow.
 
 Lost-key, authentication-tag and checksum failures are explicit failures. They
 must never be treated as successful empty reads. Recover the original key
-before resuming reads or restore.
+before resuming artifact reads.
 
 ## Application secret
 

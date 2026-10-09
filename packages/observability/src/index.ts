@@ -271,27 +271,6 @@ export class OperationalObserver {
           "schema",
           "PostgreSQL contains an invalid managed index; reconcile its build before advertising it as ready.",
         );
-      if (database.backups.failed > 0)
-        signal(
-          "BACKUP_FAILED",
-          "warning",
-          "backup",
-          "Backups have failed verification or storage work; inspect the terminal job and retained recovery point.",
-        );
-      if (database.backups.failedNotifications > 0)
-        signal(
-          "BACKUP_NOTIFICATION_FAILED",
-          "warning",
-          "backup",
-          "Backup notification delivery failed; verification and notification states must be reviewed separately.",
-        );
-      if (database.backups.databasesWithoutVerifiedBackup > 0)
-        signal(
-          "BACKUP_RECOVERY_POINT_MISSING",
-          "warning",
-          "backup",
-          "Active databases lack a verified recovery point; configure and run verified backup policies.",
-        );
     }
     if (this.loggingFailures)
       signal(

@@ -20,7 +20,7 @@ export class JobCancelled extends Error {
   }
 }
 
-function durableInput(input: Record<string, unknown>, manualRuntime = false) {
+function durableInput(input: Record<string, unknown>) {
   const result = { ...input };
   const correlation = input.operationContext;
   if (
@@ -34,7 +34,6 @@ function durableInput(input: Record<string, unknown>, manualRuntime = false) {
       result.operationContext = retained;
     else delete result.operationContext;
   }
-  if (manualRuntime) delete result.maxRuntimeSeconds;
   return result;
 }
 
@@ -74,12 +73,7 @@ export class DurableQueue {
           }),
         )
         .digest("hex");
-    const manualRuntime =
-      job.operation_id === "createBackup" &&
-      job.kind === "backup" &&
-      job.target_type === "database" &&
-      job.input.backupRuntimeSource === "installation";
-    return digest(durableInput(job.input, manualRuntime)) === job.input_digest;
+    return digest(durableInput(job.input)) === job.input_digest;
   }
 
   async enqueue(
@@ -90,7 +84,6 @@ export class DurableQueue {
     input: Record<string, unknown>,
     idempotencyKey: string,
     client?: PoolClient,
-    options?: { manualBackupRuntime?: true },
   ): Promise<JobRecord> {
     if (
       !OperationContextSchema.shape.idempotencyKey.safeParse(idempotencyKey)
@@ -100,22 +93,6 @@ export class DurableQueue {
       throw new RootsetError(
         "VALIDATION_FAILED",
         "A bounded idempotency key is required",
-      );
-    const manualRuntime = options?.manualBackupRuntime === true;
-    if (
-      Object.hasOwn(input, "backupRuntimeSource") ||
-      (manualRuntime &&
-        (operationId !== "createBackup" ||
-          kind !== "backup" ||
-          target.type !== "database" ||
-          !Number.isInteger(input.maxRuntimeSeconds) ||
-          Number(input.maxRuntimeSeconds) < 30 ||
-          Number(input.maxRuntimeSeconds) > 86400))
-    )
-      throw new RootsetError(
-        "CONFIGURATION_INVALID",
-        "Reserved backup runtime provenance is invalid",
-        500,
       );
     const provenance = this.admission?.(
       actor,
@@ -160,7 +137,6 @@ export class DurableQueue {
       );
     const persistedInput: Record<string, unknown> = {
       ...input,
-      ...(manualRuntime ? { backupRuntimeSource: "installation" } : {}),
       ...(provenance
         ? {
             operationContext: {
@@ -197,7 +173,7 @@ export class DurableQueue {
           }),
         )
         .digest("hex");
-    const digest = digestInput(durableInput(persistedInput, manualRuntime));
+    const digest = digestInput(durableInput(persistedInput));
     const run = async (connection: PoolClient) => {
       const inserted = await connection.query<JobRecord>(
         `INSERT INTO rootset_control.jobs
@@ -230,8 +206,7 @@ export class DurableQueue {
       const matches =
         existing &&
         this.authenticInput(existing) &&
-        existing.input_digest === digest &&
-        (!manualRuntime || existing.kind === "backup");
+        existing.input_digest === digest;
       if (!matches)
         throw new RootsetError(
           "IDEMPOTENCY_CONFLICT",

@@ -16,7 +16,7 @@ databases use schemas `rsd_<lowercase_database_id>`, tables use
 validated internal IDs enter these SQL identifiers. User names are never SQL.
 
 Public IDs are opaque, case-normalised 26-character ULIDs. A field ID is stable
-across a rename. New rows get server-generated IDs; restore preserves row IDs
+across a rename. New rows get server-generated IDs
 inside the new table mappings. IDs identify records and do not grant permission.
 
 A field has one `name`, matching `/^[A-Za-z_]+$/` with length 1–64. Names contain
@@ -140,8 +140,7 @@ organisation audit resource or organisation deletion workflow.
 History defaults to indefinite retention. An explicit archive policy snapshots a
 half-open UTC range, encrypts events and definitions, verifies object/checksum,
 publishes its manifest, then purges hot events in resumable batches. Never purge
-silently to satisfy the row limit. Backups materialise referenced cold events and
-fail verification when a required archive is unavailable.
+silently to satisfy the row limit. Published archives remain accessible under current resource authority.
 
 ## Schema changes and recovery
 
@@ -190,7 +189,7 @@ Do not calculate an exact filtered count for every page. Deep grid navigation
 uses bounded windows/anchors rather than unlimited OFFSET and declares supported
 jump/loading behavior.
 
-## Imports, exports and backups
+## Imports and exports
 
 CSV/JSONL imports have explicit mapping and dry-run validation. Preserve text
 codes/leading zeroes. Upsert requires explicit row IDs or an active unique rule;
@@ -200,31 +199,4 @@ duplicate rows or history. Export holds a schema barrier through extraction,
 uses a consistent snapshot and returns typed UTC data with checksums. Downloads
 recheck authority and never put reusable keys in URLs.
 
-A logical database backup captures definitions, active/inactive rule/index state,
-rows, retained history and needed journal interpretation under one MVCC snapshot.
-Hold its schema barrier until snapshot readers finish, allowing concurrent row
-edits. Independent live pages are not a snapshot. Bound duration/WAL effects.
-The encrypted manifest records IDs, schema/format/baseline versions, snapshot
-UTC time, counts, lengths, checksums, key/archive references and verification
-state. It excludes password/session/factor/API/OAuth secrets.
-
-Backups run only when an Admin triggers them through the UI, REST or MCP. There
-is no backup schedule, cron policy, preview endpoint or automatic backup retention.
-Keep verified backups until explicitly deleted; protect the last verified recovery
-point. Object storage and SMTP come from `.env`, with no stored configuration
-override. Upload, notification and restore failures have separate truthful states.
-The storage admission package, quota policy and database-host reporter are removed;
-the fixed row, field and payload limits above remain in force.
-
-Backup success requires encrypted-object readback and an isolated restore that
-compares schema, constraints, row/history counts and canonical checksums. Upload
-alone is unverified. Record verification cleanup failure without altering source.
-
-Default restore creates a new logical database in this installation, maps new
-database/table physical IDs, preserves row IDs and maps field/history identities.
-Only rules/indexes active in the captured snapshot become active; failed/unfinished
-definitions stay inactive. Validate before exposure. Replacement restore requires
-Admin approval, a recovery point, staged verification and atomic cutover; failure
-preserves the original. Full-installation recovery separately restores identities,
-control/jobs, SQL privileges, nonempty objects and retained keys using the
-[recovery runbook](../docs/operations/upgrade-and-recovery.md).
+Row creation is available through REST, MCP and imports. The browser edits existing rows inline and has no Add row action. Rootset does not provide database backup or restore operations. Use the PostgreSQL/provider tooling described in the [recovery runbook](../docs/operations/upgrade-and-recovery.md) for installation recovery.

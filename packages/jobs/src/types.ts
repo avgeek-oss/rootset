@@ -1,13 +1,7 @@
 import type { Pool, PoolClient } from "@rootset/database";
 import type { Actor, JsonValue } from "@rootset/contracts";
 import type { Readable } from "node:stream";
-import type {
-  TableStorage,
-  TableRecord,
-  DatabaseSnapshotMetadata,
-  SnapshotSource as NativeSnapshotSource,
-  RestoreResult as NativeRestoreResult,
-} from "@rootset/table-storage";
+import type { TableStorage, TableRecord } from "@rootset/table-storage";
 
 export interface Target {
   databaseId?: string;
@@ -56,9 +50,7 @@ export interface JobsConfig {
     actor: Actor,
     target: { tableId: string },
   ) => Promise<Actor>;
-  notificationStatus?: (
-    deliveryId: string,
-  ) => Promise<"pending" | "sent" | "failed">;
+
   metadataPaging?: {
     read(
       actor: Actor,
@@ -89,14 +81,7 @@ export interface JobsConfig {
   importBatchSize?: number;
   maxAttempts?: number;
   outbox?: { deliverNext(): Promise<boolean> };
-  notify?: (event: {
-    orgId: string;
-    databaseId: string;
-    backupId: string;
-    state: string;
-    verifiedAt?: string;
-    error?: JsonValue;
-  }) => Promise<void | { state: "pending" | "sent"; deliveryId?: string }>;
+
   failpoint?: (point: string, jobId: string) => Promise<void>;
   onError?: (error: unknown, job: JobRecord) => void;
   reconcileOperation?: (job: JobRecord) => Promise<JsonValue | undefined>;
@@ -108,9 +93,6 @@ export interface JobsConfig {
   ) => Promise<JsonValue>;
 }
 export type TableInfo = TableRecord;
-export type SnapshotMetadata = DatabaseSnapshotMetadata;
-export type SnapshotSource = NativeSnapshotSource;
-export type RestoreResult = NativeRestoreResult;
 export type StoragePort = Pick<
   TableStorage,
   | "getTable"
@@ -121,13 +103,7 @@ export type StoragePort = Pick<
   | "listUniqueRules"
   | "queryRows"
   | "mutateRows"
-  | "snapshotDatabase"
   | "snapshotTable"
-  | "restoreDatabase"
-  | "publishRestore"
-  | "discardRestore"
-  | "acquireRestoreBarrier"
-  | "releaseRestoreBarrier"
   | "snapshotHistory"
   | "publishHistoryArchive"
   | "purgeArchivedHistory"

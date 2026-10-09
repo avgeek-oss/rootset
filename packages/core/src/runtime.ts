@@ -9,7 +9,6 @@ import { OAuthService, type OAuthConfig } from "@rootset/oauth";
 import { RootsetCore } from "./index.js";
 import { loadConfig, type Config } from "./config.js";
 import { MetadataPaging } from "./paging.js";
-import { createBackupNotifications } from "./backup-notifications.js";
 import { ReadinessService } from "./readiness.js";
 
 export async function createRuntime(
@@ -74,11 +73,6 @@ export async function createRuntime(
       ddlPool,
       storage,
       config: {
-        ...createBackupNotifications(
-          identityPool,
-          identity.emailOutbox,
-          config.webURL,
-        ),
         metadataPaging: paging,
         idempotencySecret: config.keyHashSecret,
         recordRepairIntent: (client, actor, intent) =>

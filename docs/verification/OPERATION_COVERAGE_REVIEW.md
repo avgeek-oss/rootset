@@ -19,7 +19,7 @@ current role, input/output, side effects and transport behavior.
 Discovery or invalid-credential sweeps cannot prove successful handler behavior.
 Synthetic service actors cannot establish password/cookie/PKCE or real MCP-client
 interoperability. A received HTTP response cannot alone establish atomic native
-history, uniqueness, backup readback or process recovery.
+history, uniqueness, artifact readback or process recovery.
 
 ## Revised authority and naming
 

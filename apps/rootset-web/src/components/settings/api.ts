@@ -60,7 +60,6 @@ export async function performAction<T = unknown>(
     signOutEverywhere: "sign_out_everywhere",
     createPersonalKey: "create_key",
     rotatePersonalKey: "rotate_key",
-    restoreBackup: "restore_backup",
     deleteDatabase: "delete_database",
     deleteTable: "delete_table",
     setHistoryRetentionPolicy: "set_history_retention_policy",

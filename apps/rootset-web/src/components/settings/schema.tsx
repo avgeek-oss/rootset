@@ -122,7 +122,7 @@ export function TableSettings(props: SettingsPanelProps) {
             if (
               await confirmation.confirm(
                 "Delete this table?",
-                `Delete ${name || "this table"}? This removes normal data access and cannot be undone without a restore.`,
+                `Delete ${name || "this table"}? This removes normal data access and cannot be undone in Rootset.`,
                 "Delete table",
               )
             )

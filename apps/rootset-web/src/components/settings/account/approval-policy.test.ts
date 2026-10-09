@@ -23,7 +23,7 @@ describe("account confirmation boundary", () => {
       usesAccountConfirmation(ticket, { ...review, id: "other-action" }),
     ).toBe(false);
     expect(
-      usesAccountConfirmation(ticket, { ...review, type: "restore_backup" }),
+      usesAccountConfirmation(ticket, { ...review, type: "delete_table" }),
     ).toBe(false);
     expect(
       usesAccountConfirmation(ticket, {
@@ -32,13 +32,8 @@ describe("account confirmation boundary", () => {
       }),
     ).toBe(false);
   });
-  it("retains manual review for restore and repair intents", () => {
-    for (const operationId of [
-      "restoreBackup",
-      "mutateRows",
-      "deleteDatabase",
-      "deleteTable",
-    ])
+  it("retains manual review for delete and repair intents", () => {
+    for (const operationId of ["mutateRows", "deleteDatabase", "deleteTable"])
       expect(
         usesAccountConfirmation(
           { ...ticket, operationId },

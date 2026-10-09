@@ -85,7 +85,7 @@ export function DatabaseSettings(props: SettingsPanelProps) {
             if (
               await confirmation.confirm(
                 "Delete this database?",
-                `Delete ${name || "this database"} and all its tables? Restore requires a verified recovery point.`,
+                `Delete ${name || "this database"} and all its tables? This action cannot be undone in Rootset.`,
                 "Delete database",
               )
             )

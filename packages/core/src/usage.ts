@@ -54,7 +54,7 @@ export async function readUsage(pool: Pool, actor: Actor) {
       ).rows[0];
     const artifacts = (
       await c.query<{ bytes: string }>(
-        "SELECT coalesce(sum(ciphertext_length),0)::text bytes FROM rootset_control.artifacts WHERE state NOT IN ('deleted','expired') AND (expires_at>now() OR purpose='backup') AND ((target_type='table' AND target_id=ANY($1::text[])) OR (target_type='database' AND target_id=ANY($2::text[])))",
+        "SELECT coalesce(sum(ciphertext_length),0)::text bytes FROM rootset_control.artifacts WHERE state NOT IN ('deleted','expired') AND (expires_at>now() OR purpose='history-archive') AND ((target_type='table' AND target_id=ANY($1::text[])) OR (target_type='database' AND target_id=ANY($2::text[])))",
         [tableIds, databaseIds],
       )
     ).rows[0];

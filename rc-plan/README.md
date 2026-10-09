@@ -12,9 +12,7 @@ installation management. Personal keys inherit the person's live role; OAuth
 connections retain PKCE and operation consent without resource selections.
 
 Logical databases contain typed PostgreSQL tables with row revisions, cell
-history, structured queries and a spreadsheet. Imports/exports, internal processing,
-manual encrypted backups and verified restores remain in V1. REST, MCP and the browser
-share their domain operations.
+history, structured queries and a spreadsheet. Imports/exports and internal processing remain supported. Database backup/restore and UI row creation are excluded from V1. REST, MCP and the browser share their domain operations.
 
 Each field has one `name` property, 1–64 ASCII letters or underscores matching
 `/^[A-Za-z_]+$/`. The name is both its UI label and JSON row key. A rename keeps
@@ -24,7 +22,7 @@ V1 excludes separate Owner/installation-operator authority, organisation
 switching or deletion, ownership transfer, descriptions, organisation quotas,
 active-member/deleted-account flags, organisation-wide audit, resource grants and
 team keys. Personal keys have no selected-operation or resource whitelist.
-Backup schedules, storage admission policies, editable installation tuning,
+Database backup/restore, UI row creation, storage admission policies, editable installation tuning,
 SMTP/object storage forms, test-email delivery and a standalone Background Jobs
 screen are also excluded. Provider configuration comes only from `.env`.
 
@@ -44,7 +42,7 @@ screen are also excluded. Provider configuration comes only from `.env`.
 | Test runtime memory           | PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB, web 1 GiB; 8 GiB combined, no additional swap |
 
 UTC storage/API behavior, uniqueness, transactional cell history, five-million-row
-performance and backup/recovery requirements remain unchanged. Formulas,
+performance and installation recovery requirements remain in force. Formulas,
 attachments, relationships, arbitrary SQL, ClickHouse, SSO/SCIM, billing and public
 SaaS tenancy remain outside V1.
 

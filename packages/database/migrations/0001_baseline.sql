@@ -222,24 +222,6 @@ BEGIN
 END $$;
 
 
-CREATE FUNCTION rootset_control.enforce_restore_write() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog', 'rootset_control'
-    AS $$
-DECLARE database_arg varchar(26); organisation_arg varchar(26);
-BEGIN
- SELECT database_id,org_id INTO STRICT database_arg,organisation_arg FROM rootset_control.tables WHERE id=TG_ARGV[0];
- IF organisation_arg IS DISTINCT FROM nullif(current_setting('rootset.org_id',true),'') THEN
-   RAISE EXCEPTION 'organisation context required' USING ERRCODE='42501';
- END IF;
- PERFORM pg_advisory_xact_lock_shared(hashtextextended(database_arg,0));
- IF EXISTS(SELECT 1 FROM rootset_control.restore_write_barriers WHERE database_id=database_arg) THEN
-   RAISE EXCEPTION 'database is frozen for replacement restore' USING ERRCODE='55000';
- END IF;
- RETURN NULL;
-END $$;
-
-
 CREATE FUNCTION rootset_control.enforce_row() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'rootset_control'
@@ -383,19 +365,6 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
    greatest(0,extract(epoch FROM (statement_timestamp()-min(created_at) FILTER(WHERE state='queued')))) oldest_queued_seconds,
    count(*) FILTER(WHERE attempt>1)::integer retried
   FROM rootset_control.jobs
- ), backup_stats AS (
-  SELECT count(*) FILTER(WHERE state='succeeded' AND verified_at IS NOT NULL)::integer verified,
-   count(*) FILTER(WHERE state='failed')::integer failed,
-   count(*) FILTER(WHERE notification_state='pending')::integer pending_notifications,
-   count(*) FILTER(WHERE notification_state='failed')::integer failed_notifications,
-   max(verified_at) FILTER(WHERE state='succeeded') last_verified_at
-  FROM rootset_control.backups
- ), verified_by_database AS (
-  SELECT database_id,max(verified_at) verified_at FROM rootset_control.backups WHERE state='succeeded' AND verified_at IS NOT NULL GROUP BY database_id
- ), recovery_stats AS (
-  SELECT count(*) FILTER(WHERE b.verified_at IS NULL)::integer databases_without_verified_backup,
-   greatest(0,extract(epoch FROM (statement_timestamp()-min(b.verified_at)))) oldest_database_verified_age_seconds
-  FROM rootset_control.databases d LEFT JOIN verified_by_database b ON b.database_id=d.id WHERE d.state='active'
  ), email_stats AS (
   SELECT count(*) FILTER(WHERE state='pending')::integer pending,
    count(*) FILTER(WHERE state='sending')::integer sending,
@@ -426,7 +395,7 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
   SELECT coalesce(sum(events),0)::bigint events,coalesce(sum(tuple_bytes),0)::bigint bytes FROM rootset_control.history_metrics
  ), artifact_stats AS (
   SELECT coalesce(sum(ciphertext_length),0)::bigint bytes FROM rootset_control.artifacts
-  WHERE state NOT IN ('deleted','expired') AND (expires_at>statement_timestamp() OR purpose LIKE 'backup%')
+  WHERE state NOT IN ('deleted','expired') AND (expires_at>statement_timestamp() OR purpose='history-archive')
  ), worker_stats AS (
   SELECT count(*) FILTER(WHERE state='ready' AND heartbeat_at>statement_timestamp()-interval '30 seconds')::integer fresh_ready,
    count(*) FILTER(WHERE heartbeat_at<=statement_timestamp()-interval '30 seconds')::integer stale,
@@ -445,26 +414,14 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
   'deadlocks',coalesce(d.deadlocks,0)::text,
   'connections',jsonb_build_object('total',c.total,'active',c.active,'idle',c.idle,'idleInTransaction',c.idle_in_transaction,'maximum',current_setting('max_connections')::integer,'oldestTransactionSeconds',c.oldest_transaction_seconds),
   'jobs',jsonb_build_object('queued',j.queued,'running',j.running,'failed',j.failed,'expiredLeases',j.expired_leases,'oldestQueuedSeconds',j.oldest_queued_seconds,'retried',j.retried),
-  'backups',jsonb_build_object('verified',b.verified,'failed',b.failed,'pendingNotifications',b.pending_notifications,'failedNotifications',b.failed_notifications,'lastVerifiedAt',b.last_verified_at,'oldestDatabaseVerifiedAgeSeconds',r.oldest_database_verified_age_seconds,'databasesWithoutVerifiedBackup',r.databases_without_verified_backup),
   'email',jsonb_build_object('pending',e.pending,'sending',e.sending,'failed',e.failed,'retrying',e.retrying,'oldestPendingSeconds',e.oldest_pending_seconds),
   'schema',jsonb_build_object('pending',s.pending,'failed',s.failed,'buildingIndexes',i.building,'failedIndexes',i.failed,'invalidIndexes',ix.invalid),
   'workers',jsonb_build_object('freshReady',h.fresh_ready,'stale',h.stale,'degraded',h.degraded),
   'storage',jsonb_build_object('activeDatabases',(SELECT count(*) FROM rootset_control.databases WHERE state='active'),'activeTables',t.active,'retainedTables',t.retained,'liveRows',t.live_rows::text,'dataBytes',n.data_bytes::text,'indexBytes',n.index_bytes::text,'historyEvents',a.events::text,'historyBytes',a.bytes::text,'artifactBytes',o.bytes::text),
   'statisticsResetAt',d.stats_reset,
   'walStatisticsResetAt',w.stats_reset
- ) FROM connection_stats c CROSS JOIN job_stats j CROSS JOIN backup_stats b CROSS JOIN recovery_stats r CROSS JOIN email_stats e CROSS JOIN schema_stats s CROSS JOIN index_stats i CROSS JOIN invalid_index_stats ix CROSS JOIN native_stats n CROSS JOIN table_stats t CROSS JOIN history_stats a CROSS JOIN artifact_stats o CROSS JOIN worker_stats h CROSS JOIN pg_stat_wal w LEFT JOIN database_stats d ON true
+ ) FROM connection_stats c CROSS JOIN job_stats j CROSS JOIN email_stats e CROSS JOIN schema_stats s CROSS JOIN index_stats i CROSS JOIN invalid_index_stats ix CROSS JOIN native_stats n CROSS JOIN table_stats t CROSS JOIN history_stats a CROSS JOIN artifact_stats o CROSS JOIN worker_stats h CROSS JOIN pg_stat_wal w LEFT JOIN database_stats d ON true
 $_$;
-
-
-CREATE FUNCTION rootset_control.preserve_notification_read_time() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog', 'pg_temp'
-    AS $$ BEGIN
-      IF OLD.read_at IS NOT NULL AND NEW.read_at IS DISTINCT FROM OLD.read_at THEN
-        RAISE EXCEPTION 'Notification read time is immutable' USING ERRCODE='23514';
-      END IF;
-      RETURN NEW;
-    END $$;
 
 
 CREATE FUNCTION rootset_control.track_history_metrics() RETURNS trigger
@@ -644,29 +601,6 @@ CREATE TABLE rootset_control.auth_verifications (
 );
 
 
-CREATE TABLE rootset_control.backups (
-    id character(26) NOT NULL,
-    org_id character(26) NOT NULL,
-    database_id character(26) NOT NULL,
-    job_id character(26) NOT NULL,
-    state text NOT NULL,
-    manifest_artifact_id character(26),
-    manifest jsonb,
-    verified_at timestamp with time zone,
-    snapshot_at timestamp with time zone,
-    cleanup_error jsonb,
-    notification_state text DEFAULT 'pending'::text NOT NULL,
-    recovery_for_database_id character(26),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    notification_delivery_id character varying(26),
-    CONSTRAINT backups_notification_state_check CHECK ((notification_state = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text, 'disabled'::text]))),
-    CONSTRAINT backups_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'snapshotting'::text, 'uploading'::text, 'verifying'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text, 'deleting'::text, 'deleted'::text])))
-);
-
-ALTER TABLE ONLY rootset_control.backups FORCE ROW LEVEL SECURITY;
-
-
 CREATE TABLE rootset_control.bootstrap (
     singleton boolean DEFAULT true NOT NULL,
     org_id character varying(26),
@@ -695,8 +629,7 @@ CREATE TABLE rootset_control.cell_changes (
     actor jsonb NOT NULL,
     context jsonb NOT NULL,
     changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    public_id character varying(26) DEFAULT rootset_control.new_ulid() NOT NULL,
-    restore_sequence bigint
+    public_id character varying(26) DEFAULT rootset_control.new_ulid() NOT NULL
 )
 PARTITION BY RANGE (changed_at);
 
@@ -720,8 +653,7 @@ CREATE TABLE rootset_control.cell_changes_default (
     actor jsonb CONSTRAINT cell_changes_actor_not_null NOT NULL,
     context jsonb CONSTRAINT cell_changes_context_not_null NOT NULL,
     changed_at timestamp with time zone DEFAULT clock_timestamp() CONSTRAINT cell_changes_changed_at_not_null NOT NULL,
-    public_id character varying(26) DEFAULT rootset_control.new_ulid() CONSTRAINT cell_changes_public_id_not_null NOT NULL,
-    restore_sequence bigint
+    public_id character varying(26) DEFAULT rootset_control.new_ulid() CONSTRAINT cell_changes_public_id_not_null NOT NULL
 );
 
 ALTER TABLE ONLY rootset_control.cell_changes_default FORCE ROW LEVEL SECURITY;
@@ -860,8 +792,7 @@ CREATE TABLE rootset_control.history_gaps (
     from_time timestamp with time zone NOT NULL,
     to_time timestamp with time zone NOT NULL,
     manifest jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    restore_original_id character varying(26)
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 ALTER TABLE ONLY rootset_control.history_gaps FORCE ROW LEVEL SECURITY;
@@ -945,8 +876,6 @@ CREATE TABLE rootset_control.indexes (
     state text DEFAULT 'building'::text NOT NULL,
     error jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    restore_original_state text,
-    restore_original_error jsonb,
     CONSTRAINT indexes_kind_check CHECK ((kind = ANY (ARRAY['btree'::text, 'trigram'::text, 'json'::text])))
 );
 
@@ -1043,36 +972,10 @@ CREATE TABLE rootset_control.mutations (
     context jsonb NOT NULL,
     schema_version bigint NOT NULL,
     outcome jsonb,
-    committed_at timestamp with time zone DEFAULT now() NOT NULL,
-    restore_original_id character varying(26)
+    committed_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 ALTER TABLE ONLY rootset_control.mutations FORCE ROW LEVEL SECURITY;
-
-
-CREATE TABLE rootset_control.notification_events (
-    id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    dedupe_key text NOT NULL,
-    type text NOT NULL,
-    payload jsonb NOT NULL,
-    occurred_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT notification_events_payload_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
-    CONSTRAINT notification_events_type_check CHECK ((type = ANY (ARRAY['backup.succeeded'::text, 'backup.failed'::text, 'backup.cancelled'::text])))
-);
-
-ALTER TABLE ONLY rootset_control.notification_events FORCE ROW LEVEL SECURITY;
-
-
-CREATE TABLE rootset_control.notification_receipts (
-    org_id character varying(26) NOT NULL,
-    user_id text NOT NULL,
-    event_id character varying(26) NOT NULL,
-    read_at timestamp with time zone
-);
-
-ALTER TABLE ONLY rootset_control.notification_receipts FORCE ROW LEVEL SECURITY;
 
 
 CREATE TABLE rootset_control.oauth_clients (
@@ -1198,8 +1101,7 @@ CREATE TABLE rootset_control.resource_history (
     after_value jsonb,
     actor jsonb NOT NULL,
     context jsonb NOT NULL,
-    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    restore_sequence bigint
+    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
 );
 
 ALTER TABLE ONLY rootset_control.resource_history FORCE ROW LEVEL SECURITY;
@@ -1214,45 +1116,6 @@ ALTER TABLE rootset_control.resource_history ALTER COLUMN id ADD GENERATED ALWAY
     CACHE 1
 );
 
-CREATE TABLE rootset_control.restore_provenance (
-    database_id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    source_database_id character varying(26) NOT NULL,
-    job_id character varying(26) NOT NULL,
-    manifest jsonb NOT NULL,
-    state text DEFAULT 'staged'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    published_at timestamp with time zone
-);
-
-ALTER TABLE ONLY rootset_control.restore_provenance FORCE ROW LEVEL SECURITY;
-
-
-CREATE TABLE rootset_control.restore_publications (
-    job_id character(26) NOT NULL,
-    org_id character(26) NOT NULL,
-    target_database_id character(26),
-    staged_database_id character(26),
-    recovery_backup_id character(26),
-    state text NOT NULL,
-    result jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT restore_publications_state_check CHECK ((state = ANY (ARRAY['preparing'::text, 'staged'::text, 'verified'::text, 'published'::text, 'recovered'::text])))
-);
-
-ALTER TABLE ONLY rootset_control.restore_publications FORCE ROW LEVEL SECURITY;
-
-
-CREATE TABLE rootset_control.restore_write_barriers (
-    database_id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    job_id character(26) NOT NULL,
-    acquired_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-ALTER TABLE ONLY rootset_control.restore_write_barriers FORCE ROW LEVEL SECURITY;
-
 
 CREATE TABLE rootset_control.row_events (
     id bigint NOT NULL,
@@ -1266,8 +1129,7 @@ CREATE TABLE rootset_control.row_events (
     new_version bigint,
     actor jsonb NOT NULL,
     context jsonb NOT NULL,
-    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    restore_sequence bigint
+    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
 );
 
 ALTER TABLE ONLY rootset_control.row_events FORCE ROW LEVEL SECURITY;
@@ -1297,10 +1159,7 @@ CREATE TABLE rootset_control.schema_operations (
     state text DEFAULT 'planned'::text NOT NULL,
     error jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    committed_at timestamp with time zone,
-    restore_original_id character varying(26),
-    restore_original_state text,
-    restore_original_key text
+    committed_at timestamp with time zone
 );
 
 ALTER TABLE ONLY rootset_control.schema_operations FORCE ROW LEVEL SECURITY;
@@ -1371,8 +1230,6 @@ CREATE TABLE rootset_control.unique_rules (
     state text DEFAULT 'building'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     error jsonb,
-    restore_original_state text,
-    restore_original_error jsonb,
     CONSTRAINT unique_rules_field_ids_check CHECK (((cardinality(field_ids) >= 1) AND (cardinality(field_ids) <= 8))),
     CONSTRAINT unique_rules_strategy_check CHECK ((strategy = ANY (ARRAY['native'::text, 'registry'::text])))
 );
@@ -1466,12 +1323,6 @@ ALTER TABLE ONLY rootset_control.auth_recovery_codes
 ALTER TABLE ONLY rootset_control.auth_verifications
     ADD CONSTRAINT auth_verifications_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.backups
-    ADD CONSTRAINT backups_job_id_key UNIQUE (job_id);
-
-ALTER TABLE ONLY rootset_control.backups
-    ADD CONSTRAINT backups_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY rootset_control.bootstrap
     ADD CONSTRAINT bootstrap_pkey PRIMARY KEY (singleton);
 
@@ -1562,18 +1413,6 @@ ALTER TABLE ONLY rootset_control.mutations
 ALTER TABLE ONLY rootset_control.mutations
     ADD CONSTRAINT mutations_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.notification_events
-    ADD CONSTRAINT notification_events_org_id_dedupe_key_key UNIQUE (org_id, dedupe_key);
-
-ALTER TABLE ONLY rootset_control.notification_events
-    ADD CONSTRAINT notification_events_org_id_id_key UNIQUE (org_id, id);
-
-ALTER TABLE ONLY rootset_control.notification_events
-    ADD CONSTRAINT notification_events_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY rootset_control.notification_receipts
-    ADD CONSTRAINT notification_receipts_pkey PRIMARY KEY (org_id, user_id, event_id);
-
 ALTER TABLE ONLY rootset_control.oauth_clients
     ADD CONSTRAINT oauth_clients_pkey PRIMARY KEY (client_id);
 
@@ -1606,15 +1445,6 @@ ALTER TABLE ONLY rootset_control.query_sessions
 
 ALTER TABLE ONLY rootset_control.resource_history
     ADD CONSTRAINT resource_history_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY rootset_control.restore_provenance
-    ADD CONSTRAINT restore_provenance_pkey PRIMARY KEY (database_id);
-
-ALTER TABLE ONLY rootset_control.restore_publications
-    ADD CONSTRAINT restore_publications_pkey PRIMARY KEY (job_id);
-
-ALTER TABLE ONLY rootset_control.restore_write_barriers
-    ADD CONSTRAINT restore_write_barriers_pkey PRIMARY KEY (database_id);
 
 ALTER TABLE ONLY rootset_control.row_events
     ADD CONSTRAINT row_events_pkey PRIMARY KEY (id);
@@ -1667,15 +1497,8 @@ CREATE INDEX artifacts_expiry ON rootset_control.artifacts USING btree (expires_
 
 CREATE INDEX auth_verifications_identifier_idx ON rootset_control.auth_verifications USING btree (identifier);
 
-CREATE INDEX backups_verified ON rootset_control.backups USING btree (org_id, database_id, verified_at DESC) WHERE (state = 'succeeded'::text);
-
 CREATE INDEX cell_changes_browse ON ONLY rootset_control.cell_changes USING btree (org_id, table_id, changed_at, id);
 
-CREATE INDEX cell_changes_snapshot ON ONLY rootset_control.cell_changes USING btree (org_id, database_id, COALESCE(restore_sequence, id));
-
-CREATE INDEX cell_changes_default_org_id_database_id_coalesce_idx ON rootset_control.cell_changes_default USING btree (org_id, database_id, COALESCE(restore_sequence, id));
-
-CREATE INDEX cell_changes_snapshot_private ON ONLY rootset_control.cell_changes USING btree (org_id, database_id, id);
 
 CREATE INDEX cell_changes_default_org_id_database_id_id_idx ON rootset_control.cell_changes_default USING btree (org_id, database_id, id);
 
@@ -1711,23 +1534,12 @@ CREATE INDEX history_archives_table ON rootset_control.history_archives USING bt
 
 CREATE UNIQUE INDEX history_gaps_archive ON rootset_control.history_gaps USING btree (org_id, table_id, ((manifest ->> 'archiveId'::text))) WHERE (manifest ? 'archiveId'::text);
 
-CREATE INDEX history_gaps_snapshot ON rootset_control.history_gaps USING btree (org_id, table_id, COALESCE(restore_original_id, id));
-
 CREATE INDEX history_retention_policies_due ON rootset_control.history_retention_policies USING btree (next_occurrence) WHERE enabled;
 
 CREATE INDEX jobs_org_target ON rootset_control.jobs USING btree (org_id, target_id, created_at DESC);
 
 CREATE INDEX jobs_poll ON rootset_control.jobs USING btree (next_attempt_at, created_at) WHERE (state = ANY (ARRAY['queued'::text, 'running'::text]));
 
-CREATE INDEX mutations_restore_order ON rootset_control.mutations USING btree (org_id, table_id, restore_original_id);
-
-CREATE INDEX mutations_snapshot ON rootset_control.mutations USING btree (org_id, COALESCE(restore_original_id, id));
-
-CREATE INDEX mutations_snapshot_private ON rootset_control.mutations USING btree (org_id, table_id, id);
-
-CREATE INDEX notification_events_page ON rootset_control.notification_events USING btree (org_id, occurred_at DESC, id DESC);
-
-CREATE INDEX notification_receipts_unread ON rootset_control.notification_receipts USING btree (org_id, user_id, event_id) WHERE (read_at IS NULL);
 
 CREATE INDEX oauth_grants_user ON rootset_control.oauth_grants USING btree (user_id, org_id);
 
@@ -1735,23 +1547,12 @@ CREATE INDEX oauth_tokens_family ON rootset_control.oauth_tokens USING btree (fa
 
 CREATE INDEX resource_history_lookup ON rootset_control.resource_history USING btree (org_id, table_id, changed_at, id);
 
-CREATE INDEX resource_history_snapshot ON rootset_control.resource_history USING btree (org_id, database_id, COALESCE(restore_sequence, id));
-
-CREATE INDEX resource_history_snapshot_private ON rootset_control.resource_history USING btree (org_id, database_id, id);
-
-CREATE INDEX restore_write_barriers_job ON rootset_control.restore_write_barriers USING btree (org_id, job_id);
 
 CREATE INDEX row_events_archive_range ON rootset_control.row_events USING btree (org_id, table_id, changed_at, id);
 
 CREATE INDEX row_events_lookup ON rootset_control.row_events USING btree (org_id, table_id, row_id, changed_at, id);
 
-CREATE INDEX row_events_snapshot ON rootset_control.row_events USING btree (org_id, database_id, COALESCE(restore_sequence, id));
 
-CREATE INDEX row_events_snapshot_private ON rootset_control.row_events USING btree (org_id, database_id, id);
-
-CREATE INDEX schema_operations_snapshot ON rootset_control.schema_operations USING btree (org_id, database_id, COALESCE(restore_original_id, id));
-
-CREATE INDEX schema_operations_snapshot_private ON rootset_control.schema_operations USING btree (org_id, database_id, id);
 
 CREATE INDEX sessions_user_id_idx ON rootset_control.sessions USING btree (user_id);
 
@@ -1759,9 +1560,8 @@ CREATE INDEX tables_database ON rootset_control.tables USING btree (org_id, data
 
 CREATE INDEX unique_entries_bucket ON rootset_control.unique_entries USING btree (rule_id, digest);
 
-ALTER INDEX rootset_control.cell_changes_snapshot ATTACH PARTITION rootset_control.cell_changes_default_org_id_database_id_coalesce_idx;
 
-ALTER INDEX rootset_control.cell_changes_snapshot_private ATTACH PARTITION rootset_control.cell_changes_default_org_id_database_id_id_idx;
+
 
 ALTER INDEX rootset_control.cell_changes_mutation ATTACH PARTITION rootset_control.cell_changes_default_org_id_mutation_id_idx;
 
@@ -1774,8 +1574,6 @@ ALTER INDEX rootset_control.cell_changes_lookup ATTACH PARTITION rootset_control
 ALTER INDEX rootset_control.cell_changes_public_id ATTACH PARTITION rootset_control.cell_changes_default_public_id_changed_at_idx;
 
 CREATE TRIGGER history_usage AFTER INSERT OR DELETE ON rootset_control.cell_changes FOR EACH ROW EXECUTE FUNCTION rootset_control.track_history_metrics();
-
-CREATE TRIGGER notification_read_time BEFORE UPDATE ON rootset_control.notification_receipts FOR EACH ROW EXECUTE FUNCTION rootset_control.preserve_notification_read_time();
 
 ALTER TABLE ONLY rootset_control.account_actions
     ADD CONSTRAINT account_actions_org_id_fkey FOREIGN KEY (org_id) REFERENCES rootset_control.organisations(id);
@@ -1803,12 +1601,6 @@ ALTER TABLE ONLY rootset_control.auth_passkeys
 
 ALTER TABLE ONLY rootset_control.auth_recovery_codes
     ADD CONSTRAINT auth_recovery_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY rootset_control.backups
-    ADD CONSTRAINT backups_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
-
-ALTER TABLE ONLY rootset_control.backups
-    ADD CONSTRAINT backups_manifest_artifact_id_fkey FOREIGN KEY (manifest_artifact_id) REFERENCES rootset_control.artifacts(id);
 
 ALTER TABLE ONLY rootset_control.databases
     ADD CONSTRAINT databases_org_id_fkey FOREIGN KEY (org_id) REFERENCES rootset_control.organisations(id);
@@ -1858,15 +1650,6 @@ ALTER TABLE ONLY rootset_control.memberships
 ALTER TABLE ONLY rootset_control.memberships
     ADD CONSTRAINT memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
 
-ALTER TABLE ONLY rootset_control.notification_events
-    ADD CONSTRAINT notification_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES rootset_control.organisations(id);
-
-ALTER TABLE ONLY rootset_control.notification_receipts
-    ADD CONSTRAINT notification_receipts_org_id_event_id_fkey FOREIGN KEY (org_id, event_id) REFERENCES rootset_control.notification_events(org_id, id);
-
-ALTER TABLE ONLY rootset_control.notification_receipts
-    ADD CONSTRAINT notification_receipts_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id);
-
 ALTER TABLE ONLY rootset_control.oauth_codes
     ADD CONSTRAINT oauth_codes_grant_id_fkey FOREIGN KEY (grant_id) REFERENCES rootset_control.oauth_grants(id);
 
@@ -1881,18 +1664,6 @@ ALTER TABLE ONLY rootset_control.oauth_tokens
 
 ALTER TABLE ONLY rootset_control.operation_outcomes
     ADD CONSTRAINT operation_outcomes_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
-
-ALTER TABLE ONLY rootset_control.restore_provenance
-    ADD CONSTRAINT restore_provenance_database_id_fkey FOREIGN KEY (database_id) REFERENCES rootset_control.databases(id);
-
-ALTER TABLE ONLY rootset_control.restore_publications
-    ADD CONSTRAINT restore_publications_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
-
-ALTER TABLE ONLY rootset_control.restore_write_barriers
-    ADD CONSTRAINT restore_write_barriers_database_id_fkey FOREIGN KEY (database_id) REFERENCES rootset_control.databases(id);
-
-ALTER TABLE ONLY rootset_control.restore_write_barriers
-    ADD CONSTRAINT restore_write_barriers_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
 
 ALTER TABLE ONLY rootset_control.sessions
     ADD CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES rootset_control.users(id) ON DELETE CASCADE;
@@ -1930,8 +1701,6 @@ ALTER TABLE rootset_control.api_keys ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.artifacts ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.backups ENABLE ROW LEVEL SECURITY;
-
 ALTER TABLE rootset_control.cell_changes ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.cell_changes_default ENABLE ROW LEVEL SECURITY;
@@ -1960,10 +1729,6 @@ CREATE POLICY identity_org_isolation ON rootset_control.key_requests USING (((or
 
 CREATE POLICY identity_org_isolation ON rootset_control.memberships USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY identity_org_isolation ON rootset_control.notification_events USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
-
-CREATE POLICY identity_org_isolation ON rootset_control.notification_receipts USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
-
 
 ALTER TABLE rootset_control.import_batches ENABLE ROW LEVEL SECURITY;
 
@@ -1981,15 +1746,9 @@ ALTER TABLE rootset_control.memberships ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.mutations ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.notification_events ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE rootset_control.notification_receipts ENABLE ROW LEVEL SECURITY;
-
 ALTER TABLE rootset_control.operation_outcomes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY org_isolation ON rootset_control.artifacts USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
-
-CREATE POLICY org_isolation ON rootset_control.backups USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
 CREATE POLICY org_isolation ON rootset_control.cell_changes USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
@@ -2012,12 +1771,6 @@ CREATE POLICY org_isolation ON rootset_control.mutations USING (((org_id)::text 
 CREATE POLICY org_isolation ON rootset_control.query_sessions USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY org_isolation ON rootset_control.resource_history USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
-
-CREATE POLICY org_isolation ON rootset_control.restore_provenance USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
-
-CREATE POLICY org_isolation ON rootset_control.restore_publications USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
-
-CREATE POLICY org_isolation ON rootset_control.restore_write_barriers USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY org_isolation ON rootset_control.row_events USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
@@ -2044,12 +1797,6 @@ CREATE POLICY partition_organisation_boundary ON rootset_control.cell_changes_de
 ALTER TABLE rootset_control.query_sessions ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.resource_history ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE rootset_control.restore_provenance ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE rootset_control.restore_publications ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE rootset_control.restore_write_barriers ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.row_events ENABLE ROW LEVEL SECURITY;
 

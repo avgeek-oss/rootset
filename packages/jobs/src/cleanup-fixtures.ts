@@ -59,9 +59,6 @@ try {
       );
       count++;
     }
-    await withOrg(worker, org.id, (client) =>
-      client.query("UPDATE rootset_control.backups SET state='deleted'"),
-    );
   }
   console.log(
     JSON.stringify({

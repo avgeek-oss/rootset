@@ -19,10 +19,10 @@ completion credit for the revised model.
 4. Regenerate REST/client/MCP contracts. Keep personal-key role inheritance and
    OAuth PKCE/operation consent; remove resource selectors and obsolete operations.
 5. Remove backup scheduling and installation overrides from the catalog and SQL.
-   Keep manual backup/restore and operation progress; remove the standalone jobs
+   Remove database backup/restore and keep operation progress; remove the standalone jobs
    page and storage admission package. Configure SMTP and S3 only through `.env`.
 6. Verify storage, uniqueness, concurrency, schema reconciliation, imports,
-   history archives and backup/restore on the current empty-baseline fixture.
+   history archives and imports/exports on the current empty-baseline fixture.
 7. Adapt the actual Towbar/Mill primary/secondary navigation, account menu, compact
    controls, widget cards and responsive drawer. Separate account, team, database
    and table settings; keep the bounded DOM spreadsheet. Verify real navigation,
@@ -39,7 +39,7 @@ The [checklist](IMPLEMENTATION_VERIFICATION_CHECKLIST.md) defines remaining
 functional, security, recovery and performance evidence.
 
 A useful result records the candidate, command/scenario, environment, outcome and
-limitation. Retain logs and relevant screenshots/restore comparisons; keep secret
+limitation. Retain logs and relevant screenshots; keep secret
 values out of reports. There is no requirement to manufacture a new authority
 packet for every source read or ordinary test.
 

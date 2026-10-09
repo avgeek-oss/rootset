@@ -26,7 +26,6 @@ import {
   AccountActionSchema,
   AccountActionTypeSchema,
   ArtifactSchema,
-  BackupSchema,
   ConnectionSchema,
   ContextSchema,
   DatabaseSchema,
@@ -40,7 +39,6 @@ import {
   KeyCreatedSchema,
   KeyMetadataSchema,
   MemberSchema,
-  NotificationPageSchema,
   OrganisationSchema,
   OperatorRepairReasonSchema,
   OperatorRepairUpdateSchema,
@@ -148,25 +146,23 @@ function operation(
   const readOnly = settings.readOnly ?? method === "GET";
   const group = path.includes("/installation")
     ? "installation"
-    : path.includes("/backups")
-      ? "backups"
-      : path.includes("/imports") ||
-          path.includes("/exports") ||
-          path.includes("/artifacts")
-        ? "artifacts"
-        : path.includes("/jobs")
-          ? "jobs"
-          : path.includes("/rows") ||
-              path.includes("/query") ||
-              path.includes("/count") ||
-              path.includes("/history") ||
-              path.includes("/statistics")
-            ? "data"
-            : path.includes("/tables")
-              ? "schema"
-              : path.includes("/databases")
-                ? "databases"
-                : "accounts";
+    : path.includes("/imports") ||
+        path.includes("/exports") ||
+        path.includes("/artifacts")
+      ? "artifacts"
+      : path.includes("/jobs")
+        ? "jobs"
+        : path.includes("/rows") ||
+            path.includes("/query") ||
+            path.includes("/count") ||
+            path.includes("/history") ||
+            path.includes("/statistics")
+          ? "data"
+          : path.includes("/tables")
+            ? "schema"
+            : path.includes("/databases")
+              ? "databases"
+              : "accounts";
   definitions.push({
     id,
     toolName: `rootset_${tool}`,
@@ -247,31 +243,7 @@ operation(
   "Read your profile.",
   { personal: true },
 );
-operation(
-  "listNotifications",
-  "list_notifications",
-  "GET",
-  "/v1/me/notifications",
-  ["profile:manage"],
-  z.strictObject({
-    limit: z.number().int().min(1).max(100).optional(),
-    cursor: z.string().max(2048).nullable().optional(),
-  }),
-  NotificationPageSchema,
-  "List your unread notifications and receipts read within the last 24 hours, with complete bounded pagination.",
-  { personal: true },
-);
-operation(
-  "markAllNotificationsRead",
-  "mark_all_notifications_read",
-  "POST",
-  "/v1/me/notifications/read-all",
-  ["profile:manage"],
-  empty,
-  z.strictObject({ ok: z.literal(true) }),
-  "Mark your existing notifications as read in one database snapshot. Later arrivals remain unread and existing read timestamps do not change.",
-  { personal: true, idempotent: true, successStatus: 200 },
-);
+
 operation(
   "updateProfile",
   "update_profile",
@@ -1318,92 +1290,7 @@ operation(
   HistoryArchiveSchema,
   "Read one retained history archive manifest without exposing storage credentials.",
 );
-operation(
-  "listBackups",
-  "list_backups",
-  "GET",
-  `${D}/backups`,
-  ["backups:read"],
-  z.strictObject({ ...database, ...jobPaging }),
-  list(BackupSchema),
-  "List backup runs and verified-recovery state.",
-  { minimumRole: "admin" },
-);
-operation(
-  "getBackup",
-  "get_backup",
-  "GET",
-  `${D}/backups/{id}`,
-  ["backups:read"],
-  z.strictObject({ ...database, id: IdSchema }),
-  BackupSchema,
-  "Read a backup run, manifest and terminal verification outcome.",
-  { minimumRole: "admin" },
-);
-operation(
-  "createBackup",
-  "create_backup",
-  "POST",
-  `${D}/backups`,
-  ["backups:manage"],
-  z.strictObject(database),
-  JobAcceptedSchema,
-  "Start one database-wide snapshot followed by upload and isolated restore verification.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
-);
-operation(
-  "deleteBackup",
-  "delete_backup",
-  "DELETE",
-  `${D}/backups/{id}`,
-  ["backups:manage"],
-  z.strictObject({ ...database, id: IdSchema }),
-  JobAcceptedSchema,
-  "Queue resumable cleanup of an owned backup while preserving required recovery points; inspect the deletion job for terminal verification.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
-);
-const restoreInput = {
-  ...database,
-  id: IdSchema,
-  mode: z.enum(["new", "replace"]),
-  name: names.name.optional(),
-  targetDatabaseId: IdSchema.optional(),
-  ...approval,
-};
-operation(
-  "previewRestore",
-  "preview_restore",
-  "POST",
-  `${D}/backups/{id}/restore-preview`,
-  ["backups:manage"],
-  z.strictObject(restoreInput),
-  z.strictObject({
-    compatible: z.boolean(),
-    mode: z.enum(["new", "replace"]),
-    requiresApproval: z.boolean(),
-    requiresRecoveryPoint: z.boolean(),
-    warnings: z.array(z.string()),
-  }),
-  "Validate a backup and proposed restore mapping before any cutover.",
-  { readOnly: true, idempotencyRequired: false, minimumRole: "admin" },
-);
-operation(
-  "restoreBackup",
-  "restore_backup",
-  "POST",
-  `${D}/backups/{id}/restores`,
-  ["backups:manage", "databases:manage"],
-  z.strictObject(restoreInput),
-  JobAcceptedSchema,
-  "Restore into a staged new database or approved replacement and verify before publication.",
-  {
-    minimumRole: "admin",
-    stepUp: "conditional",
-    job: true,
-    successStatus: 202,
-    destructive: true,
-  },
-);
+
 operation(
   "listJobs",
   "list_jobs",

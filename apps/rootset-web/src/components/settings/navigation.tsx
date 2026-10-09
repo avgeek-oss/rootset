@@ -5,7 +5,6 @@ import {
   Link01Icon,
   DatabaseIcon,
   DatabaseSettingIcon,
-  DatabaseBackupIcon,
   DatabaseSearchIcon,
   ColumnsThreeCogIcon,
   TablePropertiesIcon,
@@ -38,7 +37,7 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["api-keys", "mcp-connections", "mcp"] },
   ],
   team: [{ title: "Account", sections: ["organisation", "members"] }],
-  database: [{ title: "Settings", sections: ["database", "backups"] }],
+  database: [{ title: "Settings", sections: ["database"] }],
   table: [
     { title: "Settings", sections: ["table", "fields", "rules", "indexes"] },
     { title: "Data", sections: ["imports", "exports"] },
@@ -105,7 +104,6 @@ export const settingsIcons = {
   members: UserGroupIcon,
   "mcp-connections": Link01Icon,
   database: DatabaseSettingIcon,
-  backups: DatabaseBackupIcon,
   table: ColumnsThreeCogIcon,
   fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
@@ -150,9 +148,7 @@ export function settingsNavigationGroups(
           id: item,
           label: ["database", "table", "organisation"].includes(item)
             ? "General"
-            : item === "backups"
-              ? "Backups"
-              : SECTION_LABELS[item],
+            : SECTION_LABELS[item],
           href: settingsHref(item, context),
           icon: settingsIcons[item],
         })),

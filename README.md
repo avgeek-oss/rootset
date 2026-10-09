@@ -8,7 +8,7 @@ through REST or OAuth-protected MCP. PostgreSQL stores values, revisions and
 cell history. The project domain is `rootset.fyi`.
 
 V1 uses Admin, Member and Viewer roles. Admins manage people, schema and recovery with deployment readiness checked separately.
-SMTP and S3-compatible storage use `.env`; backups run only on manual trigger.
+SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP or imports; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
 There is no standalone Background Jobs page or storage admission policy.
 Personal API keys inherit the person's current role; OAuth connections add
 approved operations to that current authority. Field definitions have one `name`
@@ -84,7 +84,7 @@ Record remaining full-scale work in the [verification guide](docs/verification/R
 ## Documentation
 
 - [Accounts and roles](rc-plan/ACCOUNT_ARCHITECTURE.md)
-- [Tables, fields, history and backups](rc-plan/MDM_DATABASE_ARCHITECTURE.md)
+- [Tables, fields and history](rc-plan/MDM_DATABASE_ARCHITECTURE.md)
 - [REST and MCP](rc-plan/API_AND_MCP_ARCHITECTURE.md)
 - [Runtime and frontend](rc-plan/STACK_ARCHITECTURE.md)
 - [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)

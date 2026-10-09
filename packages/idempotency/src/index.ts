@@ -12,7 +12,6 @@ import { type PoolClient, type Queryable } from "@rootset/database";
 
 export const identityMutationSet: ReadonlySet<string> = new Set([
   "updateProfile",
-  "markAllNotificationsRead",
   "updatePreferences",
   "updateViewPreferences",
   "revokeSession",
@@ -34,7 +33,6 @@ export const jobsMutationSet: ReadonlySet<string> = new Set([
   "retryJob",
 ]);
 export const queuedMutationSet: ReadonlySet<string> = new Set([
-  "deleteBackup",
   "deleteDatabase",
   "deleteTable",
   "applySchemaChange",
@@ -46,8 +44,6 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "validateImport",
   "importRows",
   "exportRows",
-  "createBackup",
-  "restoreBackup",
   "archiveHistory",
 ]);
 export const mutationSet: ReadonlySet<string> = new Set([

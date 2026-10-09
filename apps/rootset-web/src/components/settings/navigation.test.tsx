@@ -65,9 +65,6 @@ describe("context settings navigation", () => {
       "/team-settings/general",
     );
     expect(settingsHref("members", context)).toBe("/team-settings/members");
-    expect(settingsHref("backups", context)).toBe(
-      "/settings/backups?databaseId=db",
-    );
     expect(settingsHref("fields", context)).toBe(
       "/settings/fields?databaseId=db&tableId=table",
     );
@@ -81,7 +78,7 @@ describe("context settings navigation", () => {
     expect(groups.map((group) => group.title)).toEqual(["Settings"]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.label)),
-    ).toEqual(["General", "Backups"]);
+    ).toEqual(["General"]);
     for (const item of groups.flatMap((group) => group.items))
       expect(item.href).not.toContain("tableId");
   });

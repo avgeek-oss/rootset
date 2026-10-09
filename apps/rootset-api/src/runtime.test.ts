@@ -810,7 +810,33 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       }),
     );
-    assert.equal((await client.listTools()).tools.length, operations.length);
+    const publishedTools = (await client.listTools()).tools;
+    assert.equal(publishedTools.length, operations.length);
+    for (const name of [
+      "rootset_list_backups",
+      "rootset_get_backup",
+      "rootset_create_backup",
+      "rootset_delete_backup",
+      "rootset_preview_restore",
+      "rootset_restore_backup",
+      "rootset_list_notifications",
+      "rootset_mark_all_notifications_read",
+    ])
+      assert.equal(
+        publishedTools.some((tool) => tool.name === name),
+        false,
+      );
+    assert(publishedTools.some((tool) => tool.name === "rootset_create_row"));
+    for (const surface of ["/v1", "/api/internal/v1"])
+      assert.equal(
+        (
+          await request(
+            `${surface}/orgs/${orgId}/databases/${databaseId}/backups`,
+            "GET",
+          )
+        ).status,
+        404,
+      );
     await t.test(
       "API-08 MCP genuine issued OAuth returns typed retryable dependency when the bounded work pool is occupied; readiness and liveness survive",
       async () => {
@@ -892,74 +918,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         unknown
       >;
     };
-    await t.test(
-      "personal notifications agree across browser, REST and issued OAuth MCP; replay leaves later arrivals unread",
-      async () => {
-        const publish = async () => {
-          const id = newId();
-          await db.owner.query(
-            `INSERT INTO rootset_control.notification_events(id,org_id,dedupe_key,type,payload,occurred_at)
-            VALUES($1::varchar,$2,$1::text,'backup.succeeded',$3,now())`,
-            [
-              id,
-              orgId,
-              {
-                title: "Backup verified",
-                message: "Transport verification",
-                databaseId,
-                databaseName: "Airline MDM",
-                backupId: newId(),
-              },
-            ],
-          );
-          await db.owner.query(
-            "INSERT INTO rootset_control.notification_receipts(org_id,user_id,event_id) VALUES($1,$2,$3)",
-            [orgId, provision.userId, id],
-          );
-          return id;
-        };
-        const firstId = await publish();
-        const browserFeed = await call("listNotifications", { limit: 1 });
-        assert.equal(browserFeed.unreadCount, 1);
-        assert.equal(browserFeed.notifications[0].id, firstId);
-        assert.equal(browserFeed.notifications[0].readAt, null);
-        assert.deepEqual(
-          await call("listNotifications", { limit: 1 }, "rest"),
-          browserFeed,
-        );
-        assert.deepEqual(
-          await mcpOperation("listNotifications", { limit: 1 }),
-          browserFeed,
-        );
-        await call("listNotifications", { userId: newId() }, "rest", 422);
-        const key = newId();
-        assert.deepEqual(
-          await call("markAllNotificationsRead", {}, "rest", undefined, key),
-          { ok: true },
-        );
-        const laterId = await publish();
-        await call("markAllNotificationsRead", {}, "rest", undefined, key);
-        const later = await call("listNotifications", { limit: 1 }, "rest");
-        assert.equal(later.unreadCount, 1);
-        assert.equal(later.notifications[0].id, laterId);
-        assert.equal(later.notifications[0].readAt, null);
-        assert.deepEqual(await mcpOperation("markAllNotificationsRead", {}), {
-          ok: true,
-        });
-        const readFeed = await call("listNotifications", { limit: 2 });
-        assert.equal(readFeed.unreadCount, 0);
-        assert.equal(readFeed.notifications.length, 2);
-        assert.ok(
-          readFeed.notifications.every(
-            (item: { readAt: string | null }) => item.readAt !== null,
-          ),
-        );
-        assert.deepEqual(
-          await mcpOperation("listNotifications", { limit: 2 }),
-          readFeed,
-        );
-      },
-    );
     const terminalJob = async (id: string) => {
       let job = await call("getJob", { orgId, id }, "rest");
       for (
@@ -981,8 +939,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       journalTokens = await issueMcpGrant([
         "members:manage",
         "keys:manage",
-        "backups:manage",
-        "backups:read",
         "databases:read",
       ]);
     await journalClient.connect(
@@ -1996,10 +1952,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       }),
     );
-    for (const operationId of [
-      "listNotifications",
-      "markAllNotificationsRead",
-    ]) {
+    for (const operationId of []) {
       const operation = getOperation(operationId);
       await assert.rejects(
         readOnlyClient.callTool({

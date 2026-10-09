@@ -14,7 +14,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-04",
-    "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema and restores; SMTP/S3 configuration is read only from the deployment environment.",
+    "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema; SMTP/S3 configuration is read only from the deployment environment.",
   ],
   [
     "V1-05",
@@ -54,7 +54,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-14",
-    "UTC time/date-time precision, calendar dates and timezone/DST editing round-trip through browser, REST, MCP, export, history and backup.",
+    "UTC time/date-time precision, calendar dates and timezone/DST editing round-trip through browser, REST, MCP, export and history.",
   ],
   [
     "V1-15",
@@ -102,15 +102,15 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-26",
-    "Backups run only on manual trigger; no scheduling policy or cron endpoint exists. One consistent database snapshot includes schema, rows, rules and retained history during concurrent editing.",
+    "Database backup/restore operations, scopes and generated REST/MCP contracts are absent; API/MCP row creation remains available.",
   ],
   [
     "V1-27",
-    "A successful backup has encrypted-object readback and an isolated restore comparison of schema, values, revisions, history, constraints and checksums; upload alone stays unverified.",
+    "The browser provides filters and inline edits without an Add row button, row-creation modal or backup navigation.",
   ],
   [
     "V1-28",
-    "New/replacement restore validates before publication, preserves the original on failed/cancelled cutover and never activates a captured failed rule/index.",
+    "The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and history archives remain functional.",
   ],
   [
     "V1-29",
@@ -122,7 +122,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-31",
-    "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states. The shared notification menu covers empty/loading/failure states, bounded complete pagination, explicit mark-all, per-user isolation and durable read-state recovery.",
+    "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states.",
   ],
   [
     "V1-32",
@@ -154,7 +154,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-39",
-    "A reviewer follows the current installation, account/key recovery and backup/restore runbooks successfully with synthetic isolated data.",
+    "A reviewer follows the current installation, account/key and PostgreSQL/provider recovery runbooks successfully with synthetic isolated data.",
   ],
   [
     "V1-40",

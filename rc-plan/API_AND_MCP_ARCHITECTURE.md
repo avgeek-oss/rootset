@@ -41,7 +41,7 @@ retains PKCE, exact redirect/state/issuer/audience/resource checks, single-use
 codes, refresh rotation/reuse detection and protected metadata discovery.
 
 Hardware authentication and browser approval have explicit interactive adapters.
-Data, schema, operation progress, manual backups and deployment readiness checks retain the applicable
+Data, schema, operation progress and deployment readiness checks retain the applicable
 REST/MCP operation path and current-role checks. Approval binds the exact input,
 principal, client and expiry; it cannot add permissions to the credential.
 
@@ -106,7 +106,7 @@ success or prevent unrelated foreground requests.
 
 ## Jobs and artifacts
 
-Import/export, schema work, backup/restore and history archiving can return a job
+Import/export, schema work and history archiving can return a job
 ID. An accepted request is not terminal success. Progress describes committed
 checkpoints; cancellation reports already committed work. Revalidate current role
 and OAuth consent before publication or a new effect.
@@ -117,9 +117,8 @@ archives resolve their actual table and parent; after table/database deletion,
 retained history is an Admin management operation. There are no retained resource
 grant exceptions.
 
-Backup policy/schedule and installation configuration/test-email operations do
-not exist in V1. `createBackup` explicitly queues an on-demand snapshot; there is
-no automatic backup or retention schedule. SMTP/S3 credentials are loaded only
+Backup/restore and installation configuration/test-email operations do
+not exist in V1. Database backup and restore operations are absent. SMTP/S3 credentials are loaded only
 from the deployment environment. Job IDs and status/cancellation/retry operations
 remain the protocol for long-running actions; there is no separate jobs UI.
 
@@ -130,22 +129,3 @@ through REST, MCP and the rendered browser, including denial, revocation,
 concurrency, cancellation, idempotency and typed errors. Record real OAuth-client
 compatibility and artifact transfer behavior. Source schemas alone are not runtime
 proof.
-
-## Personal notification feed
-
-`GET /v1/me/notifications` (`rootset_list_notifications`) takes only optional
-`limit` (1–100, default 50) and a signed cursor. It returns `notifications`, the
-full `unreadCount` and nullable `nextCursor`. Each event contains ID, type,
-occurred/created timestamps, domain payload and nullable first `readAt`.
-
-`POST /v1/me/notifications/read-all` (`rootset_mark_all_notifications_read`)
-takes an empty body and requires an idempotency key. It returns `{ ok: true }`
-after marking existing receipts in one statement snapshot. Neither operation
-accepts a user or organisation identifier. Both require a personal identity and
-`profile:manage`, use live membership authorization, and share the generated
-OpenAPI 3.1, internal browser operations and MCP contracts. OAuth tokens must
-have consent for that personal scope; API keys inherit their user's current role.
-
-Unread records are never limited by age. Read records remain visible for 24 hours
-from the first acknowledgement; historical storage is retained. Opening or
-following an event does not change read state.

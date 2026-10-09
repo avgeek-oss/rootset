@@ -20,7 +20,6 @@ export type SettingsSection =
   | "fields"
   | "rules"
   | "indexes"
-  | "backups"
   | "imports"
   | "exports";
 
@@ -168,16 +167,6 @@ export interface Job {
     databaseId?: string;
   };
 }
-export interface Backup {
-  id: string;
-  state: string;
-  createdAt?: string;
-  verifiedAt?: string;
-  rowCount?: number;
-  sizeBytes?: number;
-  jobId?: string;
-  error?: string;
-}
 export interface Artifact {
   id: string;
   filename?: string;
@@ -213,7 +202,6 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   fields: "Fields",
   rules: "Unique rules",
   indexes: "Search indexes",
-  backups: "Database backups",
   imports: "Import rows",
   exports: "Export rows",
 };
@@ -226,7 +214,6 @@ const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "fields",
   "rules",
   "indexes",
-  "backups",
 ];
 
 export function canOpenSettings(

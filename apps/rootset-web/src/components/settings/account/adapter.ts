@@ -66,7 +66,6 @@ export function oauthPermissions(role: string, scopes: string[]) {
     "databases:manage",
     "tables:manage",
     "schema:manage",
-    "backups:manage",
     "installation:manage",
   ];
   const administrative =

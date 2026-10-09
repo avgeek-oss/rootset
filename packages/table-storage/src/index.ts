@@ -78,7 +78,7 @@ export interface TableRecord {
 }
 export interface MutationContext {
   requestId?: string;
-  source?: "rest" | "mcp" | "ui" | "import" | "restore" | "schema" | "operator";
+  source?: "rest" | "mcp" | "ui" | "import" | "schema" | "operator";
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
   beforePublish?: () => Promise<unknown>;
@@ -555,7 +555,6 @@ export class TableStorage {
   private async barrier(
     c: PoolClient,
     databaseId: string,
-    restoreJobId?: string,
     allowIndexBuild = false,
   ): Promise<void> {
     const acquired = await c.query<{ acquired: boolean }>(
@@ -563,7 +562,7 @@ export class TableStorage {
       [databaseId],
     );
     if (!acquired.rows[0]!.acquired) throw new SchemaLockBusy(databaseId);
-    await this.assertDatabaseWritable(c, databaseId, restoreJobId);
+
     if (!allowIndexBuild) {
       const building = await c.query(
         "SELECT i.id FROM rootset_control.indexes i JOIN rootset_control.tables t ON t.id=i.table_id WHERE t.database_id=$1 AND i.state=$2 LIMIT 1",
@@ -577,131 +576,7 @@ export class TableStorage {
         );
     }
   }
-  private async assertDatabaseWritable(
-    c: PoolClient,
-    databaseId: string,
-    restoreJobId?: string,
-  ): Promise<void> {
-    const held = await c.query<{ job_id: string }>(
-      "SELECT job_id FROM rootset_control.restore_write_barriers WHERE database_id=$1",
-      [databaseId],
-    );
-    if (held.rows[0] && held.rows[0].job_id !== restoreJobId)
-      fail(
-        "SCHEMA_MAINTENANCE",
-        "Database is frozen for a replacement restore",
-        409,
-      );
-  }
-  async acquireRestoreBarrier(
-    a: Actor,
-    databaseId: string,
-    options: { jobId: string; leaseToken: string },
-  ): Promise<{ alreadyHeld: boolean; recoveryEpoch: string }> {
-    return this.run(
-      a,
-      async (c) => {
-        const d = await this.database(c, a, databaseId);
-        await this.barrier(c, d.id, options.jobId);
-        const lease = await c.query<{ checkpoint: Raw }>(
-          "SELECT checkpoint FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND lease_token=$3 AND lease_until>now() AND state=$4 AND NOT cancel_requested FOR UPDATE",
-          [id(options.jobId), a.orgId, id(options.leaseToken), "running"],
-        );
-        if (!lease.rowCount)
-          fail(
-            "JOB_FAILED",
-            "Restore worker lease was lost before acquiring the write barrier",
-            409,
-          );
-        const held = await c.query<{ job_id: string }>(
-          "SELECT job_id FROM rootset_control.restore_write_barriers WHERE database_id=$1 FOR UPDATE",
-          [d.id],
-        );
-        if (held.rows[0]) {
-          if (held.rows[0].job_id !== options.jobId)
-            fail(
-              "SCHEMA_MAINTENANCE",
-              "Another replacement restore owns this database write barrier",
-              409,
-            );
-          const recoveryEpoch = lease.rows[0]?.checkpoint.recoveryEpoch;
-          if (typeof recoveryEpoch !== "string")
-            fail(
-              "JOB_FAILED",
-              "Restore barrier recovery epoch is missing",
-              409,
-            );
-          return { alreadyHeld: true, recoveryEpoch };
-        }
-        const maintenance = await c.query(
-          "SELECT id FROM rootset_control.tables WHERE database_id=$1 AND state='maintenance' LIMIT 1",
-          [d.id],
-        );
-        if (maintenance.rowCount)
-          fail(
-            "SCHEMA_MAINTENANCE",
-            "A table schema conversion must finish before replacement restore",
-            409,
-          );
-        await c.query(
-          "INSERT INTO rootset_control.restore_write_barriers(database_id,org_id,job_id) VALUES($1,$2,$3)",
-          [d.id, a.orgId, options.jobId],
-        );
-        const recoveryEpoch = newId();
-        await c.query(
-          "UPDATE rootset_control.restore_publications SET recovery_backup_id=NULL,updated_at=now() WHERE job_id=$1 AND org_id=$2",
-          [options.jobId, a.orgId],
-        );
-        await c.query(
-          "UPDATE rootset_control.jobs SET checkpoint=jsonb_set(checkpoint,'{recoveryEpoch}',to_jsonb($2::text)),updated_at=now() WHERE id=$1",
-          [options.jobId, recoveryEpoch],
-        );
-        return { alreadyHeld: false, recoveryEpoch };
-      },
-      true,
-    );
-  }
-  async releaseRestoreBarrier(
-    a: Actor,
-    databaseId: string,
-    options: { jobId: string; leaseToken?: string; terminal?: boolean },
-  ): Promise<void> {
-    await this.run(
-      a,
-      async (c) => {
-        await this.database(c, a, databaseId, true);
-        await this.barrier(c, databaseId, options.jobId);
-        const job = await c.query<{ state: string; valid_lease: boolean }>(
-          "SELECT state,(lease_token=$3 AND lease_until>now() AND state=$4) AS valid_lease FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 FOR UPDATE",
-          [id(options.jobId), a.orgId, options.leaseToken ?? null, "running"],
-        );
-        const current = job.rows[0];
-        if (
-          !current ||
-          !(
-            current.valid_lease ||
-            (options.terminal &&
-              [
-                "succeeded",
-                "failed",
-                "cancelled",
-                "partially_completed",
-              ].includes(current.state))
-          )
-        )
-          fail(
-            "JOB_FAILED",
-            "Only the current worker or terminal owning job can release this write barrier",
-            409,
-          );
-        await c.query(
-          "DELETE FROM rootset_control.restore_write_barriers WHERE database_id=$1 AND org_id=$2 AND job_id=$3",
-          [databaseId, a.orgId, options.jobId],
-        );
-      },
-      true,
-    );
-  }
+
   private async audit(
     c: PoolClient,
     a: Actor,
@@ -824,9 +699,6 @@ export class TableStorage {
     if (withTrigger) await this.installTrigger(c, t);
   }
   private async installTrigger(c: PoolClient, t: TableRecord): Promise<void> {
-    await c.query(
-      `CREATE TRIGGER rootset_restore_guard BEFORE INSERT OR UPDATE OR DELETE ON ${tablePath(t)} FOR EACH STATEMENT EXECUTE FUNCTION rootset_control.enforce_restore_write(${literal(t.id)})`,
-    );
     await c.query(
       `CREATE TRIGGER rootset_enforce BEFORE INSERT OR UPDATE OR DELETE ON ${tablePath(t)} FOR EACH ROW EXECUTE FUNCTION rootset_control.enforce_row(${literal(t.id)})`,
     );
@@ -1637,7 +1509,7 @@ export class TableStorage {
         "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
         [t.databaseId],
       );
-      await this.assertDatabaseWritable(c, t.databaseId);
+
       t = await this.table(c, a, tableId, true);
       this.expected(t, input.expectedSchemaVersion);
       if (t.state !== "active")
@@ -2291,189 +2163,7 @@ export class TableStorage {
       last = rows.at(-1)!.id;
     }
   }
-  async snapshotDatabase(
-    a: Actor,
-    databaseId: string,
-    c: PoolClient,
-    options: { includeStaged?: boolean } = {},
-  ): Promise<SnapshotSource> {
-    const d = await this.database(
-      c,
-      a,
-      databaseId,
-      options.includeStaged ?? false,
-    );
-    await c.query(
-      "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
-      [d.id],
-    );
-    const tables = await c.query<{ id: string }>(
-      "SELECT id FROM rootset_control.tables WHERE database_id=$1 ORDER BY id",
-      [d.id],
-    );
-    const result: SnapshotTable[] = [];
-    for (const row of tables.rows) {
-      const t = await this.table(c, a, row.id, false, true);
-      const allFields = await c.query<{
-        definition: FieldDefinition;
-        state: string;
-      }>(
-        "SELECT definition,state FROM rootset_control.fields WHERE table_id=$1 ORDER BY position,id",
-        [t.id],
-      );
-      result.push({
-        ...t,
-        allFields: allFields.rows,
-        rules: await this.rules(c, t, true),
-        indexes: await this.indexes(c, t, true),
-      });
-    }
-    const cold = (
-      await c.query<{
-        manifest: HistoryArchiveManifest;
-        archive_manifest: HistoryArchiveManifest | null;
-        artifact_state: string | null;
-        artifact_checksum: string | null;
-        artifact_bytes: string | null;
-      }>(
-        "SELECT g.manifest,a.manifest AS archive_manifest,f.state AS artifact_state,f.checksum AS artifact_checksum,f.byte_length::text AS artifact_bytes FROM rootset_control.history_gaps g JOIN rootset_control.tables t ON t.id=g.table_id AND t.org_id=g.org_id LEFT JOIN rootset_control.history_archives a ON a.id=g.manifest->>'archiveId' AND a.org_id=g.org_id AND a.table_id=g.table_id AND a.verified_at IS NOT NULL LEFT JOIN rootset_control.artifacts f ON f.id=a.artifact_id AND f.org_id=a.org_id WHERE g.org_id=$1 AND t.database_id=$2 AND g.manifest ? 'archiveId' ORDER BY g.table_id,g.from_time,g.id",
-        [a.orgId, d.id],
-      )
-    ).rows;
-    for (const ref of cold)
-      if (
-        !ref.archive_manifest ||
-        ref.artifact_state !== "ready" ||
-        ref.artifact_checksum !== ref.manifest.checksum ||
-        Number(ref.artifact_bytes) !== ref.manifest.byteLength ||
-        hash(ref.archive_manifest) !== hash(ref.manifest)
-      )
-        fail(
-          "BACKUP_UNVERIFIED",
-          "Published cold history archive is unavailable or its verified manifest binding differs",
-          409,
-        );
-    const metadata: DatabaseSnapshotMetadata = {
-      formatVersion: 1,
-      database: d,
-      tables: result,
-      archiveReferences: cold.map((ref) => ref.manifest),
-    };
-    return {
-      metadata,
-      rows: (tableId) => {
-        const t = result.find((x) => x.id === tableId);
-        if (!t) fail("RESOURCE_NOT_FOUND", "Snapshot table was not found", 404);
-        return this.iterateRows(c, t);
-      },
-      history: () => this.iterateSnapshotHistory(c, d.id),
-    };
-  }
-  async *iterateSnapshotHistory(
-    c: PoolClient,
-    databaseId: string,
-    batchSize = 1000,
-  ): AsyncGenerator<Raw[]> {
-    const kinds = [
-      {
-        kind: "mutation",
-        relation: "mutations",
-        columns:
-          "coalesce(restore_original_id,id) AS id,org_id,table_id,idempotency_key,input_hash,actor,context,schema_version,CASE WHEN outcome ? 'mutationId' THEN jsonb_set(outcome,'{mutationId}',to_jsonb(coalesce(restore_original_id,id))) ELSE outcome END AS outcome," +
-          utcTimestamp("committed_at") +
-          " AS committed_at",
-        target:
-          "table_id IN (SELECT id FROM rootset_control.tables WHERE database_id=$1)",
-        order: "id",
-        attribution: "coalesce(restore_original_id,id)",
-        initial: "",
-      },
-      {
-        kind: "schemaOperation",
-        relation: "schema_operations",
-        columns:
-          "id,org_id,database_id,table_id,coalesce(restore_original_key,idempotency_key) AS idempotency_key,input_hash,expected_version,kind,before_definition,after_definition,plan,coalesce(restore_original_state,state) AS state,error," +
-          utcTimestamp("created_at") +
-          " AS created_at," +
-          utcTimestamp("committed_at") +
-          " AS committed_at",
-        target: "database_id=$1",
-        order: "id",
-        attribution: "coalesce(restore_original_id,id)",
-        initial: "",
-      },
-      {
-        kind: "row",
-        relation: "row_events",
-        columns:
-          "id,org_id,database_id,table_id,row_id,coalesce((SELECT m.restore_original_id FROM rootset_control.mutations m WHERE m.id=row_events.mutation_id AND m.org_id=row_events.org_id),mutation_id) AS mutation_id,operation,old_version,new_version,actor,context," +
-          utcTimestamp("changed_at") +
-          " AS changed_at",
-        target: "database_id=$1",
-        order: "id",
-        attribution: "coalesce(restore_sequence,id)",
-        initial: "0",
-      },
-      {
-        kind: "resource",
-        relation: "resource_history",
-        columns:
-          "id,org_id,database_id,table_id,resource_id,operation,before_value,after_value,actor,context," +
-          utcTimestamp("changed_at") +
-          " AS changed_at",
-        target: "database_id=$1",
-        order: "id",
-        attribution: "coalesce(restore_sequence,id)",
-        initial: "0",
-      },
-      {
-        kind: "cell",
-        relation: "cell_changes",
-        columns:
-          "id,public_id,org_id,database_id,table_id,row_id,field_id,coalesce((SELECT m.restore_original_id FROM rootset_control.mutations m WHERE m.id=cell_changes.mutation_id AND m.org_id=cell_changes.org_id),mutation_id) AS mutation_id,old_value,new_value,field_definition,old_version,new_version,operation,actor,context," +
-          utcTimestamp("changed_at") +
-          " AS changed_at",
-        target: "database_id=$1",
-        order: "id",
-        attribution: "coalesce(restore_sequence,id)",
-        initial: "0",
-      },
-      {
-        kind: "retentionGap",
-        relation: "history_gaps",
-        columns:
-          "id,org_id,table_id,from_time,to_time,manifest," +
-          utcTimestamp("created_at") +
-          " AS created_at",
-        target:
-          "table_id IN (SELECT id FROM rootset_control.tables WHERE database_id=$1)",
-        order: "id",
-        attribution: "coalesce(restore_original_id,id)",
-        initial: "",
-      },
-    ];
-    for (const section of kinds) {
-      let last = section.initial;
-      for (;;) {
-        const r = await c.query<Raw>(
-          `SELECT ${section.columns},${section.attribution} AS snapshot_sequence,${section.relation}.${section.order} AS scan_id FROM rootset_control.${section.relation} WHERE org_id=current_setting('rootset.org_id',true) AND ${section.target} AND ${section.relation}.${section.order}>$2 ${section.kind === "cell" || section.kind === "row" ? `AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.org_id=${section.relation}.org_id AND g.table_id=${section.relation}.table_id AND g.manifest ? 'archiveId' AND ${section.relation}.changed_at>=g.from_time AND ${section.relation}.changed_at<g.to_time)` : ""} ORDER BY ${section.relation}.${section.order} LIMIT $3`,
-          [id(databaseId), last, batchSize],
-        );
-        if (!r.rows.length) break;
-        yield r.rows.map((raw) => {
-          const data = { ...raw };
-          delete data.snapshot_sequence;
-          delete data.scan_id;
-          return {
-            recordType: section.kind,
-            sequence: String(raw.snapshot_sequence),
-            data,
-          };
-        });
-        last = String(r.rows.at(-1)!.scan_id);
-      }
-    }
-  }
+
   private async historyLease(
     c: PoolClient,
     a: Actor,
@@ -2561,7 +2251,7 @@ export class TableStorage {
         let last = "0";
         for (;;) {
           const selected = await c.query<Raw>(
-            `SELECT e.*,${utcTimestamp("e.changed_at")} AS changed_at,coalesce(e.restore_sequence,e.id)::text AS source_sequence,coalesce((SELECT m.restore_original_id FROM rootset_control.mutations m WHERE m.id=e.mutation_id AND m.org_id=e.org_id),e.mutation_id) AS original_mutation_id FROM rootset_control.${relation} e WHERE e.org_id=$1 AND e.table_id=$2 AND e.changed_at>=$3::timestamptz AND e.changed_at<$4::timestamptz AND e.id>$5::bigint AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.org_id=e.org_id AND g.table_id=e.table_id AND g.manifest ? 'archiveId' AND e.changed_at>=g.from_time AND e.changed_at<g.to_time) ORDER BY e.id LIMIT 1000`,
+            `SELECT e.*,${utcTimestamp("e.changed_at")} AS changed_at,e.id::text AS source_sequence,e.mutation_id AS original_mutation_id FROM rootset_control.${relation} e WHERE e.org_id=$1 AND e.table_id=$2 AND e.changed_at>=$3::timestamptz AND e.changed_at<$4::timestamptz AND e.id>$5::bigint AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.org_id=e.org_id AND g.table_id=e.table_id AND g.manifest ? 'archiveId' AND e.changed_at>=g.from_time AND e.changed_at<g.to_time) ORDER BY e.id LIMIT 1000`,
             [a.orgId, t.id, from, to, last],
           );
           if (!selected.rows.length) break;
@@ -2570,7 +2260,6 @@ export class TableStorage {
             const data = { ...raw };
             delete data.source_sequence;
             delete data.original_mutation_id;
-            delete data.restore_sequence;
             data.mutation_id = raw.original_mutation_id;
             return {
               recordType: relation === "cell_changes" ? "cell" : "row",
@@ -2617,7 +2306,7 @@ export class TableStorage {
       row.target_id !== tableId
     )
       fail(
-        "BACKUP_UNVERIFIED",
+        "ARTIFACT_UNVERIFIED",
         "History archive has no verified ready artifact",
         409,
       );
@@ -2642,7 +2331,7 @@ export class TableStorage {
       m.to !== iso(row.to_time)
     )
       fail(
-        "BACKUP_UNVERIFIED",
+        "ARTIFACT_UNVERIFIED",
         "History archive manifest does not match its verified artifact and range",
         409,
       );
@@ -2668,7 +2357,7 @@ export class TableStorage {
         );
         if (hash(manifest) !== hash(archive.manifest))
           fail(
-            "BACKUP_UNVERIFIED",
+            "ARTIFACT_UNVERIFIED",
             "Published history manifest differs from verified content",
             409,
           );
@@ -2680,7 +2369,7 @@ export class TableStorage {
           return { archiveId: manifest.archiveId, gapId: old.rows[0].id };
         if (archive.state !== "verified")
           fail(
-            "BACKUP_UNVERIFIED",
+            "ARTIFACT_UNVERIFIED",
             "History archive must complete verification before publication",
             409,
           );
@@ -2751,7 +2440,7 @@ export class TableStorage {
         );
         if (!gap.rowCount)
           fail(
-            "BACKUP_UNVERIFIED",
+            "ARTIFACT_UNVERIFIED",
             "History cannot be purged before the verified archive is published",
             409,
           );
@@ -2784,7 +2473,7 @@ export class TableStorage {
               purgedRows !== manifest.rowCount))
         )
           fail(
-            "BACKUP_UNVERIFIED",
+            "ARTIFACT_UNVERIFIED",
             "Purged history counts differ from the verified archive",
             409,
           );
@@ -2809,13 +2498,9 @@ export class TableStorage {
     );
   }
 
-  private async rules(
-    c: PoolClient,
-    t: TableRecord,
-    historical = false,
-  ): Promise<UniqueRule[]> {
+  private async rules(c: PoolClient, t: TableRecord): Promise<UniqueRule[]> {
     const r = await c.query<Raw>(
-      `SELECT *${historical ? ",coalesce(restore_original_state,state) AS state,CASE WHEN restore_original_state IS NOT NULL THEN restore_original_error ELSE error END AS error" : ""} FROM rootset_control.unique_rules WHERE table_id=$1 AND state<>'deleted' ORDER BY id`,
+      `SELECT * FROM rootset_control.unique_rules WHERE table_id=$1 AND state<>'deleted' ORDER BY id`,
       [t.id],
     );
     return r.rows.map((v) => ({
@@ -3033,14 +2718,10 @@ export class TableStorage {
       },
     );
   }
-  private async indexes(
-    c: PoolClient,
-    t: TableRecord,
-    historical = false,
-  ): Promise<IndexRecord[]> {
+  private async indexes(c: PoolClient, t: TableRecord): Promise<IndexRecord[]> {
     return (
       await c.query<Raw>(
-        `SELECT *${historical ? ",coalesce(restore_original_state,state) AS state,CASE WHEN restore_original_state IS NOT NULL THEN restore_original_error ELSE error END AS error" : ""} FROM rootset_control.indexes WHERE table_id=$1 AND state<>'deleted' ORDER BY id`,
+        `SELECT * FROM rootset_control.indexes WHERE table_id=$1 AND state<>'deleted' ORDER BY id`,
         [t.id],
       )
     ).rows.map((v) => ({
@@ -3081,7 +2762,7 @@ export class TableStorage {
       async (c) => {
         await this.assertPublication(c, a, input.context, false);
         table = await this.table(c, a, tableId);
-        await this.barrier(c, table.databaseId, undefined, true);
+        await this.barrier(c, table.databaseId, true);
         table = await this.table(c, a, tableId, true);
         const j = await this.journal(
           c,
@@ -3187,7 +2868,7 @@ export class TableStorage {
             [table.databaseId],
           );
           await connection.query("SET statement_timeout='0'");
-          await this.assertDatabaseWritable(connection, table.databaseId);
+
           const lockDeadline = Date.now() + limits.queryTimeoutMs;
           while (!operationLocked) {
             const acquired = await connection.query<{ acquired: boolean }>(
@@ -3786,7 +3467,6 @@ export class TableStorage {
           await this.barrier(
             c,
             String(op.database_id),
-            undefined,
             op.kind === "index.create",
           );
           const plan = op.plan as Raw;
@@ -3904,999 +3584,7 @@ export class TableStorage {
     }
     return { table: t, rows: iterate() };
   }
-  async restoreDatabase(
-    a: Actor,
-    snapshot: SnapshotSource,
-    options: {
-      name: string;
-      jobId: string;
-      staged: boolean;
-      verification?: boolean;
-      targetDatabaseId?: string;
-      jobFence?: { jobId: string; leaseToken: string };
-      context?: MutationContext;
-    },
-  ): Promise<RestoreResult> {
-    if (
-      snapshot.metadata.archiveReferences?.some(
-        (ref) => !snapshot.materializedArchiveIds?.includes(ref.archiveId),
-      )
-    )
-      fail(
-        "BACKUP_UNVERIFIED",
-        "Cold history archive payloads must be embedded and materialized before restore",
-        409,
-      );
-    if (snapshot.metadata.formatVersion !== 1)
-      fail("VALIDATION_FAILED", "Unsupported backup format");
-    const metadata = snapshot.metadata;
-    const restoreContext = context({
-      ...options.context,
-      source: "restore",
-      jobId: options.jobId,
-    });
-    const restoreRun = <T>(
-      actor: Actor,
-      work: (c: PoolClient) => Promise<T>,
-      ddl = false,
-    ): Promise<T> =>
-      this.run(
-        actor,
-        async (c) => {
-          const ctx: MutationContext = {
-            jobId: options.jobId,
-            jobFence: options.jobFence,
-          };
-          await this.assertPublication(c, actor, ctx);
-          const result = await work(c);
-          await this.assertPublication(c, actor, ctx);
-          return result;
-        },
-        ddl,
-      );
-    const previous = await restoreRun(
-      a,
-      async (c) =>
-        c.query<{ manifest: Raw; state: string }>(
-          "SELECT manifest,state FROM rootset_control.restore_provenance WHERE org_id=$1 AND job_id=$2 AND coalesce((manifest->>'verification')::boolean,false)=$3 AND state<>'discarded' ORDER BY created_at DESC LIMIT 1",
-          [a.orgId, id(options.jobId), options.verification ?? false],
-        ),
-      true,
-    );
-    const prior = previous.rows[0];
-    if (prior?.state === "published")
-      return prior.manifest.publishedResult as RestoreResult;
-    if (prior?.state === "staged")
-      return prior.manifest as unknown as RestoreResult;
-    if (prior)
-      await this.discardRestore(a, prior.manifest as unknown as RestoreResult);
-    const dbId = newId();
-    const tableMapping: Record<string, string> = {},
-      fieldMapping: Record<string, string> = {};
-    const resourceMapping: Record<string, string> = {},
-      mutationMapping: Record<string, string> = {};
-    const tables: TableRecord[] = [];
-    let rowCount = 0,
-      historyCount = 0;
-    await restoreRun(
-      a,
-      async (c) => {
-        const schemaName = `rsd_${dbId.toLowerCase()}`;
-        await c.query(
-          "INSERT INTO rootset_control.databases(id,org_id,name,description,schema_name,state) VALUES($1,$2,$3,$4,$5,$6)",
-          [
-            dbId,
-            a.orgId,
-            name(options.name),
-            metadata.database.description ?? "",
-            schemaName,
-            "creating",
-          ],
-        );
-        await c.query(`CREATE SCHEMA ${q(schemaName)}`);
-        for (const source of metadata.tables) {
-          const tid = newId();
-          tableMapping[source.id] = tid;
-          const fields = source.fields.map((f) => {
-            const fid = newId();
-            fieldMapping[f.id] = fid;
-            return { ...f, id: fid };
-          });
-          const t: TableRecord = {
-            ...source,
-            id: tid,
-            orgId: a.orgId,
-            databaseId: dbId,
-            schemaName,
-            physicalName: `rst_${tid.toLowerCase()}`,
-            state: "creating",
-            fields,
-            rowCount: 0,
-            generation: 1,
-          };
-          tables.push(t);
-          await c.query(
-            "INSERT INTO rootset_control.tables(id,database_id,org_id,name,physical_name,schema_version,state,description) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
-            [
-              tid,
-              dbId,
-              a.orgId,
-              t.name,
-              t.physicalName,
-              t.schemaVersion,
-              "creating",
-              source.description ?? "",
-            ],
-          );
-          for (const f of fields) {
-            await this.insertField(c, t, f);
-            const original = source.fields.find(
-              (old) => fieldMapping[old.id] === f.id,
-            )!;
-            const position =
-              source.allFields?.findIndex(
-                (item) => item.definition.id === original.id,
-              ) ?? -1;
-            if (position >= 0)
-              await c.query(
-                "UPDATE rootset_control.fields SET position=$2 WHERE id=$1",
-                [f.id, position],
-              );
-          }
-          for (const archived of source.allFields ?? []) {
-            if (archived.state === "active") continue;
-            const fid = newId();
-            fieldMapping[archived.definition.id] = fid;
-            const f = { ...archived.definition, id: fid };
-            await this.insertField(c, t, f, "deleted");
-            const position = source.allFields.findIndex(
-              (item) => item.definition.id === archived.definition.id,
-            );
-            await c.query(
-              "UPDATE rootset_control.fields SET position=$2 WHERE id=$1",
-              [f.id, position],
-            );
-            await c.query(
-              "UPDATE rootset_control.fields SET state='deleted',deleted_at=now() WHERE id=$1",
-              [fid],
-            );
-          }
-          await this.createPhysical(c, t, false);
-        }
-        await c.query(
-          "INSERT INTO rootset_control.restore_provenance(database_id,org_id,source_database_id,job_id,manifest,state) VALUES($1,$2,$3,$4,$5::jsonb,'restoring')",
-          [
-            dbId,
-            a.orgId,
-            metadata.database.id,
-            options.jobId,
-            JSON.stringify({
-              databaseId: dbId,
-              sourceDatabaseId: metadata.database.id,
-              tableMapping,
-              fieldMapping,
-              resourceMapping,
-              mutationMapping: {},
-              context: restoreContext,
-              rowCount: 0,
-              historyCount: 0,
-              state: "restoring",
-              verification: options.verification ?? false,
-              sourceTableStates: Object.fromEntries(
-                metadata.tables.map((t) => [tableMapping[t.id], t.state]),
-              ),
-            }),
-          ],
-        );
-      },
-      true,
-    );
-    try {
-      for (const source of metadata.tables) {
-        const t = tables.find((x) => x.id === tableMapping[source.id])!;
-        for await (const batch of snapshot.rows(source.id)) {
-          await restoreRun(
-            a,
-            async (c) => {
-              for (const row of batch) {
-                id(row.id);
-                VersionSchema.parse(row.version);
-                const values = validateValues(t.fields, row.values);
-                assertRowBytes(t.fields, values);
-                const cols = t.fields.map((f) => q(fieldColumn(f)));
-                await c.query(
-                  `INSERT INTO ${tablePath(t)}(row_id,org_id,row_version,created_at,updated_at${cols.length ? "," + cols.join(",") : ""}) VALUES($1,$2,$3,$4,$5${t.fields.map((_, i) => `,$${i + 6}`).join("")})`,
-                  [
-                    row.id,
-                    a.orgId,
-                    row.version,
-                    row.createdAt,
-                    row.updatedAt,
-                    ...t.fields.map((f) => parameter(f, values[f.name]!)),
-                  ],
-                );
-              }
-              await c.query(
-                "UPDATE rootset_control.tables SET row_count=row_count+$2 WHERE id=$1",
-                [t.id, batch.length],
-              );
-              await c.query(
-                "UPDATE rootset_control.restore_provenance SET manifest=jsonb_set(manifest,'{rowCount}',to_jsonb($2::bigint)) WHERE database_id=$1",
-                [dbId, rowCount + batch.length],
-              );
-            },
-            true,
-          );
-          rowCount += batch.length;
-        }
-        await restoreRun(
-          a,
-          async (c) => {
-            const actual = await c.query<{ count: string }>(
-              `SELECT count(*)::text AS count FROM ${tablePath(t)}`,
-            );
-            if (Number(actual.rows[0]!.count) !== source.rowCount)
-              fail(
-                "BACKUP_UNVERIFIED",
-                "Restored row count differs from manifest",
-                409,
-              );
-            for (const oldRule of source.rules ?? []) {
-              const rid = newId();
-              resourceMapping[oldRule.id] = rid;
-              const rule: UniqueRule = {
-                ...oldRule,
-                id: rid,
-                tableId: t.id,
-                fieldIds: oldRule.fieldIds.map((fid) => fieldMapping[fid]!),
-                physicalName:
-                  oldRule.strategy === "native"
-                    ? `rsu_${rid.toLowerCase()}`
-                    : null,
-                state: "building",
-              };
-              await c.query(
-                "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,physical_name,state,error,restore_original_state,restore_original_error) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11::jsonb)",
-                [
-                  rid,
-                  t.id,
-                  a.orgId,
-                  rule.name,
-                  rule.fieldIds,
-                  rule.strategy,
-                  rule.physicalName,
-                  oldRule.state === "active" ? "building" : "failed",
-                  JSON.stringify(
-                    oldRule.state === "building"
-                      ? {
-                          code: "RESTORED_PENDING_RULE",
-                          message:
-                            "The source rule was incomplete; recreate it after reviewing the retained definition",
-                        }
-                      : (oldRule.error ?? null),
-                  ),
-                  oldRule.state === "active" ? null : oldRule.state,
-                  JSON.stringify(oldRule.error ?? null),
-                ],
-              );
-              if (oldRule.state !== "active") continue;
-              await this.buildRule(c, t, rule);
-              await c.query(
-                "UPDATE rootset_control.unique_rules SET state='active' WHERE id=$1",
-                [rid],
-              );
-            }
-            for (const index of source.indexes ?? []) {
-              const iid = newId(),
-                restoredFieldId =
-                  fieldMapping[index.fieldId] ??
-                  fail(
-                    "BACKUP_UNVERIFIED",
-                    "Retained index field definition is missing",
-                    409,
-                  );
-              resourceMapping[index.id] = iid;
-              const pname = `rsi_${iid.toLowerCase()}`;
-              if (index.state === "active") {
-                const f = fieldFor(t, restoredFieldId);
-                await c.query(
-                  `CREATE INDEX ${q(pname)} ON ${tablePath(t)} USING ${index.kind === "btree" ? "btree" : "gin"}(${q(fieldColumn(f))}${index.kind === "trigram" ? " gin_trgm_ops" : ""})`,
-                );
-              }
-              await c.query(
-                "INSERT INTO rootset_control.indexes(id,table_id,org_id,field_id,kind,physical_name,state,error,restore_original_state,restore_original_error) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb)",
-                [
-                  iid,
-                  t.id,
-                  a.orgId,
-                  restoredFieldId,
-                  index.kind,
-                  pname,
-                  index.state === "active" ? "active" : "failed",
-                  JSON.stringify(
-                    index.state === "building"
-                      ? {
-                          code: "RESTORED_PENDING_INDEX",
-                          message:
-                            "The source index was incomplete; recreate it after reviewing the retained definition",
-                        }
-                      : (index.error ?? null),
-                  ),
-                  index.state === "active" ? null : index.state,
-                  JSON.stringify(index.error ?? null),
-                ],
-              );
-            }
-            await this.installTrigger(c, t);
-            await c.query(
-              "UPDATE rootset_control.restore_provenance SET manifest=jsonb_set(manifest,'{resourceMapping}',$2::jsonb) WHERE database_id=$1",
-              [dbId, JSON.stringify(resourceMapping)],
-            );
-          },
-          true,
-        );
-      }
-      for await (const sourceBatch of snapshot.history()) {
-        const batch = sourceBatch.filter(
-          (record) =>
-            !(
-              record.recordType === "retentionGap" &&
-              snapshot.materializedArchiveIds?.includes(
-                String(((record.data as Raw)?.manifest as Raw)?.archiveId),
-              )
-            ),
-        );
-        if (!batch.length) continue;
-        await restoreRun(
-          a,
-          async (c) => {
-            const mutationIds = [
-              ...new Set(
-                batch.flatMap((record) => {
-                  const data = record.recordType
-                    ? (record.data as Raw)
-                    : record;
-                  return data?.mutation_id ? [String(data.mutation_id)] : [];
-                }),
-              ),
-            ];
-            const batchMutationMapping: Record<string, string> = {};
-            if (mutationIds.length) {
-              const mutations = await c.query<{
-                id: string;
-                restore_original_id: string;
-              }>(
-                "SELECT id,restore_original_id FROM rootset_control.mutations WHERE org_id=$1 AND table_id=ANY($2::varchar[]) AND restore_original_id=ANY($3::varchar[])",
-                [a.orgId, Object.values(tableMapping), mutationIds],
-              );
-              for (const mutation of mutations.rows)
-                batchMutationMapping[mutation.restore_original_id] =
-                  mutation.id;
-            }
-            for (const record of batch) {
-              if (record.recordType) {
-                await this.restoreHistoryRecord(c, a, dbId, record, {
-                  tableMapping,
-                  fieldMapping,
-                  resourceMapping,
-                  mutationMapping: batchMutationMapping,
-                  sourceDatabaseId: metadata.database.id,
-                });
-                continue;
-              }
-              const event = record;
-              const tableId = tableMapping[String(event.table_id)],
-                fieldId = fieldMapping[String(event.field_id)];
-              if (!tableId || !fieldId)
-                fail(
-                  "BACKUP_UNVERIFIED",
-                  "History identity has no restored mapping",
-                  409,
-                );
-              const historical = {
-                ...(event.field_definition as FieldDefinition),
-                id: fieldId,
-              };
-              await c.query(
-                "INSERT INTO rootset_control.cell_changes(org_id,database_id,table_id,row_id,field_id,mutation_id,old_value,new_value,field_definition,old_version,new_version,operation,actor,context,changed_at) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb,$15)",
-                [
-                  a.orgId,
-                  dbId,
-                  tableId,
-                  event.row_id,
-                  fieldId,
-                  event.mutation_id,
-                  JSON.stringify(event.old_value),
-                  JSON.stringify(event.new_value),
-                  JSON.stringify(historical),
-                  event.old_version,
-                  event.new_version,
-                  event.operation,
-                  JSON.stringify(event.actor),
-                  JSON.stringify(event.context),
-                  event.changed_at,
-                ],
-              );
-            }
-            await c.query(
-              "UPDATE rootset_control.restore_provenance SET manifest=jsonb_set(jsonb_set(manifest,'{historyCount}',to_jsonb($2::bigint)),'{resourceMapping}',$3::jsonb) WHERE database_id=$1",
-              [
-                dbId,
-                historyCount + batch.length,
-                JSON.stringify(resourceMapping),
-              ],
-            );
-          },
-          true,
-        );
-        historyCount += batch.length;
-      }
-      const result = {
-        databaseId: dbId,
-        tableMapping,
-        fieldMapping,
-        resourceMapping,
-        mutationMapping,
-        rowCount,
-        historyCount,
-        state: "staged",
-        sourceDatabaseId: metadata.database.id,
-      };
-      await restoreRun(
-        a,
-        async (c) => {
-          await this.audit(
-            c,
-            a,
-            null,
-            null,
-            dbId,
-            "database.restore.stage",
-            null,
-            {
-              ...result,
-              jobId: options.jobId,
-              verification: options.verification ?? false,
-            },
-            restoreContext,
-          );
-          await c.query(
-            "UPDATE rootset_control.restore_provenance SET manifest=$2::jsonb,state='staged' WHERE database_id=$1",
-            [
-              dbId,
-              JSON.stringify({
-                ...result,
-                context: restoreContext,
-                verification: options.verification ?? false,
-                sourceTableStates: Object.fromEntries(
-                  metadata.tables.map((t) => [tableMapping[t.id], t.state]),
-                ),
-              }),
-            ],
-          );
-        },
-        true,
-      );
-      if (!options.staged)
-        return this.publishRestore(a, result, {
-          jobId: options.jobId,
-          targetDatabaseId: options.targetDatabaseId,
-          context: restoreContext,
-        });
-      return result;
-    } catch (error) {
-      await this.discardRestore(a, {
-        databaseId: dbId,
-        tableMapping,
-        fieldMapping,
-        resourceMapping,
-        mutationMapping,
-        rowCount,
-        historyCount,
-        state: "failed",
-        sourceDatabaseId: metadata.database.id,
-      });
-      throw error;
-    }
-  }
-  private async restoreHistoryRecord(
-    c: PoolClient,
-    a: Actor,
-    databaseId: string,
-    record: Raw,
-    maps: {
-      tableMapping: Record<string, string>;
-      fieldMapping: Record<string, string>;
-      resourceMapping: Record<string, string>;
-      mutationMapping: Record<string, string>;
-      sourceDatabaseId: string;
-    },
-  ): Promise<void> {
-    const data = record.data as Raw;
-    if (!data || typeof data !== "object" || Array.isArray(data))
-      fail("BACKUP_UNVERIFIED", "Invalid backup history record", 409);
-    const all = {
-      ...maps.tableMapping,
-      ...maps.fieldMapping,
-      ...maps.resourceMapping,
-      ...maps.mutationMapping,
-      [maps.sourceDatabaseId]: databaseId,
-    };
-    const mapped = (value: unknown): unknown =>
-      typeof value === "string" ? (all[value] ?? value) : value;
-    function metadata(value: unknown, key = ""): unknown {
-      if (
-        key === "values" ||
-        key === "default" ||
-        key === "old_value" ||
-        key === "new_value" ||
-        key === "actor" ||
-        key === "context"
-      )
-        return value;
-      if (Array.isArray(value)) return value.map((v) => metadata(v, key));
-      if (value && typeof value === "object" && !(value instanceof Date))
-        return Object.fromEntries(
-          Object.entries(value as Raw).map(([k, v]) => [k, metadata(v, k)]),
-        );
-      return new Set([
-        "id",
-        "databaseId",
-        "tableId",
-        "fieldId",
-        "ruleId",
-        "indexId",
-        "resourceId",
-        "mutationId",
-        "fieldIds",
-        "database_id",
-        "table_id",
-        "field_id",
-        "resource_id",
-        "mutation_id",
-        "field_ids",
-      ]).has(key)
-        ? mapped(value)
-        : value;
-    }
-    const tableId = data.table_id
-      ? maps.tableMapping[String(data.table_id)]
-      : null;
-    const sequence = String(record.sequence ?? data.id);
-    switch (record.recordType) {
-      case "mutation": {
-        if (!tableId)
-          fail("BACKUP_UNVERIFIED", "Mutation table mapping is missing", 409);
-        const mid = newId();
-        maps.mutationMapping[String(data.id)] = mid;
-        const outcome = metadata(data.outcome);
-        if (
-          outcome &&
-          typeof outcome === "object" &&
-          !Array.isArray(outcome) &&
-          Object.hasOwn(outcome, "mutationId")
-        )
-          (outcome as Raw).mutationId = mid;
-        await c.query(
-          "INSERT INTO rootset_control.mutations(id,org_id,table_id,idempotency_key,input_hash,actor,context,schema_version,outcome,committed_at,restore_original_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9::jsonb,$10,$11)",
-          [
-            mid,
-            a.orgId,
-            tableId,
-            data.idempotency_key,
-            data.input_hash,
-            JSON.stringify(data.actor),
-            JSON.stringify(data.context),
-            data.schema_version,
-            JSON.stringify(outcome),
-            data.committed_at,
-            sequence,
-          ],
-        );
-        break;
-      }
-      case "schemaOperation": {
-        const operationId = newId();
-        maps.resourceMapping[String(data.id)] = operationId;
-        await c.query(
-          "INSERT INTO rootset_control.schema_operations(id,org_id,database_id,table_id,idempotency_key,input_hash,expected_version,kind,before_definition,after_definition,plan,state,error,created_at,committed_at,restore_original_id,restore_original_state,restore_original_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13::jsonb,$14,$15,$16,$17,$18)",
-          [
-            operationId,
-            a.orgId,
-            databaseId,
-            tableId,
-            `restore:${databaseId}:${data.idempotency_key}`,
-            data.input_hash,
-            data.expected_version,
-            data.kind,
-            JSON.stringify(metadata(data.before_definition)),
-            JSON.stringify(metadata(data.after_definition)),
-            JSON.stringify(metadata(data.plan)),
-            "historical",
-            JSON.stringify(data.error),
-            data.created_at,
-            data.committed_at,
-            sequence,
-            data.state,
-            data.idempotency_key,
-          ],
-        );
-        break;
-      }
-      case "row": {
-        if (!tableId)
-          fail("BACKUP_UNVERIFIED", "Row-event table mapping is missing", 409);
-        await c.query(
-          "INSERT INTO rootset_control.row_events(org_id,database_id,table_id,row_id,mutation_id,operation,old_version,new_version,actor,context,changed_at,restore_sequence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12)",
-          [
-            a.orgId,
-            databaseId,
-            tableId,
-            data.row_id,
-            maps.mutationMapping[String(data.mutation_id)] ?? data.mutation_id,
-            data.operation,
-            data.old_version,
-            data.new_version,
-            JSON.stringify(data.actor),
-            JSON.stringify(data.context),
-            data.changed_at,
-            sequence,
-          ],
-        );
-        break;
-      }
-      case "resource": {
-        await c.query(
-          "INSERT INTO rootset_control.resource_history(org_id,database_id,table_id,resource_id,operation,before_value,after_value,actor,context,changed_at,restore_sequence) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11)",
-          [
-            a.orgId,
-            databaseId,
-            tableId,
-            mapped(data.resource_id),
-            data.operation,
-            JSON.stringify(metadata(data.before_value)),
-            JSON.stringify(metadata(data.after_value)),
-            JSON.stringify(data.actor),
-            JSON.stringify(data.context),
-            data.changed_at,
-            sequence,
-          ],
-        );
-        break;
-      }
-      case "cell": {
-        const fieldId = maps.fieldMapping[String(data.field_id)];
-        if (!tableId || !fieldId)
-          fail(
-            "BACKUP_UNVERIFIED",
-            "Cell-event identity mapping is missing",
-            409,
-          );
-        await c.query(
-          "INSERT INTO rootset_control.cell_changes(org_id,database_id,table_id,row_id,field_id,mutation_id,old_value,new_value,field_definition,old_version,new_version,operation,actor,context,changed_at,restore_sequence) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16)",
-          [
-            a.orgId,
-            databaseId,
-            tableId,
-            data.row_id,
-            fieldId,
-            maps.mutationMapping[String(data.mutation_id)] ?? data.mutation_id,
-            JSON.stringify(data.old_value),
-            JSON.stringify(data.new_value),
-            JSON.stringify({
-              ...(data.field_definition as FieldDefinition),
-              id: fieldId,
-            }),
-            data.old_version,
-            data.new_version,
-            data.operation,
-            JSON.stringify(data.actor),
-            JSON.stringify(data.context),
-            data.changed_at,
-            sequence,
-          ],
-        );
-        break;
-      }
-      case "retentionGap": {
-        if (!tableId)
-          fail(
-            "BACKUP_UNVERIFIED",
-            "Retention-gap table mapping is missing",
-            409,
-          );
-        const gapId = newId();
-        maps.resourceMapping[String(data.id)] = gapId;
-        await c.query(
-          "INSERT INTO rootset_control.history_gaps(id,org_id,table_id,from_time,to_time,manifest,created_at,restore_original_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8)",
-          [
-            gapId,
-            a.orgId,
-            tableId,
-            data.from_time,
-            data.to_time,
-            JSON.stringify(data.manifest),
-            data.created_at,
-            sequence,
-          ],
-        );
-        break;
-      }
-      default:
-        fail("BACKUP_UNVERIFIED", "Unknown backup history record type", 409);
-    }
-  }
-  async publishRestore(
-    a: Actor,
-    result: RestoreResult,
-    options: {
-      jobId: string;
-      targetDatabaseId?: string;
-      recoveryBackupId?: string;
-      leaseToken?: string;
-      context?: MutationContext;
-    },
-  ): Promise<RestoreResult> {
-    return this.run(
-      a,
-      async (c) => {
-        if (options.leaseToken) {
-          const lease = await c.query(
-            "SELECT id FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND lease_token=$3 AND lease_until>now() AND state=$4 AND NOT cancel_requested FOR UPDATE",
-            [options.jobId, a.orgId, options.leaseToken, "running"],
-          );
-          if (!lease.rowCount)
-            fail(
-              "JOB_FAILED",
-              "Restore worker lease was lost or cancelled before publication",
-              409,
-            );
-        }
-        const published = await c.query<{ manifest: Raw }>(
-          "SELECT manifest FROM rootset_control.restore_provenance WHERE org_id=$1 AND job_id=$2 AND state='published' ORDER BY published_at DESC LIMIT 1",
-          [a.orgId, options.jobId],
-        );
-        if (published.rows[0]?.manifest.publishedResult)
-          return published.rows[0].manifest.publishedResult as RestoreResult;
-        const d = await this.database(c, a, result.databaseId, true);
-        if (d.state === "active") return { ...result, state: "active" };
-        await this.barrier(c, d.id);
-        let publishedDatabaseId = d.id;
-        if (options.targetDatabaseId) {
-          if (!options.recoveryBackupId)
-            fail(
-              "STEP_UP_REQUIRED",
-              "Replacement restore requires a verified recovery point",
-              403,
-            );
-          const target = await this.database(c, a, options.targetDatabaseId);
-          await this.barrier(c, target.id, options.jobId);
-          const held = await c.query(
-            "SELECT job_id FROM rootset_control.restore_write_barriers WHERE database_id=$1 AND job_id=$2",
-            [target.id, options.jobId],
-          );
-          if (!held.rowCount)
-            fail(
-              "SCHEMA_MAINTENANCE",
-              "Replacement restore requires its durable database write barrier",
-              409,
-            );
-          const placeholder = `rsd_${newId().toLowerCase()}`;
-          await c.query(
-            "UPDATE rootset_control.databases SET schema_name=$2 WHERE id=$1",
-            [target.id, placeholder],
-          );
-          await c.query(
-            "UPDATE rootset_control.databases SET schema_name=$2,state='deleted',deleted_at=now() WHERE id=$1",
-            [d.id, target.schemaName],
-          );
-          await c.query(
-            "UPDATE rootset_control.databases SET schema_name=$2,state='active',description=$3,updated_at=now() WHERE id=$1",
-            [target.id, d.schemaName, d.description],
-          );
-          await c.query(
-            "UPDATE rootset_control.tables SET database_id=CASE WHEN database_id=$1 THEN $2 ELSE $1 END,state=CASE WHEN database_id=$1 THEN 'deleted' ELSE state END,deleted_at=CASE WHEN database_id=$1 THEN now() ELSE deleted_at END WHERE database_id IN ($1,$2)",
-            [target.id, d.id],
-          );
-          for (const relation of [
-            "cell_changes",
-            "row_events",
-            "resource_history",
-            "schema_operations",
-            "history_archives",
-            "history_retention_policies",
-          ])
-            await c.query(
-              `UPDATE rootset_control.${relation} SET database_id=CASE WHEN database_id=$1 THEN $2 ELSE $1 END WHERE database_id IN($1,$2)`,
-              [target.id, d.id],
-            );
-          await c.query(
-            "UPDATE rootset_control.history_archives SET manifest=jsonb_set(manifest,'{databaseId}',to_jsonb(database_id::text)) WHERE database_id IN($1,$2) AND manifest IS NOT NULL",
-            [target.id, d.id],
-          );
-          await c.query(
-            "UPDATE rootset_control.history_gaps g SET manifest=jsonb_set(g.manifest,'{databaseId}',to_jsonb(t.database_id::text)) FROM rootset_control.tables t WHERE t.id=g.table_id AND t.database_id IN($1,$2) AND g.manifest ? 'archiveId'",
-            [target.id, d.id],
-          );
-          await c.query(
-            "DELETE FROM rootset_control.restore_provenance WHERE database_id=$1",
-            [target.id],
-          );
-          await c.query(
-            "UPDATE rootset_control.restore_provenance SET database_id=$2 WHERE database_id=$1",
-            [d.id, target.id],
-          );
-          publishedDatabaseId = target.id;
-          await this.audit(
-            c,
-            a,
-            target.id,
-            null,
-            target.id,
-            "database.restore.replace",
-            target,
-            {
-              recoveryDatabaseId: d.id,
-              recoveryBackupId: options.recoveryBackupId,
-              tableMapping: result.tableMapping,
-            },
-            { ...options.context, source: "restore", jobId: options.jobId },
-          );
-        }
-        await c.query(
-          "UPDATE rootset_control.databases SET state='active',updated_at=now() WHERE id=$1",
-          [publishedDatabaseId],
-        );
-        await c.query(
-          "UPDATE rootset_control.tables SET state='active' WHERE database_id=$1 AND state='creating'",
-          [publishedDatabaseId],
-        );
-        const provenance = await c.query<{ manifest: Raw }>(
-          "SELECT manifest FROM rootset_control.restore_provenance WHERE database_id=$1",
-          [publishedDatabaseId],
-        );
-        const sourceStates = provenance.rows[0]?.manifest.sourceTableStates as
-          Record<string, string> | undefined;
-        if (sourceStates)
-          for (const [tableId, state] of Object.entries(sourceStates))
-            if (state === "deleted")
-              await c.query(
-                "UPDATE rootset_control.tables SET state='deleted',deleted_at=now() WHERE id=$1",
-                [tableId],
-              );
-        const publishedResult = {
-          ...result,
-          databaseId: publishedDatabaseId,
-          state: "active",
-          ...(options.targetDatabaseId ? { recoveryDatabaseId: d.id } : {}),
-        };
-        await c.query(
-          "UPDATE rootset_control.restore_provenance SET state='published',published_at=now(),manifest=jsonb_set(manifest,'{publishedResult}',$2::jsonb) WHERE database_id=$1",
-          [publishedDatabaseId, JSON.stringify(publishedResult)],
-        );
-        await c.query(
-          "UPDATE rootset_control.restore_publications SET state='published',result=$2::jsonb,updated_at=now() WHERE job_id=$1 AND org_id=$3",
-          [options.jobId, JSON.stringify(publishedResult), a.orgId],
-        );
-        if (options.targetDatabaseId)
-          await c.query(
-            "DELETE FROM rootset_control.restore_write_barriers WHERE database_id=$1 AND job_id=$2 AND org_id=$3",
-            [options.targetDatabaseId, options.jobId, a.orgId],
-          );
-        await this.audit(
-          c,
-          a,
-          publishedDatabaseId,
-          null,
-          publishedDatabaseId,
-          "database.restore.publish",
-          null,
-          { jobId: options.jobId, sourceDatabaseId: result.sourceDatabaseId },
-          { ...options.context, source: "restore", jobId: options.jobId },
-        );
-        return publishedResult;
-      },
-      true,
-    );
-  }
-  async discardRestore(a: Actor, result: RestoreResult): Promise<void> {
-    await this.run(
-      a,
-      async (c) => {
-        const d = await this.database(c, a, result.databaseId, true);
-        if (d.state === "active")
-          fail(
-            "ACCESS_DENIED",
-            "A published database cannot be discarded as a temporary restore",
-            403,
-          );
-        const provenance = (
-          await c.query<{ manifest: Raw; state: string; job_id: string }>(
-            "SELECT manifest,state,job_id FROM rootset_control.restore_provenance WHERE database_id=$1 AND org_id=$2 FOR UPDATE",
-            [d.id, a.orgId],
-          )
-        ).rows[0];
-        if (provenance?.state === "discarded") return;
-        await this.barrier(c, d.id);
-        await c.query(`DROP SCHEMA IF EXISTS ${q(d.schemaName)} CASCADE`);
-        await c.query(
-          "UPDATE rootset_control.databases SET state='deleted',deleted_at=now() WHERE id=$1",
-          [d.id],
-        );
-        await c.query(
-          "UPDATE rootset_control.tables SET state='deleted',deleted_at=now() WHERE database_id=$1",
-          [d.id],
-        );
-        await c.query(
-          "DELETE FROM rootset_control.cell_changes WHERE database_id=$1 AND org_id=$2",
-          [d.id, a.orgId],
-        );
-        if (provenance?.manifest.verification === true) {
-          for (const relation of [
-            "row_events",
-            "resource_history",
-            "schema_operations",
-          ])
-            await c.query(
-              `DELETE FROM rootset_control.${relation} WHERE database_id=$1 AND org_id=$2`,
-              [d.id, a.orgId],
-            );
-          for (const relation of [
-            "mutations",
-            "history_gaps",
-            "query_sessions",
-          ])
-            await c.query(
-              `DELETE FROM rootset_control.${relation} WHERE org_id=$2 AND table_id IN(SELECT id FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2)`,
-              [d.id, a.orgId],
-            );
-          for (const relation of ["unique_entries", "unique_buckets"])
-            await c.query(
-              `DELETE FROM rootset_control.${relation} WHERE rule_id IN(SELECT r.id FROM rootset_control.unique_rules r JOIN rootset_control.tables t ON t.id=r.table_id WHERE t.database_id=$1 AND t.org_id=$2)`,
-              [d.id, a.orgId],
-            );
-          for (const relation of [
-            "unique_rules",
-            "indexes",
-            "fields",
-            "history_metrics",
-          ])
-            await c.query(
-              `DELETE FROM rootset_control.${relation} WHERE table_id IN(SELECT id FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2)`,
-              [d.id, a.orgId],
-            );
-          await c.query(
-            "DELETE FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2",
-            [d.id, a.orgId],
-          );
-          await c.query(
-            "UPDATE rootset_control.databases SET name='Discarded verification restore',description='' WHERE id=$1",
-            [d.id],
-          );
-        }
-        await c.query(
-          "UPDATE rootset_control.restore_provenance SET state='discarded' WHERE database_id=$1",
-          [d.id],
-        );
-        await this.audit(
-          c,
-          a,
-          d.id,
-          null,
-          d.id,
-          "database.restore.discard",
-          null,
-          { sourceDatabaseId: result.sourceDatabaseId },
-          {
-            ...(provenance?.manifest.context as MutationContext | undefined),
-            source: "restore",
-            jobId: provenance?.job_id,
-          },
-        );
-      },
-      true,
-    );
-  }
+
   async queryWindow(
     a: Actor,
     tableId: string,
@@ -5104,23 +3792,7 @@ export class TableStorage {
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
-export interface SnapshotTable extends TableRecord {
-  allFields: { definition: FieldDefinition; state: string }[];
-  rules: UniqueRule[];
-  indexes: IndexRecord[];
-}
-export interface DatabaseSnapshotMetadata {
-  formatVersion: 1;
-  database: DatabaseRecord;
-  tables: SnapshotTable[];
-  archiveReferences?: HistoryArchiveManifest[];
-}
-export interface SnapshotSource {
-  metadata: DatabaseSnapshotMetadata;
-  rows: (tableId: string) => AsyncIterable<Row[]>;
-  history: () => AsyncIterable<Raw[]>;
-  materializedArchiveIds?: string[];
-}
+
 export interface HistoryArchiveManifest {
   formatVersion: 1;
   archiveId: string;
@@ -5138,15 +3810,4 @@ export interface HistoryArchiveManifest {
   fingerprint: string;
   interpretations: unknown[];
   verifiedAt: string;
-}
-export interface RestoreResult {
-  databaseId: string;
-  tableMapping: Record<string, string>;
-  fieldMapping: Record<string, string>;
-  resourceMapping: Record<string, string>;
-  mutationMapping: Record<string, string>;
-  rowCount: number;
-  historyCount: number;
-  state: string;
-  sourceDatabaseId: string;
 }

@@ -30,7 +30,6 @@ test("Queued admission HMAC preserves exact business/proof and principal binding
     orgId: actor.orgId,
     databaseId: newId(),
     id: newId(),
-    mode: "replace",
     approvalId: proof,
     query: {
       value: {
@@ -47,7 +46,7 @@ test("Queued admission HMAC preserves exact business/proof and principal binding
   ) =>
     operationAdmissionBinding(
       principal,
-      "restoreBackup",
+      "deleteDatabase",
       body,
       key,
       approval,

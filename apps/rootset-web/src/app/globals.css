@@ -502,21 +502,6 @@ h1 {
   gap: 15px;
   margin-bottom: 20px;
 }
-.add-row-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
-}
-.add-row-input {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-width: 0;
-}
-.add-row-input > label:first-child {
-  font-size: 0.875rem;
-  font-weight: 500;
-}
 .cell-input {
   width: 100%;
   min-width: 0;
@@ -636,11 +621,6 @@ h1 {
 .inline-cell-editor > button {
   font-size: 0.8125rem;
   white-space: normal;
-}
-@media (max-width: 600px) {
-  .add-row-fields {
-    grid-template-columns: 1fr;
-  }
 }
 @media (pointer: coarse) {
   .inline-cell-form .cell-input {

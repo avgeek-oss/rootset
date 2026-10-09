@@ -9,7 +9,6 @@ const management = [
   "fields",
   "rules",
   "indexes",
-  "backups",
 ] as const;
 const personalAndRead = [
   "profile",

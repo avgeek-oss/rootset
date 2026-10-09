@@ -43,27 +43,7 @@ export const DatabaseSummarySchema = DatabaseSchema.extend({
   tableCount: z.number().int().nonnegative(),
 });
 export type DatabaseSummary = z.infer<typeof DatabaseSummarySchema>;
-export const NotificationSchema = z.strictObject({
-  id: IdSchema,
-  type: z.enum(["backup.succeeded", "backup.failed", "backup.cancelled"]),
-  occurredAt: DateTimeSchema,
-  createdAt: DateTimeSchema,
-  payload: z.strictObject({
-    title: z.string().min(1).max(255),
-    message: z.string().max(1024),
-    databaseId: IdSchema,
-    databaseName: z.string().min(1).max(255),
-    backupId: IdSchema,
-  }),
-  readAt: DateTimeSchema.nullable(),
-});
-export type Notification = z.infer<typeof NotificationSchema>;
-export const NotificationPageSchema = z.strictObject({
-  notifications: z.array(NotificationSchema).max(100),
-  unreadCount: z.number().int().nonnegative(),
-  nextCursor: z.string().max(2048).nullable(),
-});
-export type NotificationPage = z.infer<typeof NotificationPageSchema>;
+
 export const TableSchema = z.strictObject({
   id: IdSchema,
   databaseId: IdSchema,
@@ -183,10 +163,8 @@ export const AccountActionTypeSchema = z.enum([
   "sign_out_everywhere",
   "create_key",
   "rotate_key",
-  "set_backup_policy",
   "set_history_retention_policy",
   "archive_history",
-  "restore_backup",
   "delete_database",
   "delete_table",
   "update_installation_configuration",
@@ -323,14 +301,7 @@ export const CellChangeSchema = z.strictObject({
     clientId: z.string().optional(),
   }),
   source: z.string(),
-  operation: z.enum([
-    "create",
-    "update",
-    "delete",
-    "conversion",
-    "restore",
-    "repair",
-  ]),
+  operation: z.enum(["create", "update", "delete", "conversion", "repair"]),
   before: JsonValueSchema,
   after: JsonValueSchema,
   fieldDefinition: FieldDefinitionSchema,
@@ -395,37 +366,11 @@ export const HistoryArchiveSchema = z.strictObject({
   manifest: JsonValueSchema.optional(),
   error: z.string().optional(),
 });
-export const BackupSchema = z.strictObject({
-  id: IdSchema,
-  databaseId: IdSchema,
-  orgId: IdSchema,
-  jobId: IdSchema,
-  state: z.enum([
-    "queued",
-    "snapshotting",
-    "uploading",
-    "verifying",
-    "succeeded",
-    "failed",
-    "cancelled",
-  ]),
-  createdAt: DateTimeSchema,
-  verifiedAt: DateTimeSchema.nullable(),
-  sizeBytes: z.number().int().nonnegative().optional(),
-  checksum: z.string().optional(),
-  manifest: JsonValueSchema.optional(),
-  error: z.string().optional(),
-  notificationState: z
-    .enum(["pending", "sent", "failed", "disabled"])
-    .optional(),
-  cleanupError: z
-    .strictObject({ code: z.string(), message: z.string() })
-    .optional(),
-});
+
 export const ArtifactSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
-  kind: z.enum(["import", "export", "report", "backup", "history_archive"]),
+  kind: z.enum(["import", "export", "report", "history_archive"]),
   format: z.enum(["csv", "jsonl", "json", "archive"]),
   sizeBytes: z.number().int().nonnegative(),
   checksum: z.string(),

@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { previewSchedule, validateSchedule } from "./schedule.js";
 import { importRecords } from "./imports.js";
 
-describe("backup civil-time schedule", () => {
+describe("civil-time schedule", () => {
   it("uses UTC output and rejects non-five-field cron", () => {
     expect(
       previewSchedule(

@@ -23,7 +23,7 @@ import { OrganisationSettings, MembersSettings } from "./accounts";
 import { PreferencesSettings } from "./preferences";
 import { AccountActionApproval } from "./security";
 import { FieldsSettings, RulesIndexesSettings, TableSettings } from "./schema";
-import { BackupsSettings, ImportsSettings, ExportsSettings } from "./jobs";
+import { ImportsSettings, ExportsSettings } from "./jobs";
 import { DatabaseSettings } from "./database";
 import {
   canOpenSettings,
@@ -74,7 +74,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
     fields: FieldsSettings,
     rules: RulesIndexesSettings,
     indexes: RulesIndexesSettings,
-    backups: BackupsSettings,
     imports: ImportsSettings,
     exports: ExportsSettings,
   };
@@ -87,7 +86,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "imports",
     "exports",
   ];
-  const databaseSections = ["database", "backups"];
+  const databaseSections = ["database"];
   const content =
     context.loading || context.error ? (
       <Loading {...context} retry={context.reload} />

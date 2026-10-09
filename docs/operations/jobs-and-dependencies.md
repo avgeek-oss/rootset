@@ -34,18 +34,13 @@ Change SMTP and S3 settings in `.env` and restart API/worker; the UI has no
 configuration overrides or test-email action. SMTP-only failure
 should leave data reads available.
 
-For object failure, inspect artifact/backup state, storage errors, endpoint,
-bucket permissions and retained key IDs. Upload/readback/restore failure cannot
-produce verified backup success. Retry follows persisted run/object identity.
-If checksum or authentication-tag verification fails, preserve the object for
-diagnosis; never replace it with empty content. Failed staged restore must not
-damage live data, and retention must preserve the last verified recovery point.
+For object failure, inspect artifact state, storage errors, endpoint, bucket permissions and the installation encryption key. Retry follows persisted run/object identity. If checksum or authentication-tag verification fails, preserve the object for diagnosis; never replace it with empty content. Published history archives remain protected from temporary artifact cleanup.
 
 ## Resources and foreground health
 
 Observe filesystem headroom, WAL/temp growth, pool occupancy, query timeouts,
-history/index size, queue age, expired leases and verified backup age. Bound worker
-concurrency so imports/scans/backups keep foreground requests usable. An expensive
+history/index size, queue age, expired leases and artifact failures. Bound worker
+concurrency so imports/scans/exports keep foreground requests usable. An expensive
 query must return an actionable timeout within 10 seconds and cancel/join owned
 work in bounded cleanup; retry cannot silently expand its budget.
 

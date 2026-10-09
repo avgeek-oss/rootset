@@ -852,7 +852,7 @@ export class ArtifactStore {
       !artifact.tag
     )
       throw new RootsetError(
-        "BACKUP_UNVERIFIED",
+        "ARTIFACT_UNVERIFIED",
         "Artifact has not reached a readable verified state",
         409,
       );
@@ -890,7 +890,7 @@ export class ArtifactStore {
           if (cipherLength > Number(artifact.ciphertext_length)) {
             callback(
               new RootsetError(
-                "BACKUP_UNVERIFIED",
+                "ARTIFACT_UNVERIFIED",
                 "Artifact ciphertext exceeded its authenticated byte length",
                 409,
               ),
@@ -907,7 +907,7 @@ export class ArtifactStore {
           if (plainLength > Number(artifact.byte_length)) {
             callback(
               new RootsetError(
-                "BACKUP_UNVERIFIED",
+                "ARTIFACT_UNVERIFIED",
                 "Artifact plaintext exceeded its declared byte length",
                 409,
               ),
@@ -949,7 +949,7 @@ export class ArtifactStore {
         ciphertextHash.digest("hex") !== artifact.ciphertext_checksum
       )
         throw new RootsetError(
-          "BACKUP_UNVERIFIED",
+          "ARTIFACT_UNVERIFIED",
           "Artifact checksum or length validation failed",
           409,
         );
@@ -975,7 +975,7 @@ export class ArtifactStore {
       const objectError = objectFailure(error);
       if (objectError) throw objectError;
       throw new RootsetError(
-        "BACKUP_UNVERIFIED",
+        "ARTIFACT_UNVERIFIED",
         "Artifact authentication or object read failed",
         409,
       );

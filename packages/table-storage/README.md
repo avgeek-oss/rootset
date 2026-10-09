@@ -1,6 +1,6 @@
 # Native table storage
 
-`TableStorage` manages generated PostgreSQL schemas and native typed tables. The control schema stores definitions, schema journals, mutations, history and restore provenance. User rows remain native columns; JSON cells use `jsonb`.
+`TableStorage` manages generated PostgreSQL schemas and native typed tables. The control schema stores definitions, schema journals, mutations, history. User rows remain native columns; JSON cells use `jsonb`.
 
 The service accepts an authenticated `Actor` supplied by `@rootset/core`. Core performs scope and current-role checks. Every storage transaction binds the actor's organisation, and native/control RLS enforces that boundary. Runtime row and schema operations share one ordinary database owner and connection pool. Forced row-level security still applies to native tables; API/MCP callers use the current product role and typed storage operations.
 
@@ -41,7 +41,7 @@ A native write commits values, revisions, row count, uniqueness participation, m
 
 Secondary indexes build with `CREATE INDEX CONCURRENTLY`. Database barriers use completed try-lock queries and bounded application polling so waiting transactions cannot retain a snapshot that prevents PostgreSQL's build from finishing. Publication verifies the native index, schema journal, current worker lease and current authority. Failed cleanup remains explicit and allocated space remains measurable.
 
-Worker-only `MutationContext.jobFence` and `beforePublish` are checked immediately before schema or row publication. Restore namespace and copy transactions check the lease at their start and end. These private fields never enter hashes, audit context or retained definitions.
+Worker-only `MutationContext.jobFence` and `beforePublish` are checked immediately before schema or row publication. These private fields never enter hashes, audit context or retained definitions.
 
 ## Queries and spreadsheet windows
 
@@ -49,15 +49,9 @@ The query compiler accepts the shared typed AST, parameterises values and JSON p
 
 Spreadsheet windows fetch at most 200 rows. Numeric position zero uses the first page without ranking the table. Deep navigation materialises sparse rank anchors for the actual filter and sort. A window session can reuse those anchors when only its projection changes; public row cursors retain projection binding. Filtered cardinality remains unknown until matching ranks are computed.
 
-## Backup, restore and retained history
+## Retained history
 
-The jobs package establishes the repeatable-read snapshot and holds the shared schema barrier before extraction. `snapshotDatabase` exposes definitions plus bounded row/history iterators on that same supplied connection. Retained raw history preserves PostgreSQL timestamp precision, values, actor and context. Historical identifier remapping applies only to structural identifier keys, preserving user JSON and strings.
-
-Restore writes into an invisible namespace and records provenance before copying. Row IDs, revisions and timestamps survive. Table, field, rule and index IDs map to the new namespace. Active rules and indexes rebuild native enforcement. Failed definitions remain inactive, and unfinished source definitions become failed with an explicit recreate/review message. Their original state and error remain available to snapshot verification.
-
-Replacement publication preserves the target logical database ID and atomically swaps native/control mappings. A durable write barrier freezes the target before its recovery backup; each new barrier epoch invalidates an older recovery point. Publication and its durable result commit together and require the current uncancelled lease. Verification namespaces delete copied native rows, interpretation metadata, mutation outcomes and histories when discarded, leaving a small provenance/discard marker.
-
-History retention is optional. `snapshotHistory` extracts a half-open UTC range; the jobs package encrypts and verifies its artifact. `publishHistoryArchive` binds the verified manifest to the range before `purgeArchivedHistory` removes hot cells and row events in bounded fenced transactions. Published gaps exclude that range from hot snapshots throughout an interrupted purge. Database snapshots require every referenced artifact, and jobs embed cold events in the backup. Restore materialises them as ordinary retained history and omits the superseded gap.
+History retention is optional. `snapshotHistory` extracts a half-open UTC range; the jobs package encrypts and verifies its artifact. `publishHistoryArchive` binds the verified manifest to the range before `purgeArchivedHistory` removes hot cells and row events in bounded, fenced transactions. Published gaps exclude that range from hot snapshots throughout an interrupted purge. Published archive objects remain pinned.
 
 ## Verification
 
@@ -70,6 +64,6 @@ pnpm --filter @rootset/table-storage typecheck
 pnpm exec eslint packages/table-storage/src --max-warnings=0
 ```
 
-The package tests cover typed query/keyset and byte boundaries, canonical finite-number parity, depth-32 JSON, atomic mutation rollback, schema idempotency paths, actual concurrent index retry and old-snapshot races, window anchor reuse, archive publication/purge, worker cancellation at publication, private token omission, verification cleanup, and inactive-schema restore attribution. The executable spike verifies all eight native types, UTC round trips, revisions, history, idempotency, native uniqueness and query/window behavior in a disposable installed database.
+The package tests cover typed query/keyset and byte boundaries, canonical finite-number parity, depth-32 JSON, atomic mutation rollback, schema idempotency paths, actual concurrent index retry and old-snapshot races, window anchor reuse, archive publication/purge, worker cancellation at publication, private token omission and artifact verification. The executable spike verifies all eight native types, UTC round trips, revisions, history, idempotency, native uniqueness and query/window behavior in a disposable installed database.
 
 The independent verification package owns the broader concurrency, digest collision, role/access, five-million-row and ten-million-history checks. The implementation checklist records candidate evidence and reviewer sign-off separately; this package's tests alone do not constitute release acceptance.

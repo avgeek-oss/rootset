@@ -64,7 +64,7 @@ name. The bottom-left identity opens the account/product/sign-out menu. A top ba
 provides the navigation toggle, current context and appearance control.
 
 Each page owns its secondary sidebar, following Towbar and Mill. A database has
-Database → Tables and Settings → General/Backups. Selecting a database opens its
+Database → Tables and Settings → General. Selecting a database opens its
 Tables overview, adapted from Mill's Boards page with responsive widget cards
 showing table names and row counts. Creating tables belongs to that page.
 Selecting a card opens the table's Rows page, with its own secondary sidebar:
@@ -85,19 +85,14 @@ controls from non-admins. Narrow screens use a focus-trapping drawer containing
 the primary navigation and the current page's secondary navigation; desktop
 navigation can collapse with focus restoration.
 
-The spreadsheet uses the existing accessible DOM grid with row virtualisation.
-Load complete row windows and render every visible field, including columns
-outside the horizontal viewport. Horizontal scrolling must not fetch column
-projections or replace cell values with loading placeholders. The row index and
-configured frozen columns use native CSS sticky positioning. Keep the grid inside
-a bounded viewport with Filter immediately before Add row in the page header.
+The spreadsheet uses React Data Grid for virtualized rows and columns, native resizing, frozen columns and keyboard navigation. Load complete row windows across all fields, so horizontal scrolling does not fetch projections or replace cell values with loading placeholders. Keep the grid inside a bounded viewport with a floating Filter action at the bottom right. Row creation remains available through imports, REST and MCP.
 Export and table settings are available in the table's secondary sidebar.
 Filter opens a HeroUI modal using Towbar Analytics' condition-row layout, with
 typed values, all/any matching, removable conditions and Clear/Cancel/Apply
 actions. The UI displays every field and has no sort, column-visibility, help or
 manual reload controls. API/MCP query sorting and projection remain supported.
 There is no standalone Background Jobs screen. Operation progress stays
-with the import/export, schema or manual backup action that started the work.
+with the import/export or schema action that started the work.
 SMTP and S3-compatible storage are configured only through environment variables;
 there are no database overrides, provider forms, test-email action, editable
 request/concurrency controls or storage admission subsystem.
@@ -127,7 +122,7 @@ memory separately. Do not silently increase the approved four-service budget.
 Use non-root application containers, narrow mounts, explicit environments and
 health checks. Migration failure blocks runtime startup. Distinguish liveness
 from readiness, and expose worker/dependency failures. Collect redacted query,
-job, storage, history and backup metrics with request correlation.
+job, storage and history metrics with request correlation.
 
 The local Towbar README/contribution guide and Mill architecture/prelaunch guide
 inform public dependency setup, current-role authorization, baseline refusal and

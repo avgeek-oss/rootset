@@ -20,15 +20,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
-import { NumberField, Label, Dropdown, Checkbox, Tooltip } from "@heroui/react";
-import { CellInput } from "./cells/CellInput";
-import {
-  createCellDraft,
-  parseCellDraft,
-  validateCellDraft,
-  type CellDraft as InputDraft,
-} from "./cells/drafts";
-import { Filter, Plus, Columns3 } from "./ui/icons";
+import { NumberField, Label, Dropdown, Tooltip } from "@heroui/react";
+import { Filter, Columns3 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
@@ -160,7 +153,6 @@ export function Spreadsheet({
     start: number;
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
-  const [addRow, setAddRow] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
     [],
   );
@@ -1256,20 +1248,6 @@ export function Spreadsheet({
             {query.where ? "Filter · active" : "Filter"}
           </Tooltip.Content>
         </Tooltip>
-        {writable && (
-          <Tooltip delay={250} closeDelay={0}>
-            <Button
-              isIconOnly
-              size="lg"
-              aria-label="Add row"
-              isDisabled={saving}
-              onPress={() => leaveEditor(() => setAddRow(true))}
-            >
-              <Plus size={22} />
-            </Button>
-            <Tooltip.Content placement="top">Add row</Tooltip.Content>
-          </Tooltip>
-        )}
       </div>
       {filterVisible && (
         <TableFilterDialog
@@ -1579,21 +1557,6 @@ export function Spreadsheet({
           preferences={preferences}
         />
       )}
-      {addRow && (
-        <AddRowDialog
-          fields={schema.data?.fields ?? []}
-          schemaVersion={schema.data!.table.schemaVersion}
-          tablePath={tablePath}
-          onClose={() => setAddRow(false)}
-          onCreated={() => {
-            setAddRow(false);
-            cache.current.clear();
-            void loadWindow("last");
-            onChanged();
-          }}
-          preferences={preferences}
-        />
-      )}
       {pastePreview && (
         <Dialog
           title="Review paste"
@@ -1776,161 +1739,6 @@ function CellHistory({
           </footer>
         </>
       )}
-    </Dialog>
-  );
-}
-
-function AddRowDialog({
-  fields,
-  schemaVersion,
-  tablePath,
-  onClose,
-  onCreated,
-  preferences,
-}: {
-  fields: FieldDefinition[];
-  schemaVersion: number;
-  tablePath: string;
-  onClose: () => void;
-  onCreated: () => void;
-  preferences: Preferences;
-}) {
-  const [drafts, setDrafts] = useState<Record<string, InputDraft>>(() =>
-    Object.fromEntries(
-      fields.map((field) => [
-        field.name,
-        createCellDraft(field, field.default ?? null, preferences.timezone),
-      ]),
-    ),
-  );
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [validation, setValidation] = useState<Record<string, string>>({});
-  const attempt = useRef(new MutationAttempt());
-  const submitted = useRef(false);
-  async function create() {
-    if (submitted.current) return;
-    const errors: Record<string, string> = {};
-    const values: Record<string, JsonValue> = {};
-    for (const field of fields) {
-      const draft = drafts[field.name]!;
-      const message = validateCellDraft(field, draft, preferences.timezone);
-      if (message) errors[field.name] = message;
-      else
-        values[field.name] = parseCellDraft(field, draft, preferences.timezone);
-    }
-    setValidation(errors);
-    if (Object.keys(errors).length) return;
-    submitted.current = true;
-    setPending(true);
-    setError(null);
-    try {
-      await client.request(`${tablePath}/rows`, {
-        method: "POST",
-        body: { values, expectedSchemaVersion: schemaVersion },
-        idempotencyKey: attempt.current.forInput({
-          values,
-          expectedSchemaVersion: schemaVersion,
-        }),
-      });
-      onCreated();
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "Row could not be added",
-      );
-    } finally {
-      submitted.current = false;
-      setPending(false);
-    }
-  }
-  return (
-    <Dialog title="Add row" closeDisabled={pending} onClose={onClose} wide>
-      <form
-        className="form-stack"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          void create();
-        }}
-        onKeyDown={(event) => {
-          if (
-            event.key === "Enter" &&
-            (event.ctrlKey || event.metaKey) &&
-            !event.nativeEvent.isComposing
-          ) {
-            event.preventDefault();
-            void create();
-          }
-        }}
-      >
-        <div className="add-row-fields">
-          {fields.map((field, index) => {
-            const draft = drafts[field.name]!;
-            const feedbackId = `add-row-${field.id}-error`;
-            function change(next: InputDraft) {
-              setDrafts((previous) => ({ ...previous, [field.name]: next }));
-              setValidation((previous) => {
-                const result = { ...previous };
-                delete result[field.name];
-                return result;
-              });
-            }
-            return (
-              <div className="add-row-input" key={field.id}>
-                <CellInput
-                  field={field}
-                  draft={draft}
-                  onChange={change}
-                  timeZone={preferences.timezone}
-                  autoFocus={
-                    index === 0 &&
-                    typeof window !== "undefined" &&
-                    window.matchMedia("(pointer: fine)").matches
-                  }
-                  disabled={pending}
-                  invalid={!!validation[field.name]}
-                  describedBy={validation[field.name] ? feedbackId : undefined}
-                />
-                {!field.required && field.type !== "boolean" && (
-                  <Checkbox
-                    aria-label={`Set ${field.name} to null`}
-                    isSelected={draft.isNull}
-                    isDisabled={pending}
-                    onChange={(selected) =>
-                      change({ ...draft, isNull: selected })
-                    }
-                  >
-                    <Checkbox.Content>
-                      <Checkbox.Control>
-                        <Checkbox.Indicator />
-                      </Checkbox.Control>
-                      Set to null
-                    </Checkbox.Content>
-                  </Checkbox>
-                )}
-                {validation[field.name] && (
-                  <p id={feedbackId} className="error-message" role="alert">
-                    {validation[field.name]}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="action-row">
-          <Button variant="secondary" isDisabled={pending} onPress={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" isDisabled={pending}>
-            {pending ? "Adding…" : error ? "Retry add row" : "Add row"}
-          </Button>
-        </div>
-      </form>
     </Dialog>
   );
 }

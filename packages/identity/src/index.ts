@@ -23,11 +23,6 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { z } from "zod";
 import {
-  listNotifications,
-  markAllNotificationsRead,
-} from "./notifications.js";
-export { publishNotification } from "./notifications.js";
-import {
   ALL_SCOPES,
   assertAccess,
   roleAllows,
@@ -215,7 +210,6 @@ const sensitiveOperations = new Set([
   "rotatePersonalKey",
   "deleteDatabase",
   "deleteTable",
-  "restoreBackup",
   "setHistoryRetentionPolicy",
   "archiveHistory",
   "updateMember",
@@ -265,7 +259,6 @@ const actionTypes: Record<string, string> = {
   rotatePersonalKey: "rotate_key",
   setHistoryRetentionPolicy: "set_history_retention_policy",
   archiveHistory: "archive_history",
-  restoreBackup: "restore_backup",
   deleteDatabase: "delete_database",
   deleteTable: "delete_table",
   mutateRows: "operator_repair",
@@ -275,7 +268,6 @@ const requiresOperationApproval = (
   input: Record<string, unknown>,
 ): boolean =>
   sensitiveOperations.has(operation) &&
-  !(operation === "restoreBackup" && input.mode === "new") &&
   !(operation === "mutateRows" && input.repair === undefined);
 
 const repairIntent = (input: Record<string, unknown>) =>
@@ -1778,18 +1770,7 @@ export class IdentityService {
       case "getProfile":
         personal();
         return this.getProfile(client, actor.userId!);
-      case "listNotifications":
-        personal();
-        return listNotifications(
-          client,
-          actor,
-          input,
-          this.config.keyHashSecret,
-        );
-      case "markAllNotificationsRead":
-        personal();
-        parse(z.strictObject({}), input);
-        return markAllNotificationsRead(client, actor);
+
       case "updateProfile": {
         personal();
         const update = parse(z.strictObject({ name: nameSchema }), input);
@@ -2276,11 +2257,6 @@ export class IdentityService {
         scope: "schema:manage",
         roles: ["admin"],
       });
-    else if (operation === "restoreBackup")
-      assertAccess(actor, {
-        scope: "backups:manage",
-        roles: ["admin"],
-      });
     else assertAccess(actor, { scope: "account:security", personal: true });
   }
   private async authoriseRepair(
@@ -2398,7 +2374,6 @@ export class IdentityService {
     const external = [
       "deleteDatabase",
       "deleteTable",
-      "restoreBackup",
       "setHistoryRetentionPolicy",
       "archiveHistory",
       "mutateRows",

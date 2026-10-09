@@ -12,7 +12,7 @@ import { createPool, migrate, migrationStatus } from "./index.js";
 
 const source = process.env.ROOTSET_TEST_DATABASE_URL;
 test(
-  "fresh baseline is repeatable, enforces singleton and roles, and preserves incompatible prelaunch databases",
+  "V1-28 fresh baseline is repeatable, enforces singleton and roles, and preserves incompatible prelaunch databases",
   { skip: !source },
   async (t) => {
     const url = new URL(source!);
@@ -159,7 +159,7 @@ test(
     );
     assert.equal(absent.rowCount, 0);
     const removed = await pool.query(
-      "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN('resource_grants','operator_bindings','account_audit','capacity_organisation_quotas','capacity_policy','capacity_reports','capacity_reservations','installation_settings','installation_settings_audit','backup_policies','backup_occurrences')",
+      "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN('resource_grants','operator_bindings','account_audit','capacity_organisation_quotas','capacity_policy','capacity_reports','capacity_reservations','installation_settings','installation_settings_audit','backup_policies','backup_occurrences','backups','restore_provenance','restore_publications','restore_write_barriers','notification_events','notification_receipts')",
     );
     assert.equal(removed.rowCount, 0);
     const sql = await readFile(

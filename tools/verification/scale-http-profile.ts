@@ -572,7 +572,7 @@ export async function runHttpProfile(
         types: 8,
         foregroundRows: 5000000,
         scope:
-          "Background work on a separate10,000-row eight-type dataset overlaps indexed reads of the actual5M table; this does not claim5M-row conversion/backup throughput.",
+          "Background work on a separate10,000-row eight-type dataset overlaps indexed reads of the actual5M table; this does not claim5M-row conversion throughput.",
       };
       const setupRuntime = await createRuntime({
         ...target.config,
@@ -826,19 +826,6 @@ export async function runHttpProfile(
             conversion: "explicit",
           },
         });
-        await phase("BACKUP-AND-VERIFICATION", "createBackup", {
-          orgId: qaOrgId,
-          databaseId: database.id,
-        });
-        const verification = (
-          await target.pools.owner.query(
-            "SELECT state,verified_at,cleanup_error FROM rootset_control.backups WHERE org_id=$1 AND database_id=$2 ORDER BY created_at DESC LIMIT 1",
-            [qaOrgId, database.id],
-          )
-        ).rows[0]!;
-        assert.equal(verification.state, "succeeded");
-        assert.ok(verification.verified_at);
-        assert.equal(verification.cleanup_error, null);
         const count = (await adminCall("getTableStatistics", bg)).value;
         report.backgroundFinalStatistics = count;
       } finally {
@@ -1099,25 +1086,6 @@ export async function runHttpProfile(
             conversion: "explicit",
           },
         });
-        const backup = await phase(
-          "BACKUP-AND-ISOLATED-VERIFICATION",
-          "createBackup",
-          { orgId: ids.orgId, databaseId: ids.databaseId },
-        );
-        const verified = (
-          await target.pools.owner.query(
-            "SELECT state,verified_at,cleanup_error,manifest FROM rootset_control.backups WHERE org_id=$1 AND database_id=$2 ORDER BY created_at DESC LIMIT 1",
-            [ids.orgId, ids.databaseId],
-          )
-        ).rows[0]!;
-        assert.equal(verified.state, "succeeded");
-        assert.ok(verified.verified_at);
-        assert.equal(verified.cleanup_error, null);
-        report.fullScaleVerifiedBackup = {
-          result: backup.result,
-          verifiedAt: verified.verified_at,
-          manifest: verified.manifest,
-        };
       } finally {
         await target.pools.owner.query(
           "UPDATE rootset_control.api_keys SET revoked_at=now() WHERE id=$1 AND org_id=$2",

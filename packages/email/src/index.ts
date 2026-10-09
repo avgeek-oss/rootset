@@ -144,18 +144,6 @@ export const emailTemplates = {
     title: "Account recovery performed",
     body: "Your installation operator performed account recovery. Existing sessions and delegated access were revoked. Check your security settings before reconnecting integrations.",
   },
-  "backup-verified": {
-    subject: "Your Rootset backup was verified",
-    title: "Backup verified",
-    body: "Your database backup completed and passed its verification checks. Review the backup in Rootset before planning a restore.",
-    action: "View backups",
-  },
-  "backup-failed": {
-    subject: "Your Rootset backup did not complete",
-    title: "Backup needs attention",
-    body: "Your database backup did not complete successfully. Review its status and retry after resolving the reported issue.",
-    action: "View backups",
-  },
 } as const;
 export type EmailTemplate = keyof typeof emailTemplates;
 export interface EmailPayload {

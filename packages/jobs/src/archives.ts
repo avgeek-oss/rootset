@@ -9,7 +9,7 @@ import {
   type JsonValue,
 } from "@rootset/contracts";
 import { ArtifactStore } from "./artifacts.js";
-import { HistoryFingerprint } from "./backups.js";
+import { HistoryFingerprint } from "./history-fingerprint.js";
 import { DurableQueue, snapshotTransaction } from "./queue.js";
 import type { JobRecord, StoragePort } from "./types.js";
 
@@ -94,7 +94,7 @@ export async function* archiveRecords(
     Number(artifact.byte_length) !== manifest.byteLength
   )
     throw new RootsetError(
-      "BACKUP_UNVERIFIED",
+      "ARTIFACT_UNVERIFIED",
       "History archive manifest artifact binding is invalid",
       409,
     );
@@ -119,7 +119,7 @@ export async function* archiveRecords(
         (value.data as Record<string, unknown>).table_id !== manifest.tableId
       )
         throw new RootsetError(
-          "BACKUP_UNVERIFIED",
+          "ARTIFACT_UNVERIFIED",
           "History archive contains an incompatible event",
           409,
         );
@@ -224,7 +224,7 @@ export class HistoryArchiveRunner {
       fingerprint.digest() !== manifest.fingerprint
     )
       throw new RootsetError(
-        "BACKUP_UNVERIFIED",
+        "ARTIFACT_UNVERIFIED",
         "History archive counts or canonical event fingerprint differ",
         409,
       );
@@ -277,7 +277,7 @@ export class HistoryArchiveRunner {
                   else if (event.recordType === "row") rows++;
                   else
                     throw new RootsetError(
-                      "BACKUP_UNVERIFIED",
+                      "ARTIFACT_UNVERIFIED",
                       "History snapshot contains an incompatible section",
                       409,
                     );
@@ -300,7 +300,7 @@ export class HistoryArchiveRunner {
               rows !== source.metadata.rowCount
             )
               throw new RootsetError(
-                "BACKUP_UNVERIFIED",
+                "ARTIFACT_UNVERIFIED",
                 "History snapshot count changed within extraction",
                 409,
               );
