@@ -336,8 +336,7 @@ h1 {
 .rootset-grid .rdg-editor-container {
   overflow: visible;
   z-index: 2;
-  outline: var(--rdg-selection-width) solid var(--rdg-selection-color);
-  outline-offset: calc(var(--rdg-selection-width) * -1);
+  outline: none;
 }
 .empty-state {
   display: flex;
@@ -558,6 +557,15 @@ h1 {
   font-style: normal;
   text-align: left;
 }
+.inline-cell-editor::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 -1px;
+  z-index: 1;
+  border: var(--rdg-selection-width, 1px) solid
+    var(--rdg-selection-color, var(--accent));
+  pointer-events: none;
+}
 .inline-cell-form .cell-input {
   display: block;
   width: 100%;
@@ -584,10 +592,6 @@ h1 {
 }
 .rootset-grid .cell-input.cell-boolean-false {
   color: var(--rs-boolean-false);
-}
-.inline-cell-editor:has(.inline-cell-form--json) {
-  outline: var(--rdg-selection-width) solid var(--rdg-selection-color);
-  outline-offset: calc(var(--rdg-selection-width) * -1);
 }
 .inline-cell-editor:has(.inline-cell-form--expand-up) {
   top: auto;
