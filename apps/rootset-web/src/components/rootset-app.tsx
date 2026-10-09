@@ -63,14 +63,25 @@ import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DatabaseIcon,
-  Logout01Icon,
+  Logout03Icon,
   Settings01Icon,
   UserAccountIcon,
   UserGroupIcon,
   BookOpen01Icon,
   Key01Icon,
-  SecurityCheckIcon,
+  Mail01Icon,
+  News01Icon,
+  GithubIcon,
+  Message01Icon,
 } from "@hugeicons/core-free-icons";
+
+const repositoryUrl = "https://github.com/avgeek-oss/rootset";
+const productLinks: Partial<Record<string, string>> = {
+  changelog: `${repositoryUrl}/releases`,
+  documentation: `${repositoryUrl}/tree/main/docs`,
+  repository: repositoryUrl,
+  feedback: `${repositoryUrl}/issues/new`,
+};
 
 type Context = z.infer<typeof ContextSchema>;
 const publicClient = new RootsetClient({
@@ -473,9 +484,12 @@ export function RootsetApp() {
               }
               showThemeSwitcher={false}
               actions={
-                <>
-                  <ThemeSwitcher isDisabled={savingTheme} />
-                </>
+                <div className="flex items-center gap-2">
+                  <ThemeSwitcher
+                    className="size-8 min-h-8 min-w-8 p-0 text-muted"
+                    isDisabled={savingTheme}
+                  />
+                </div>
               }
             />
           }
@@ -559,13 +573,13 @@ export function RootsetApp() {
                             icon: icon(Settings01Icon),
                           },
                           {
-                            id: "passkeys",
-                            label: "Two-factor Auth",
-                            icon: icon(SecurityCheckIcon),
+                            id: "email-password",
+                            label: "Auth & Security",
+                            icon: icon(Mail01Icon),
                           },
                           {
                             id: "api-keys",
-                            label: "API Keys",
+                            label: "My API Keys",
                             icon: icon(Key01Icon),
                           },
                         ],
@@ -575,9 +589,24 @@ export function RootsetApp() {
                         label: "Rootset",
                         items: [
                           {
+                            id: "changelog",
+                            label: "Changelog",
+                            icon: icon(News01Icon),
+                          },
+                          {
                             id: "documentation",
                             label: "Documentation",
                             icon: icon(BookOpen01Icon),
+                          },
+                          {
+                            id: "repository",
+                            label: "Repo / Contribute",
+                            icon: icon(GithubIcon),
+                          },
+                          {
+                            id: "feedback",
+                            label: "Feedback",
+                            icon: icon(Message01Icon),
                           },
                         ],
                       },
@@ -588,21 +617,22 @@ export function RootsetApp() {
                           {
                             id: "logout",
                             label: "Sign out",
-                            icon: icon(Logout01Icon),
+                            icon: icon(Logout03Icon),
                             destructive: true,
                           },
                         ],
                       },
                     ]}
                     onAction={(id) => {
+                      const productUrl = productLinks[id];
                       if (id === "logout")
                         void authClient.signOut().then(() => {
                           queryClient.clear();
                           location.assign("/login");
                         });
-                      else if (id === "documentation")
+                      else if (productUrl)
                         window.open(
-                          "https://github.com/avgeek-oss/rootset/tree/main/docs",
+                          productUrl,
                           "_blank",
                           "noopener,noreferrer",
                         );
