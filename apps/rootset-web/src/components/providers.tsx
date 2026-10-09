@@ -4,6 +4,7 @@ import { NextNavigationProvider } from "@avgeek-oss/design-system/adapters/next"
 import { Toast } from "@avgeek-oss/design-system/overlays/toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
+import { BackendRecovery } from "./backend-recovery";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -24,7 +25,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <DesignSystemProviders>
         <NextNavigationProvider>
-          {children}
+          <BackendRecovery>{children}</BackendRecovery>
           <Toast.Provider placement="top end" />
         </NextNavigationProvider>
       </DesignSystemProviders>

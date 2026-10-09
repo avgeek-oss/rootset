@@ -417,9 +417,16 @@ try {
   await context.setOffline(true);
   await page.keyboard.press("Control+c");
   await expect(
-    page.getByRole("alert").filter({ hasText: "Rootset could not be reached" }),
+    page
+      .getByRole("status")
+      .filter({ hasText: "Rootset is temporarily unavailable" }),
   ).toBeVisible();
   await context.setOffline(false);
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Rootset is temporarily unavailable" }),
+  ).toBeHidden();
   expect(await readClipboard()).toBe(beforeFailure);
   report.checks.push({
     name: "Actual offline canonical read refuses copy without clearing prior clipboard",

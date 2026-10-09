@@ -54,6 +54,40 @@ export class ApiError extends Error {
   }
 }
 
+export const BACKEND_UNAVAILABLE_EVENT = "rootset:backend-unavailable";
+
+export function isBackendUnavailableStatus(status: number): boolean {
+  return [0, 502, 503, 504, 521, 522, 523, 524].includes(status);
+}
+
+export function reportBackendUnavailable(status: number) {
+  if (
+    isBackendUnavailableStatus(status) &&
+    typeof window !== "undefined" &&
+    typeof window.dispatchEvent === "function"
+  )
+    window.dispatchEvent(new Event(BACKEND_UNAVAILABLE_EVENT));
+}
+
+export async function fetchWithBackendRecovery(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+  fetcher: typeof fetch = globalThis.fetch,
+): Promise<Response> {
+  try {
+    const response = await fetcher(input, init);
+    reportBackendUnavailable(response.status);
+    return response;
+  } catch (error) {
+    if (
+      !init?.signal?.aborted &&
+      !(error instanceof Error && error.name === "AbortError")
+    )
+      reportBackendUnavailable(0);
+    throw error;
+  }
+}
+
 export class RootsetClient {
   private readonly baseUrl: string | (() => string);
   private readonly fetcher: typeof fetch;
@@ -137,22 +171,25 @@ export class RootsetClient {
     try {
       const baseUrl =
         typeof this.baseUrl === "function" ? this.baseUrl() : this.baseUrl;
-      response = await this.fetcher(`${baseUrl.replace(/\/$/, "")}${path}`, {
-        method,
-        headers,
-        ...(options.body !== undefined
-          ? { body: JSON.stringify(options.body) }
-          : {}),
-        ...(options.signal ? { signal: options.signal } : {}),
-        credentials: "include",
-        cache: "no-store",
-      });
+      response = await fetchWithBackendRecovery(
+        `${baseUrl.replace(/\/$/, "")}${path}`,
+        {
+          method,
+          headers,
+          ...(options.body !== undefined
+            ? { body: JSON.stringify(options.body) }
+            : {}),
+          ...(options.signal ? { signal: options.signal } : {}),
+          credentials: "include",
+          cache: "no-store",
+        },
+        this.fetcher,
+      );
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") throw error;
       throw new ApiError(0, {
         code: "OFFLINE",
-        message:
-          "Rootset could not be reached. Check your connection and retry; your draft is still here.",
+        message: "Rootset is temporarily unavailable.",
       });
     }
     if (response.status === 204) return undefined as T;

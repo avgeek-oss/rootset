@@ -52,6 +52,11 @@ body {
   line-height: 1.5;
   color: var(--foreground);
 }
+
+body:has([data-rootset-backend-unavailable])
+  > :not([data-rootset-backend-unavailable]) {
+  visibility: hidden;
+}
 button,
 a,
 input,

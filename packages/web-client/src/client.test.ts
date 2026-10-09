@@ -4,6 +4,8 @@ import {
   RootsetClient,
   resourcePath,
   browserArtifactDownloadPath,
+  BACKEND_UNAVAILABLE_EVENT,
+  fetchWithBackendRecovery,
 } from "./index";
 
 describe("browser transport", () => {
@@ -75,8 +77,83 @@ describe("browser transport", () => {
     });
     await expect(transport.request("/me")).rejects.toBeInstanceOf(ApiError);
     await expect(transport.request("/me")).rejects.toThrow(
-      /draft is still here/,
+      /temporarily unavailable/,
     );
+  });
+  it.each([502, 503, 504, 521, 522, 523, 524])(
+    "reports a %s gateway outage even when it returns HTML, without retrying a write",
+    async (status) => {
+      const events = new EventTarget();
+      const unavailable = vi.fn();
+      events.addEventListener(BACKEND_UNAVAILABLE_EVENT, unavailable);
+      vi.stubGlobal("window", events);
+      try {
+        const fetcher = vi
+          .fn()
+          .mockResolvedValue(
+            new Response("<html>Unavailable</html>", { status }),
+          );
+        const transport = new RootsetClient({ baseUrl: "/v1", fetch: fetcher });
+        await expect(
+          transport.request("/rows/ROW", {
+            method: "PATCH",
+            body: { value: "draft" },
+          }),
+        ).rejects.toMatchObject({ status });
+        expect(unavailable).toHaveBeenCalledOnce();
+        expect(fetcher).toHaveBeenCalledOnce();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+  it.each([400, 401, 403, 409, 429, 500])(
+    "keeps a %s application error out of the outage interstitial",
+    async (status) => {
+      const events = new EventTarget();
+      const unavailable = vi.fn();
+      events.addEventListener(BACKEND_UNAVAILABLE_EVENT, unavailable);
+      vi.stubGlobal("window", events);
+      try {
+        const fetcher = vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              error: { code: "EXPECTED", message: "Expected error" },
+            }),
+            { status },
+          ),
+        );
+        const transport = new RootsetClient({ baseUrl: "/v1", fetch: fetcher });
+        await expect(transport.request("/me")).rejects.toMatchObject({
+          status,
+        });
+        expect(unavailable).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+  it("reports network failure for direct authentication fetches and ignores cancellation", async () => {
+    const events = new EventTarget();
+    const unavailable = vi.fn();
+    events.addEventListener(BACKEND_UNAVAILABLE_EVENT, unavailable);
+    vi.stubGlobal("window", events);
+    try {
+      const failure = new TypeError("Failed to fetch");
+      const fetcher = vi.fn().mockRejectedValue(failure);
+      await expect(
+        fetchWithBackendRecovery("/v1/auth/get-session", {}, fetcher),
+      ).rejects.toBe(failure);
+      expect(unavailable).toHaveBeenCalledOnce();
+      unavailable.mockClear();
+      fetcher.mockRejectedValue(new DOMException("Cancelled", "AbortError"));
+      await expect(
+        fetchWithBackendRecovery("/v1/auth/get-session", {}, fetcher),
+      ).rejects.toMatchObject({ name: "AbortError" });
+      expect(unavailable).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
   it("rejects foreign origins and invalid table paths", async () => {
     const transport = new RootsetClient({ fetch: vi.fn() });
