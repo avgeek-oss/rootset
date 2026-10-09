@@ -544,7 +544,15 @@ export function FieldsSettings(props: SettingsPanelProps) {
                         <ChevronDown />
                       </Button>
                     </div>
-                    <ResourceName name={field.name} description={field.type} />
+                    <ResourceName
+                      name={field.name}
+                      description={
+                        <span className="inline-flex items-center gap-1.5">
+                          <FieldTypeIcon type={field.type} size={14} />
+                          {field.type}
+                        </span>
+                      }
+                    />
                   </div>
                 );
               },
