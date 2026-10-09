@@ -54,6 +54,7 @@ test.use({
   baseURL,
   storageState: isolatedStatePath,
   viewport: { width: 1920, height: 1080 },
+  deviceScaleFactor: 2,
   screenshot: "only-on-failure",
   trace: "off",
 });
@@ -199,6 +200,11 @@ async function fillAndSave(
   const dialog = await openEditor(page, key);
   const input = dialog.getByLabel(field(key).name, { exact: true });
   await input.fill(value);
+  if (key === "DATE" || key === "DATETIME")
+    await captureEvidence(
+      page,
+      key === "DATE" ? "date-inline-editor" : "date-time-inline-editor",
+    );
   if (keyboard)
     await input.press(key === "NAME" ? "ControlOrMeta+Enter" : "Enter");
   else
@@ -805,14 +811,34 @@ test("compact rows select on click, edit on double-click, and expose header acti
   await expect(
     page.getByRole("button", { name: "Delete selected row" }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: tableName, exact: true }),
+  ).toHaveCount(0);
+  await expect(header).toHaveCSS("font-weight", "500");
+  const beforeDiscard = await readRow(page);
   await nameCell.dblclick();
   await expect(
     page.getByRole("dialog", { name: "Edit NAME", exact: true }),
   ).toHaveCount(0);
-  await page.getByLabel("NAME", { exact: true }).press("Escape");
+  await page.getByLabel("NAME", { exact: true }).fill("Unsaved draft");
+  await (await cell(page, "INTEGER")).click();
+  await expect(
+    page.getByRole("dialog", { name: "Keep your draft?", exact: true }),
+  ).toHaveCount(0);
+  expect((await readRow(page)).version).toBe(beforeDiscard.version);
   await expect(
     page.getByRole("group", { name: "Edit NAME", exact: true }),
   ).toHaveCount(0);
+  await openEditor(page, "NAME");
+  await page.getByLabel("NAME", { exact: true }).fill("Another unsaved draft");
+  await page.getByRole("button", { name: "Add row", exact: true }).click();
+  const addRow = page.getByRole("dialog", { name: "Add row", exact: true });
+  await expect(addRow).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Keep your draft?", exact: true }),
+  ).toHaveCount(0);
+  expect((await readRow(page)).version).toBe(beforeDiscard.version);
+  await addRow.getByRole("button", { name: "Cancel", exact: true }).click();
   await nameCell.click({ button: "right" });
   await expect(
     page.getByRole("menuitem", { name: "Set to null", exact: true }),

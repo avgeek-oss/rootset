@@ -167,7 +167,6 @@ export function Spreadsheet({
     field?: FieldDefinition;
   } | null>(null);
   const contextAnchor = useRef<Element | null>(null);
-  const [draftExit, setDraftExit] = useState<(() => void) | null>(null);
   const gridRef = useRef<DataGridHandle>(null);
   const closeEditor = useRef<(() => void) | null>(null);
   const extendSelection = useRef(false);
@@ -461,9 +460,11 @@ export function Spreadsheet({
     }
   }
 
-  function preserveDraft(action: () => void) {
-    if (draft) setDraftExit(() => action);
-    else action();
+  function leaveEditor(action: () => void) {
+    if (saving) return;
+    closeEditor.current?.();
+    setDraft(null);
+    action();
   }
 
   function focusCell(row: number, column: number) {
@@ -945,7 +946,7 @@ export function Spreadsheet({
     combination: FilterCombination,
     where: FilterNode | undefined,
   ) {
-    preserveDraft(() => {
+    leaveEditor(() => {
       setQuery({ limit: windowLimit, ...(where ? { where } : {}) });
       setFilterConditions(conditions);
       setFilterCombination(combination);
@@ -1066,14 +1067,14 @@ export function Spreadsheet({
           onContextMenu={(event) => {
             event.preventDefault();
             const anchor = event.currentTarget;
-            preserveDraft(() => {
+            leaveEditor(() => {
               contextAnchor.current = anchor;
               setContextMenu({});
             });
           }}
           onClick={(event) => {
             const anchor = event.currentTarget;
-            preserveDraft(() => {
+            leaveEditor(() => {
               contextAnchor.current = anchor;
               setContextMenu({});
             });
@@ -1086,7 +1087,7 @@ export function Spreadsheet({
               event.preventDefault();
               event.stopPropagation();
               const anchor = event.currentTarget;
-              preserveDraft(() => {
+              leaveEditor(() => {
                 contextAnchor.current = anchor;
                 setContextMenu({});
               });
@@ -1102,7 +1103,14 @@ export function Spreadsheet({
       key: field.id,
       name: field.name,
       width:
-        viewPrefs.columnWidths[field.id] ?? (field.type === "json" ? 240 : 180),
+        viewPrefs.columnWidths[field.id] ??
+        (field.type === "date-time"
+          ? 340
+          : field.type === "json"
+            ? 240
+            : field.type === "date"
+              ? 200
+              : 180),
       frozen: index < viewPrefs.frozenColumns,
       editable: (row) => writable && Object.hasOwn(row.values, field.name),
       renderHeaderCell: ({ tabIndex }) => (
@@ -1149,28 +1157,43 @@ export function Spreadsheet({
   ];
 
   return (
-    <section className="spreadsheet-pane" aria-labelledby="table-title">
-      <header className="table-header">
-        <div>
-          <h1 id="table-title">{table.name}</h1>
-        </div>
-        <div className="action-row" role="toolbar" aria-label="Table actions">
+    <section className="spreadsheet-pane" aria-label={table.name}>
+      <div
+        className="table-floating-actions"
+        role="toolbar"
+        aria-label="Table actions"
+      >
+        <Tooltip delay={250} closeDelay={0}>
           <Button
-            variant="secondary"
-            isDisabled={!fields.length}
-            onPress={() => preserveDraft(() => setFilterVisible(true))}
+            isIconOnly
+            size="lg"
+            variant={query.where ? "primary" : "secondary"}
+            aria-label="Filter"
+            aria-pressed={!!query.where}
+            isDisabled={!fields.length || saving}
+            onPress={() => leaveEditor(() => setFilterVisible(true))}
           >
-            <Filter size={15} />
-            Filter{query.where ? " · active" : ""}
+            <Filter size={20} />
           </Button>
-          {writable && (
-            <Button onPress={() => preserveDraft(() => setAddRow(true))}>
-              <Plus size={17} />
-              Add row
+          <Tooltip.Content placement="top">
+            {query.where ? "Filter · active" : "Filter"}
+          </Tooltip.Content>
+        </Tooltip>
+        {writable && (
+          <Tooltip delay={250} closeDelay={0}>
+            <Button
+              isIconOnly
+              size="lg"
+              aria-label="Add row"
+              isDisabled={saving}
+              onPress={() => leaveEditor(() => setAddRow(true))}
+            >
+              <Plus size={22} />
             </Button>
-          )}
-        </div>
-      </header>
+            <Tooltip.Content placement="top">Add row</Tooltip.Content>
+          </Tooltip>
+        )}
+      </div>
       {filterVisible && (
         <TableFilterDialog
           fields={fields}
@@ -1257,8 +1280,10 @@ export function Spreadsheet({
                 event.target instanceof Element &&
                 event.target.closest('[role="columnheader"]')
               ) {
-                event.preventDefault();
-                event.stopPropagation();
+                if (saving) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                } else leaveEditor(() => {});
               }
             }}
             onPaste={(event) => {
@@ -1282,7 +1307,7 @@ export function Spreadsheet({
                 extendSelection.current = event.shiftKey;
                 if (draft) {
                   event.preventGridDefault();
-                  preserveDraft(() => args.setActivePosition());
+                  leaveEditor(() => args.setActivePosition());
                 }
               }}
               onCellDoubleClick={({ row, column }, event) => {
@@ -1295,7 +1320,7 @@ export function Spreadsheet({
                 event.preventDefault();
                 event.preventGridDefault();
                 const anchor = event.currentTarget;
-                preserveDraft(() => {
+                leaveEditor(() => {
                   focusCell(rowIdx, column.idx - 1);
                   contextAnchor.current = anchor;
                   setContextMenu(
@@ -1551,28 +1576,6 @@ export function Spreadsheet({
               {saving ? "Committing…" : "Commit paste"}
             </Button>
           )}
-        </Dialog>
-      )}
-      {draftExit && (
-        <Dialog title="Keep your draft?" onClose={() => setDraftExit(null)}>
-          <p>
-            A cell has an unsaved draft. Save or cancel it before changing the
-            view.
-          </p>
-          <Button variant="secondary" onPress={() => setDraftExit(null)}>
-            Continue editing
-          </Button>
-          <Button
-            onPress={() => {
-              const action = draftExit;
-              closeEditor.current?.();
-              setDraft(null);
-              setDraftExit(null);
-              action();
-            }}
-          >
-            Discard draft and continue
-          </Button>
         </Dialog>
       )}
     </section>

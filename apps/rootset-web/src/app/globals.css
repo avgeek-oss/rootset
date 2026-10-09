@@ -163,19 +163,11 @@ h1 {
   }
 }
 .spreadsheet-pane {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-.table-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--rs-border);
-  flex-shrink: 0;
 }
 .breadcrumb {
   font-size: 11px;
@@ -187,9 +179,6 @@ h1 {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-}
-.table-header .action-row {
-  gap: 8px;
 }
 .compact-control {
   display: flex;
@@ -286,6 +275,21 @@ h1 {
   .table-filter-condition {
     padding-bottom: 8px;
   }
+}
+.table-floating-actions {
+  position: absolute;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 12px;
+  z-index: 3;
+}
+.table-floating-actions .button {
+  border-radius: 9999px;
+  box-shadow: var(--overlay-shadow);
+}
+.rootset-grid [role="columnheader"] {
+  font-weight: 500;
 }
 .grid-container {
   flex: 1;
@@ -582,13 +586,6 @@ h1 {
     background: var(--default);
   }
 }
-@media (max-width: 800px) {
-  .table-header {
-    padding: 16px;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-}
 @media (max-width: 480px) {
   .navbar-breadcrumb {
     gap: 6px;
@@ -615,16 +612,6 @@ h1 {
   .nav-item.selected {
     outline: 1px solid Highlight;
   }
-}
-
-.table-header > div:first-child {
-  min-width: 0;
-  flex: 1;
-}
-#table-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .retained-cell-draft {
