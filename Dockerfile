@@ -31,6 +31,7 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 TZ=UTC PORT=4300 HOSTNAME=0.0.
 RUN groupadd --gid 10001 rootset && useradd --uid 10001 --gid rootset --no-create-home rootset
 COPY --from=build --chown=rootset:rootset /workspace/apps/rootset-web/.next/standalone /app
 COPY --from=build --chown=rootset:rootset /workspace/apps/rootset-web/.next/static /app/apps/rootset-web/.next/static
+COPY --from=build --chown=rootset:rootset /workspace/apps/rootset-web/public /app/apps/rootset-web/public
 COPY --from=build --chown=rootset:rootset /workspace/dist/notices /app/notices
 USER 10001:10001
 CMD ["node", "apps/rootset-web/server.js"]

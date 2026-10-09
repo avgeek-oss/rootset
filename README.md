@@ -1,3 +1,5 @@
+<img src="design/brand/rootset-logo.png" alt="Rootset logo" width="96" height="96" />
+
 # Rootset
 
 Rootset is self-hosted structured storage for one organisation. Create logical

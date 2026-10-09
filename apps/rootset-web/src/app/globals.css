@@ -102,22 +102,12 @@ h1 {
   background: var(--surface);
   border: 2px solid var(--focus);
 }
-.rootset-symbol {
-  display: inline-grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-foreground);
-  font:
-    700 28px/1 Georgia,
-    serif;
-}
-.rootset-auth-symbol {
+.rootset-logo {
+  display: block;
   width: 32px;
   height: 32px;
-  font-size: 20px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .rootset-application {
   height: 100dvh;

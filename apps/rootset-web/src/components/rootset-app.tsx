@@ -7,6 +7,7 @@ import { Input, Label, TextField } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Database as DatabaseIcon } from "./ui/icons";
 import { DatabasesPage } from "./databases-page";
+import { RootsetLogo } from "./rootset-logo";
 import { TablesPage } from "./tables-page";
 import {
   client,
@@ -457,7 +458,7 @@ export function RootsetApp() {
                   id: "rootset",
                   accessibleLabel: "Rootset home",
                   title: "Rootset",
-                  logo: <span className="rootset-symbol">r</span>,
+                  logo: <RootsetLogo />,
                 },
                 homeHref: "/",
               }}
@@ -486,7 +487,7 @@ export function RootsetApp() {
                   id: "rootset",
                   accessibleLabel: "Rootset home",
                   title: "Rootset",
-                  logo: <span className="rootset-symbol">r</span>,
+                  logo: <RootsetLogo />,
                 },
                 groups: [
                   {

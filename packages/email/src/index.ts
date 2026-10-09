@@ -207,6 +207,7 @@ export async function renderEmail(
     .join("\n\n");
   const html = await render(
     createElement(EmailShell, {
+      logoUrl: new URL("/brand/rootset-logo.png", baseURL).href,
       title: entry.title,
       body: entry.body,
       name: payload.name,

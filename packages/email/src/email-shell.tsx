@@ -8,6 +8,7 @@ import {
   Head,
   Heading,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -16,6 +17,7 @@ import {
 import React from "react";
 
 export interface EmailShellProps {
+  logoUrl: string;
   title: string;
   body: string;
   name?: string;
@@ -32,6 +34,7 @@ const theme = {
   accent: "#514127",
 };
 export function EmailShell({
+  logoUrl,
   title,
   body,
   name,
@@ -62,6 +65,17 @@ export function EmailShell({
               margin: "0 0 24px",
             }}
           >
+            <Img
+              src={logoUrl}
+              alt=""
+              width={32}
+              height={32}
+              style={{
+                display: "inline-block",
+                verticalAlign: "middle",
+                marginRight: 10,
+              }}
+            />
             Rootset
           </Text>
           <Heading
