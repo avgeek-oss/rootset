@@ -16,6 +16,7 @@ import {
   TransactionHistoryIcon,
   ArrowDownToLineIcon,
   Delete02Icon,
+  EraserIcon,
   Refresh01Icon,
   DatabaseIcon,
 } from "@hugeicons/core-free-icons";
@@ -42,6 +43,7 @@ export const Columns3 = makeIcon(TableIcon);
 export const History = makeIcon(TransactionHistoryIcon);
 export const ArrowDownToLine = makeIcon(ArrowDownToLineIcon);
 export const Trash2 = makeIcon(Delete02Icon);
+export const Eraser = makeIcon(EraserIcon);
 export const RefreshCw = makeIcon(Refresh01Icon);
 
 export const ChevronDown = makeIcon(ArrowDown01Icon);

@@ -22,7 +22,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { Dropdown, Tooltip } from "@heroui/react";
-import { Filter, Columns3 } from "./ui/icons";
+import { Filter, Columns3, Eraser, History, Trash2 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
@@ -1645,22 +1645,39 @@ export function Spreadsheet({
                 <>
                   <Dropdown.Item
                     id="null"
+                    textValue="Set to null"
                     isDisabled={
                       !writable || saving || contextMenu.field.required
                     }
                   >
+                    <Eraser className="shrink-0 text-muted" />
                     Set to null
                   </Dropdown.Item>
-                  <Dropdown.Item id="history">View cell history</Dropdown.Item>
+                  <Dropdown.Item id="history" textValue="View cell history">
+                    <History className="shrink-0 text-muted" />
+                    View cell history
+                  </Dropdown.Item>
                   {writable && (
-                    <Dropdown.Item id="delete" isDisabled={saving}>
-                      Delete row
+                    <Dropdown.Item
+                      id="delete"
+                      textValue="Delete row"
+                      variant="danger"
+                      isDisabled={saving}
+                    >
+                      <Trash2 className="shrink-0 text-danger" />
+                      <span className="text-danger">Delete row</span>
                     </Dropdown.Item>
                   )}
                 </>
               ) : (
-                <Dropdown.Item id="delete" isDisabled={!writable || saving}>
-                  Delete row
+                <Dropdown.Item
+                  id="delete"
+                  textValue="Delete row"
+                  variant="danger"
+                  isDisabled={!writable || saving}
+                >
+                  <Trash2 className="shrink-0 text-danger" />
+                  <span className="text-danger">Delete row</span>
                 </Dropdown.Item>
               )}
             </Dropdown.Menu>
