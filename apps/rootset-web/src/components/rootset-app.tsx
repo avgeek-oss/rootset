@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Input, Label, TextField } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { DatabasesPage } from "./databases-page";
@@ -30,14 +31,10 @@ import {
   type Table,
 } from "@rootset/contracts";
 import type { z } from "zod";
-import { AuthScreen } from "./auth-screen";
-import { EmailChangeConfirmation } from "./email-change-confirmation";
-import { ReauthenticationDialog } from "./settings/account/reauthentication-dialog";
 import { authClient } from "../lib/auth-client";
 import { MutationAttempt } from "../lib/mutation-attempt";
-import { Spreadsheet } from "./spreadsheet";
 import { Dialog } from "./dialog";
-import { SettingsPanel, type SettingsSection } from "./settings";
+import type { SettingsSection } from "./settings/types";
 import { resolveSettingsSection, SECTION_LABELS } from "./settings/types";
 import {
   dataHref,
@@ -74,6 +71,26 @@ import {
   GithubIcon,
   Message01Icon,
 } from "@hugeicons/core-free-icons";
+
+const AuthScreen = dynamic(() =>
+  import("./auth-screen").then((module) => module.AuthScreen),
+);
+const EmailChangeConfirmation = dynamic(() =>
+  import("./email-change-confirmation").then(
+    (module) => module.EmailChangeConfirmation,
+  ),
+);
+const ReauthenticationDialog = dynamic(() =>
+  import("./settings/account/reauthentication-dialog").then(
+    (module) => module.ReauthenticationDialog,
+  ),
+);
+const Spreadsheet = dynamic(() =>
+  import("./spreadsheet").then((module) => module.Spreadsheet),
+);
+const SettingsPanel = dynamic(() =>
+  import("./settings").then((module) => module.SettingsPanel),
+);
 
 const repositoryUrl = "https://github.com/avgeek-oss/rootset";
 const productLinks: Partial<Record<string, string>> = {
@@ -124,6 +141,8 @@ export function RootsetApp() {
             ? path.split("/")[2]
             : null);
   const settings = resolveSettingsSection(section ?? null);
+  const needsResources =
+    !settings || !["account", "team"].includes(settingsScope(settings));
   useEffect(() => {
     if (parameters.has("databaseId"))
       router.replace(
@@ -160,7 +179,7 @@ export function RootsetApp() {
           { signal },
         ),
       ),
-    enabled: !!orgId,
+    enabled: !!orgId && needsResources,
   });
   const selectedDatabaseId = databaseId ?? null;
   const tables = useQuery({
@@ -172,7 +191,7 @@ export function RootsetApp() {
           { signal },
         ),
       ),
-    enabled: !!orgId && !!selectedDatabaseId,
+    enabled: !!orgId && !!selectedDatabaseId && needsResources,
   });
   const selectedTableId = tableId;
   const database = databases.data?.find(
