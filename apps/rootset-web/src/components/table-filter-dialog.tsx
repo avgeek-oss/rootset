@@ -1,7 +1,7 @@
 // Layout adapted from Towbar's Apache-2.0 Analytics filter dialog.
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Input, Label, ListBox, Modal, Select, TextField } from "@heroui/react";
 import {
   limits,
@@ -12,6 +12,7 @@ import {
 } from "@rootset/contracts";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Filter, Plus, Trash2 } from "./ui/icons";
+import { FieldTypeIcon } from "./settings/field-type-options";
 import {
   buildTableFilter,
   needsFilterValue,
@@ -42,9 +43,10 @@ function FilterSelect({
   ariaLabel?: string;
   hideLabel: boolean;
   value: string;
-  options: readonly { value: string; label: string }[];
+  options: readonly { value: string; label: string; icon?: ReactNode }[];
   onChange: (value: string) => void;
 }) {
+  const selected = options.find((option) => option.value === value);
   return (
     <Select
       aria-label={ariaLabel}
@@ -59,7 +61,16 @@ function FilterSelect({
         {label}
       </Label>
       <Select.Trigger>
-        <Select.Value />
+        {selected?.icon ? (
+          <Select.Value>
+            <span className="flex min-w-0 items-center gap-2">
+              {selected.icon}
+              <span className="truncate">{selected.label}</span>
+            </span>
+          </Select.Value>
+        ) : (
+          <Select.Value />
+        )}
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover>
@@ -70,7 +81,14 @@ function FilterSelect({
               id={option.value}
               textValue={option.label}
             >
-              {option.label}
+              {option.icon ? (
+                <span className="flex min-w-0 items-center gap-2">
+                  {option.icon}
+                  <span className="truncate">{option.label}</span>
+                </span>
+              ) : (
+                option.label
+              )}
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}
@@ -187,6 +205,7 @@ export function TableFilterDialog({
                             options={fields.map((entry) => ({
                               value: entry.id,
                               label: entry.name,
+                              icon: <FieldTypeIcon type={entry.type} />,
                             }))}
                             onChange={(id) => {
                               const next = fields.find(

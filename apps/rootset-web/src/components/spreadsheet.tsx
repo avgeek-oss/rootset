@@ -61,6 +61,7 @@ import { CellEditor, formatCellValue } from "./cells";
 import { ImageCell } from "./cells/ImageCell";
 import { Dialog } from "./dialog";
 import { useConfirmation } from "./settings/ui";
+import { FieldTypeIcon } from "./settings/field-type-options";
 import { TableFilterDialog } from "./table-filter-dialog";
 import type { FilterCombination, FilterCondition } from "../lib/table-filters";
 
@@ -1283,7 +1284,13 @@ export function Spreadsheet({
       editable: (row) => writable && Object.hasOwn(row.values, field.name),
       renderHeaderCell: ({ tabIndex }) => (
         <Tooltip delay={250} closeDelay={0}>
-          <Tooltip.Trigger tabIndex={tabIndex}>{field.name}</Tooltip.Trigger>
+          <Tooltip.Trigger
+            tabIndex={tabIndex}
+            className="inline-flex max-w-full items-center gap-1.5 align-middle"
+          >
+            <FieldTypeIcon type={field.type} size={14} />
+            <span className="truncate">{field.name}</span>
+          </Tooltip.Trigger>
           <Tooltip.Content placement="top">
             {field.type === "time" ? "UTC time" : field.type}
             {field.required ? " · required" : ""}
