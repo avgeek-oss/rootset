@@ -2,9 +2,8 @@
 
 // Adapted from Mill's boards page and shared widget layout (Apache-2.0).
 import Link from "next/link";
-import { Skeleton } from "@heroui/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignIcon, TableIcon } from "@hugeicons/core-free-icons";
+import { TableIcon } from "@hugeicons/core-free-icons";
 import type { Table } from "@rootset/contracts";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { AppShell } from "@avgeek-oss/design-system";
@@ -31,20 +30,14 @@ export function TablesPage({
     <AppShell.Content className="pt-0 sm:pt-0" variant="broad">
       <section className="grid min-w-0" aria-busy={pending}>
         <div className="py-5">
-          <header className="flex flex-nowrap items-center gap-2">
+          <header className="flex flex-nowrap items-center justify-between gap-4">
             <h1 className="inline-flex min-w-0 items-center gap-2 text-xl font-medium">
               <HugeiconsIcon icon={TableIcon} size={20} aria-hidden />
               Tables
             </h1>
             {canCreate && (
-              <Button
-                aria-label="Create table"
-                variant="ghost"
-                isIconOnly
-                className="size-8 text-muted"
-                onPress={onCreate}
-              >
-                <HugeiconsIcon icon={PlusSignIcon} size={16} aria-hidden />
+              <Button className="shrink-0" onPress={onCreate}>
+                Create table
               </Button>
             )}
           </header>
@@ -88,16 +81,7 @@ export function TablesPage({
               </li>
             ))}
           </ul>
-        ) : pending ? (
-          <div
-            aria-label="Loading tables"
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
-          >
-            {Array.from({ length: 3 }, (_, index) => (
-              <Skeleton key={index} className="h-32 rounded-2xl" />
-            ))}
-          </div>
-        ) : !error ? (
+        ) : !pending && !error ? (
           <div className="empty-state">
             <HugeiconsIcon icon={TableIcon} size={32} aria-hidden />
             <h2>No tables yet</h2>

@@ -17,14 +17,13 @@ import { PasskeySettings } from "./account/passkey-settings";
 import { ApiMcpSettings } from "./account/api-mcp-settings";
 import { settingsScope } from "./navigation";
 
-import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useResource } from "./api";
 import { OrganisationSettings, MembersSettings } from "./accounts";
 import { PreferencesSettings } from "./preferences";
 import { AccountActionApproval } from "./security";
 import { FieldsSettings, RulesIndexesSettings, TableSettings } from "./schema";
 import { ImportsSettings, ExportsSettings } from "./jobs";
-import { DatabaseSettings } from "./database";
+import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
   canOpenSettings,
   SECTION_LABELS,
@@ -70,6 +69,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     sessions: SessionSettings,
     mcp: McpGuideSettings,
     database: DatabaseSettings,
+    "database-danger-zone": DatabaseDangerZone,
     table: TableSettings,
     fields: FieldsSettings,
     rules: RulesIndexesSettings,
@@ -86,7 +86,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "imports",
     "exports",
   ];
-  const databaseSections = ["database"];
+  const databaseSections = ["database", "database-danger-zone"];
   const content =
     context.loading || context.error ? (
       <Loading {...context} retry={context.reload} />
@@ -144,13 +144,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
           <div className="rootset-settings">
             <header className="settings-header">
               <h1>{SECTION_LABELS[activeSection]}</h1>
-              <Button
-                variant="ghost"
-                onPress={props.onClose}
-                aria-label="Close settings"
-              >
-                Back to data
-              </Button>
             </header>
             <div className="settings-content">{content}</div>
             <AccountActionApproval orgId={props.orgId} />

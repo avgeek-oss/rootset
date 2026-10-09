@@ -8,6 +8,11 @@ The application shell is mounted in the persistent Next.js root layout.
 Navigating between settings, databases and table views updates the content and
 breadcrumbs without remounting the header, brand or primary navigation. The
 shared sidebar toggle uses the same icon in both states and a 44 px hit area.
+Database navigation separates General from the admin-only Danger Zone page.
+General contains name and description; Danger Zone contains deletion with its
+consequences and identity confirmation explained. Settings pages do not add a
+Back to data action or visible loading text. The Tables page has a Create table
+button aligned to the right of its heading.
 Team details, invitation creation, member editing/removal and invitation
 revocation also use shared patterns. The native `EmailChangeSettings` owns
 verification status, resend cooldown, pending changes and cancellation; the

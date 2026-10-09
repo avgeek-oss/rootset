@@ -30,21 +30,24 @@ describe("context settings navigation", () => {
     expect(new Set(sections).size).toBe(sections.length);
     expect([...sections].sort()).toEqual(Object.keys(SECTION_LABELS).sort());
   });
-  it.each(["profile", "organisation", "database", "fields"] as const)(
-    "isolates the context containing %s",
-    (section) => {
-      const scope = settingsScope(section);
-      const items = settingsNavigationGroups(scope, "admin", {
-        databaseId: "db",
-        tableId: "table",
-      }).flatMap((group) => group.items);
-      expect(items.map((item) => item.id)).toEqual(
-        settingsGroups[scope].flatMap((group) => group.sections),
-      );
-      if (scope === "account" || scope === "team")
-        for (const item of items) expect(item.href).not.toContain("databaseId");
-    },
-  );
+  it.each([
+    "profile",
+    "organisation",
+    "database",
+    "database-danger-zone",
+    "fields",
+  ] as const)("isolates the context containing %s", (section) => {
+    const scope = settingsScope(section);
+    const items = settingsNavigationGroups(scope, "admin", {
+      databaseId: "db",
+      tableId: "table",
+    }).flatMap((group) => group.items);
+    expect(items.map((item) => item.id)).toEqual(
+      settingsGroups[scope].flatMap((group) => group.sections),
+    );
+    if (scope === "account" || scope === "team")
+      for (const item of items) expect(item.href).not.toContain("databaseId");
+  });
   it("keeps exports available to viewers while hiding management and imports", () => {
     expect(
       settingsNavigationGroups("table", "viewer").flatMap((group) =>
@@ -78,7 +81,12 @@ describe("context settings navigation", () => {
     expect(groups.map((group) => group.title)).toEqual(["Settings"]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.label)),
-    ).toEqual(["General"]);
+    ).toEqual(["General", "Danger Zone"]);
+    const danger = groups
+      .flatMap((group) => group.items)
+      .find((item) => item.id === "database-danger-zone");
+    expect(danger?.destructive).toBe(true);
+    expect(danger?.href).toBe("/settings/database-danger-zone?databaseId=db");
     for (const item of groups.flatMap((group) => group.items))
       expect(item.href).not.toContain("tableId");
   });

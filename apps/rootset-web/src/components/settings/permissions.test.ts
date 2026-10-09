@@ -5,6 +5,7 @@ const management = [
   "organisation",
   "members",
   "database",
+  "database-danger-zone",
   "table",
   "fields",
   "rules",

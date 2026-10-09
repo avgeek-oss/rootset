@@ -285,7 +285,6 @@ export function Feedback({
 }
 
 export function Loading({
-  loading,
   error,
   retry,
 }: {
@@ -295,11 +294,6 @@ export function Loading({
 }) {
   return (
     <>
-      {loading && (
-        <p role="status" className="settings-muted">
-          Loading…
-        </p>
-      )}
       {error && (
         <>
           <Feedback error={error} />

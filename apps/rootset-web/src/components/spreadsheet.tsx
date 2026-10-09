@@ -1204,7 +1204,7 @@ export function Spreadsheet({
           }
         >
           {!Object.hasOwn(row.values, field.name)
-            ? "Loading…"
+            ? null
             : formatCellValue(field, row.values[field.name] ?? null, {
                 timeZone: preferences.timezone,
                 locale: preferences.locale,

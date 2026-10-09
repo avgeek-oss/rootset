@@ -33,7 +33,6 @@ export function DatabaseSettings(props: SettingsPanelProps) {
     resource.reload();
     props.onChanged?.();
   });
-  const confirmation = useConfirmation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   useEffect(() => {
@@ -43,13 +42,14 @@ export function DatabaseSettings(props: SettingsPanelProps) {
     }
   }, [resource.data]);
   if (!path) return <Empty>Select a database to manage its settings.</Empty>;
+  if (!resource.data) return <Loading {...resource} retry={resource.reload} />;
   return (
     <>
       <Loading {...resource} retry={resource.reload} />
       <Feedback {...mutation} />
       <Section
         title="Database details"
-        description={`State: ${resource.data?.state ?? "Loading"}`}
+        description={`State: ${resource.data.state}`}
       >
         <Form
           busy={mutation.busy}
@@ -74,9 +74,30 @@ export function DatabaseSettings(props: SettingsPanelProps) {
           />
         </Form>
       </Section>
+    </>
+  );
+}
+
+export function DatabaseDangerZone(props: SettingsPanelProps) {
+  const path = props.databaseId
+    ? databasePath(props.orgId, props.databaseId)
+    : undefined;
+  const resource = useResource<{ name: string } | null>(path, null);
+  const mutation = useMutation(() => {
+    resource.reload();
+    props.onChanged?.();
+  });
+  const confirmation = useConfirmation();
+  if (!path) return <Empty>Select a database to manage its settings.</Empty>;
+  if (!resource.data) return <Loading {...resource} retry={resource.reload} />;
+  const name = resource.data.name;
+  return (
+    <>
+      <Loading {...resource} retry={resource.reload} />
+      <Feedback {...mutation} />
       <Section
         title="Delete database"
-        description="Deletion covers all tables in this database and requires recent authentication."
+        description="Deleting this database removes it and all its tables from Rootset. Its rows will no longer be accessible in the app or through the API and MCP. You will need to confirm your identity before deletion. Rootset does not provide an undo or restore option."
       >
         <Button
           variant="danger-soft"
@@ -85,7 +106,7 @@ export function DatabaseSettings(props: SettingsPanelProps) {
             if (
               await confirmation.confirm(
                 "Delete this database?",
-                `Delete ${name || "this database"} and all its tables? This action cannot be undone in Rootset.`,
+                `Delete ${name} and all its tables? This action cannot be undone in Rootset.`,
                 "Delete database",
               )
             )

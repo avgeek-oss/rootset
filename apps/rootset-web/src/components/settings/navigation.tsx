@@ -5,6 +5,7 @@ import {
   Link01Icon,
   DatabaseIcon,
   DatabaseSettingIcon,
+  Delete02Icon,
   DatabaseSearchIcon,
   ColumnsThreeCogIcon,
   TablePropertiesIcon,
@@ -37,7 +38,9 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["api-keys", "mcp-connections", "mcp"] },
   ],
   team: [{ title: "Account", sections: ["organisation", "members"] }],
-  database: [{ title: "Settings", sections: ["database"] }],
+  database: [
+    { title: "Settings", sections: ["database", "database-danger-zone"] },
+  ],
   table: [
     { title: "Settings", sections: ["table", "fields", "rules", "indexes"] },
     { title: "Data", sections: ["imports", "exports"] },
@@ -104,6 +107,7 @@ export const settingsIcons = {
   members: UserGroupIcon,
   "mcp-connections": Link01Icon,
   database: DatabaseSettingIcon,
+  "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
   fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
@@ -151,6 +155,7 @@ export function settingsNavigationGroups(
             : SECTION_LABELS[item],
           href: settingsHref(item, context),
           icon: settingsIcons[item],
+          destructive: item === "database-danger-zone",
         })),
     }))
     .filter((group) => group.items.length > 0);
@@ -182,6 +187,7 @@ function SettingsSections({
               href: item.href,
               label: item.label,
               icon: <HugeiconsIcon icon={item.icon} />,
+              destructive: item.destructive,
             }))}
           />
         ),

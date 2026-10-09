@@ -16,6 +16,7 @@ export type SettingsSection =
   | "mcp-connections"
   | "mcp"
   | "database"
+  | "database-danger-zone"
   | "table"
   | "fields"
   | "rules"
@@ -197,7 +198,8 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   sessions: "Sessions",
   "mcp-connections": "MCP Connections",
   mcp: "MCP Guide",
-  database: "Database settings",
+  database: "General",
+  "database-danger-zone": "Danger Zone",
   table: "Table settings",
   fields: "Fields",
   rules: "Unique rules",
@@ -210,6 +212,7 @@ const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "organisation",
   "members",
   "database",
+  "database-danger-zone",
   "table",
   "fields",
   "rules",
