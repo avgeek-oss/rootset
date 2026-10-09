@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Label, ListBox, Select } from "@heroui/react";
+import { limits } from "@rootset/contracts";
 import { useEffect, useMemo, useState } from "react";
 import {
   ResourceName,
@@ -26,7 +28,6 @@ import {
   Form,
   Loading,
   Record,
-  RecordList,
   Section,
   Status,
   Toggle,
@@ -660,141 +661,228 @@ function FieldCheck({ checked }: { checked: boolean }) {
 
 export function UniqueRulesSettings(props: SettingsPanelProps) {
   const schema = useSchema(props);
-  const mutation = useMutation(() => {
+  const mutation = useMutation();
+  const [pendingJobId, setPendingJobId] = useState<string>();
+  const job = useResource<Job | null>(
+    pendingJobId
+      ? `${organisationPath(props.orgId)}/jobs/${pendingJobId}`
+      : undefined,
+    null,
+  );
+  useEffect(() => {
+    if (!pendingJobId) return;
+    const timer = setInterval(job.reload, 2000);
+    return () => clearInterval(timer);
+  }, [pendingJobId, job.reload]);
+  useEffect(() => {
+    if (
+      !pendingJobId ||
+      job.data?.id !== pendingJobId ||
+      ["queued", "running", "snapshotting", "uploading", "verifying"].includes(
+        job.data.state,
+      )
+    )
+      return;
+    setPendingJobId(undefined);
     schema.reload();
     props.onChanged?.();
-  });
+    if (job.data.state === "succeeded") {
+      setFormOpen(false);
+      toast.success("Unique rule created.");
+    } else {
+      toast.danger(
+        typeof job.data.error === "string"
+          ? job.data.error
+          : (job.data.error?.message ??
+              "The unique rule could not be created."),
+      );
+    }
+  }, [pendingJobId, job.data, schema.reload, props.onChanged]);
   const confirmation = useConfirmation();
+  const [formOpen, setFormOpen] = useState(false);
   const [fieldIds, setFieldIds] = useState<string[]>([]);
-  const [selected, setSelected] = useState("");
+  const fields = schema.data.fields.filter((field) => field.type !== "json");
+  const busy = mutation.busy || Boolean(pendingJobId);
+  const disabled = busy || schema.loading || Boolean(schema.error);
+  const actions = useMemo(
+    () => (
+      <Button
+        isDisabled={disabled || !fields.length}
+        onPress={() => {
+          setFieldIds([]);
+          setFormOpen(true);
+        }}
+      >
+        Create unique rule
+      </Button>
+    ),
+    [disabled, fields.length],
+  );
   if (!schema.path)
     return <Empty>Select a table to manage unique rules.</Empty>;
-  const entries = schema.data.uniqueRules;
-  const suffix = "unique-rules";
   return (
     <>
+      <PageSelectionTitle label="Unique rules" actions={actions} />
       <Loading {...schema} retry={schema.reload} />
-      <Section
-        title="Create unique rule"
-        description="Single-field and composite uniqueness are opt-in. Tuples containing null do not participate. JSON uniqueness is outside v1."
-      >
-        <Form
-          busy={mutation.busy}
-          submit="Build unique rule"
-          onSubmit={async () => {
-            const result = await mutation.run(
-              () =>
-                write(`${schema.path}/${suffix}`, "POST", {
-                  fieldIds,
-                  expectedSchemaVersion: schema.data.table.schemaVersion,
-                }),
-              "Build requested. Existing data and physical enforcement must validate before activation.",
-            );
-            if (result.ok) setFieldIds([]);
-          }}
-        >
-          <Choice
-            label="Add field"
-            value={selected}
-            onChange={setSelected}
-            options={schema.data.fields
-              .filter((field) => field.type !== "json")
-              .filter((field) => !fieldIds.includes(field.id))
-              .map((field) => ({
-                value: field.id,
-                label: `${field.name} (${field.type})`,
-              }))}
+      <Loading {...job} retry={job.reload} />
+      {(!schema.loading || schema.data.uniqueRules.length > 0) &&
+        !schema.error && (
+          <ResourceTable
+            ariaLabel="Unique rules"
+            items={schema.data.uniqueRules}
+            getRowKey={(rule) => rule.id}
+            mobileLayout="stacked"
+            emptyTitle="No unique rules yet"
+            emptyDescription="Create a rule to prevent duplicate values in a field or combination of fields."
+            emptyAction={actions}
+            columns={[
+              {
+                key: "fields",
+                header: "Fields",
+                cell: (rule) =>
+                  (rule.fieldIds ?? rule.fields ?? [])
+                    .map(
+                      (id) =>
+                        schema.data.fields.find((field) => field.id === id)
+                          ?.name ?? id,
+                    )
+                    .join(", "),
+              },
+              {
+                key: "status",
+                header: "Status",
+                cell: (rule) => (
+                  <Status value={rule.state ?? rule.status ?? "unknown"} />
+                ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                headerClassName: "text-right",
+                mobileFullWidth: true,
+                cell: (rule) => (
+                  <div className="field-edit-actions">
+                    <Button
+                      variant="danger-soft"
+                      isDisabled={disabled}
+                      onPress={async () => {
+                        if (
+                          await confirmation.confirm(
+                            "Remove unique rule?",
+                            "Future writes will no longer enforce this uniqueness rule.",
+                            "Remove",
+                          )
+                        ) {
+                          const result = await mutation.run(
+                            () =>
+                              write(
+                                `${schema.path}/unique-rules/${rule.id}`,
+                                "DELETE",
+                                {
+                                  expectedSchemaVersion:
+                                    schema.data.table.schemaVersion,
+                                },
+                              ),
+                            "Unique rule removed.",
+                          );
+                          if (result.ok) {
+                            schema.reload();
+                            props.onChanged?.();
+                          }
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
           />
-          <Button
-            variant="secondary"
-            isDisabled={!selected || fieldIds.length >= 8}
-            onPress={() => {
-              if (selected) setFieldIds((previous) => [...previous, selected]);
-              setSelected("");
+        )}
+      {formOpen && (
+        <Dialog
+          title="Create unique rule"
+          onClose={() => setFormOpen(false)}
+          closeDisabled={busy}
+        >
+          <Form
+            noValidate
+            busy={busy}
+            submit="Create unique rule"
+            onCancel={() => setFormOpen(false)}
+            onSubmit={async () => {
+              if (!fieldIds.length) {
+                toast.danger("Choose at least one field.");
+                return;
+              }
+              const result = await mutation.run(() =>
+                write<{ jobId?: string }>(
+                  `${schema.path}/unique-rules`,
+                  "POST",
+                  {
+                    fieldIds,
+                    expectedSchemaVersion: schema.data.table.schemaVersion,
+                  },
+                ),
+              );
+              if (result.ok) {
+                if (result.value.jobId) setPendingJobId(result.value.jobId);
+                else {
+                  schema.reload();
+                  props.onChanged?.();
+                  setFormOpen(false);
+                  toast.success("Unique rule created.");
+                }
+              }
             }}
           >
-            Add field
-          </Button>
-          <RecordList>
-            {fieldIds.map((id) => (
-              <Record
-                key={id}
-                title={
-                  schema.data.fields.find((field) => field.id === id)?.name ??
-                  id
-                }
-              >
-                <Button
-                  variant="ghost"
-                  onPress={() =>
-                    setFieldIds((previous) =>
-                      previous.filter((value) => value !== id),
-                    )
-                  }
-                >
-                  Remove
-                </Button>
-              </Record>
-            ))}
-          </RecordList>
-          {!fieldIds.length && (
             <p className="settings-muted">
-              Choose at least one field before submitting.
+              Values must be unique across the selected fields. Rows containing
+              null in any selected field are excluded.
             </p>
-          )}
-        </Form>
-      </Section>
-      <Section title="Unique rules">
-        <RecordList>
-          {entries.map((entry) => (
-            <Record
-              key={entry.id}
-              title={(entry.fieldIds ?? entry.fields ?? [])
-                .map(
-                  (id) =>
-                    schema.data.fields.find((field) => field.id === id)?.name ??
-                    id,
-                )
-                .join(" + ")}
-              description={
-                <Status value={entry.state ?? entry.status ?? "unknown"} />
-              }
+            <Select
+              variant="secondary"
+              className="settings-field"
+              selectionMode="multiple"
+              placeholder="Choose fields"
+              value={fieldIds}
+              isRequired
+              isDisabled={busy}
+              onChange={(keys) => {
+                const next = keys.map(String);
+                if (next.length > limits.maxUniqueFields) {
+                  toast.danger(
+                    `Choose up to ${limits.maxUniqueFields} fields.`,
+                  );
+                  return;
+                }
+                setFieldIds(next);
+              }}
             >
-              <Button
-                variant="danger-soft"
-
-                isDisabled={mutation.busy}
-                onPress={async () => {
-                  if (
-                    await confirmation.confirm(
-                      "Remove unique rule?",
-                      "Future writes will no longer enforce this uniqueness rule.",
-                      "Remove",
-                    )
-                  )
-                    await mutation.run(
-                      () =>
-                        write(
-                          `${schema.path}/${suffix}/${entry.id}`,
-                          "DELETE",
-                          {
-                            expectedSchemaVersion:
-                              schema.data.table.schemaVersion,
-                          },
-                        ),
-                      "Removal requested.",
-                    );
-                }}
-              >
-                Remove
-              </Button>
-            </Record>
-          ))}
-        </RecordList>
-        {!schema.loading && !schema.error && !entries.length && (
-          <Empty>No unique rules.</Empty>
-        )}
-      </Section>
+              <Label>Fields</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {fields.map((field) => (
+                    <ListBox.Item
+                      key={field.id}
+                      id={field.id}
+                      textValue={field.name}
+                    >
+                      {field.name}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Form>
+        </Dialog>
+      )}
       {confirmation.dialog}
     </>
   );
