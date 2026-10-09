@@ -1,0 +1,79 @@
+---
+title: "Install with container images"
+description: "Run the Rootset API, worker and UI with Docker Compose and your PostgreSQL database."
+---
+
+Rootset runs from two versioned images: **`rootset-api`** (API, worker and migration commands) and **`rootset-web`** (UI). They share the same release version. You do not need Node.js, pnpm, GitHub Packages credentials or a local source build to run published images.
+
+<Note>
+  The image workflow is part of this launch PR. Install a version only after its
+  GitHub release contains the published image references. The first release must
+  be published before these pull commands work.
+</Note>
+
+## Requirements
+
+- Docker Engine and Docker Compose 2.23.1 or later, which supports the [inline configuration](https://docs.docker.com/reference/compose-file/configs/) used for bundled PostgreSQL.
+- PostgreSQL 18: your own database or the optional bundled PostgreSQL service.
+- An existing private S3-compatible bucket for export artifacts.
+- SMTP for verification, invitations and account recovery. Set the port and TLS mode to match your provider. `ROOTSET_SMTP_SECURE=true` uses implicit TLS; `false` uses SMTP/STARTTLS, commonly on port 587.
+- Separate UI and API HTTPS origins for an internet-facing installation.
+
+The supplied memory caps allow 4 GiB for bundled PostgreSQL, 1 GiB for the API, 2 GiB for the worker and 1 GiB for the UI. Allow additional host headroom. With external PostgreSQL, its capacity is separate.
+
+## 1. Download the release installation files
+
+Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/rootset/releases). Replace `0.1.0` below with that version.
+
+```bash
+mkdir rootset && cd rootset
+ROOTSET_RELEASE=0.1.0
+curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/v$ROOTSET_RELEASE/compose.images.yaml" -o compose.yaml
+curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/v$ROOTSET_RELEASE/rootset.env.example" -o .env
+chmod 600 .env
+```
+
+The downloaded Compose file contains only image references, not build instructions. Set `ROOTSET_VERSION` in `.env` to the chosen release version; it selects the same version for both images and all three runtime commands.
+
+## 2. Configure your services
+
+Edit `.env`, replacing every placeholder. Generate the application secret and encryption key separately with `openssl rand -hex 32`. Retain both across restarts. Set the [configuration values](/self-hosting/configuration) for PostgreSQL, S3 and SMTP.
+
+For your own PostgreSQL instance, set `ROOTSET_DATABASE_URL` to one ordinary database owner with permission to create schemas and the `pgcrypto` extension. Do not use a superuser or `BYPASSRLS` role. API, worker and migrations share this URL. A pre-existing Rootset prelaunch schema is not a supported upgrade target.
+
+For bundled PostgreSQL, use the `local-db` profile, set `POSTGRES_PASSWORD`, and set `ROOTSET_DATABASE_URL=postgres://rootset:<same-password>@postgres:5432/rootset`. The bundled service creates the ordinary `rootset` owner for you. Use a URL-safe password such as the hex output of `openssl rand -hex 32`.
+
+## 3. Pull and start
+
+<CodeGroup>
+
+```bash External PostgreSQL
+docker compose pull
+docker compose up -d --wait
+docker compose ps
+```
+
+```bash Bundled PostgreSQL
+docker compose --profile local-db pull
+docker compose --profile local-db up -d --wait
+docker compose --profile local-db ps
+```
+
+</CodeGroup>
+
+The one-shot migration service must succeed before the API and worker start. The worker processes exports and other jobs, and must remain running alongside the API.
+
+## 4. Claim the installation
+
+For a local preview, open `http://localhost:4300`. Enter the configured `ROOTSET_SECRET` privately to claim setup, verify your email, and create the first Admin and single workspace. Use **Create database** to begin.
+
+```bash
+curl --fail http://localhost:4310/health/ready
+curl --fail http://localhost:4300/
+```
+
+## Public origins
+
+Terminate HTTPS at your reverse proxy. Set `ROOTSET_WEB_URL=https://rootset.example.com` and `ROOTSET_API_URL=https://rootset-api.example.com`. Route those origins to ports 4300 and 4310 respectively. The UI reads the API origin at runtime. Authentication, REST, MCP and downloads use the API directly. Same-parent domains keep browser cookie access straightforward; test sign-in when deploying across unrelated sites.
+
+The Compose file binds ports to loopback by default. If your reverse proxy runs in a container, connect it to the Compose network or deliberately configure a reachable bind address. Do not expose PostgreSQL publicly. See [security](/self-hosting/security) and [troubleshooting](/self-hosting/troubleshooting).

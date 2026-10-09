@@ -1,0 +1,40 @@
+---
+title: "Configuration"
+description: "Required environment variables and optional defaults for the image-based installation."
+---
+
+All runtime configuration comes from environment variables. Keep `.env` outside Git and protect it with mode `0600`. Compose passes the configured API origin into the UI as `ROOTSET_PUBLIC_API_ORIGIN`; you do not configure it separately.
+
+## Required services and secrets
+
+| Variable                                         | Purpose                                                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `ROOTSET_DATABASE_URL`                           | One PostgreSQL URL for API, worker and migrations.                                        |
+| `ROOTSET_SECRET`                                 | Persistent application secret, at least 32 random characters. Also claims initial setup.  |
+| `ROOTSET_ENCRYPTION_KEY`                         | Persistent 32-byte encryption key represented by 64 hex characters for private artifacts. |
+| `ROOTSET_WEB_URL`                                | Exact public UI origin, such as `https://rootset.example.com`.                            |
+| `ROOTSET_API_URL`                                | Exact public API origin, such as `https://rootset-api.example.com`.                       |
+| `ROOTSET_S3_ENDPOINT`                            | S3-compatible endpoint reachable from API and worker.                                     |
+| `ROOTSET_S3_BUCKET`                              | Existing private artifact bucket.                                                         |
+| `ROOTSET_S3_ACCESS_KEY`, `ROOTSET_S3_SECRET_KEY` | Credentials scoped to that bucket.                                                        |
+| `ROOTSET_SMTP_HOST`                              | SMTP host reachable from API and worker.                                                  |
+| `ROOTSET_EMAIL_FROM`                             | Verified sender address accepted by your SMTP service.                                    |
+
+## Optional settings
+
+| Variable                                     | Default     | When to change it                                                                                                                         |
+| -------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `ROOTSET_S3_REGION`                          | `us-east-1` | Your object-storage provider requires a different region.                                                                                 |
+| `ROOTSET_SMTP_PORT`                          | `587`       | Your SMTP provider uses another port; implicit TLS commonly uses 465.                                                                     |
+| `ROOTSET_SMTP_SECURE`                        | `true`      | Choose the provider's supported TLS mode; `false` for SMTP/STARTTLS, commonly on port 587; `true` for implicit TLS, commonly on port 465. |
+| `ROOTSET_SMTP_USER`, `ROOTSET_SMTP_PASSWORD` | Unset       | Provider requires authenticated SMTP.                                                                                                     |
+| `ROOTSET_LOG_LEVEL`                          | `info`      | Temporarily adjust runtime logging for diagnosis.                                                                                         |
+| `ROOTSET_OAUTH_CLIENTS`                      | `[]`        | Configure operator-managed OAuth clients.                                                                                                 |
+
+## Compose options
+
+`ROOTSET_VERSION` chooses the published image version and must match the release you downloaded. `ROOTSET_COMPOSE_PROJECT` defaults to `rootset`. `ROOTSET_API_BIND` and `ROOTSET_WEB_BIND` default to `127.0.0.1`; their port defaults are 4310 and 4300. `POSTGRES_PASSWORD` is only for the bundled `local-db` profile, not an external database.
+
+Rootset does not need proxy-trust variables, separate identity/DDL database URLs, a server timezone setting or per-table backup settings. Data is stored in UTC; each person chooses presentation preferences.
+
+Retain the application secret, encryption key, PostgreSQL data and private object artifacts together in your installation recovery plan. Losing the key prevents reading previously encrypted artifacts.

@@ -1,0 +1,27 @@
+---
+title: "Releases and upgrades"
+description: "Pin both images to a release version and preserve your installation data."
+---
+
+A release publishes `ghcr.io/avgeek-oss/rootset-api:<version>` and `ghcr.io/avgeek-oss/rootset-web:<version>` for Linux amd64 and arm64. The API image also runs the worker and migration commands. Both images are built from the same reviewed commit.
+
+The release workflow validates the version/tag and requires the verification run for that exact commit to have passed before building images. It assembles the architecture manifests and creates a draft GitHub release with image digests and installation files. Publishing a tag does not by itself mean the release is ready for installation.
+
+## Upgrade a released installation
+
+Read the target release notes first. Protect PostgreSQL, object storage, and the persistent application secret/encryption key using your provider's backup tools. Download the matching Compose file, change `ROOTSET_VERSION` in `.env`, and pull before replacing running containers.
+
+```bash
+docker compose pull
+docker compose up -d --wait
+docker compose ps
+curl --fail http://localhost:4310/health/ready
+```
+
+Include `--profile local-db` if you use bundled PostgreSQL. Preserve the Compose project name and volumes. `docker compose down` preserves named volumes; `down --volumes` deletes them.
+
+## Prelaunch databases
+
+V1 has a fresh-install baseline. Earlier incompatible prelaunch ledgers are not supported upgrade targets. Startup refuses a mismatched baseline without changing the original installation. Keep that installation and use a separate empty database; do not clear the ledger to force startup.
+
+Rootset does not provide in-app database/table backup or restore. Restore the complete installation with PostgreSQL and object-storage tools, with matching secrets and image versions. Do not assume an older application image can read a newer schema.

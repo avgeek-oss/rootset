@@ -1,0 +1,207 @@
+---
+title: "Open-source structured data"
+description: "Typed tables, a spreadsheet UI, REST API and MCP. Self-host Rootset on PostgreSQL and own your data."
+mode: "custom"
+---
+
+import {
+  Home,
+  Hero,
+  Actions,
+  ActionLink,
+  InlineLink,
+  ProductFrame,
+  Highlights,
+  FeatureGroup,
+  Feature,
+  FeatureCopy,
+  FeatureImage,
+  Eyebrow,
+  SplitSection,
+  SectionIntro,
+  Points,
+} from "/snippets/oss/homepage.jsx";
+import { ThemeImage } from "/snippets/oss/screenshot.jsx";
+
+<Home>
+  <Hero id="hero-heading">
+    <h1 id="hero-heading">
+      Open-source
+      <br />
+      <span>structured data</span>
+    </h1>
+    <p>
+      Typed tables for your team, applications and AI tools.
+      <br />A spreadsheet UI, REST API and MCP, on PostgreSQL you own.
+    </p>
+    <Actions>
+      <ActionLink href="/self-hosting/installation">
+        Install Rootset →
+      </ActionLink>
+      <ActionLink
+        variant="secondary"
+        href="https://github.com/avgeek-oss/rootset"
+      >
+        Explore on GitHub ↗
+      </ActionLink>
+    </Actions>
+  </Hero>
+  <ProductFrame>
+    <ThemeImage
+      light="/assets/screenshots/rows-light.png"
+      dark="/assets/screenshots/rows-dark.png"
+      alt="Rootset product catalog with typed spreadsheet columns"
+      width={3840}
+      height={2160}
+      priority
+    />
+  </ProductFrame>
+  <Highlights aria-label="What you can do with Rootset">
+    <div>
+      <h2>Define your data</h2>
+      <p>
+        Group tables into databases and choose text, numbers, dates, JSON, links
+        and images.
+      </p>
+      <InlineLink href="/fields">Explore field types →</InlineLink>
+    </div>
+    <div>
+      <h2>Edit in place</h2>
+      <p>
+        Double-click a cell, filter the table and review its latest 200 saved
+        changes.
+      </p>
+      <InlineLink href="/rows">Work with rows →</InlineLink>
+    </div>
+    <div>
+      <h2>Connect your tools</h2>
+      <p>
+        Read and write the same data through REST and MCP with scoped personal
+        or team keys.
+      </p>
+      <InlineLink href="/api-guide">Use the API →</InlineLink>
+    </div>
+  </Highlights>
+  <FeatureGroup>
+    <Feature id="fields-heading">
+      <FeatureCopy>
+        <Eyebrow>Schema</Eyebrow>
+        <h2 id="fields-heading">Columns with clear rules.</h2>
+        <p>
+          Choose a type, set required values and defaults, and add bounds where
+          they make sense. Field names are the same keys your API clients use.
+        </p>
+        <InlineLink href="/fields">Define fields →</InlineLink>
+      </FeatureCopy>
+      <FeatureImage>
+        <ThemeImage
+          light="/assets/screenshots/fields-light.png"
+          dark="/assets/screenshots/fields-dark.png"
+          alt="Rootset fields table with types, defaults and constraints"
+          width={3840}
+          height={2160}
+        />
+      </FeatureImage>
+    </Feature>
+    <Feature id="filters-heading">
+      <FeatureCopy>
+        <Eyebrow>Browse</Eyebrow>
+        <h2 id="filters-heading">Find the records you need.</h2>
+        <p>
+          Build typed filters without setting up search indexes. Rootset loads
+          bounded row windows as you scroll, keeping the spreadsheet focused on
+          the current view.
+        </p>
+        <InlineLink href="/filters">Filter your table →</InlineLink>
+      </FeatureCopy>
+      <FeatureImage>
+        <ThemeImage
+          light="/assets/screenshots/filters-light.png"
+          dark="/assets/screenshots/filters-dark.png"
+          alt="Rootset filter form with field and match controls"
+          width={3840}
+          height={2160}
+        />
+      </FeatureImage>
+    </Feature>
+    <Feature id="rules-heading">
+      <FeatureCopy>
+        <Eyebrow>Integrity</Eyebrow>
+        <h2 id="rules-heading">Keep combinations unique.</h2>
+        <p>
+          Create unique rules for one field or a combination. Rootset checks
+          existing records before enforcing them on new writes.
+        </p>
+        <InlineLink href="/unique-rules">Create a unique rule →</InlineLink>
+      </FeatureCopy>
+      <FeatureImage>
+        <ThemeImage
+          light="/assets/screenshots/unique-rule-editor-light.png"
+          dark="/assets/screenshots/unique-rule-editor-dark.png"
+          alt="Create unique rule modal"
+          width={3840}
+          height={2160}
+        />
+      </FeatureImage>
+    </Feature>
+    <Feature id="exports-heading">
+      <FeatureCopy>
+        <Eyebrow>Export</Eyebrow>
+        <h2 id="exports-heading">Take your table with you.</h2>
+        <p>
+          Request a complete CSV or JSONL snapshot. Follow its progress and
+          download the finished file from Export Requests.
+        </p>
+        <InlineLink href="/export-requests">Export your data →</InlineLink>
+      </FeatureCopy>
+      <FeatureImage>
+        <ThemeImage
+          light="/assets/screenshots/export-editor-light.png"
+          dark="/assets/screenshots/export-editor-dark.png"
+          alt="Export request form with CSV and JSONL formats"
+          width={3840}
+          height={2160}
+        />
+      </FeatureImage>
+    </Feature>
+  </FeatureGroup>
+  <SplitSection id="ownership-heading">
+    <SectionIntro>
+      <Eyebrow>Self-hosted</Eyebrow>
+      <h2 id="ownership-heading">Your infrastructure. Your data.</h2>
+      <p>
+        Deploy matching API and UI images, connect PostgreSQL, and give your
+        workspace the services it needs.
+      </p>
+    </SectionIntro>
+    <Points>
+      <div>
+        <h3>Versioned container images</h3>
+        <p>
+          Run the API, worker and migration command from one image, alongside
+          the independent UI image.
+        </p>
+      </div>
+      <div>
+        <h3>One database connection</h3>
+        <p>
+          Use your own PostgreSQL instance or the optional Compose database.
+          There are no separate identity or DDL database credentials.
+        </p>
+      </div>
+      <div>
+        <h3>Workspace permissions</h3>
+        <p>
+          Admin, Member and Viewer roles apply across the UI, API and MCP. Team
+          keys give automation its own scoped access.
+        </p>
+      </div>
+    </Points>
+  </SplitSection>
+  <Actions>
+    <ActionLink href="/self-hosting/installation">Set up Rootset →</ActionLink>
+    <ActionLink variant="secondary" href="/quickstart">
+      Explore the documentation →
+    </ActionLink>
+  </Actions>
+</Home>

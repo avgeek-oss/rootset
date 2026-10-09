@@ -20,7 +20,7 @@ or table selection grants.
 Keep runtime PostgreSQL application, identity and DDL credentials separate from
 the migration/database-owner credential. Protect sessions, factors, credential
 hashing secrets and encryption keys. A retained encrypted artifact is recoverable
-only with its matching key. Follow the [recovery runbooks](docs/operations/README.md).
+only with its matching key. Follow the [recovery runbooks](development/operations/README.md).
 
 The [current checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) requires
 real denial, recovery and dependency checks. Earlier source reviews and runtime

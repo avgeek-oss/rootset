@@ -1,0 +1,293 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "appearance": {
+    "default": "system"
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": "system"
+  },
+  "interaction": {
+    "drilldown": false
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
+  },
+  "seo": {
+    "indexing": "all",
+    "metatags": {
+      "og:type": "website",
+      "twitter:card": "summary_large_image",
+      "canonical": "https://rootset.fyi"
+    },
+    "organization": {
+      "name": "Rootset",
+      "url": "https://rootset.fyi",
+      "logo": "https://rootset.fyi/assets/rootset-logo.png",
+      "sameAs": ["https://github.com/avgeek-oss/rootset"]
+    }
+  },
+  "name": "Rootset",
+  "description": "Open-source structured data with typed tables, a spreadsheet UI, REST API and MCP. Self-host on PostgreSQL.",
+  "logo": {
+    "light": "/assets/rootset-logo.png",
+    "dark": "/assets/rootset-logo.png",
+    "href": "/"
+  },
+  "favicon": "/assets/rootset-logo.png",
+  "colors": {
+    "primary": "#2d6044",
+    "light": "#8bc09e",
+    "dark": "#2d6044"
+  },
+  "navigation": {
+    "dropdowns": [
+      {
+        "dropdown": "Introduction",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": ["quickstart", "concepts"]
+          },
+          {
+            "group": "Self-host Rootset",
+            "pages": [
+              "self-hosting/installation",
+              "self-hosting/configuration",
+              "self-hosting/upgrades",
+              "self-hosting/security",
+              "self-hosting/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "dropdown": "Using Rootset",
+        "icon": "table",
+        "groups": [
+          {
+            "group": "Your data",
+            "pages": [
+              "databases",
+              "tables",
+              "fields",
+              "rows",
+              "filters",
+              "cell-history",
+              "unique-rules",
+              "export-requests"
+            ]
+          },
+          {
+            "group": "Workspace",
+            "pages": ["team-access", "api-keys", "account-settings"]
+          }
+        ]
+      },
+      {
+        "dropdown": "API & MCP",
+        "icon": "plug",
+        "groups": [
+          {
+            "group": "Connect a client",
+            "pages": ["api-guide", "mcp-guide", "mcp-tools"]
+          }
+        ]
+      },
+      {
+        "dropdown": "API reference",
+        "icon": "code",
+        "groups": [
+          {
+            "group": "Accounts",
+            "pages": [
+              "api-reference/getContext",
+              "api-reference/getProfile",
+              "api-reference/updateProfile",
+              "api-reference/getPreferences",
+              "api-reference/updatePreferences",
+              "api-reference/getPreferenceOptions",
+              "api-reference/previewPreferences",
+              "api-reference/listSessions",
+              "api-reference/revokeSession",
+              "api-reference/listConnections",
+              "api-reference/revokeConnection",
+              "api-reference/getOrganisation",
+              "api-reference/updateOrganisation",
+              "api-reference/listMembers",
+              "api-reference/updateMember",
+              "api-reference/removeMember",
+              "api-reference/listInvitations",
+              "api-reference/inviteMember",
+              "api-reference/cancelInvitation",
+              "api-reference/listPersonalKeys",
+              "api-reference/createPersonalKey",
+              "api-reference/rotatePersonalKey",
+              "api-reference/revokePersonalKey",
+              "api-reference/listTeamKeys",
+              "api-reference/createTeamKey",
+              "api-reference/rotateTeamKey",
+              "api-reference/revokeTeamKey",
+              "api-reference/getSecurityStatus",
+              "api-reference/getMutation",
+              "api-reference/getUsage",
+              "api-reference/getViewPreferences",
+              "api-reference/updateViewPreferences"
+            ]
+          },
+          {
+            "group": "Databases",
+            "pages": [
+              "api-reference/listDatabases",
+              "api-reference/createDatabase",
+              "api-reference/getDatabase",
+              "api-reference/updateDatabase",
+              "api-reference/deleteDatabase"
+            ]
+          },
+          {
+            "group": "Schema",
+            "pages": [
+              "api-reference/listTables",
+              "api-reference/createTable",
+              "api-reference/getTable",
+              "api-reference/updateTable",
+              "api-reference/deleteTable",
+              "api-reference/getTableSchema",
+              "api-reference/listFields",
+              "api-reference/createField",
+              "api-reference/updateField",
+              "api-reference/deleteField",
+              "api-reference/reorderFields",
+              "api-reference/previewSchemaChange",
+              "api-reference/applySchemaChange",
+              "api-reference/getSchemaOperation",
+              "api-reference/listUniqueRules",
+              "api-reference/createUniqueRule",
+              "api-reference/deleteUniqueRule"
+            ]
+          },
+          {
+            "group": "Data",
+            "pages": [
+              "api-reference/listRows",
+              "api-reference/createRow",
+              "api-reference/queryRows",
+              "api-reference/getRow",
+              "api-reference/updateRow",
+              "api-reference/deleteRow",
+              "api-reference/mutateRows",
+              "api-reference/getTableStatistics",
+              "api-reference/countRows",
+              "api-reference/getCellHistory",
+              "api-reference/queryHistory"
+            ]
+          },
+          {
+            "group": "Artifacts",
+            "pages": [
+              "api-reference/exportRows",
+              "api-reference/getArtifact",
+              "api-reference/downloadArtifactBytes"
+            ]
+          },
+          {
+            "group": "Jobs",
+            "pages": [
+              "api-reference/listJobs",
+              "api-reference/getJob",
+              "api-reference/cancelJob",
+              "api-reference/retryJob"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "type": "github",
+        "href": "https://github.com/avgeek-oss/rootset"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Docs",
+      "href": "/quickstart"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/avgeek-oss/rootset"
+    },
+    "links": [
+      {
+        "header": "Documentation",
+        "items": [
+          {
+            "label": "Get started",
+            "href": "/quickstart"
+          },
+          {
+            "label": "Install Rootset",
+            "href": "/self-hosting/installation"
+          },
+          {
+            "label": "API & MCP",
+            "href": "/api-guide"
+          },
+          {
+            "label": "Configuration",
+            "href": "/self-hosting/configuration"
+          }
+        ]
+      },
+      {
+        "header": "Our OSS Philosophy",
+        "items": [
+          {
+            "label": "Why we build open source",
+            "href": "https://github.com/avgeek-oss/.github/blob/main/profile/README.md"
+          },
+          {
+            "label": "Rootset on GitHub",
+            "href": "https://github.com/avgeek-oss/rootset"
+          },
+          {
+            "label": "Feedback & issues",
+            "href": "https://github.com/avgeek-oss/rootset/issues"
+          }
+        ]
+      },
+      {
+        "header": "Other OSS Apps",
+        "items": [
+          {
+            "label": "Towbar — deploy to your own servers",
+            "href": "https://www.towbar.dev"
+          },
+          {
+            "label": "Mill — plan and track work",
+            "href": "https://mill.fyi"
+          },
+          {
+            "label": "Vitalog — your health ledger",
+            "href": "https://www.vitalog.dev"
+          }
+        ]
+      }
+    ]
+  },
+  "api": {
+    "playground": {
+      "display": "simple"
+    }
+  },
+  "redirects": []
+}

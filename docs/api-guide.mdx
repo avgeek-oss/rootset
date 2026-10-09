@@ -1,0 +1,42 @@
+---
+title: "Use the REST API"
+description: "Authenticate, discover your schema, query records and write with revision checks."
+---
+
+The public REST API is at your configured API origin under `/v1`. The UI talks to that origin directly; REST and MCP do not go through the UI server. Use a personal/team API key or an OAuth access token with the required authority.
+
+## Discover the workspace and table
+
+```bash
+curl --fail-with-body "$ROOTSET_API_ORIGIN/v1/me" \
+  -H "Authorization: Bearer $ROOTSET_API_KEY"
+```
+
+Use the returned workspace ID to [list databases](/api-reference/listDatabases), then [list tables](/api-reference/listTables) and [read the schema](/api-reference/getTableSchema). IDs are opaque; names can change. Field names are the keys in row values.
+
+## Create a row
+
+Choose a table with `NAME` (text) and `STOCK` (integer). Set `ROOTSET_ORG_ID`, `ROOTSET_DATABASE_ID`, `ROOTSET_TABLE_ID` and `ROOTSET_SCHEMA_VERSION` from discovery responses.
+
+```bash
+curl --fail-with-body \
+  "$ROOTSET_API_ORIGIN/v1/orgs/$ROOTSET_ORG_ID/databases/$ROOTSET_DATABASE_ID/tables/$ROOTSET_TABLE_ID/rows" \
+  -H "Authorization: Bearer $ROOTSET_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(openssl rand -hex 16)" \
+  --data "{\"expectedSchemaVersion\":$ROOTSET_SCHEMA_VERSION,\"values\":{\"NAME\":\"Field notebook\",\"STOCK\":24}}"
+```
+
+Writes validate field types, required values, bounds and unique rules. Optional omitted values use their default. Row creation is available through REST/MCP even though the browser does not have an Add row action.
+
+## Query and update
+
+Use [queryRows](/api-reference/queryRows) with a bounded query, filters, sorting and a cursor. Read the runtime schema before constructing typed values. Use [updateRow](/api-reference/updateRow) with the current schema version and row revision. The endpoint reference documents its `If-Match` header. A stale revision returns a conflict rather than overwriting someone else's edit.
+
+Mutations require an **Idempotency-Key**. Retry the same request with the same key; use a new key for different input. Operations returning HTTP 202 include a job ID: poll [getJob](/api-reference/getJob) until it completes or fails.
+
+## Errors and contracts
+
+Errors contain a code, message and request ID. Check 401 for missing/expired credentials, 403 for permissions, 409 for revision or uniqueness conflicts, 422 for typed validation, and 429 for a limit. Honour `Retry-After` when supplied.
+
+The [endpoint reference](/api-reference/getContext) is generated from the current application contract. Download the [OpenAPI schema](/api-reference/openapi.json) for client tooling. Internal browser endpoints are not a public integration contract.

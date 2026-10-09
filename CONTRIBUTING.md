@@ -1,6 +1,6 @@
 # Contributing to Rootset
 
-Use Node.js 24 and pnpm 11.5.3. Configure [GitHub Packages authentication](docs/operations/installation.md#package-registry), then install with `pnpm install --frozen-lockfile` and
+Use Node.js 24 and pnpm 11.5.3. Configure [GitHub Packages authentication](development/operations/installation.md#package-registry), then install with `pnpm install --frozen-lockfile` and
 read the [current V1 scope](rc-plan/README.md) before changing a domain contract.
 
 Keep browser, REST and MCP operations on the same validated domain service.

@@ -193,4 +193,4 @@ jump/loading behavior.
 
 Export Requests always export every row and field; the creation modal asks only for CSV or JSONL. CSV/JSONL exports hold a schema barrier through extraction, use a consistent snapshot and return typed UTC data with checksums. Downloads recheck authority and never put reusable keys in URLs.
 
-Row creation is available through REST and MCP. The browser edits existing rows inline and has no Add row action. Rootset does not provide database backup or restore operations. Use the PostgreSQL/provider tooling described in the [recovery runbook](../docs/operations/upgrade-and-recovery.md) for installation recovery.
+Row creation is available through REST and MCP. The browser edits existing rows inline and has no Add row action. Rootset does not provide database backup or restore operations. Use the PostgreSQL/provider tooling described in the [recovery runbook](../development/operations/upgrade-and-recovery.md) for installation recovery.

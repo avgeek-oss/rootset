@@ -1,0 +1,208 @@
+name: ${ROOTSET_COMPOSE_PROJECT:-rootset}
+services:
+  postgres:
+    profiles:
+      - local-db
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    user: postgres
+    restart: unless-stopped
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: ${ROOTSET_POSTGRES_CPUS:-4}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: rootset
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U rootset -d rootset
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    configs:
+      - source: postgres-init
+        target: /docker-entrypoint-initdb.d/10-rootset.sh
+  migrate:
+    image: ghcr.io/avgeek-oss/rootset-api:${ROOTSET_VERSION:?Choose a published release version}
+    init: true
+    restart: no
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - node
+      - dist/migrate.mjs
+    environment:
+      ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
+      NODE_OPTIONS: --max-old-space-size=768
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+  worker:
+    image: ghcr.io/avgeek-oss/rootset-api:${ROOTSET_VERSION:?Choose a published release version}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      ROOTSET_API_URL: ${ROOTSET_API_URL:?Public API origin required}
+      ROOTSET_WEB_URL: ${ROOTSET_WEB_URL:?Public UI origin required}
+      ROOTSET_PORT: 4310
+      ROOTSET_HOST: 0.0.0.0
+      ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
+      ROOTSET_SECRET: ${ROOTSET_SECRET:?Persistent application secret required}
+      ROOTSET_OAUTH_CLIENTS: ${ROOTSET_OAUTH_CLIENTS:-[]}
+      ROOTSET_ENCRYPTION_KEY: ${ROOTSET_ENCRYPTION_KEY:?Persistent encryption key required}
+      ROOTSET_S3_ENDPOINT: ${ROOTSET_S3_ENDPOINT:?Artifact storage endpoint required}
+      ROOTSET_S3_REGION: ${ROOTSET_S3_REGION:-us-east-1}
+      ROOTSET_S3_BUCKET: ${ROOTSET_S3_BUCKET:?Artifact bucket required}
+      ROOTSET_S3_ACCESS_KEY: ${ROOTSET_S3_ACCESS_KEY:?Artifact access key required}
+      ROOTSET_S3_SECRET_KEY: ${ROOTSET_S3_SECRET_KEY:?Artifact secret required}
+      ROOTSET_ARTIFACT_TEMP_DIR: /var/lib/rootset/artifact-spool
+      ROOTSET_SMTP_HOST: ${ROOTSET_SMTP_HOST:?SMTP host required}
+      ROOTSET_SMTP_PORT: ${ROOTSET_SMTP_PORT:-587}
+      ROOTSET_SMTP_SECURE: ${ROOTSET_SMTP_SECURE:-true}
+      ROOTSET_SMTP_USER: ${ROOTSET_SMTP_USER:-}
+      ROOTSET_SMTP_PASSWORD: ${ROOTSET_SMTP_PASSWORD:-}
+      ROOTSET_EMAIL_FROM: ${ROOTSET_EMAIL_FROM:?Sender required}
+      ROOTSET_WORKER_ID_FILE: /tmp/rootset-worker-id
+      ROOTSET_LOG_LEVEL: ${ROOTSET_LOG_LEVEL:-info}
+      NODE_OPTIONS: --max-old-space-size=1536
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command:
+      - node
+      - dist/worker.mjs
+    volumes:
+      - worker-artifact-spool:/var/lib/rootset/artifact-spool
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - dist/worker-health.mjs
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 2
+  api:
+    image: ghcr.io/avgeek-oss/rootset-api:${ROOTSET_VERSION:?Choose a published release version}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      ROOTSET_API_URL: ${ROOTSET_API_URL:?Public API origin required}
+      ROOTSET_WEB_URL: ${ROOTSET_WEB_URL:?Public UI origin required}
+      ROOTSET_PORT: 4310
+      ROOTSET_HOST: 0.0.0.0
+      ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
+      ROOTSET_SECRET: ${ROOTSET_SECRET:?Persistent application secret required}
+      ROOTSET_OAUTH_CLIENTS: ${ROOTSET_OAUTH_CLIENTS:-[]}
+      ROOTSET_ENCRYPTION_KEY: ${ROOTSET_ENCRYPTION_KEY:?Persistent encryption key required}
+      ROOTSET_S3_ENDPOINT: ${ROOTSET_S3_ENDPOINT:?Artifact storage endpoint required}
+      ROOTSET_S3_REGION: ${ROOTSET_S3_REGION:-us-east-1}
+      ROOTSET_S3_BUCKET: ${ROOTSET_S3_BUCKET:?Artifact bucket required}
+      ROOTSET_S3_ACCESS_KEY: ${ROOTSET_S3_ACCESS_KEY:?Artifact access key required}
+      ROOTSET_S3_SECRET_KEY: ${ROOTSET_S3_SECRET_KEY:?Artifact secret required}
+      ROOTSET_ARTIFACT_TEMP_DIR: /var/lib/rootset/artifact-spool
+      ROOTSET_SMTP_HOST: ${ROOTSET_SMTP_HOST:?SMTP host required}
+      ROOTSET_SMTP_PORT: ${ROOTSET_SMTP_PORT:-587}
+      ROOTSET_SMTP_SECURE: ${ROOTSET_SMTP_SECURE:-true}
+      ROOTSET_SMTP_USER: ${ROOTSET_SMTP_USER:-}
+      ROOTSET_SMTP_PASSWORD: ${ROOTSET_SMTP_PASSWORD:-}
+      ROOTSET_EMAIL_FROM: ${ROOTSET_EMAIL_FROM:?Sender required}
+      ROOTSET_WORKER_ID_FILE: /tmp/rootset-worker-id
+      ROOTSET_LOG_LEVEL: ${ROOTSET_LOG_LEVEL:-info}
+      NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command:
+      - node
+      - dist/api.mjs
+    volumes:
+      - api-artifact-spool:/var/lib/rootset/artifact-spool
+    ports:
+      - ${ROOTSET_API_BIND:-127.0.0.1}:${ROOTSET_API_PORT:-4310}:4310
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4310/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+  web:
+    image: ghcr.io/avgeek-oss/rootset-web:${ROOTSET_VERSION:?Choose a published release version}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PORT: 4300
+      HOSTNAME: 0.0.0.0
+      ROOTSET_PUBLIC_API_ORIGIN: ${ROOTSET_API_URL:?Public API origin required}
+      NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
+    ports:
+      - ${ROOTSET_WEB_BIND:-127.0.0.1}:${ROOTSET_WEB_PORT:-4300}:4300
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4300/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+volumes:
+  postgres-data: null
+  api-artifact-spool: null
+  worker-artifact-spool: null
+configs:
+  postgres-init:
+    content: |
+      #!/bin/sh
+      set -eu
+      psql --username "$$POSTGRES_USER" --dbname "$$POSTGRES_DB" --set ON_ERROR_STOP=1 \
+        --set password="$$POSTGRES_PASSWORD" <<'SQL'
+      SELECT format('CREATE ROLE rootset LOGIN PASSWORD %L NOSUPERUSER NOBYPASSRLS', :'password') \gexec
+      ALTER ROLE postgres PASSWORD NULL;
+      ALTER DATABASE rootset OWNER TO rootset;
+      GRANT CREATE ON SCHEMA public TO rootset;
+      SQL

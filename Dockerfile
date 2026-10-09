@@ -11,7 +11,7 @@ RUN pnpm typecheck && pnpm build
 
 FROM ${NODE_IMAGE} AS runtime
 ARG ROOTSET_SOURCE_REVISION
-LABEL org.opencontainers.image.source="https://github.com/avgeek-inc/rootset" \
+LABEL org.opencontainers.image.source="https://github.com/avgeek-oss/rootset" \
       org.opencontainers.image.revision="${ROOTSET_SOURCE_REVISION}"
 WORKDIR /app
 ENV NODE_ENV=production TZ=UTC
@@ -24,7 +24,7 @@ CMD ["node", "dist/api.mjs"]
 
 FROM ${NODE_IMAGE} AS web
 ARG ROOTSET_SOURCE_REVISION
-LABEL org.opencontainers.image.source="https://github.com/avgeek-inc/rootset" \
+LABEL org.opencontainers.image.source="https://github.com/avgeek-oss/rootset" \
       org.opencontainers.image.revision="${ROOTSET_SOURCE_REVISION}"
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 TZ=UTC PORT=4300 HOSTNAME=0.0.0.0 NODE_OPTIONS=--max-http-header-size=196608

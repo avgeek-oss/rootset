@@ -95,7 +95,7 @@ const SettingsPanel = dynamic(() =>
 const repositoryUrl = "https://github.com/avgeek-oss/rootset";
 const productLinks: Partial<Record<string, string>> = {
   changelog: `${repositoryUrl}/releases`,
-  documentation: `${repositoryUrl}/tree/main/docs`,
+  documentation: "https://rootset.fyi/quickstart",
   repository: repositoryUrl,
   feedback: `${repositoryUrl}/issues/new`,
 };

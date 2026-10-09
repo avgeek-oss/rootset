@@ -30,12 +30,29 @@ the revised scope. Implementation and verification are being aligned with it.
 Earlier candidate receipts and the former checklist are historical; acceptance
 remains false until the current checks have genuine evidence.
 
-## Install locally
+## Install published images
+
+The public documentation source lives directly in [docs](docs). Start with the
+[installation guide](docs/self-hosting/installation.mdx) and
+[environment reference](docs/self-hosting/configuration.mdx).
+
+Use [compose.images.yaml](compose.images.yaml) and [rootset.env.example](rootset.env.example)
+with Docker Compose. The packaged API and UI share `ROOTSET_VERSION`; API,
+worker and migrations use the same API image. Supply your own PostgreSQL URL,
+private S3-compatible bucket and SMTP settings, or use the optional `local-db`
+profile for bundled PostgreSQL. Published images do not require Node.js, pnpm,
+or a GitHub Packages token on the host.
+
+Container images become available after the first reviewed release. The
+[release procedure](development/documentation.md#publish-release-images) builds
+Linux AMD64 and ARM64 images and attaches the installation files to a draft release.
+
+## Run from source
 
 Use Node.js 24, pnpm 11.5.3, Docker and Docker Compose v2. The published
 `@avgeek-oss/design-system` package is hosted on GitHub Packages. Authenticate
 with a GitHub token that has `read:packages`; another Avgeek checkout is not needed.
-See [registry and build setup](docs/operations/installation.md#package-registry).
+See [registry and build setup](development/operations/installation.md#package-registry).
 
 ```sh
 pnpm install --frozen-lockfile
@@ -53,7 +70,7 @@ The API and worker use one `ROOTSET_DATABASE_URL`, one `ROOTSET_SECRET` and one
 `ROOTSET_ENCRYPTION_KEY`. The database URL also applies the installation baseline.
 For external PostgreSQL, use an ordinary database owner without superuser or
 BYPASSRLS access. Retain the secret and encryption key across restart and backup.
-See the [environment reference](docs/operations/installation.md#external-services-and-https)
+See the [environment reference](development/operations/installation.md#external-services-and-https)
 for S3 and SMTP settings.
 
 The browser calls `http://localhost:4310` directly for authentication, REST,
@@ -69,8 +86,8 @@ upgrade target: startup must refuse its incompatible ledger without changing dat
 Preserve that installation and use an empty, separate installation for the new
 baseline. Do not clear its ledger or delete its volumes to bypass the refusal.
 
-See [installation](docs/operations/installation.md) for external PostgreSQL,
-S3-compatible storage, SMTP and HTTPS, and [recovery](docs/operations/upgrade-and-recovery.md)
+See [installation](development/operations/installation.md) for external PostgreSQL,
+S3-compatible storage, SMTP and HTTPS, and [recovery](development/operations/upgrade-and-recovery.md)
 for protecting and restoring an installation.
 
 ## Develop and verify
@@ -89,7 +106,7 @@ in `packages/contracts/generated`; regenerate them when an operation changes.
 The performance target remains a five-million-row table under combined
 PostgreSQL/API/worker/web memory caps of 8 GiB, with no additional swap. Ordinary
 checks, real recovery rehearsals and browser evidence establish different facts.
-Record remaining full-scale work in the [verification guide](docs/verification/README.md).
+Record remaining full-scale work in the [verification guide](development/verification/README.md).
 
 ## Documentation
 
@@ -98,7 +115,7 @@ Record remaining full-scale work in the [verification guide](docs/verification/R
 - [REST and MCP](rc-plan/API_AND_MCP_ARCHITECTURE.md)
 - [Runtime and frontend](rc-plan/STACK_ARCHITECTURE.md)
 - [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)
-- [Operations](docs/operations/README.md)
+- [Operations](development/operations/README.md)
 - [Contributing](CONTRIBUTING.md) and [security reports](SECURITY.md)
 
 Source/image publication, production deployment and production health are

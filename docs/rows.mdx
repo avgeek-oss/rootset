@@ -1,0 +1,35 @@
+---
+title: "Edit rows inline"
+description: "Edit typed cells, undo saved changes, and delete rows from the context menu."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Double-click a cell to edit it in place. Press Enter to commit or Escape to cancel. Editors follow the field type: numbers, booleans, calendar/time controls, text and JSON. URL and image cells edit the underlying string.
+
+The selected cell uses the green theme highlight. If a value is invalid or saving fails, Rootset shows a toast and returns the cell to its previous saved value. There is no persistent inline error message.
+
+## NULL values
+
+Right-click an optional cell and select **Set to NULL**. `NULL` is distinct from an empty string, zero, `false` or the string `"NULL"`. Required fields cannot be set to NULL.
+
+## Undo
+
+Press **Cmd+Z** on macOS or **Ctrl+Z** on Windows/Linux to revert saved cell edits one at a time in the current table session. Rootset confirms an undo with a toast. While an editor is active, the shortcut follows the editor's normal text undo. There is no redo. Undo does not restore deleted rows or resources.
+
+## Delete a row
+
+Right-click the row-number cell or a data cell and select **Delete row**. Rootset highlights the affected row in red while the confirmation dialog is open. Deleting removes the row and its cell history, and cannot be undone.
+
+## Loading more rows
+
+Rootset renders the visible rows and requests bounded windows as you scroll. It does not load every record into the browser at once. The row number is a position in the current view; the API row ID is the stable identifier. Filtering changes the view without modifying the records.
+
+<Screenshot
+  light="/assets/screenshots/rows-light.png"
+  dark="/assets/screenshots/rows-dark.png"
+  alt="Typed cells in the Products spreadsheet"
+  caption="Double-click a cell to edit its stored value."
+  width={3840}
+  height={2160}
+/>
