@@ -585,6 +585,9 @@ export async function runHttpProfile(
             "createPersonalKey",
             qaActor,
             {
+              access: qaActor.role === "viewer" ? "read" : "edit",
+              includeAdmin: qaActor.role === "admin",
+              expiresAt: "2030-01-01T00:00:00.000Z",
               orgId: qaOrgId,
               name: "Background performance fixture",
             },
@@ -843,6 +846,9 @@ export async function runHttpProfile(
             "createPersonalKey",
             qaActor,
             {
+              access: qaActor.role === "viewer" ? "read" : "edit",
+              includeAdmin: qaActor.role === "admin",
+              expiresAt: "2030-01-01T00:00:00.000Z",
               orgId: ids.orgId,
               name: "Full-scale background performance fixture",
             },

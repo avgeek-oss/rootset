@@ -3848,6 +3848,8 @@
               "items": {
                 "type": "object",
                 "properties": {
+                  "access": { "type": "string", "enum": ["read", "edit"] },
+                  "includeAdmin": { "type": "boolean" },
                   "id": {
                     "type": "string",
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -3911,6 +3913,8 @@
                   }
                 },
                 "required": [
+                  "access",
+                  "includeAdmin",
                   "id",
                   "orgId",
                   "name",
@@ -4019,7 +4023,7 @@
   {
     "name": "rootset_create_personal_key",
     "title": "createPersonalKey",
-    "description": "Create a personal key that inherits your live role; secret appears once.",
+    "description": "Create a personal key with read-only, edit or administrative permissions capped by your live role; secret appears once.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -4029,6 +4033,8 @@
           "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
         },
         "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "access": { "type": "string", "enum": ["read", "edit"] },
+        "includeAdmin": { "type": "boolean" },
         "expiresAt": {
           "anyOf": [
             {
@@ -4052,7 +4058,14 @@
           "description": "Stable caller-provided key across retries of this exact operation."
         }
       },
-      "required": ["orgId", "name", "idempotencyKey"],
+      "required": [
+        "orgId",
+        "name",
+        "access",
+        "includeAdmin",
+        "expiresAt",
+        "idempotencyKey"
+      ],
       "additionalProperties": false
     },
     "outputSchema": {
@@ -4065,6 +4078,8 @@
             "key": {
               "type": "object",
               "properties": {
+                "access": { "type": "string", "enum": ["read", "edit"] },
+                "includeAdmin": { "type": "boolean" },
                 "id": {
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -4124,6 +4139,8 @@
                 }
               },
               "required": [
+                "access",
+                "includeAdmin",
                 "id",
                 "orgId",
                 "name",
@@ -4233,7 +4250,7 @@
   {
     "name": "rootset_rotate_personal_key",
     "title": "rotatePersonalKey",
-    "description": "Rotate a personal key with bounded overlap and one-time secret display; preserve name and expiry unless explicitly changed.",
+    "description": "Rotate a personal key with bounded overlap and one-time secret display; preserve name, permissions and expiry unless explicitly changed.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -4241,6 +4258,8 @@
         "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
         "overlapSeconds": { "type": "integer", "minimum": 0, "maximum": 86400 },
         "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "access": { "type": "string", "enum": ["read", "edit"] },
+        "includeAdmin": { "type": "boolean" },
         "expiresAt": {
           "anyOf": [
             {
@@ -4277,6 +4296,8 @@
             "key": {
               "type": "object",
               "properties": {
+                "access": { "type": "string", "enum": ["read", "edit"] },
+                "includeAdmin": { "type": "boolean" },
                 "id": {
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -4336,6 +4357,8 @@
                 }
               },
               "required": [
+                "access",
+                "includeAdmin",
                 "id",
                 "orgId",
                 "name",

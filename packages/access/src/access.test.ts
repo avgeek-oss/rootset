@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ActorSchema, operations, type Actor } from "@rootset/contracts";
+import { operations, type Actor } from "@rootset/contracts";
 import {
   ALL_SCOPES,
+  keyScopes,
+  keyRole,
   assertAccess,
   assertDelegation,
   roleAllows,
@@ -68,29 +70,36 @@ test("roles separate admin management, member row writes and viewer reads", () =
       );
 });
 
-test("personal keys inherit the live role without selected operation or resource restrictions", () => {
-  const actor = { ...base, kind: "personal_key" as const, scopes: [] };
-  assert.doesNotThrow(() =>
-    assertAccess(actor, {
-      scope: "rows:write",
-    }),
-  );
-  assert.doesNotThrow(() =>
-    assertAccess({ ...actor, role: "admin" }, { scope: "schema:manage" }),
-  );
+test("personal key permissions cap reads, writes and administration", () => {
+  for (const role of ["viewer", "member", "admin"] as const) {
+    for (const access of ["read", "edit"] as const) {
+      for (const includeAdmin of [false, true]) {
+        const effectiveRole = keyRole(role, access, includeAdmin);
+        const actor = {
+          ...base,
+          kind: "personal_key" as const,
+          role: effectiveRole,
+          scopes: keyScopes(access, includeAdmin),
+        };
+        assert.doesNotThrow(() => assertAccess(actor, { scope: "rows:read" }));
+        for (const scope of ["rows:write", "schema:manage", "keys:manage"]) {
+          const allowed =
+            roleAllows(effectiveRole, scope) && actor.scopes.includes(scope);
+          if (allowed)
+            assert.doesNotThrow(() => assertAccess(actor, { scope }));
+          else assert.throws(() => assertAccess(actor, { scope }));
+        }
+        assert.equal(
+          effectiveRole === "admin",
+          role === "admin" && access === "edit" && includeAdmin,
+        );
+      }
+    }
+  }
   assert.throws(() =>
-    assertAccess({ ...actor, role: "viewer" }, { scope: "rows:write" }),
-  );
-  assert.throws(() => assertAccess(actor, { scope: "schema:manage" }));
-  assert.doesNotThrow(() =>
-    assertAccess(
-      { ...actor, role: "viewer" },
-      { scope: "keys:manage", personal: true },
-    ),
-  );
-  assert.equal(
-    ActorSchema.safeParse({ ...actor, kind: "team_key" }).success,
-    false,
+    assertDelegation({ ...base, kind: "personal_key", scopes: ["rows:read"] }, [
+      "rows:write",
+    ]),
   );
 });
 
@@ -107,7 +116,7 @@ test("OAuth operation consent intersects the current role on every check", () =>
   );
   assert.throws(
     () => assertAccess(actor, { scope: "exports:read" }),
-    /OAuth grant/,
+    /credential/,
   );
   assert.throws(
     () => assertAccess({ ...actor, role: "viewer" }, { scope: "rows:write" }),

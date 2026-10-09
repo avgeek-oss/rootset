@@ -37,6 +37,25 @@ export function roleScopes(role: Role): string[] {
   return ALL_SCOPES.filter((scope) => roleAllows(role, scope));
 }
 
+export function keyRole(
+  membershipRole: Role,
+  access: "read" | "edit",
+  includeAdmin: boolean,
+): Role {
+  if (access === "read" || membershipRole === "viewer") return "viewer";
+  return includeAdmin && membershipRole === "admin" ? "admin" : "member";
+}
+
+export function keyScopes(
+  access: "read" | "edit",
+  includeAdmin: boolean,
+): string[] {
+  if (access === "read")
+    return ALL_SCOPES.filter((scope) => scope.endsWith(":read"));
+  if (includeAdmin) return [...ALL_SCOPES];
+  return roleScopes("member").filter((scope) => !personalScopes.has(scope));
+}
+
 export function assertAccess(
   actor: Actor,
   requirement: {
@@ -65,10 +84,13 @@ export function assertAccess(
       "FORBIDDEN",
       "Your role does not allow this operation",
     );
-  if (actor.kind === "oauth" && !actor.scopes.includes(requirement.scope))
+  if (
+    (actor.kind === "oauth" || actor.kind === "personal_key") &&
+    !actor.scopes.includes(requirement.scope)
+  )
     throw new AccessError(
       "INSUFFICIENT_SCOPE",
-      "The OAuth grant does not have the required operation scope",
+      "The credential does not have the required operation scope",
     );
 }
 
@@ -79,7 +101,8 @@ export function assertDelegation(actor: Actor, scopes: string[]): void {
     scopes.some(
       (scope) =>
         !roleAllows(actor.role, scope) ||
-        (actor.kind === "oauth" && !actor.scopes.includes(scope)),
+        ((actor.kind === "oauth" || actor.kind === "personal_key") &&
+          !actor.scopes.includes(scope)),
     )
   )
     throw new AccessError(

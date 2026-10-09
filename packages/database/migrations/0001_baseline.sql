@@ -494,6 +494,8 @@ CREATE TABLE rootset_control.api_admissions (
 
 
 CREATE TABLE rootset_control.api_keys (
+    access text NOT NULL CHECK (access IN ('read', 'edit')),
+    include_admin boolean NOT NULL CHECK (NOT include_admin OR access = 'edit'),
     id character varying(26) NOT NULL,
     org_id character varying(26) NOT NULL,
     user_id character varying(26) NOT NULL,

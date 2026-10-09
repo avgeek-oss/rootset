@@ -496,7 +496,9 @@ operation(
 );
 const keyInput = {
   name: AccountNameSchema,
-  expiresAt: DateTimeSchema.nullable().optional(),
+  access: z.enum(["read", "edit"]),
+  includeAdmin: z.boolean(),
+  expiresAt: DateTimeSchema.nullable(),
   ...approval,
 };
 operation(
@@ -516,9 +518,13 @@ operation(
   "POST",
   "/v1/me/keys",
   ["keys:manage"],
-  z.strictObject({ ...org, ...keyInput }),
+  z
+    .strictObject({ ...org, ...keyInput })
+    .refine((input) => !input.includeAdmin || input.access === "edit", {
+      message: "Administrative keys require edit access",
+    }),
   KeyCreatedSchema,
-  "Create a personal key that inherits your live role; secret appears once.",
+  "Create a personal key with read-only, edit or administrative permissions capped by your live role; secret appears once.",
   { personal: true, stepUp: "conditional" },
 );
 operation(
@@ -531,11 +537,13 @@ operation(
     id: IdSchema,
     overlapSeconds: z.number().int().min(0).max(86400).optional(),
     name: names.name.optional(),
+    access: z.enum(["read", "edit"]).optional(),
+    includeAdmin: z.boolean().optional(),
     expiresAt: DateTimeSchema.nullable().optional(),
     ...approval,
   }),
   KeyCreatedSchema,
-  "Rotate a personal key with bounded overlap and one-time secret display; preserve name and expiry unless explicitly changed.",
+  "Rotate a personal key with bounded overlap and one-time secret display; preserve name, permissions and expiry unless explicitly changed.",
   { personal: true, stepUp: "conditional" },
 );
 operation(
@@ -1232,7 +1240,7 @@ export const ProtocolAdapterInventory = Object.freeze([
     methods: ["GET", "POST", "DELETE"],
     kind: "protocol",
     reason:
-      "Streamable HTTP MCP transport negotiates protocol methods and requires an MCP-resource OAuth actor; its named tools come from the operation catalog.",
+      "Streamable HTTP MCP transport negotiates protocol methods and requires a personal API key or MCP-resource OAuth actor; its named tools come from the operation catalog.",
   },
   {
     path: "/v1/orgs/{orgId}/artifacts/{id}/download",

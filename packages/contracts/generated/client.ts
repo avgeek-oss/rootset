@@ -437,6 +437,8 @@ export type cancelInvitationOutput = { deleted: boolean; mutationId?: string };
 export type listPersonalKeysInput = Record<string, never>;
 export type listPersonalKeysOutput = {
   data: {
+    access: "read" | "edit";
+    includeAdmin: boolean;
     id: string;
     orgId: string;
     name: string;
@@ -453,11 +455,15 @@ export type listPersonalKeysOutput = {
 export type createPersonalKeyInput = {
   orgId: string;
   name: string;
-  expiresAt?: string | null;
+  access: "read" | "edit";
+  includeAdmin: boolean;
+  expiresAt: string | null;
   approvalId?: string;
 };
 export type createPersonalKeyOutput = {
   key: {
+    access: "read" | "edit";
+    includeAdmin: boolean;
     id: string;
     orgId: string;
     name: string;
@@ -475,11 +481,15 @@ export type rotatePersonalKeyInput = {
   id: string;
   overlapSeconds?: number;
   name?: string;
+  access?: "read" | "edit";
+  includeAdmin?: boolean;
   expiresAt?: string | null;
   approvalId?: string;
 };
 export type rotatePersonalKeyOutput = {
   key: {
+    access: "read" | "edit";
+    includeAdmin: boolean;
     id: string;
     orgId: string;
     name: string;

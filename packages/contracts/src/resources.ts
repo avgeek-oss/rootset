@@ -107,6 +107,8 @@ export const InvitationSchema = z.strictObject({
   createdAt: DateTimeSchema,
 });
 export const KeyMetadataSchema = z.strictObject({
+  access: z.enum(["read", "edit"]),
+  includeAdmin: z.boolean(),
   id: IdSchema,
   orgId: IdSchema,
   name: AccountNameSchema,

@@ -831,11 +831,11 @@ export function createApp(deps: ApiDependencies) {
         403,
       );
     const actor = await deps.identity.resolveActor(request, "mcp");
-    if (!actor || actor.kind !== "oauth")
+    if (!actor || !["oauth", "personal_key"].includes(actor.kind))
       return errorResponse(
         new RootsetError(
           "UNAUTHENTICATED",
-          "An MCP-resource OAuth bearer token is required.",
+          "A personal API key or MCP-resource OAuth bearer token is required.",
           401,
         ),
         c.get("requestId"),
@@ -968,7 +968,7 @@ export function createApp(deps: ApiDependencies) {
         return errorResponse(
           new RootsetError(
             "ACCESS_DENIED",
-            "The OAuth grant lacks the required operation scopes.",
+            "The credential lacks the required operation scopes.",
             403,
           ),
           c.get("requestId"),

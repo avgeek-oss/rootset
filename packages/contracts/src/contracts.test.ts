@@ -109,7 +109,12 @@ test("shared account and team name limits stay separate from resource names", ()
     updateProfile: {},
     updateOrganisation: { orgId: id },
     updateMember: { orgId: id, id, expectedVersion: "1" },
-    createPersonalKey: { orgId: id },
+    createPersonalKey: {
+      orgId: id,
+      access: "read",
+      includeAdmin: false,
+      expiresAt: null,
+    },
   })) {
     const schema = operationMap[operation]!.inputSchema;
     assert.equal(
@@ -1533,7 +1538,7 @@ test("property names are shared labels and row keys with stable IDs and collisio
   );
 });
 
-test("personal key metadata excludes selected authority and all actors use supported roles", () => {
+test("personal keys have explicit permission ceilings and all actors use supported roles", () => {
   const actor = {
     kind: "personal_key",
     id: "personal:key",
@@ -1554,6 +1559,8 @@ test("personal key metadata excludes selected authority and all actors use suppo
   const input = {
     orgId: id,
     name: "Automation",
+    access: "read",
+    includeAdmin: false,
     expiresAt: "2030-01-01T00:00:00.000Z",
   };
   assert.equal(
@@ -1577,6 +1584,8 @@ test("personal key metadata excludes selected authority and all actors use suppo
     orgId: id,
     userId: id,
     name: "Automation",
+    access: "read",
+    includeAdmin: false,
     prefix: "rs_key_",
     createdAt: "2026-10-05T00:00:00.000Z",
     expiresAt: null,
@@ -1603,4 +1612,29 @@ test("personal key metadata excludes selected authority and all actors use suppo
       )
     )
       assert.equal(operation.minimumRole, "admin", operation.id);
+});
+
+test("API key creation requires an explicit permission and expiry choice", () => {
+  const schema = operationMap.createPersonalKey!.inputSchema;
+  const input = {
+    orgId: id,
+    name: "Automation",
+    access: "read",
+    includeAdmin: false,
+    expiresAt: null,
+  };
+  assert.equal(schema.safeParse(input).success, true);
+  for (const field of ["name", "access", "includeAdmin", "expiresAt"]) {
+    const missing = { ...input } as Record<string, unknown>;
+    delete missing[field];
+    assert.equal(schema.safeParse(missing).success, false, field);
+  }
+  assert.equal(
+    schema.safeParse({ ...input, includeAdmin: true }).success,
+    false,
+  );
+  assert.equal(
+    schema.safeParse({ ...input, access: "edit", includeAdmin: true }).success,
+    true,
+  );
 });

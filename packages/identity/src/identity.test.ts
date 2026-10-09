@@ -127,6 +127,9 @@ test(
       const actor = await freshSession();
       const key = KeyCreatedSchema.parse(
         await execute("createPersonalKey", actor, {
+          access: actor.role === "viewer" ? "read" : "edit",
+          includeAdmin: actor.role === "admin",
+          expiresAt: "2030-01-01T00:00:00.000Z",
           orgId: actor.orgId,
           name: "Sign-out delegated key",
         }),
@@ -690,6 +693,9 @@ test(
         "KEY-01 KEY-06 key secrets display once with safe metadata idempotency",
         async () => {
           const input = {
+            access: actor.role === "viewer" ? "read" : "edit",
+            includeAdmin: actor.role === "admin",
+            expiresAt: "2030-01-01T00:00:00.000Z",
             orgId,
             name: "Read integration",
           };
@@ -716,7 +722,10 @@ test(
               execute(
                 "createPersonalKey",
                 actor,
-                { ...input, name: "Changed input" },
+                {
+                  ...input,
+                  name: "Changed input",
+                },
                 context,
               ),
             (error) =>
@@ -748,6 +757,9 @@ test(
         "AUTH-07 action is immutable, client-bound, one-use and replay metadata only",
         async () => {
           const input = {
+            access: "edit",
+            includeAdmin: true,
+            expiresAt: "2030-01-01T00:00:00.000Z",
             name: "Approved key",
           };
           const begun = AccountActionSchema.parse(
@@ -768,7 +780,10 @@ test(
             execute(
               "createPersonalKey",
               actor,
-              { ...input, name: "Tampered" },
+              {
+                ...input,
+                name: "Tampered",
+              },
               { idempotencyKey: newId(), actionId: begun.id },
             ),
           );
@@ -1210,6 +1225,9 @@ test(
               "createPersonalKey",
               actor,
               {
+                access: actor.role === "viewer" ? "read" : "edit",
+                includeAdmin: actor.role === "admin",
+                expiresAt: "2030-01-01T00:00:00.000Z",
                 name: "Metadata actor",
               },
               { idempotencyKey: newId() },
@@ -1614,7 +1632,12 @@ test(
         404,
       );
       const expiry = new Date(Date.now() + 3600000).toISOString(),
-        input = { name: "Inherits current role", expiresAt: expiry },
+        input = {
+          access: "edit",
+          includeAdmin: admin.role === "admin",
+          name: "Inherits current role",
+          expiresAt: expiry,
+        },
         key = newId();
       const issued = (
         await Promise.all([
@@ -1631,6 +1654,9 @@ test(
       await assert.rejects(
         () =>
           execute("createPersonalKey", admin, {
+            access: "edit",
+            includeAdmin: admin.role === "admin",
+            expiresAt: "2030-01-01T00:00:00.000Z",
             name: "Removed authority selector",
             scopes: ["rows:write"],
           }),
@@ -1640,6 +1666,8 @@ test(
         await execute("rotatePersonalKey", admin, { id: first.key.id }),
       );
       assert.equal(rotated.key.expiresAt, expiry);
+      assert.equal(rotated.key.access, first.key.access);
+      assert.equal(rotated.key.includeAdmin, first.key.includeAdmin);
       assert.equal(
         await service.resolveActor(
           new Request(`${baseURL}/v1/me`, {

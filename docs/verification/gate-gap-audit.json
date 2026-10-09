@@ -89,7 +89,7 @@
     {
       "id": "V1-07",
       "area": "Installation and accounts",
-      "requirement": "Personal keys inherit current role without operation/resource selectors; demotion, member removal, expiry and revocation affect existing and waiting requests and replay.",
+      "requirement": "Personal keys have read-only, edit or administrative ceilings intersected with current role; demotion, member removal, expiry and revocation affect existing and waiting requests and replay.",
       "status": "pending",
       "testSources": [
         {

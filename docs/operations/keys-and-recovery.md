@@ -23,37 +23,17 @@ separate keys for those purposes internally. Preserve the same value across
 restarts. Changing it can invalidate sessions, personal keys and pagination
 cursors; it does not replace the encryption key.
 
-Personal keys inherit live Admin/Member/Viewer membership. Rotation, expiry,
-revocation, demotion and membership removal must affect further requests, waiting
-work and replay. Keys have no operation/resource selection. OAuth retains approved
-operations intersected with the person's current role; reconnecting must not
-restore revoked or removed authority.
+Personal API keys require a name, permissions and expiry. Choose Read-only for
+viewing data and history, Edit for row writes, or Administrative for database,
+schema and team management. The UI offers 30 days, 90 days, 1 year and Never
+(for administrators). API/MCP creation requires `access` (`read` or `edit`),
+`includeAdmin` (true only for Administrative with edit access), and `expiresAt`
+(an ISO timestamp or null for Never).
 
-## Lost factors or lost Admin access
-
-Use normal recovery codes first. For installation-controlled emergency recovery,
-verify the person's identity through an established private process, record the
-incident reason and use the retained installation configuration. The CLI requires
-internal IDs and a nonempty reason; it does not establish the person's identity.
-
-```sh
-docker compose exec api node dist/operator.mjs recover USER_ID --reason "verified lost-factor recovery"
-docker compose exec api node dist/operator.mjs restore-admin ORG_ID USER_ID --reason "verified Admin recovery"
-```
-
-In source development the same entry point is `pnpm auth:operator`. Load protected
-configuration into that process without putting secret values in command history.
-`recover` removes enrolled factors and revokes the person's sessions/credentials;
-`restore-admin` restores Admin membership for a verified person in the single
-organisation. There is no installation-operator binding or Owner role.
-
-Confirm the recorded security notification is actually delivered, affected old
-credentials fail and the person signs in/enrols new factors through normal flows.
-A CLI exit message about queued notification does not prove email delivery.
-Record the result without copying factor secrets or recovery codes into the
-incident. The current checklist requires an actual isolated rehearsal of this
-procedure.
-
-If configuration/keys or PostgreSQL state itself is lost, use the
-[full-installation recovery procedure](upgrade-and-recovery.md). Knowing an ID
-does not authorize manual privilege expansion or direct credential edits.
+Each key's issued permission ceiling is intersected with live Admin/Member/Viewer
+membership. A promotion never upgrades a Read-only or Edit key to Administrative.
+Rotation preserves permissions and expiry unless explicitly changed. Revocation,
+expiry, demotion and membership removal affect new requests, waiting work and
+replay. Restricted keys cannot create more powerful keys or OAuth grants.
+OAuth retains approved operations intersected with the person's current role;
+reconnecting cannot restore revoked or removed authority.

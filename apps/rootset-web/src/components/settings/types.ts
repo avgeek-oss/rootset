@@ -65,6 +65,8 @@ export interface Invitation {
   expiresAt?: string;
 }
 export interface ApiKey {
+  access: "read" | "edit";
+  includeAdmin: boolean;
   id: string;
   name: string;
   prefix?: string;

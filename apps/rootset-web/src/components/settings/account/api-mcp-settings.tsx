@@ -451,6 +451,7 @@ function CreateKey({
   );
   const endpoint = `${baseEndpoint}/${scope}`;
   const nameId = useId();
+  const [permission, setPermission] = useState("read");
   const [expiry, setExpiry] = useState("90");
   const expiresAt = useMemo(
     () =>
@@ -471,6 +472,8 @@ function CreateKey({
     try {
       const body = {
         name: String(form.get("name") ?? ""),
+        access: permission === "read" ? "read" : "edit",
+        includeAdmin: permission === "admin",
         expiresAt,
       };
       const serialized = JSON.stringify(body);
@@ -510,6 +513,38 @@ function CreateKey({
           autoComplete="off"
         />
       </div>
+      <Choice
+        isDisabled={busy}
+        label="Permissions"
+        value={permission}
+        onChange={setPermission}
+        options={[
+          [
+            "read",
+            "Read-only",
+            "View databases, tables, rows and cell history.",
+          ],
+          ...(user?.workspaceRole === "admin" ||
+          user?.workspaceRole === "member"
+            ? [
+                [
+                  "edit",
+                  "Edit",
+                  "Read access plus creating, updating and deleting rows.",
+                ] as [string, string, string],
+              ]
+            : []),
+          ...(user?.workspaceRole === "admin"
+            ? [
+                [
+                  "admin",
+                  "Administrative",
+                  "Edit access plus managing databases, tables, fields and team settings.",
+                ] as [string, string, string],
+              ]
+            : []),
+        ]}
+      />
       <Choice
         isDisabled={busy}
         label="Expires after"

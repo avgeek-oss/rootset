@@ -254,6 +254,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       return value;
     };
     const keyRequest = {
+      access: "edit",
+      includeAdmin: true,
+      expiresAt: "2030-01-01T00:00:00.000Z",
       orgId: provision.orgId,
       name: "Runtime read and write",
     };
@@ -261,6 +264,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(typeof key.secret, "string");
     restSecret = key.secret;
     const readKey = await call("createPersonalKey", {
+      access: "read",
+      includeAdmin: false,
+      expiresAt: "2030-01-01T00:00:00.000Z",
       orgId: provision.orgId,
       name: "Read only",
     });
@@ -354,7 +360,13 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
               scopes: [],
               authenticatedAt: Date.now(),
             },
-            { orgId, name: "Independent saturated workload credential" },
+            {
+              orgId,
+              name: "Independent saturated workload credential",
+              access: "read",
+              includeAdmin: false,
+              expiresAt: "2030-01-01T00:00:00.000Z",
+            },
             { surface: "browser", idempotencyKey: newId() },
           ),
         );
@@ -684,27 +696,111 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(queried.status, 200);
     assert.equal((await queried.json()).data[0].id, rowId);
-    const inheritedWrite = await request(
+    const restrictedWrite = await request(
       `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/rows`,
       "POST",
       { expectedSchemaVersion: 1, values: { NAME: "Denied" } },
       { token: readKey.secret, key: newId() },
     );
-    assert.equal(inheritedWrite.status, 201);
-    const inheritedRow = (await inheritedWrite.json()).row;
+    assert.equal(restrictedWrite.status, 403);
+    const editKey = await call("createPersonalKey", {
+      orgId,
+      name: "Edit ceiling",
+      access: "edit",
+      includeAdmin: false,
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    await call(
+      "createDatabase",
+      { orgId, name: "Edit denied" },
+      "rest",
+      403,
+      newId(),
+      editKey.secret,
+    );
+    const editedRow = await call(
+      "createRow",
+      { ...ids, expectedSchemaVersion: 1, values: { NAME: "Edit allowed" } },
+      "rest",
+      undefined,
+      newId(),
+      editKey.secret,
+    );
     await call(
       "deleteRow",
       {
         ...ids,
-        rowId: inheritedRow.id,
+        rowId: editedRow.row.id,
         expectedSchemaVersion: 1,
-        expectedVersion: inheritedRow.version,
+        expectedVersion: editedRow.row.version,
       },
       "rest",
       undefined,
       newId(),
+      editKey.secret,
+    );
+    await call(
+      "createPersonalKey",
+      {
+        orgId,
+        name: "Read cannot delegate",
+        access: "edit",
+        includeAdmin: true,
+        expiresAt: "2030-01-01T00:00:00.000Z",
+      },
+      "rest",
+      403,
+      newId(),
       readKey.secret,
     );
+    for (const [token, edit] of [
+      [readKey.secret, false],
+      [editKey.secret, true],
+    ] as const) {
+      const keyMcp = new Client({
+        name: "Key permissions fixture",
+        version: "1",
+      });
+      try {
+        await keyMcp.connect(
+          new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
+            requestInit: { headers: { Authorization: `Bearer ${token}` } },
+          }),
+        );
+        const read = await keyMcp.callTool({
+          name: "rootset_query_rows",
+          arguments: { ...ids, query: {} },
+        });
+        assert.notEqual(read.isError, true);
+        if (!edit)
+          await assert.rejects(
+            () =>
+              keyMcp.callTool({
+                name: "rootset_update_row",
+                arguments: {
+                  ...ids,
+                  rowId,
+                  expectedSchemaVersion: 1,
+                  expectedVersion: "1",
+                  values: { NAME: "Denied" },
+                  idempotencyKey: newId(),
+                },
+              }),
+            (error) =>
+              error instanceof StreamableHTTPError && error.code === 403,
+          );
+        await assert.rejects(
+          () =>
+            keyMcp.callTool({
+              name: "rootset_create_database",
+              arguments: { orgId, name: "MCP denied", idempotencyKey: newId() },
+            }),
+          (error) => error instanceof StreamableHTTPError && error.code === 403,
+        );
+      } finally {
+        await keyMcp.close();
+      }
+    }
     const mismatch = await call(
       "getRow",
       { ...ids, databaseId: newId(), rowId },
@@ -932,6 +1028,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       return job;
     };
     const journalKey = await call("createPersonalKey", {
+        access: "edit",
+        includeAdmin: true,
+        expiresAt: "2030-01-01T00:00:00.000Z",
         orgId,
         name: "Control replay verification",
       }),
@@ -997,6 +1096,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         type: "create_key",
         operationId: "createPersonalKey",
         input: {
+          access: "edit",
+          includeAdmin: true,
+          expiresAt: "2030-01-01T00:00:00.000Z",
           orgId,
           name: "Replay-bound key approval",
         },
@@ -1132,6 +1234,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       404,
     );
     const approvedKeyInput = {
+      access: "edit",
+      includeAdmin: true,
+      expiresAt: "2030-01-01T00:00:00.000Z",
       orgId,
       name: "Delegated approved read key",
     };
@@ -1876,6 +1981,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(hiddenJournal.error.code, "RESOURCE_NOT_FOUND");
     const scoped = await call("createPersonalKey", {
+      access: "edit",
+      includeAdmin: true,
+      expiresAt: "2030-01-01T00:00:00.000Z",
       orgId,
       name: "Installation role access",
     });
@@ -1992,13 +2100,34 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       403,
     );
     const viewerKey = await call("createPersonalKey", {
+      access: "read",
+      includeAdmin: false,
+      expiresAt: "2030-01-01T00:00:00.000Z",
       orgId,
       name: "Viewer read key",
     });
     assert(viewerKey.secret);
+    for (const includeAdmin of [false, true]) {
+      await call(
+        "createPersonalKey",
+        {
+          orgId,
+          name: "Viewer cannot elevate",
+          access: "edit",
+          includeAdmin,
+          expiresAt: "2030-01-01T00:00:00.000Z",
+        },
+        "browser",
+        403,
+      );
+    }
+
     await call(
       "createPersonalKey",
       {
+        access: "edit",
+        includeAdmin: true,
+        expiresAt: "2030-01-01T00:00:00.000Z",
         orgId,
         name: "Forbidden viewer write key",
         scopes: ["rows:write"],
@@ -2022,6 +2151,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     });
     cookie = viewerCookie;
     const scopeKey = await call("createPersonalKey", {
+        access: "edit",
+        includeAdmin: true,
+        expiresAt: "2030-01-01T00:00:00.000Z",
         orgId,
         name: "Current target authority replay verification",
       }),
@@ -2193,7 +2325,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     const keyReplay = await call(
       "createPersonalKey",
-      { ...keyRequest, name: "Secret replay check" },
+      {
+        ...keyRequest,
+        name: "Secret replay check",
+      },
       "browser",
       undefined,
       "runtime-secret-once-001",
@@ -2201,7 +2336,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert(keyReplay.secret);
     const redactedReplay = await call(
       "createPersonalKey",
-      { ...keyRequest, name: "Secret replay check" },
+      {
+        ...keyRequest,
+        name: "Secret replay check",
+      },
       "browser",
       undefined,
       "runtime-secret-once-001",

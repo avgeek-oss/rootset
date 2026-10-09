@@ -25,7 +25,7 @@ history, uniqueness, artifact readback or process recovery.
 
 Exercise Admin, Member and Viewer across browser, REST and MCP. Admin alone
 manages members, databases/schema and recovery. Personal
-keys inherit current role without operation/resource selectors. OAuth consent
+keys use read-only, edit or administrative permission ceilings capped by the current role. OAuth consent
 limits operations and is intersected with live role; its audience `resource` is
 the MCP server URL, not a database/table permission chooser.
 

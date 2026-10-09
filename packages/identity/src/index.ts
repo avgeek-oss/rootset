@@ -24,6 +24,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { z } from "zod";
 import {
   ALL_SCOPES,
+  keyRole,
+  keyScopes,
   assertAccess,
   roleAllows,
   type Actor,
@@ -160,11 +162,13 @@ const safeEqual = (a: string, b: string): boolean => {
 const notFound = (): never => {
   throw new RootsetError("RESOURCE_NOT_FOUND", "Resource was not found", 404);
 };
-const keyFields = `id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
+const keyFields = `access,include_admin,id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
 const mapKey = (r: Record<string, unknown>, orgId: string) => ({
   id: r.id,
   orgId,
   name: r.name,
+  access: r.access,
+  includeAdmin: r.include_admin,
   userId: r.user_id,
   prefix: r.prefix,
   expiresAt: r.expires_at,
@@ -701,21 +705,24 @@ export class IdentityService {
           authenticatedAt: new Date(session.authenticated_at).getTime(),
         };
       }
-      if (
-        actor.kind === "personal_key" &&
-        !(
+      let grantedScopes: string[] = [...ALL_SCOPES];
+      let effectiveRole: Role = membership.role;
+      if (actor.kind === "personal_key") {
+        const key = (
           await client.query(
-            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
+            `SELECT access,include_admin FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND user_id=$3 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())`,
             [actor.credentialId ?? actor.id, actor.orgId, actor.userId],
           )
-        ).rowCount
-      )
-        throw new RootsetError(
-          "UNAUTHENTICATED",
-          "Credential is unavailable",
-          401,
-        );
-      let grantedScopes: string[] = [...ALL_SCOPES];
+        ).rows[0];
+        if (!key)
+          throw new RootsetError(
+            "UNAUTHENTICATED",
+            "Credential is unavailable",
+            401,
+          );
+        effectiveRole = keyRole(membership.role, key.access, key.include_admin);
+        grantedScopes = keyScopes(key.access, key.include_admin);
+      }
       if (actor.kind === "oauth") {
         const grant = (
           await client.query(
@@ -743,9 +750,9 @@ export class IdentityService {
         ...(actor.authenticatedAt !== undefined
           ? { authenticatedAt: actor.authenticatedAt }
           : {}),
-        role: membership.role,
+        role: effectiveRole,
         scopes: grantedScopes.filter((scope) =>
-          roleAllows(membership.role, scope),
+          roleAllows(effectiveRole, scope),
         ),
         membershipVersion: Number(membership.version),
       };
@@ -3129,6 +3136,8 @@ export class IdentityService {
         orgId: IdSchema.optional(),
         id: IdSchema.optional(),
         name: nameSchema.optional(),
+        access: z.enum(["read", "edit"]).optional(),
+        includeAdmin: z.boolean().optional(),
         expiresAt: z.string().datetime().nullable().optional(),
         overlapSeconds: z.number().int().min(0).max(86400).default(0),
       }),
@@ -3156,12 +3165,49 @@ export class IdentityService {
     }
     const name = data.name ?? old?.name;
     if (!name) throw new RootsetError("VALIDATION_FAILED", "Name is required");
+    if (
+      !old &&
+      (data.access === undefined ||
+        data.includeAdmin === undefined ||
+        data.expiresAt === undefined)
+    )
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Permissions and expiry are required",
+      );
+    const access = data.access ?? (old?.access as "read" | "edit");
+    const includeAdmin = data.includeAdmin ?? (old?.include_admin as boolean);
+    if (includeAdmin && access !== "edit")
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Administrative keys require edit access",
+      );
+    const requestedRole = includeAdmin
+      ? "admin"
+      : access === "edit"
+        ? "member"
+        : "viewer";
+    if (
+      keyRole(actor.role, access, includeAdmin) !== requestedRole ||
+      (actor.kind === "personal_key" &&
+        keyScopes(access, includeAdmin).some(
+          (scope) =>
+            roleAllows(requestedRole, scope) && !actor.scopes.includes(scope),
+        ))
+    )
+      throw new RootsetError(
+        "FORBIDDEN",
+        "These API key permissions exceed your role",
+        403,
+      );
     const expiry =
-      data.expiresAt !== undefined
-        ? data.expiresAt
-        : old
-          ? old.expires_at
-          : new Date(Date.now() + 90 * 86400000);
+      data.expiresAt !== undefined ? data.expiresAt : old?.expires_at;
+    if (expiry === null && actor.role !== "admin")
+      throw new RootsetError(
+        "FORBIDDEN",
+        "Only administrators can create keys that never expire",
+        403,
+      );
     const expiresAt =
       expiry === null ? null : new Date(expiry as string | Date);
     if (expiresAt && expiresAt <= new Date())
@@ -3173,7 +3219,7 @@ export class IdentityService {
     const id = newId(),
       secret = `rst_${id}_${randomBytes(32).toString("base64url")}`;
     const result = await client.query(
-      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from) VALUES($1,$2,$3,$3,$4,$5,$6,$7,$8) RETURNING ${keyFields}`,
+      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from,access,include_admin) VALUES($1,$2,$3,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING ${keyFields}`,
       [
         id,
         actor.orgId,
@@ -3183,6 +3229,8 @@ export class IdentityService {
         `rst_${id}`,
         expiresAt,
         old?.id ?? null,
+        access,
+        includeAdmin,
       ],
     );
     const metadata = mapKey(result.rows[0]!, actor.orgId);

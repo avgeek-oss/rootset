@@ -3887,7 +3887,7 @@
       "post": {
         "operationId": "createPersonalKey",
         "tags": ["accounts"],
-        "summary": "Create a personal key that inherits your live role; secret appears once.",
+        "summary": "Create a personal key with read-only, edit or administrative permissions capped by your live role; secret appears once.",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -3914,6 +3914,8 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
+                  "access": { "type": "string", "enum": ["read", "edit"] },
+                  "includeAdmin": { "type": "boolean" },
                   "expiresAt": {
                     "anyOf": [
                       {
@@ -3931,12 +3933,21 @@
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                   }
                 },
-                "required": ["orgId", "name"],
+                "required": [
+                  "orgId",
+                  "name",
+                  "access",
+                  "includeAdmin",
+                  "expiresAt"
+                ],
                 "additionalProperties": false
               },
               "example": {
                 "orgId": "01K6J7B8000000000000000000",
-                "name": "example"
+                "name": "example",
+                "access": "read",
+                "includeAdmin": false,
+                "expiresAt": "2024-01-01T12:30:00.000Z"
               }
             }
           }
@@ -4077,7 +4088,10 @@
         "x-rootset-json-read-timeout-ms": 10000,
         "x-rootset-request-example": {
           "orgId": "01K6J7B8000000000000000000",
-          "name": "example"
+          "name": "example",
+          "access": "read",
+          "includeAdmin": false,
+          "expiresAt": "2024-01-01T12:30:00.000Z"
         }
       }
     },
@@ -4085,7 +4099,7 @@
       "post": {
         "operationId": "rotatePersonalKey",
         "tags": ["accounts"],
-        "summary": "Rotate a personal key with bounded overlap and one-time secret display; preserve name and expiry unless explicitly changed.",
+        "summary": "Rotate a personal key with bounded overlap and one-time secret display; preserve name, permissions and expiry unless explicitly changed.",
         "parameters": [
           {
             "name": "id",
@@ -4123,6 +4137,8 @@
                     "minLength": 1,
                     "maxLength": 255
                   },
+                  "access": { "type": "string", "enum": ["read", "edit"] },
+                  "includeAdmin": { "type": "boolean" },
                   "expiresAt": {
                     "anyOf": [
                       {
@@ -16596,6 +16612,8 @@
             "items": {
               "type": "object",
               "properties": {
+                "access": { "type": "string", "enum": ["read", "edit"] },
+                "includeAdmin": { "type": "boolean" },
                 "id": {
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -16655,6 +16673,8 @@
                 }
               },
               "required": [
+                "access",
+                "includeAdmin",
                 "id",
                 "orgId",
                 "name",
@@ -16682,6 +16702,8 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
           "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "access": { "type": "string", "enum": ["read", "edit"] },
+          "includeAdmin": { "type": "boolean" },
           "expiresAt": {
             "anyOf": [
               {
@@ -16699,7 +16721,7 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": ["orgId", "name"],
+        "required": ["orgId", "name", "access", "includeAdmin", "expiresAt"],
         "additionalProperties": false
       },
       "createPersonalKeyOutput": {
@@ -16708,6 +16730,8 @@
           "key": {
             "type": "object",
             "properties": {
+              "access": { "type": "string", "enum": ["read", "edit"] },
+              "includeAdmin": { "type": "boolean" },
               "id": {
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -16767,6 +16791,8 @@
               }
             },
             "required": [
+              "access",
+              "includeAdmin",
               "id",
               "orgId",
               "name",
@@ -16798,6 +16824,8 @@
             "maximum": 86400
           },
           "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "access": { "type": "string", "enum": ["read", "edit"] },
+          "includeAdmin": { "type": "boolean" },
           "expiresAt": {
             "anyOf": [
               {
@@ -16824,6 +16852,8 @@
           "key": {
             "type": "object",
             "properties": {
+              "access": { "type": "string", "enum": ["read", "edit"] },
+              "includeAdmin": { "type": "boolean" },
               "id": {
                 "type": "string",
                 "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -16883,6 +16913,8 @@
               }
             },
             "required": [
+              "access",
+              "includeAdmin",
               "id",
               "orgId",
               "name",
@@ -29192,7 +29224,7 @@
       "path": "/mcp",
       "methods": ["GET", "POST", "DELETE"],
       "kind": "protocol",
-      "reason": "Streamable HTTP MCP transport negotiates protocol methods and requires an MCP-resource OAuth actor; its named tools come from the operation catalog."
+      "reason": "Streamable HTTP MCP transport negotiates protocol methods and requires a personal API key or MCP-resource OAuth actor; its named tools come from the operation catalog."
     },
     {
       "path": "/v1/orgs/{orgId}/artifacts/{id}/download",

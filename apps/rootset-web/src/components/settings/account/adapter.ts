@@ -51,14 +51,6 @@ export function proofHeaders(actionId: string) {
   return { headers: { "X-Rootset-Action-ID": actionId } };
 }
 
-export function keyPermissions(role: string) {
-  return {
-    access: role === "viewer" ? "read" : "edit",
-    includeAdmin: role === "admin",
-    permissionMode: role === "admin" ? "full-admin" : "standard",
-  };
-}
-
 export function oauthPermissions(role: string, scopes: string[]) {
   const adminScopes = [
     "org:manage",
@@ -88,11 +80,10 @@ export function accountKeyRows(
   connections: Connection[],
   role: string,
 ) {
-  const permissions = keyPermissions(role);
   return [
     ...keys.map((key) => ({
       ...key,
-      ...permissions,
+      permissionMode: key.includeAdmin ? "full-admin" : "standard",
       tokenType: "api-key",
       scope: "personal",
     })),

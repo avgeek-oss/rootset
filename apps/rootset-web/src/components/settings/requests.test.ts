@@ -80,6 +80,8 @@ describe("Settings transport contract", () => {
       resolveSettingsOperation("/me/keys", "POST", {
         orgId,
         name: "Integration",
+        access: "read",
+        includeAdmin: false,
         expiresAt: null,
       })?.input.expiresAt,
     ).toBeNull();

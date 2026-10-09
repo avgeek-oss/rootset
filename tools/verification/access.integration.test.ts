@@ -311,6 +311,9 @@ verificationCase(
   async () => {
     const created = record(
       await execute("createPersonalKey", actors.member, {
+        access: actors.member.role === "viewer" ? "read" : "edit",
+        includeAdmin: actors.member.role === "admin",
+        expiresAt: "2030-01-01T00:00:00.000Z",
         orgId,
         name: "Member role fixture",
       }),
@@ -332,6 +335,9 @@ verificationCase(
     });
     const viewerKey = record(
       await execute("createPersonalKey", actors.viewer, {
+        access: actors.viewer.role === "viewer" ? "read" : "edit",
+        includeAdmin: actors.viewer.role === "admin",
+        expiresAt: "2030-01-01T00:00:00.000Z",
         orgId,
         name: "Viewer role fixture",
       }),
@@ -373,6 +379,8 @@ verificationCase(
 
     const expiring = record(
       await execute("createPersonalKey", actors.viewer, {
+        access: actors.viewer.role === "viewer" ? "read" : "edit",
+        includeAdmin: actors.viewer.role === "admin",
         orgId,
         name: "Expiry fixture",
         expiresAt: new Date(Date.now() + 60000).toISOString(),

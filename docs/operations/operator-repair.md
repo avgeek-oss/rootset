@@ -6,7 +6,7 @@ manual history edits are unsupported live correction procedures.
 
 An Admin has installation management permission through their current membership.
 There is no operator binding flag, separate Owner role, resource grant or team key.
-A personal key inherits that live role; an OAuth connection must also have the
+A personal key also requires Administrative permissions; an OAuth connection must also have the
 needed operation consent. Sensitive correction approval remains bound to the
 exact action rather than a recent session alone.
 

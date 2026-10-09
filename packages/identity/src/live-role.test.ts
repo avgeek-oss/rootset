@@ -16,6 +16,8 @@ function fixture() {
     verified: true,
     member: true,
     credential: true,
+    access: "edit" as "read" | "edit",
+    includeAdmin: true,
     session: true,
     grant: true,
     scopes: ["rows:read", "rows:write"],
@@ -40,14 +42,16 @@ function fixture() {
     } else if (sql.includes("SELECT authenticated_at")) {
       if (state.session && values[0] === credentialId && values[1] === userId)
         rows = [{ authenticated_at: new Date() }];
-    } else if (sql.includes("SELECT 1 FROM rootset_control.api_keys")) {
+    } else if (
+      sql.includes("SELECT access,include_admin FROM rootset_control.api_keys")
+    ) {
       if (
         state.credential &&
         values[0] === credentialId &&
         values[1] === orgId &&
         values[2] === userId
       )
-        rows = [{}];
+        rows = [{ access: state.access, include_admin: state.includeAdmin }];
     } else if (
       sql.includes("SELECT scopes FROM rootset_control.oauth_grants")
     ) {
@@ -107,7 +111,7 @@ function fixture() {
 const unauthenticated = (error: unknown) =>
   error instanceof RootsetError && error.code === "UNAUTHENTICATED";
 
-test("personal keys inherit the live member role and membership version without an issued scope ceiling", async () => {
+test("personal keys inherit the live member role and membership version within the issued permission ceiling", async () => {
   const { state, service, actor } = fixture();
   const member = await service.refreshActor(actor);
   assert.equal(member.role, "member");
@@ -257,4 +261,27 @@ test("key admission rechecks removal or session revocation under the user author
     assert.equal(executed, false);
     assert.equal(state.checkouts, 2);
   }
+});
+
+test("stored API key ceilings survive role promotion and refresh forged actor permissions", async () => {
+  const { state, service, actor } = fixture();
+  state.role = "admin";
+  state.access = "read";
+  state.includeAdmin = false;
+  const read = await service.refreshActor(actor);
+  assert.equal(read.role, "viewer");
+  assert.ok(read.scopes.includes("rows:read"));
+  assert.ok(!read.scopes.includes("rows:write"));
+  assert.ok(!read.scopes.includes("keys:manage"));
+  state.access = "edit";
+  const edit = await service.refreshActor(read);
+  assert.equal(edit.role, "member");
+  assert.ok(edit.scopes.includes("rows:write"));
+  assert.ok(!edit.scopes.includes("schema:manage"));
+  state.includeAdmin = true;
+  assert.equal((await service.refreshActor(edit)).role, "admin");
+  state.role = "viewer";
+  const demoted = await service.refreshActor(edit);
+  assert.equal(demoted.role, "viewer");
+  assert.ok(!demoted.scopes.includes("rows:write"));
 });

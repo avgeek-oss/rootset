@@ -28,7 +28,7 @@ describe("account component bindings", () => {
       name: "Example Person",
     });
   });
-  it("creates a personal key in the singleton installation without permission selectors", async () => {
+  it("creates a personal key in the singleton installation with explicit permissions", async () => {
     vi.mocked(read).mockResolvedValue({
       organisation: { id: "installation" },
       principal: { role: "member" },
@@ -68,15 +68,22 @@ describe("account component bindings", () => {
     ).rejects.toThrow("Unsupported account request");
     expect(performAction).not.toHaveBeenCalled();
   });
-  it("shows inherited personal-key roles and intersects OAuth consent with the live role", () => {
-    const personal = [{ id: "key", name: "Script" }];
+  it("shows stored personal-key permissions and intersects OAuth consent with the live role", () => {
+    const personal = [
+      {
+        id: "key",
+        name: "Script",
+        access: "read" as const,
+        includeAdmin: false,
+      },
+    ];
     expect(accountKeyRows(personal, [], "viewer")[0]).toMatchObject({
       access: "read",
       includeAdmin: false,
     });
     expect(accountKeyRows(personal, [], "admin")[0]).toMatchObject({
-      access: "edit",
-      includeAdmin: true,
+      access: "read",
+      includeAdmin: false,
     });
     expect(oauthPermissions("admin", ["rows:read"])).toMatchObject({
       access: "read",
