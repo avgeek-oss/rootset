@@ -124,23 +124,23 @@ credential retains current authority. Conflicts and failed/rolled-back writes
 create no committed cell history.
 
 Database history enforcement compares old/new cells. Insert records initial
-non-null values plus a row-create event; delete records former values to null
-plus a row-delete event. The event type distinguishes deletion from clearing.
+non-null values; delete records former values to null. The event type distinguishes deletion from clearing.
 Each event records stable row/field IDs, typed before/after values and definitions,
 revisions, person/credential/client attribution, request/mutation/source and UTC
 time, without authentication material. Same-value updates add no cell event.
 Imports, conversions and Admin corrections preserve these same guarantees.
 
-History is append-only for ordinary actors and remains interpretable after row/
+History entries cannot be edited through the API and remain interpretable after row/
 field deletion or rename. Retained table/database metadata supports Admin history
 management after deletion. Current live role and OAuth operation consent govern
 reads and artifact downloads; personal keys add no resource whitelist. V1 has no
 organisation audit resource or organisation deletion workflow.
 
-History defaults to indefinite retention. An explicit archive policy snapshots a
-half-open UTC range, encrypts events and definitions, verifies object/checksum,
-publishes its manifest, then purges hot events in resumable batches. Never purge
-silently to satisfy the row limit. Published archives remain accessible under current resource authority.
+History keeps the latest 200 saved changes per cell, including initial populated
+values and subsequent edits, imports and conversions. PostgreSQL prunes older
+entries in the same transaction. No-op and failed writes do not consume history.
+There are no schedules, retention settings, archives or table backup/restore
+features. The dashboard changelog, API and MCP read the same retained entries.
 
 ## Schema changes and recovery
 

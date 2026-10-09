@@ -301,8 +301,6 @@ BEGIN
      VALUES(tab.org_id,tab.database_id,tab.id,rid,f.id,mutation.id,prev,v,f.definition,oldrev,newrev,lower(TG_OP),mutation.actor,mutation.context);
    END IF;
  END LOOP;
- INSERT INTO rootset_control.row_events(org_id,database_id,table_id,row_id,mutation_id,operation,old_version,new_version,actor,context)
- VALUES(tab.org_id,tab.database_id,tab.id,rid,mutation.id,lower(TG_OP),oldrev,newrev,mutation.actor,mutation.context);
  IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END $_$;
 
@@ -395,7 +393,7 @@ CREATE FUNCTION rootset_control.operator_metrics() RETURNS jsonb
   SELECT coalesce(sum(events),0)::bigint events,coalesce(sum(tuple_bytes),0)::bigint bytes FROM rootset_control.history_metrics
  ), artifact_stats AS (
   SELECT coalesce(sum(ciphertext_length),0)::bigint bytes FROM rootset_control.artifacts
-  WHERE state NOT IN ('deleted','expired') AND (expires_at>statement_timestamp() OR purpose='history-archive')
+  WHERE state NOT IN ('deleted','expired') AND expires_at>statement_timestamp()
  ), worker_stats AS (
   SELECT count(*) FILTER(WHERE state='ready' AND heartbeat_at>statement_timestamp()-interval '30 seconds')::integer fresh_ready,
    count(*) FILTER(WHERE heartbeat_at<=statement_timestamp()-interval '30 seconds')::integer stale,
@@ -746,56 +744,12 @@ CREATE TABLE rootset_control.fields (
 ALTER TABLE ONLY rootset_control.fields FORCE ROW LEVEL SECURITY;
 
 
-CREATE TABLE rootset_control.history_archive_occurrences (
-    policy_id character varying(26) NOT NULL,
-    scheduled_at timestamp with time zone NOT NULL,
-    job_id character varying(26),
-    state text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT history_archive_occurrences_state_check CHECK ((state = ANY (ARRAY['enqueued'::text, 'skipped_overlap'::text])))
-);
 
 
-CREATE TABLE rootset_control.history_archives (
-    id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    database_id character varying(26) NOT NULL,
-    table_id character varying(26) NOT NULL,
-    job_id character varying(26) NOT NULL,
-    state text DEFAULT 'snapshotting'::text NOT NULL,
-    from_time timestamp with time zone,
-    to_time timestamp with time zone NOT NULL,
-    artifact_id character varying(26),
-    manifest jsonb,
-    error jsonb,
-    cell_count bigint DEFAULT 0 NOT NULL,
-    row_count bigint DEFAULT 0 NOT NULL,
-    purged_cells bigint DEFAULT 0 NOT NULL,
-    purged_rows bigint DEFAULT 0 NOT NULL,
-    verified_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT history_archives_cell_count_check CHECK ((cell_count >= 0)),
-    CONSTRAINT history_archives_purged_cells_check CHECK ((purged_cells >= 0)),
-    CONSTRAINT history_archives_purged_rows_check CHECK ((purged_rows >= 0)),
-    CONSTRAINT history_archives_row_count_check CHECK ((row_count >= 0)),
-    CONSTRAINT history_archives_state_check CHECK ((state = ANY (ARRAY['snapshotting'::text, 'uploading'::text, 'verified'::text, 'purging'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text])))
-);
-
-ALTER TABLE ONLY rootset_control.history_archives FORCE ROW LEVEL SECURITY;
 
 
-CREATE TABLE rootset_control.history_gaps (
-    id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    table_id character varying(26) NOT NULL,
-    from_time timestamp with time zone NOT NULL,
-    to_time timestamp with time zone NOT NULL,
-    manifest jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
 
-ALTER TABLE ONLY rootset_control.history_gaps FORCE ROW LEVEL SECURITY;
+
 
 
 CREATE TABLE rootset_control.history_metrics (
@@ -810,27 +764,7 @@ CREATE TABLE rootset_control.history_metrics (
 ALTER TABLE ONLY rootset_control.history_metrics FORCE ROW LEVEL SECURITY;
 
 
-CREATE TABLE rootset_control.history_retention_policies (
-    id character varying(26) NOT NULL,
-    org_id character varying(26) NOT NULL,
-    table_id character varying(26) NOT NULL,
-    database_id character varying(26) NOT NULL,
-    actor jsonb NOT NULL,
-    enabled boolean DEFAULT false NOT NULL,
-    retention_days integer NOT NULL,
-    cron text NOT NULL,
-    timezone text DEFAULT 'UTC'::text NOT NULL,
-    max_runtime_seconds integer DEFAULT 3600 NOT NULL,
-    next_occurrence timestamp with time zone,
-    suspension_code text,
-    suspended_at timestamp with time zone,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT history_retention_policies_check CHECK (((suspension_code IS NULL) = (suspended_at IS NULL))),
-    CONSTRAINT history_retention_policies_max_runtime_seconds_check CHECK (((max_runtime_seconds >= 60) AND (max_runtime_seconds <= 86400))),
-    CONSTRAINT history_retention_policies_retention_days_check CHECK (((retention_days >= 1) AND (retention_days <= 36500)))
-);
 
-ALTER TABLE ONLY rootset_control.history_retention_policies FORCE ROW LEVEL SECURITY;
 
 
 CREATE TABLE rootset_control.identity_rate_limits (
@@ -1117,32 +1051,9 @@ ALTER TABLE rootset_control.resource_history ALTER COLUMN id ADD GENERATED ALWAY
 );
 
 
-CREATE TABLE rootset_control.row_events (
-    id bigint NOT NULL,
-    org_id character varying(26) NOT NULL,
-    database_id character varying(26) NOT NULL,
-    table_id character varying(26) NOT NULL,
-    row_id character varying(26) NOT NULL,
-    mutation_id character varying(26) NOT NULL,
-    operation text NOT NULL,
-    old_version bigint,
-    new_version bigint,
-    actor jsonb NOT NULL,
-    context jsonb NOT NULL,
-    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
-);
-
-ALTER TABLE ONLY rootset_control.row_events FORCE ROW LEVEL SECURITY;
 
 
-ALTER TABLE rootset_control.row_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME rootset_control.row_events_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
+
 
 CREATE TABLE rootset_control.schema_operations (
     id character varying(26) NOT NULL,
@@ -1353,26 +1264,14 @@ ALTER TABLE ONLY rootset_control.email_outbox
 ALTER TABLE ONLY rootset_control.fields
     ADD CONSTRAINT fields_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.history_archive_occurrences
-    ADD CONSTRAINT history_archive_occurrences_pkey PRIMARY KEY (policy_id, scheduled_at);
 
-ALTER TABLE ONLY rootset_control.history_archives
-    ADD CONSTRAINT history_archives_job_id_key UNIQUE (job_id);
 
-ALTER TABLE ONLY rootset_control.history_archives
-    ADD CONSTRAINT history_archives_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.history_gaps
-    ADD CONSTRAINT history_gaps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY rootset_control.history_metrics
     ADD CONSTRAINT history_metrics_pkey PRIMARY KEY (org_id, table_id);
 
-ALTER TABLE ONLY rootset_control.history_retention_policies
-    ADD CONSTRAINT history_retention_policies_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.history_retention_policies
-    ADD CONSTRAINT history_retention_policies_table_id_key UNIQUE (table_id);
 
 ALTER TABLE ONLY rootset_control.identity_rate_limits
     ADD CONSTRAINT identity_rate_limits_pkey PRIMARY KEY (bucket_hash);
@@ -1446,8 +1345,6 @@ ALTER TABLE ONLY rootset_control.query_sessions
 ALTER TABLE ONLY rootset_control.resource_history
     ADD CONSTRAINT resource_history_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY rootset_control.row_events
-    ADD CONSTRAINT row_events_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY rootset_control.schema_operations
     ADD CONSTRAINT schema_operations_org_id_idempotency_key_key UNIQUE (org_id, idempotency_key);
@@ -1528,13 +1425,9 @@ CREATE INDEX email_outbox_verification_recipient ON rootset_control.email_outbox
 
 CREATE UNIQUE INDEX fields_active_name ON rootset_control.fields USING btree (table_id, lower((name)::text)) WHERE (state = 'active'::text);
 
-CREATE UNIQUE INDEX history_archive_active_table ON rootset_control.history_archives USING btree (table_id) WHERE (state = ANY (ARRAY['snapshotting'::text, 'uploading'::text, 'verified'::text, 'purging'::text]));
 
-CREATE INDEX history_archives_table ON rootset_control.history_archives USING btree (org_id, table_id, id);
 
-CREATE UNIQUE INDEX history_gaps_archive ON rootset_control.history_gaps USING btree (org_id, table_id, ((manifest ->> 'archiveId'::text))) WHERE (manifest ? 'archiveId'::text);
 
-CREATE INDEX history_retention_policies_due ON rootset_control.history_retention_policies USING btree (next_occurrence) WHERE enabled;
 
 CREATE INDEX jobs_org_target ON rootset_control.jobs USING btree (org_id, target_id, created_at DESC);
 
@@ -1548,9 +1441,7 @@ CREATE INDEX oauth_tokens_family ON rootset_control.oauth_tokens USING btree (fa
 CREATE INDEX resource_history_lookup ON rootset_control.resource_history USING btree (org_id, table_id, changed_at, id);
 
 
-CREATE INDEX row_events_archive_range ON rootset_control.row_events USING btree (org_id, table_id, changed_at, id);
 
-CREATE INDEX row_events_lookup ON rootset_control.row_events USING btree (org_id, table_id, row_id, changed_at, id);
 
 
 
@@ -1611,23 +1502,11 @@ ALTER TABLE ONLY rootset_control.email_changes
 ALTER TABLE ONLY rootset_control.fields
     ADD CONSTRAINT fields_table_id_fkey FOREIGN KEY (table_id) REFERENCES rootset_control.tables(id);
 
-ALTER TABLE ONLY rootset_control.history_archive_occurrences
-    ADD CONSTRAINT history_archive_occurrences_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
 
-ALTER TABLE ONLY rootset_control.history_archive_occurrences
-    ADD CONSTRAINT history_archive_occurrences_policy_id_fkey FOREIGN KEY (policy_id) REFERENCES rootset_control.history_retention_policies(id);
 
-ALTER TABLE ONLY rootset_control.history_archives
-    ADD CONSTRAINT history_archives_artifact_id_fkey FOREIGN KEY (artifact_id) REFERENCES rootset_control.artifacts(id);
 
-ALTER TABLE ONLY rootset_control.history_archives
-    ADD CONSTRAINT history_archives_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
 
-ALTER TABLE ONLY rootset_control.history_retention_policies
-    ADD CONSTRAINT history_retention_policies_database_id_fkey FOREIGN KEY (database_id) REFERENCES rootset_control.databases(id);
 
-ALTER TABLE ONLY rootset_control.history_retention_policies
-    ADD CONSTRAINT history_retention_policies_table_id_fkey FOREIGN KEY (table_id) REFERENCES rootset_control.tables(id);
 
 ALTER TABLE ONLY rootset_control.import_batches
     ADD CONSTRAINT import_batches_job_id_fkey FOREIGN KEY (job_id) REFERENCES rootset_control.jobs(id);
@@ -1711,13 +1590,10 @@ ALTER TABLE rootset_control.databases ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.fields ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_archives ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_gaps ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.history_metrics ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.history_retention_policies ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY identity_org_isolation ON rootset_control.account_actions USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
@@ -1756,7 +1632,6 @@ CREATE POLICY org_isolation ON rootset_control.databases USING (((org_id)::text 
 
 CREATE POLICY org_isolation ON rootset_control.fields USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.history_gaps USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY org_isolation ON rootset_control.import_batches USING ((org_id = ((SELECT rootset_control.current_org_id()))::character(26))) WITH CHECK ((org_id = ((SELECT rootset_control.current_org_id()))::character(26)));
 
@@ -1772,7 +1647,6 @@ CREATE POLICY org_isolation ON rootset_control.query_sessions USING (((org_id)::
 
 CREATE POLICY org_isolation ON rootset_control.resource_history USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY org_isolation ON rootset_control.row_events USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY org_isolation ON rootset_control.schema_operations USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
@@ -1782,11 +1656,9 @@ CREATE POLICY org_isolation ON rootset_control.unique_rules USING (((org_id)::te
 
 CREATE POLICY organisation_boundary ON rootset_control.control_mutation_replays USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.history_archives USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY organisation_boundary ON rootset_control.history_metrics USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
-CREATE POLICY organisation_boundary ON rootset_control.history_retention_policies USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
 CREATE POLICY organisation_boundary ON rootset_control.operation_outcomes USING (((org_id)::text = (SELECT rootset_control.current_org_id()))) WITH CHECK (((org_id)::text = (SELECT rootset_control.current_org_id())));
 
@@ -1798,7 +1670,6 @@ ALTER TABLE rootset_control.query_sessions ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE rootset_control.resource_history ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE rootset_control.row_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY rule_organisation_boundary ON rootset_control.unique_buckets USING ((EXISTS ( SELECT 1
    FROM rootset_control.unique_rules r
@@ -1962,3 +1833,22 @@ CREATE POLICY view_preferences_org_isolation ON rootset_control.view_preferences
 
 
 INSERT INTO rootset_control.bootstrap(singleton) VALUES(true);
+
+
+CREATE FUNCTION rootset_control.retain_cell_history() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'rootset_control'
+    AS $$
+BEGIN
+ DELETE FROM rootset_control.cell_changes
+ WHERE org_id=NEW.org_id AND table_id=NEW.table_id AND row_id=NEW.row_id AND field_id=NEW.field_id
+   AND id IN (
+     SELECT id FROM rootset_control.cell_changes
+     WHERE org_id=NEW.org_id AND table_id=NEW.table_id AND row_id=NEW.row_id AND field_id=NEW.field_id
+     ORDER BY changed_at DESC,id DESC OFFSET 200
+   );
+ RETURN NEW;
+END $$;
+
+CREATE TRIGGER retain_cell_history AFTER INSERT ON rootset_control.cell_changes
+ FOR EACH ROW EXECUTE FUNCTION rootset_control.retain_cell_history();

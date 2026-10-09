@@ -136,8 +136,6 @@ class SchemaLockBusy extends Error {
     super("Database schema lock is busy");
   }
 }
-const utcTimestamp = (column: string): string =>
-  `to_char(${column} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 const q = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 const hash = (value: unknown): string =>
   createHash("sha256")
@@ -1886,7 +1884,6 @@ export class TableStorage {
     data: Raw[];
     nextCursor: string | null;
     hasMore: boolean;
-    gaps: Raw[];
   }> {
     const fid = await this.run(a, async (c) => {
       const t = await this.table(c, a, tableId, false, true);
@@ -1919,7 +1916,6 @@ export class TableStorage {
     data: Raw[];
     nextCursor: string | null;
     hasMore: boolean;
-    gaps: Raw[];
   }> {
     return this.run(a, async (c) => {
       const t = await this.table(c, a, tableId, false, true);
@@ -1990,21 +1986,15 @@ export class TableStorage {
           `(changed_at,id)>($${params.length - 1}::timestamptz,$${params.length}::bigint)`,
         );
       }
-      const gaps = (
-        await c.query<Raw>(
-          "SELECT from_time,to_time,manifest->>'archiveId' AS archive_id FROM rootset_control.history_gaps WHERE org_id=$1 AND table_id=$2 ORDER BY from_time LIMIT 1000",
-          [a.orgId, t.id],
-        )
-      ).rows;
       const data: Raw[] = [];
       let bytes =
         Buffer.byteLength(
-          JSON.stringify({ data: [], nextCursor: null, hasMore: false, gaps }),
+          JSON.stringify({ data: [], nextCursor: null, hasMore: false }),
         ) + 2048;
       if (bytes > cap)
         fail(
           "PAYLOAD_TOO_LARGE",
-          "History retention metadata exceeds the result budget",
+          "History response metadata exceeds the result budget",
           413,
         );
       params.push(limit + 1);
@@ -2065,19 +2055,7 @@ export class TableStorage {
               ])
             : null,
         hasMore,
-        gaps,
       };
-    });
-  }
-  async rowHistory(a: Actor, tableId: string, rowId: string): Promise<Raw[]> {
-    return this.run(a, async (c) => {
-      await this.table(c, a, tableId, false, true);
-      return (
-        await c.query<Raw>(
-          "SELECT * FROM rootset_control.row_events WHERE org_id=$1 AND table_id=$2 AND row_id=$3 ORDER BY changed_at,id LIMIT 25000",
-          [a.orgId, id(tableId), id(rowId)],
-        )
-      ).rows;
     });
   }
   async resourceHistory(
@@ -2162,340 +2140,6 @@ export class TableStorage {
       yield rows;
       last = rows.at(-1)!.id;
     }
-  }
-
-  private async historyLease(
-    c: PoolClient,
-    a: Actor,
-    tableId: string,
-    options: { jobId: string; leaseToken: string },
-  ): Promise<void> {
-    const valid = await c.query(
-      "SELECT id FROM rootset_control.jobs WHERE id=$1 AND org_id=$2 AND target_type='table' AND target_id=$3 AND kind='history_archive' AND state='running' AND lease_token=$4 AND lease_until>clock_timestamp() AND NOT cancel_requested FOR UPDATE",
-      [id(options.jobId), a.orgId, id(tableId), id(options.leaseToken)],
-    );
-    if (!valid.rowCount)
-      fail(
-        "JOB_LEASE_LOST",
-        "History archive worker no longer owns an active lease",
-        409,
-      );
-  }
-  async snapshotHistory(
-    a: Actor,
-    tableId: string,
-    input: { from?: string; to: string },
-    c: PoolClient,
-  ): Promise<{
-    metadata: {
-      formatVersion: 1;
-      table: TableRecord;
-      interpretations: { definition: FieldDefinition; state: string }[];
-      from: string;
-      to: string;
-      snapshotAt: string;
-      cellCount: number;
-      rowCount: number;
-    };
-    history: () => AsyncIterable<Raw[]>;
-  }> {
-    const t = await this.table(c, a, tableId, false, true);
-    await c.query(
-      "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
-      [t.databaseId],
-    );
-    const timestamp: FieldDefinition = {
-      id: t.id,
-      name: "timestamp",
-      type: "date-time",
-    };
-    const from = String(
-      validateCell(timestamp, input.from ?? "0001-01-01T00:00:00.000Z"),
-    );
-    const to = String(validateCell(timestamp, input.to));
-    if (from >= to)
-      fail(
-        "VALIDATION_FAILED",
-        "History archive requires a nonempty half-open UTC range",
-      );
-    const now = (
-      await c.query<{ snapshot_at: Date; valid: boolean }>(
-        "SELECT transaction_timestamp() AS snapshot_at,$1::timestamptz<=transaction_timestamp() AS valid",
-        [to],
-      )
-    ).rows[0]!;
-    if (!now.valid)
-      fail(
-        "VALIDATION_FAILED",
-        "History archive cutoff must not be in the future",
-      );
-    const interpretations = (
-      await c.query<{ definition: FieldDefinition; state: string }>(
-        "SELECT definition,state FROM rootset_control.fields WHERE org_id=$1 AND table_id=$2 ORDER BY position,id",
-        [a.orgId, t.id],
-      )
-    ).rows;
-    const counts: Record<string, number> = {};
-    for (const relation of ["cell_changes", "row_events"]) {
-      counts[relation] = Number(
-        (
-          await c.query<{ count: string }>(
-            `SELECT count(*)::text AS count FROM rootset_control.${relation} e WHERE e.org_id=$1 AND e.table_id=$2 AND e.changed_at>=$3::timestamptz AND e.changed_at<$4::timestamptz AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.org_id=e.org_id AND g.table_id=e.table_id AND g.manifest ? 'archiveId' AND e.changed_at>=g.from_time AND e.changed_at<g.to_time)`,
-            [a.orgId, t.id, from, to],
-          )
-        ).rows[0]!.count,
-      );
-    }
-    const history = async function* (): AsyncGenerator<Raw[]> {
-      for (const relation of ["cell_changes", "row_events"]) {
-        let last = "0";
-        for (;;) {
-          const selected = await c.query<Raw>(
-            `SELECT e.*,${utcTimestamp("e.changed_at")} AS changed_at,e.id::text AS source_sequence,e.mutation_id AS original_mutation_id FROM rootset_control.${relation} e WHERE e.org_id=$1 AND e.table_id=$2 AND e.changed_at>=$3::timestamptz AND e.changed_at<$4::timestamptz AND e.id>$5::bigint AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.org_id=e.org_id AND g.table_id=e.table_id AND g.manifest ? 'archiveId' AND e.changed_at>=g.from_time AND e.changed_at<g.to_time) ORDER BY e.id LIMIT 1000`,
-            [a.orgId, t.id, from, to, last],
-          );
-          if (!selected.rows.length) break;
-          last = String(selected.rows.at(-1)!.id);
-          yield selected.rows.map((raw) => {
-            const data = { ...raw };
-            delete data.source_sequence;
-            delete data.original_mutation_id;
-            data.mutation_id = raw.original_mutation_id;
-            return {
-              recordType: relation === "cell_changes" ? "cell" : "row",
-              sequence: String(raw.source_sequence),
-              data,
-            };
-          });
-        }
-      }
-    };
-    return {
-      metadata: {
-        formatVersion: 1,
-        table: t,
-        interpretations,
-        from,
-        to,
-        snapshotAt: now.snapshot_at.toISOString(),
-        cellCount: counts.cell_changes!,
-        rowCount: counts.row_events!,
-      },
-      history: () => history(),
-    };
-  }
-  private async verifiedHistoryArchive(
-    c: PoolClient,
-    a: Actor,
-    tableId: string,
-    archiveId: string,
-    jobId: string,
-  ): Promise<Raw> {
-    const row = (
-      await c.query<Raw>(
-        "SELECT a.*,f.state AS artifact_state,f.purpose,f.target_id,f.checksum,f.byte_length FROM rootset_control.history_archives a JOIN rootset_control.artifacts f ON f.id=a.artifact_id AND f.org_id=a.org_id WHERE a.id=$1 AND a.org_id=$2 AND a.table_id=$3 AND a.job_id=$4 FOR UPDATE OF a",
-        [id(archiveId), a.orgId, id(tableId), id(jobId)],
-      )
-    ).rows[0];
-    if (
-      !row ||
-      !row.verified_at ||
-      !row.manifest ||
-      row.artifact_state !== "ready" ||
-      row.purpose !== "history-archive" ||
-      row.target_id !== tableId
-    )
-      fail(
-        "ARTIFACT_UNVERIFIED",
-        "History archive has no verified ready artifact",
-        409,
-      );
-    const m = row.manifest as HistoryArchiveManifest;
-    if (
-      m.archiveId !== row.id ||
-      m.orgId !== a.orgId ||
-      m.tableId !== tableId ||
-      m.databaseId !== row.database_id ||
-      m.artifactId !== row.artifact_id ||
-      m.checksum !== row.checksum ||
-      m.byteLength !== Number(row.byte_length) ||
-      !m.verifiedAt ||
-      !m.fingerprint ||
-      !Number.isSafeInteger(m.cellCount) ||
-      !Number.isSafeInteger(m.rowCount) ||
-      m.cellCount < 0 ||
-      m.rowCount < 0 ||
-      m.cellCount !== Number(row.cell_count) ||
-      m.rowCount !== Number(row.row_count) ||
-      m.from !== iso(row.from_time) ||
-      m.to !== iso(row.to_time)
-    )
-      fail(
-        "ARTIFACT_UNVERIFIED",
-        "History archive manifest does not match its verified artifact and range",
-        409,
-      );
-    return row;
-  }
-  async publishHistoryArchive(
-    a: Actor,
-    tableId: string,
-    manifest: HistoryArchiveManifest,
-    options: { jobId: string; leaseToken: string },
-  ): Promise<{ archiveId: string; gapId: string }> {
-    return this.run(
-      a,
-      async (c) => {
-        await this.historyLease(c, a, tableId, options);
-        const t = await this.table(c, a, tableId, false, true);
-        const archive = await this.verifiedHistoryArchive(
-          c,
-          a,
-          t.id,
-          manifest.archiveId,
-          options.jobId,
-        );
-        if (hash(manifest) !== hash(archive.manifest))
-          fail(
-            "ARTIFACT_UNVERIFIED",
-            "Published history manifest differs from verified content",
-            409,
-          );
-        const old = await c.query<{ id: string }>(
-          "SELECT id FROM rootset_control.history_gaps WHERE org_id=$1 AND table_id=$2 AND manifest->>'archiveId'=$3",
-          [a.orgId, t.id, manifest.archiveId],
-        );
-        if (old.rows[0])
-          return { archiveId: manifest.archiveId, gapId: old.rows[0].id };
-        if (archive.state !== "verified")
-          fail(
-            "ARTIFACT_UNVERIFIED",
-            "History archive must complete verification before publication",
-            409,
-          );
-        const overlap = await c.query(
-          "SELECT id FROM rootset_control.history_gaps WHERE org_id=$1 AND table_id=$2 AND from_time<$4::timestamptz AND to_time>$3::timestamptz",
-          [a.orgId, t.id, manifest.from, manifest.to],
-        );
-        if (overlap.rowCount)
-          fail(
-            "STATE_CONFLICT",
-            "History archive overlaps a published retained range",
-            409,
-          );
-        const gapId = newId();
-        await c.query(
-          "INSERT INTO rootset_control.history_gaps(id,org_id,table_id,from_time,to_time,manifest) VALUES($1,$2,$3,$4,$5,$6::jsonb)",
-          [
-            gapId,
-            a.orgId,
-            t.id,
-            manifest.from,
-            manifest.to,
-            JSON.stringify(manifest),
-          ],
-        );
-        await c.query(
-          "UPDATE rootset_control.history_archives SET state='purging',updated_at=now() WHERE id=$1",
-          [manifest.archiveId],
-        );
-        return { archiveId: manifest.archiveId, gapId };
-      },
-      true,
-    );
-  }
-  async purgeArchivedHistory(
-    a: Actor,
-    tableId: string,
-    archiveId: string,
-    options: { jobId: string; leaseToken: string; batchSize?: number },
-  ): Promise<{
-    done: boolean;
-    deletedCells: number;
-    deletedRows: number;
-    purgedCells: number;
-    purgedRows: number;
-  }> {
-    const batchSize = options.batchSize ?? 1000;
-    if (!Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > 1000)
-      fail(
-        "VALIDATION_FAILED",
-        "History purge batches must contain 1–1000 events per section",
-      );
-    return this.run(
-      a,
-      async (c) => {
-        await this.historyLease(c, a, tableId, options);
-        const archive = await this.verifiedHistoryArchive(
-          c,
-          a,
-          tableId,
-          archiveId,
-          options.jobId,
-        );
-        const manifest = archive.manifest as HistoryArchiveManifest;
-        const gap = await c.query(
-          "SELECT id FROM rootset_control.history_gaps WHERE org_id=$1 AND table_id=$2 AND manifest->>'archiveId'=$3",
-          [a.orgId, tableId, archiveId],
-        );
-        if (!gap.rowCount)
-          fail(
-            "ARTIFACT_UNVERIFIED",
-            "History cannot be purged before the verified archive is published",
-            409,
-          );
-        let deletedCells = 0,
-          deletedRows = 0;
-        let remaining = false;
-        for (const relation of ["cell_changes", "row_events"]) {
-          const removed = await c.query(
-            `WITH covered AS(SELECT e.id,e.changed_at FROM rootset_control.${relation} e WHERE e.org_id=$1 AND e.table_id=$2 AND e.changed_at>=$3::timestamptz AND e.changed_at<$4::timestamptz ORDER BY e.changed_at,e.id LIMIT $5 FOR UPDATE) DELETE FROM rootset_control.${relation} e USING covered v WHERE e.org_id=$1 AND e.table_id=$2 AND e.id=v.id AND e.changed_at=v.changed_at`,
-            [a.orgId, tableId, manifest.from, manifest.to, batchSize],
-          );
-          if (relation === "cell_changes") deletedCells = removed.rowCount ?? 0;
-          else deletedRows = removed.rowCount ?? 0;
-          remaining ||= Boolean(
-            (
-              await c.query(
-                `SELECT 1 FROM rootset_control.${relation} WHERE org_id=$1 AND table_id=$2 AND changed_at>=$3::timestamptz AND changed_at<$4::timestamptz LIMIT 1`,
-                [a.orgId, tableId, manifest.from, manifest.to],
-              )
-            ).rowCount,
-          );
-        }
-        const purgedCells = Number(archive.purged_cells) + deletedCells,
-          purgedRows = Number(archive.purged_rows) + deletedRows;
-        if (
-          purgedCells > manifest.cellCount ||
-          purgedRows > manifest.rowCount ||
-          (!remaining &&
-            (purgedCells !== manifest.cellCount ||
-              purgedRows !== manifest.rowCount))
-        )
-          fail(
-            "ARTIFACT_UNVERIFIED",
-            "Purged history counts differ from the verified archive",
-            409,
-          );
-        await c.query(
-          "UPDATE rootset_control.history_archives SET purged_cells=$2,purged_rows=$3,state=$4,updated_at=now() WHERE id=$1",
-          [
-            archiveId,
-            purgedCells,
-            purgedRows,
-            remaining ? "purging" : "succeeded",
-          ],
-        );
-        return {
-          done: !remaining,
-          deletedCells,
-          deletedRows,
-          purgedCells,
-          purgedRows,
-        };
-      },
-      true,
-    );
   }
 
   private async rules(c: PoolClient, t: TableRecord): Promise<UniqueRule[]> {
@@ -3791,23 +3435,4 @@ export class TableStorage {
 }
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
-}
-
-export interface HistoryArchiveManifest {
-  formatVersion: 1;
-  archiveId: string;
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  from: string;
-  to: string;
-  snapshotAt: string;
-  cellCount: number;
-  rowCount: number;
-  artifactId: string;
-  checksum: string;
-  byteLength: number;
-  fingerprint: string;
-  interpretations: unknown[];
-  verifiedAt: string;
 }

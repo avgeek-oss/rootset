@@ -38,14 +38,14 @@ recovery, installed browser or full-scale result.
 ## History, jobs and recovery
 
 - [ ] `V1-20` Inserts/edits/deletes/imports/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.
-- [ ] `V1-21` Row/field deletion, field renames and retained table/database history remain interpretable and obey current role; archive readback/retention never loses required history silently.
+- [ ] `V1-21` Row/field deletion, field renames and retained table/database history remain interpretable and obey current role; each cell retains only its latest 200 saved changes; no-op and failed writes add no entry.
 - [ ] `V1-22` Typed filters, JSON operators, projection/sort, signed cursors, byte-capped continuation and deep window navigation return correct complete rows.
 - [ ] `V1-23` Scan timeout/disconnect cancels owned work and preserves peer requests; native connection cleanup/restart tests cover idle and active pools without leaks.
 - [ ] `V1-24` Durable jobs fence stale leases, resume committed checkpoints, disclose partial cancellation and publish effects once under worker/process termination.
 - [ ] `V1-25` CSV/JSONL import/export preserves types/UTC/leading-zero text, validates dry runs/upsert conflicts, resumes without duplicates and produces authenticated checksummed artifacts.
 - [ ] `V1-26` Database backup/restore operations, scopes and generated REST/MCP contracts are absent; API/MCP row creation remains available.
 - [ ] `V1-27` The browser provides filters and inline edits without an Add row button, row-creation modal or backup navigation.
-- [ ] `V1-28` The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and history archives remain functional.
+- [ ] `V1-28` The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.
 - [ ] `V1-29` Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source.
 - [ ] `V1-30` Object/SMTP outage, corruption, missing keys, disk pressure and connection saturation produce truthful failures/retry behavior; retention preserves the last verified recovery point.
 

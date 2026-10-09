@@ -408,10 +408,9 @@ test(
           `SELECT count(*)::text AS rows,coalesce(sum(row_version),0)::text AS revisions FROM ${path}`,
         );
         const events = await client.query<{
-          rowEvents: string;
           cellChanges: string;
         }>(
-          'SELECT (SELECT count(*)::text FROM rootset_control.row_events WHERE table_id=$1) AS "rowEvents",(SELECT count(*)::text FROM rootset_control.cell_changes WHERE table_id=$1) AS "cellChanges"',
+          'SELECT (SELECT count(*)::text FROM rootset_control.cell_changes WHERE table_id=$1) AS "cellChanges"',
           [table.id],
         );
         return { ...population.rows[0]!, ...events.rows[0]! };
@@ -939,203 +938,6 @@ test(
   },
 );
 
-test(
-  "Verified archive publication and partial purge are lease fenced and retain history gap metadata",
-  { skip: !configured },
-  async () => {
-    const table = await storage!.createTable(actor, databaseId, {
-      name: "Retained cold history",
-      fields: [
-        { name: "value", type: "text", charLimit: 100 },
-        { name: "payload", type: "json" },
-      ],
-    });
-    const row = await storage!.createRow(
-      actor,
-      table.id,
-      { value: "first", payload: { preserve: actor.id } },
-      { context: { source: "rest", requestId: actor.id } },
-    );
-    await storage!.updateRow(
-      actor,
-      table.id,
-      row.id,
-      { value: "second" },
-      { expectedVersion: row.version },
-    );
-    await owner!.query(
-      "UPDATE rootset_control.cell_changes SET changed_at=changed_at-interval '10 seconds' WHERE table_id=$1",
-      [table.id],
-    );
-    await owner!.query(
-      "UPDATE rootset_control.row_events SET changed_at=changed_at-interval '10 seconds' WHERE table_id=$1",
-      [table.id],
-    );
-    const to = new Date(Date.now() - 5000).toISOString();
-    const c = await ddl!.connect();
-    let metadata: Awaited<
-      ReturnType<TableStorage["snapshotHistory"]>
-    >["metadata"];
-    const cold: Record<string, unknown>[] = [];
-    try {
-      await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
-      await c.query("SELECT set_config('rootset.org_id',$1,true)", [
-        actor.orgId,
-      ]);
-      await assert.rejects(
-        storage!.snapshotHistory(
-          actor,
-          table.id,
-          { to: new Date(Date.now() + 60000).toISOString() },
-          c,
-        ),
-        { code: "VALIDATION_FAILED" },
-      );
-      const source = await storage!.snapshotHistory(actor, table.id, { to }, c);
-      metadata = source.metadata;
-      for await (const batch of source.history()) cold.push(...batch);
-      await c.query("COMMIT");
-    } finally {
-      c.release();
-    }
-    assert.equal(
-      cold.filter((e) => e.recordType === "cell").length,
-      metadata!.cellCount,
-    );
-    assert.equal(
-      cold.filter((e) => e.recordType === "row").length,
-      metadata!.rowCount,
-    );
-    assert.equal(metadata!.interpretations.length, 2);
-    const cells = cold.filter((e) => e.recordType === "cell");
-    assert.deepEqual((cells[0]!.data as Record<string, unknown>).context, {
-      source: "rest",
-      requestId: actor.id,
-    });
-    assert.match(
-      String((cells[0]!.data as Record<string, unknown>).changed_at),
-      /\.\d{6}Z$/,
-    );
-    const jobId = newId(),
-      leaseToken = newId(),
-      archiveId = newId(),
-      artifactId = newId();
-    const manifest: import("./index.js").HistoryArchiveManifest = {
-      formatVersion: 1,
-      archiveId,
-      orgId: actor.orgId,
-      databaseId,
-      tableId: table.id,
-      from: metadata!.from,
-      to,
-      snapshotAt: metadata!.snapshotAt,
-      cellCount: metadata!.cellCount,
-      rowCount: metadata!.rowCount,
-      artifactId,
-      checksum: "a".repeat(64),
-      byteLength: 1234,
-      fingerprint: "fixture-storage-native-range-fingerprint",
-      interpretations: metadata!.interpretations,
-      verifiedAt: new Date().toISOString(),
-    };
-    await withOrg(owner!, actor.orgId, async (c) => {
-      await c.query(
-        "INSERT INTO rootset_control.jobs(id,org_id,kind,operation_id,actor,requester_id,target_type,target_id,input,input_digest,idempotency_key,state,lease_token,lease_until) VALUES($1::varchar(26),$2,'history_archive','archiveHistory',$3::jsonb,$4,'table',$5,'{}','hash',$1::text,'running',$6,now()+interval '5 minutes')",
-        [
-          jobId,
-          actor.orgId,
-          JSON.stringify(actor),
-          actor.id,
-          table.id,
-          leaseToken,
-        ],
-      );
-      await c.query(
-        "INSERT INTO rootset_control.artifacts(id,org_id,job_id,requester_id,target_type,target_id,purpose,object_key,state,format,media_type,byte_length,checksum,expires_at) VALUES($1::varchar(26),$2,$3,$4,'table',$5,'history-archive',$1::text,'ready','jsonl','application/x-ndjson',$6,$7,'9999-12-31')",
-        [
-          artifactId,
-          actor.orgId,
-          jobId,
-          actor.id,
-          table.id,
-          manifest.byteLength,
-          manifest.checksum,
-        ],
-      );
-      await c.query(
-        "INSERT INTO rootset_control.history_archives(id,org_id,database_id,table_id,job_id,state,from_time,to_time,artifact_id,manifest,cell_count,row_count,verified_at) VALUES($1,$2,$3,$4,$5,'verified',$6,$7,$8,$9::jsonb,$10,$11,$12)",
-        [
-          archiveId,
-          actor.orgId,
-          databaseId,
-          table.id,
-          jobId,
-          manifest.from,
-          manifest.to,
-          artifactId,
-          JSON.stringify(manifest),
-          manifest.cellCount,
-          manifest.rowCount,
-          manifest.verifiedAt,
-        ],
-      );
-    });
-    await assert.rejects(
-      storage!.publishHistoryArchive(actor, table.id, manifest, {
-        jobId,
-        leaseToken: newId(),
-      }),
-      { code: "JOB_LEASE_LOST" },
-    );
-    const published = await storage!.publishHistoryArchive(
-      actor,
-      table.id,
-      manifest,
-      { jobId, leaseToken },
-    );
-    assert.deepEqual(
-      await storage!.publishHistoryArchive(actor, table.id, manifest, {
-        jobId,
-        leaseToken,
-      }),
-      published,
-    );
-    const first = await storage!.purgeArchivedHistory(
-      actor,
-      table.id,
-      archiveId,
-      { jobId, leaseToken, batchSize: 1 },
-    );
-    assert.equal(first.done, false);
-    assert.equal(first.deletedCells, 1);
-    assert.equal(first.deletedRows, 1);
-    let done = false;
-    while (!done)
-      done = (
-        await storage!.purgeArchivedHistory(actor, table.id, archiveId, {
-          jobId,
-          leaseToken,
-          batchSize: 1,
-        })
-      ).done;
-    const history = await storage!.cellHistory(
-      actor,
-      table.id,
-      row.id,
-      table.fields[0]!.id,
-    );
-    assert.equal(history.data.length, 0);
-    assert.equal(history.gaps[0]!.archive_id, archiveId);
-    const metrics = (
-      await owner!.query<{ events: string }>(
-        "SELECT events::text FROM rootset_control.history_metrics WHERE org_id=$1 AND table_id=$2",
-        [actor.orgId, table.id],
-      )
-    ).rows[0];
-    assert.equal(Number(metrics?.events ?? 0), 0);
-  },
-);
-
 async function runningJob(targetId: string, operationId = "createField") {
   const jobId = newId(),
     leaseToken = newId();
@@ -1282,7 +1084,6 @@ async function repairState(table: TableRecord): Promise<string> {
   ).rows;
   for (const relation of [
     "cell_changes",
-    "row_events",
     "mutations",
     "resource_history",
     "unique_rules",
@@ -1594,15 +1395,6 @@ test(
         )
       ).rows[0]!.n,
       3,
-    );
-    assert.equal(
-      (
-        await owner!.query(
-          "SELECT count(*)::int n FROM rootset_control.row_events WHERE table_id=$1",
-          [table.id],
-        )
-      ).rows[0]!.n,
-      2,
     );
     assert.equal(
       (
@@ -2312,7 +2104,7 @@ test(
     const counts = async () =>
       (
         await owner!.query(
-          "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.row_events WHERE table_id=$1) AS rows,(SELECT count(*)::int FROM rootset_control.mutations WHERE table_id=$1) AS mutations,(SELECT count(*)::int FROM pg_attribute WHERE attrelid=$2::regclass AND attnum>0 AND NOT attisdropped) AS native_columns",
+          "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.mutations WHERE table_id=$1) AS mutations,(SELECT count(*)::int FROM pg_attribute WHERE attrelid=$2::regclass AND attnum>0 AND NOT attisdropped) AS native_columns",
           [table.id, `"${schemaName}"."${changed.physicalName}"`],
         )
       ).rows[0];
@@ -3084,11 +2876,11 @@ test(
     );
     const facts = (
       await owner!.query(
-        "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.row_events WHERE table_id=$1) AS rows",
+        "SELECT (SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells",
         [table.id],
       )
     ).rows[0]!;
-    assert.deepEqual(facts, { cells: 1, rows: 1 });
+    assert.deepEqual(facts, { cells: 1 });
     const peer = newId();
     assert.equal(
       (
@@ -3180,5 +2972,148 @@ test(
       (await storage!.getRow(actor, table.id, row.id)).values.Carrier_Code,
       "XX",
     );
+  },
+);
+
+test(
+  "Cell history keeps exactly the latest 200 changes per cell across typed mutations and no-ops",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Bounded cell history",
+      fields: [
+        { name: "value", type: "integer" },
+        { name: "other", type: "text" },
+      ],
+    });
+    let row = await storage!.createRow(actor, table.id, {
+      value: 0,
+      other: "untouched",
+    });
+    for (let value = 1; value <= 205; value++) {
+      row = await storage!.updateRow(
+        actor,
+        table.id,
+        row.id,
+        { value },
+        {
+          expectedVersion: row.version,
+          context: {
+            source: value % 2 ? "rest" : "mcp",
+            requestId: `edit-${value}`,
+          },
+        },
+      );
+    }
+    const fieldId = table.fields.find((field) => field.name === "value")!.id;
+    const retained = await storage!.cellHistory(
+      actor,
+      table.id,
+      row.id,
+      fieldId,
+    );
+    assert.equal(retained.data.length, 200);
+    assert.equal(retained.hasMore, false);
+    assert.equal(retained.data[0]!.old_value, 5);
+    assert.equal(retained.data[0]!.new_value, 6);
+    assert.equal(retained.data.at(-1)!.new_value, 205);
+    assert.equal((retained.data.at(-1)!.actor as { id: string }).id, actor.id);
+    assert.equal(
+      (retained.data.at(-1)!.context as { requestId: string }).requestId,
+      "edit-205",
+    );
+    assert(retained.data.every((entry) => entry.operation === "update"));
+    const other = await storage!.cellHistory(actor, table.id, row.id, "other");
+    assert.equal(other.data.length, 1);
+    assert.equal(other.data[0]!.new_value, "untouched");
+    const peer = await storage!.createRow(actor, table.id, {
+      value: 1,
+      other: "another row",
+    });
+    assert.equal(
+      (await storage!.cellHistory(actor, table.id, peer.id, fieldId)).data
+        .length,
+      1,
+    );
+    const counts = await withOrg(app!, actor.orgId, (client) =>
+      client.query(
+        "SELECT count(*)::int AS count FROM rootset_control.cell_changes WHERE table_id=$1 AND row_id=$2 AND field_id=$3",
+        [table.id, row.id, fieldId],
+      ),
+    );
+    assert.equal(counts.rows[0]!.count, 200);
+    const metrics = await withOrg(app!, actor.orgId, (client) =>
+      client.query(
+        "SELECT events::int AS count FROM rootset_control.history_metrics WHERE table_id=$1",
+        [table.id],
+      ),
+    );
+    assert.equal(metrics.rows[0]!.count, 203);
+    const unchanged = await storage!.updateRow(
+      actor,
+      table.id,
+      row.id,
+      { value: 205 },
+      { expectedVersion: row.version },
+    );
+    assert.equal(unchanged.version, row.version);
+    await assert.rejects(
+      storage!.updateRow(
+        actor,
+        table.id,
+        row.id,
+        { value: 206 },
+        { expectedVersion: "1" },
+      ),
+      { code: "ROW_VERSION_CONFLICT" },
+    );
+    assert.deepEqual(
+      (await storage!.cellHistory(actor, table.id, row.id, fieldId)).data,
+      retained.data,
+    );
+    let cursor: string | undefined;
+    const values: number[] = [];
+    do {
+      const page = await storage!.cellHistory(
+        actor,
+        table.id,
+        row.id,
+        fieldId,
+        { limit: 50, ...(cursor ? { cursor } : {}) },
+      );
+      values.push(...page.data.map((entry) => entry.new_value as number));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    assert.deepEqual(
+      values,
+      Array.from({ length: 200 }, (_, index) => index + 6),
+    );
+    const invisible = await withOrg(app!, newId(), (client) =>
+      client.query(
+        "SELECT id FROM rootset_control.cell_changes WHERE table_id=$1",
+        [table.id],
+      ),
+    );
+    assert.equal(invisible.rowCount, 0);
+    await storage!.updateField(actor, table.id, fieldId, {
+      type: "text",
+      conversion: { strategy: "stringify" },
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    const converted = await storage!.cellHistory(
+      actor,
+      table.id,
+      row.id,
+      fieldId,
+    );
+    assert.equal(converted.data.length, 200);
+    assert.equal(converted.data[0]!.new_value, 7);
+    assert.equal(converted.data.at(-1)!.operation, "conversion");
+    assert.equal(converted.data.at(-1)!.new_value, "205");
+
+    const removed = await owner!.query(
+      "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN ('history_archives','history_archive_occurrences','history_retention_policies','history_gaps','row_events')",
+    );
+    assert.equal(removed.rowCount, 0);
   },
 );

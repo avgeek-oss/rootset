@@ -28,7 +28,6 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "signOutEverywhere",
 ]);
 export const jobsMutationSet: ReadonlySet<string> = new Set([
-  "setHistoryRetentionPolicy",
   "cancelJob",
   "retryJob",
 ]);
@@ -44,7 +43,6 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "validateImport",
   "importRows",
   "exportRows",
-  "archiveHistory",
 ]);
 export const mutationSet: ReadonlySet<string> = new Set([
   ...identityMutationSet,

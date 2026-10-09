@@ -210,8 +210,6 @@ const sensitiveOperations = new Set([
   "rotatePersonalKey",
   "deleteDatabase",
   "deleteTable",
-  "setHistoryRetentionPolicy",
-  "archiveHistory",
   "updateMember",
   "removeMember",
   "mutateRows",
@@ -257,8 +255,6 @@ const actionTypes: Record<string, string> = {
   removeMember: "remove_member",
   createPersonalKey: "create_key",
   rotatePersonalKey: "rotate_key",
-  setHistoryRetentionPolicy: "set_history_retention_policy",
-  archiveHistory: "archive_history",
   deleteDatabase: "delete_database",
   deleteTable: "delete_table",
   mutateRows: "operator_repair",
@@ -2250,13 +2246,6 @@ export class IdentityService {
       assertAccess(actor, {
         scope: "tables:manage",
       });
-    else if (
-      ["setHistoryRetentionPolicy", "archiveHistory"].includes(operation)
-    )
-      assertAccess(actor, {
-        scope: "schema:manage",
-        roles: ["admin"],
-      });
     else assertAccess(actor, { scope: "account:security", personal: true });
   }
   private async authoriseRepair(
@@ -2371,13 +2360,9 @@ export class IdentityService {
       this.config,
     );
     this.checkActionAuthority(actor, action.operation, input);
-    const external = [
-      "deleteDatabase",
-      "deleteTable",
-      "setHistoryRetentionPolicy",
-      "archiveHistory",
-      "mutateRows",
-    ].includes(action.operation);
+    const external = ["deleteDatabase", "deleteTable", "mutateRows"].includes(
+      action.operation,
+    );
     const result = await withOrg(
       this.config.pool,
       actor.orgId,

@@ -5,7 +5,7 @@
 Rootset is self-hosted structured storage for one organisation. Create logical
 databases and typed tables, edit records in a spreadsheet, and use the same data
 through REST or OAuth-protected MCP. PostgreSQL stores values, revisions and
-cell history. The project domain is `rootset.fyi`.
+the latest 200 changes per cell. The project domain is `rootset.fyi`.
 
 V1 uses Admin, Member and Viewer roles. Admins manage people, schema and recovery with deployment readiness checked separately.
 SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP or imports; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.

@@ -62,8 +62,6 @@ export async function performAction<T = unknown>(
     rotatePersonalKey: "rotate_key",
     deleteDatabase: "delete_database",
     deleteTable: "delete_table",
-    setHistoryRetentionPolicy: "set_history_retention_policy",
-    archiveHistory: "archive_history",
   };
   const ticket = await write<AccountActionTicket>(
     "/me/actions",

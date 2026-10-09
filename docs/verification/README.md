@@ -34,7 +34,7 @@ large provenance or extra approval packet is required to run these checks.
 - Three-role browser/REST/MCP behavior, live personal-key revocation, real OAuth
   operation consent, authentication/factors and Admin recovery.
 - One field name, stable-ID rename, native typed storage, atomic revisions,
-  uniqueness, row/cell history and crash-reconciled schema/jobs.
+  uniqueness, retained cell history and crash-reconciled schema/jobs.
 - Genuine dependency/process-failure rehearsals and separate-target recovery of
   identity/control/data, SQL privileges, a nonempty object set and retained keys.
 - Actual phone/desktop, Safari/Chromium, keyboard/touch/screen-reader and typed

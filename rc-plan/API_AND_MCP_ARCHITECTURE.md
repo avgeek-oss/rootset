@@ -106,14 +106,13 @@ success or prevent unrelated foreground requests.
 
 ## Jobs and artifacts
 
-Import/export, schema work and history archiving can return a job
+Import/export and schema work can return a job
 ID. An accepted request is not terminal success. Progress describes committed
 checkpoints; cancellation reports already committed work. Revalidate current role
 and OAuth consent before publication or a new effect.
 
 Artifact downloads verify current access and use authenticated streams or bounded,
-short-lived handoffs. Never place reusable credentials in URLs. History and
-archives resolve their actual table and parent; after table/database deletion,
+short-lived handoffs. Never place reusable credentials in URLs. Cell history reads resolve their actual table and parent; after table/database deletion,
 retained history is an Admin management operation. There are no retained resource
 grant exceptions.
 

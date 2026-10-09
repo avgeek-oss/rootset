@@ -2,7 +2,6 @@
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useEffect, useState } from "react";
-import { HistoryRetentionSettings } from "./history-retention";
 import {
   performAction,
   tablePath,
@@ -113,7 +112,7 @@ export function TableSettings(props: SettingsPanelProps) {
       )}
       <Section
         title="Delete table"
-        description="Deleting a table starts a durable job and requires identity approval. Field metadata and history are retained according to the configured policy."
+        description="Deleting a table starts a durable job and requires identity approval. Administrators can still view the latest 200 saved changes per cell after deletion."
       >
         <Button
           variant="danger-soft"
@@ -142,7 +141,6 @@ export function TableSettings(props: SettingsPanelProps) {
         </Button>
       </Section>
       {confirmation.dialog}
-      <HistoryRetentionSettings {...props} />
     </>
   );
 }

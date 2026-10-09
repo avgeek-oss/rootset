@@ -60,7 +60,7 @@ Record only redacted metadata in a shared incident report.
    Check OAuth/passkey/session origin bindings and use the supported reconnect/
    sign-in procedures where the target origin differs.
 4. Compare the single organisation, memberships/roles, identity/control records,
-   jobs/journals, schemas, typed values, revisions, uniqueness, row/cell history
+   jobs/journals, schemas, typed values, revisions, uniqueness, retained cell history
    and artifact counts/checksums. Decrypt a nonempty object set and verify its contents; an empty bucket proves neither object nor key recovery.
 5. Start target services, check readiness and resume leases/checkpoints without
    duplicate effects. Exercise authentication, live key authority and a new edit

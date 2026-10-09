@@ -220,18 +220,8 @@ const asynchronous = new Set([
   "deleteField",
   "countRows",
 ]);
-const queuedFamilies = new Set([
-  "validateImport",
-  "importRows",
-  "exportRows",
-  "archiveHistory",
-]);
+const queuedFamilies = new Set(["validateImport", "importRows", "exportRows"]);
 const jobOperations = new Set([
-  "getHistoryRetentionPolicy",
-  "setHistoryRetentionPolicy",
-  "archiveHistory",
-  "listHistoryArchives",
-  "getHistoryArchive",
   "prepareImportUpload",
   "validateImport",
   "importRows",
@@ -261,13 +251,8 @@ export class RootsetCore {
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
       typeof input.tableId === "string" ? input.tableId : undefined;
-    const historyArchive =
-        operationId === "getHistoryArchive" ||
-        operationId === "listHistoryArchives",
-      history =
-        operationId === "getCellHistory" ||
-        operationId === "queryHistory" ||
-        historyArchive,
+    const history =
+        operationId === "getCellHistory" || operationId === "queryHistory",
       destructiveReplay =
         operationId === "deleteDatabase" || operationId === "deleteTable";
     let archived = false;
@@ -281,15 +266,6 @@ export class RootsetCore {
           "Resource was not found",
           404,
         );
-      if (
-        historyArchive &&
-        !["active", "maintenance", "deleted"].includes(table.state)
-      )
-        throw new RootsetError(
-          "RESOURCE_NOT_FOUND",
-          "Retained history was not found",
-          404,
-        );
       databaseId = table.databaseId;
       archived = table.state === "deleted";
     }
@@ -297,12 +273,6 @@ export class RootsetCore {
       const database = await (history || destructiveReplay
         ? this.options.storage.getArchivedDatabase(actor, databaseId)
         : this.options.storage.getDatabase(actor, databaseId));
-      if (historyArchive && !["active", "deleted"].includes(database.state))
-        throw new RootsetError(
-          "RESOURCE_NOT_FOUND",
-          "Retained history was not found",
-          404,
-        );
       archived = archived || database.state === "deleted";
     }
     if (history && archived && actor.role !== "admin")
@@ -1146,11 +1116,6 @@ export class RootsetCore {
           data: r.data.map(historyPublic),
           nextCursor: r.nextCursor,
           hasMore: r.hasMore,
-          retentionGaps: r.gaps.map((g) => ({
-            from: iso(g.from_time),
-            to: iso(g.to_time),
-            ...(g.archive_id ? { archiveId: g.archive_id } : {}),
-          })),
         };
       }
       case "queryHistory": {
@@ -1162,11 +1127,6 @@ export class RootsetCore {
           data: r.data.map(historyPublic),
           nextCursor: r.nextCursor,
           hasMore: r.hasMore,
-          retentionGaps: r.gaps.map((g) => ({
-            from: iso(g.from_time),
-            to: iso(g.to_time),
-            ...(g.archive_id ? { archiveId: g.archive_id } : {}),
-          })),
         };
       }
       case "getMutation": {

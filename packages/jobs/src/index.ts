@@ -27,17 +27,11 @@ import {
 import { ArtifactStore } from "./artifacts.js";
 import { ImportRunner } from "./imports.js";
 import {
-  HistoryArchiveRunner,
-  archiveView,
-  type HistoryArchiveRecord,
-} from "./archives.js";
-import {
   DurableQueue,
   JobCancelled,
   LeaseLost,
   snapshotTransaction,
 } from "./queue.js";
-import { previewSchedule, validateSchedule } from "./schedule.js";
 import type {
   ArtifactDownload,
   ArtifactRecord,
@@ -49,9 +43,7 @@ import type {
 export * from "./types.js";
 export * from "./queue.js";
 export * from "./artifacts.js";
-export * from "./schedule.js";
 export * from "./imports.js";
-export * from "./archives.js";
 
 function repairReason(
   operationId: string,
@@ -126,52 +118,11 @@ function jobView(job: JobRecord): Record<string, unknown> {
     attempt: job.attempt,
   };
 }
-interface HistoryPolicyRow {
-  id: string;
-  org_id: string;
-  database_id: string;
-  table_id: string;
-  actor: Actor;
-  enabled: boolean;
-  cron: string;
-  timezone: string;
-  retention_days: number;
-  max_runtime_seconds: number;
-  next_occurrence: Date | null;
-  suspension_code: string | null;
-  suspended_at: Date | null;
-}
-function historyPolicyView(row: HistoryPolicyRow | null) {
-  return row
-    ? {
-        enabled: row.enabled,
-        cron: row.cron,
-        timezone: row.timezone,
-        retentionDays: row.retention_days,
-        maxRuntimeSeconds: row.max_runtime_seconds,
-        ...(row.suspension_code
-          ? {
-              suspension: {
-                code: row.suspension_code,
-                at: row.suspended_at!.toISOString(),
-              },
-            }
-          : {}),
-      }
-    : {
-        enabled: false,
-        cron: "0 0 * * *",
-        timezone: "UTC",
-        retentionDays: 365,
-        maxRuntimeSeconds: 3600,
-      };
-}
 
 export class JobsService {
   readonly queue: DurableQueue;
   readonly artifacts: ArtifactStore;
   readonly imports: ImportRunner;
-  readonly archives: HistoryArchiveRunner;
   readonly config: JobsOptions["config"];
   readonly storage: JobsOptions["storage"];
   private readonly authoriseCallback: JobsOptions["authorise"];
@@ -232,13 +183,6 @@ export class JobsService {
       this.config.failpoint,
       (job) => this.jobActor(job),
     );
-    this.archives = new HistoryArchiveRunner(
-      this.queue,
-      this.artifacts,
-      this.storage,
-      this.config.failpoint,
-      (job) => this.jobActor(job),
-    );
   }
 
   async authorise(
@@ -272,31 +216,14 @@ export class JobsService {
         403,
       );
     if (inputTarget.tableId) {
-      const archived =
-        operationId === "getHistoryArchive" ||
-        operationId === "listHistoryArchives";
-      const table = await (archived
-        ? this.storage.getArchivedTable(actor, inputTarget.tableId)
-        : this.storage.getTable(actor, inputTarget.tableId));
+      const table = await this.storage.getTable(actor, inputTarget.tableId);
       if (inputTarget.databaseId && inputTarget.databaseId !== table.databaseId)
         throw new RootsetError(
           "RESOURCE_NOT_FOUND",
           "Resource was not found",
           404,
         );
-      const database = await (archived
-        ? this.storage.getArchivedDatabase(actor, table.databaseId)
-        : this.storage.getDatabase(actor, table.databaseId));
-      if (
-        archived &&
-        (table.state === "deleted" || database.state === "deleted") &&
-        actor.role !== "admin"
-      )
-        throw new RootsetError(
-          "RESOURCE_NOT_FOUND",
-          "Retained history was not found",
-          404,
-        );
+      await this.storage.getDatabase(actor, table.databaseId);
     } else if (inputTarget.databaseId)
       await this.storage.getDatabase(actor, inputTarget.databaseId);
     return actor;
@@ -774,38 +701,6 @@ export class JobsService {
       }
       case "getArtifact":
         return this.getArtifact(actor, String(input.id));
-      case "getHistoryRetentionPolicy":
-        return this.historyPolicy(actor, String(input.tableId));
-      case "setHistoryRetentionPolicy":
-        return this.setHistoryPolicy(actor, input, context.client);
-      case "archiveHistory": {
-        const table = await this.storage.getTable(actor, String(input.tableId));
-        const before = new Date(String(input.before));
-        if (!Number.isFinite(before.getTime()) || before.getTime() > Date.now())
-          throw new RootsetError(
-            "VALIDATION_FAILED",
-            "History archive cutoff must be a past UTC instant",
-          );
-        return accepted(
-          await this.queue.enqueue(
-            actor,
-            operationId,
-            "history_archive",
-            { type: "table", id: table.id },
-            input,
-            this.requireKey(idempotencyKey),
-            context.client,
-          ),
-        );
-      }
-      case "listHistoryArchives":
-        return this.listHistoryArchives(actor, String(input.tableId), input);
-      case "getHistoryArchive":
-        return this.getHistoryArchive(
-          actor,
-          String(input.tableId),
-          String(input.id),
-        );
 
       case "listJobs":
         return this.listJobs(actor, input);
@@ -1014,12 +909,9 @@ export class JobsService {
     actor: Actor,
     artifact: ArtifactRecord,
   ): Promise<void> {
-    const operation =
-      artifact.purpose === "history-archive"
-        ? "getHistoryArchive"
-        : artifact.purpose.startsWith("import")
-          ? "validateImport"
-          : "exportRows";
+    const operation = artifact.purpose.startsWith("import")
+      ? "validateImport"
+      : "exportRows";
     await this.authorise(
       actor,
       operation,
@@ -1029,7 +921,6 @@ export class JobsService {
     );
     if (
       !["admin"].includes(actor.role) &&
-      artifact.purpose !== "history-archive" &&
       artifact.requester_id !== `${actor.kind}:${actor.id}`
     ) {
       const job = artifact.job_id
@@ -1058,13 +949,11 @@ export class JobsService {
       id: artifact.id,
       orgId: actor.orgId,
       kind:
-        artifact.purpose === "history-archive"
-          ? "history_archive"
-          : artifact.purpose === "import-rejections"
-            ? "report"
-            : artifact.purpose.startsWith("import")
-              ? "import"
-              : "export",
+        artifact.purpose === "import-rejections"
+          ? "report"
+          : artifact.purpose.startsWith("import")
+            ? "import"
+            : "export",
       format: artifact.format,
       sizeBytes: Number(artifact.byte_length),
       checksum: artifact.checksum!,
@@ -1146,289 +1035,8 @@ export class JobsService {
     return receipt;
   }
 
-  private async historyPolicy(actor: Actor, tableId: string) {
-    await this.storage.getTable(actor, tableId);
-    const row = await withOrg(
-      this.queue.pool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<HistoryPolicyRow>(
-            "SELECT * FROM rootset_control.history_retention_policies WHERE table_id=$1",
-            [tableId],
-          )
-        ).rows[0] ?? null,
-    );
-    return historyPolicyView(row);
-  }
-
-  private async setHistoryPolicy(
-    actor: Actor,
-    input: Record<string, unknown>,
-    client?: PoolClient,
-  ) {
-    const table = await this.storage.getTable(actor, String(input.tableId));
-    const cron = String(input.cron),
-      timezone = String(input.timezone ?? "UTC");
-    validateSchedule(cron, timezone);
-    const days = Number(input.retentionDays),
-      runtime = Number(input.maxRuntimeSeconds);
-    if (
-      !Number.isInteger(days) ||
-      days < 1 ||
-      days > 36500 ||
-      !Number.isInteger(runtime) ||
-      runtime < 60 ||
-      runtime > 86400
-    )
-      throw new RootsetError(
-        "VALIDATION_FAILED",
-        "History retention policy bounds are invalid",
-      );
-    const run = async (c: PoolClient) =>
-      (
-        await c.query<HistoryPolicyRow>(
-          `INSERT INTO rootset_control.history_retention_policies(id,org_id,table_id,database_id,actor,enabled,retention_days,cron,timezone,max_runtime_seconds,next_occurrence)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(table_id) DO UPDATE SET actor=excluded.actor,enabled=excluded.enabled,retention_days=excluded.retention_days,cron=excluded.cron,
-      timezone=excluded.timezone,max_runtime_seconds=excluded.max_runtime_seconds,next_occurrence=excluded.next_occurrence,suspension_code=NULL,suspended_at=NULL,updated_at=now() RETURNING *`,
-          [
-            newId(),
-            actor.orgId,
-            table.id,
-            table.databaseId,
-            actor,
-            input.enabled === true,
-            days,
-            cron,
-            timezone,
-            runtime,
-            input.enabled
-              ? previewSchedule(cron, timezone, new Date(), 1)[0]
-              : null,
-          ],
-        )
-      ).rows[0]!;
-    return historyPolicyView(
-      client
-        ? await run(client)
-        : await withOrg(this.queue.pool, actor.orgId, run),
-    );
-  }
-
-  private async listHistoryArchives(
-    actor: Actor,
-    tableId: string,
-    input: Record<string, unknown>,
-  ) {
-    await this.storage.getArchivedTable(actor, tableId);
-    const paging = this.config.metadataPaging;
-    if (!paging)
-      throw new RootsetError(
-        "CONFIGURATION_INVALID",
-        "Metadata cursor signing is not configured",
-        503,
-      );
-    const request = {
-      resource: `history_archives:${actor.orgId}:${tableId}`,
-      limit: Math.min(100, Math.max(1, Number(input.limit ?? 50))),
-      cursor: typeof input.cursor === "string" ? input.cursor : null,
-    };
-    const position = paging.read(actor, request);
-    const rows = await withOrg(
-      this.queue.pool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<HistoryArchiveRecord>(
-            "SELECT * FROM rootset_control.history_archives WHERE table_id=$1 AND ($2::text IS NULL OR id>$2) ORDER BY id LIMIT $3",
-            [tableId, position.afterId, position.limit + 1],
-          )
-        ).rows,
-    );
-    const page = paging.paginate(rows, actor, request);
-    return { data: page.data.map(archiveView), nextCursor: page.nextCursor };
-  }
-
-  private async getHistoryArchive(actor: Actor, tableId: string, id: string) {
-    await this.storage.getArchivedTable(actor, tableId);
-    const row = await withOrg(
-      this.queue.pool,
-      actor.orgId,
-      async (client) =>
-        (
-          await client.query<HistoryArchiveRecord>(
-            "SELECT * FROM rootset_control.history_archives WHERE table_id=$1 AND id=$2",
-            [tableId, id],
-          )
-        ).rows[0],
-    );
-    if (!row)
-      throw new RootsetError(
-        "RESOURCE_NOT_FOUND",
-        "History archive not found",
-        404,
-      );
-    return archiveView(row);
-  }
-
-  async scheduleHistoryDue(orgId: string, now = new Date()): Promise<number> {
-    return withOrg(this.queue.workerPool, orgId, async (client) => {
-      const policies = (
-        await client.query<HistoryPolicyRow>(
-          "SELECT * FROM rootset_control.history_retention_policies WHERE enabled AND next_occurrence<=$1 FOR UPDATE SKIP LOCKED LIMIT 10",
-          [now],
-        )
-      ).rows;
-      let count = 0;
-      for (const policy of policies) {
-        let actor: Actor;
-        try {
-          actor = await this.authoriseHistoryPolicy(
-            policy.actor,
-            policy.table_id,
-          );
-        } catch (error) {
-          if (
-            !(error instanceof RootsetError) ||
-            ![
-              "UNAUTHENTICATED",
-              "ACCESS_DENIED",
-              "RESOURCE_NOT_FOUND",
-            ].includes(error.code)
-          )
-            throw error;
-          await client.query(
-            "UPDATE rootset_control.history_retention_policies SET enabled=false,next_occurrence=NULL,suspension_code=$2,suspended_at=now(),updated_at=now() WHERE id=$1",
-            [policy.id, error.code],
-          );
-          continue;
-        }
-        const occurrence = policy.next_occurrence!;
-        if (
-          !(
-            await client.query(
-              "SELECT 1 FROM rootset_control.history_archive_occurrences WHERE policy_id=$1 AND scheduled_at=$2",
-              [policy.id, occurrence],
-            )
-          ).rowCount
-        ) {
-          const active = (
-            await client.query(
-              "SELECT 1 FROM rootset_control.jobs WHERE target_type='table' AND target_id=$1 AND kind='history_archive' AND state IN ('queued','running')",
-              [policy.table_id],
-            )
-          ).rowCount;
-          const job = active
-            ? null
-            : await this.queue.enqueue(
-                actor,
-                "archiveHistory",
-                "history_archive",
-                { type: "table", id: policy.table_id },
-                {
-                  tableId: policy.table_id,
-                  before: new Date(
-                    occurrence.getTime() - policy.retention_days * 86400000,
-                  ).toISOString(),
-                  policyId: policy.id,
-                  scheduledAt: occurrence.toISOString(),
-                  maxRuntimeSeconds: policy.max_runtime_seconds,
-                },
-                `history-schedule:${policy.id}:${occurrence.toISOString()}`,
-                client,
-              );
-          await client.query(
-            "INSERT INTO rootset_control.history_archive_occurrences(policy_id,scheduled_at,job_id,state) VALUES($1,$2,$3,$4)",
-            [
-              policy.id,
-              occurrence,
-              job?.id ?? null,
-              job ? "enqueued" : "skipped_overlap",
-            ],
-          );
-          if (job) count++;
-        }
-        await client.query(
-          "UPDATE rootset_control.history_retention_policies SET next_occurrence=$2 WHERE id=$1",
-          [
-            policy.id,
-            previewSchedule(policy.cron, policy.timezone, occurrence, 1)[0] ??
-              null,
-          ],
-        );
-      }
-      return count;
-    });
-  }
-
-  private authoriseHistoryPolicy(
-    actor: Actor,
-    tableId: string,
-  ): Promise<Actor> {
-    return this.config.authoriseHistoryPolicy
-      ? this.config.authoriseHistoryPolicy(actor, { tableId })
-      : this.authorise(actor, "archiveHistory", { tableId });
-  }
-
-  private async scheduledHistoryActor(job: JobRecord): Promise<Actor> {
-    const policy = await withOrg(
-      this.queue.workerPool,
-      job.org_id,
-      async (client) =>
-        (
-          await client.query<HistoryPolicyRow>(
-            `SELECT p.* FROM rootset_control.history_retention_policies p JOIN rootset_control.history_archive_occurrences o ON o.policy_id=p.id
-      WHERE p.id=$1 AND p.table_id=$2 AND o.job_id=$3 AND o.scheduled_at=$4::timestamptz AND o.state='enqueued'`,
-            [job.input.policyId, job.target_id, job.id, job.input.scheduledAt],
-          )
-        ).rows[0],
-    );
-    if (!policy)
-      throw new RootsetError(
-        "ACCESS_DENIED",
-        "Scheduled history archive does not have a valid persisted policy occurrence",
-        403,
-      );
-    return this.authoriseHistoryPolicy(policy.actor, policy.table_id);
-  }
-
   private async jobActor(job: JobRecord): Promise<Actor> {
-    const actor =
-      job.kind === "history_archive" && typeof job.input.policyId === "string"
-        ? await this.scheduledHistoryActor(job)
-        : await this.authorise(job.actor, job.operation_id, target(job));
-
-    return actor;
-  }
-
-  private async reconciledDomain(
-    job: JobRecord,
-  ): Promise<JsonValue | undefined> {
-    return withOrg<JsonValue | undefined>(
-      this.queue.workerPool,
-      job.org_id,
-      async (client): Promise<JsonValue | undefined> => {
-        if (job.kind === "history_archive") {
-          const row = (
-            await client.query<HistoryArchiveRecord>(
-              "SELECT * FROM rootset_control.history_archives WHERE job_id=$1 AND table_id=$2 AND state='succeeded' AND verified_at IS NOT NULL",
-              [job.id, job.target_id],
-            )
-          ).rows[0];
-          if (row)
-            return {
-              archiveId: row.id,
-              artifactId: row.artifact_id!,
-              state: "succeeded",
-              verifiedAt: row.verified_at!.toISOString(),
-              cellEvents: Number(row.cell_count),
-              rowEvents: Number(row.row_count),
-            };
-        }
-
-        return undefined;
-      },
-    );
+    return this.authorise(job.actor, job.operation_id, target(job));
   }
 
   private async reconciledResult(
@@ -1438,47 +1046,18 @@ export class JobsService {
       const outcome = await this.config.reconcileOperation(job);
       if (outcome !== undefined) return outcome;
     }
-    return this.reconciledDomain(job);
-  }
-
-  private async synchronizeTerminalRecords(orgId: string): Promise<void> {
-    await withOrg(this.queue.workerPool, orgId, (client) =>
-      client.query(
-        "UPDATE rootset_control.history_archives a SET state=j.state,updated_at=now() FROM rootset_control.jobs j WHERE a.job_id=j.id AND j.state IN ('failed','cancelled') AND a.state NOT IN ('succeeded','failed','cancelled')",
-      ),
-    );
+    return undefined;
   }
 
   async cleanupArtifacts(orgId: string): Promise<number> {
     await this.artifacts.cleanupTemporaryFiles();
-    await withOrg(this.queue.workerPool, orgId, async (client) => {
-      await client.query(
-        "SELECT set_config('idle_in_transaction_session_timeout','600000',true)",
-      );
-      const staleArchives = (
-        await client.query<{
-          id: string;
-        }>(`SELECT j.id FROM rootset_control.jobs j JOIN rootset_control.history_archives a ON a.job_id=j.id
-        WHERE j.state IN ('failed','cancelled') AND j.updated_at<now()-interval '24 hours' AND a.manifest IS NOT NULL
-        AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.manifest->>'archiveId'=a.id)
-        ORDER BY j.updated_at LIMIT 10 FOR UPDATE OF j SKIP LOCKED`)
-      ).rows;
-      for (const job of staleArchives)
-        await client.query(
-          "UPDATE rootset_control.history_archives SET manifest=NULL,artifact_id=NULL,verified_at=NULL,updated_at=now() WHERE job_id=$1",
-          [job.id],
-        );
-    });
     const records = await withOrg(
       this.queue.workerPool,
       orgId,
       async (client) =>
         (
           await client.query<ArtifactRecord>(`SELECT a.* FROM rootset_control.artifacts a
-      WHERE a.state<>'deleted' AND ((a.purpose<>'history-archive' AND a.expires_at<=now() AND a.state IN ('upload_pending','uploading','ready','failed','deleting')) OR a.metadata->>'cleanupPending'='true'
-        OR (a.purpose='history-archive' AND a.created_at<now()-interval '24 hours'
-          AND NOT EXISTS(SELECT 1 FROM rootset_control.history_archives h WHERE h.artifact_id=a.id)
-          AND NOT EXISTS(SELECT 1 FROM rootset_control.history_gaps g WHERE g.manifest->>'artifactId'=a.id)))
+      WHERE a.state<>'deleted' AND ((a.expires_at<=now() AND a.state IN ('upload_pending','uploading','ready','failed','deleting')) OR a.metadata->>'cleanupPending'='true')
       AND NOT EXISTS(SELECT 1 FROM rootset_control.jobs j WHERE j.id=a.job_id AND j.state IN ('queued','running'))
       ORDER BY a.expires_at LIMIT 20 FOR UPDATE SKIP LOCKED`)
         ).rows,
@@ -1538,7 +1117,6 @@ export class JobsService {
     );
 
     const job = await this.queue.claim(orgId);
-    await this.synchronizeTerminalRecords(orgId);
 
     if (!job) return reconciled.length > 0;
     job.deadline =
@@ -1572,17 +1150,10 @@ export class JobsService {
           return true;
         }
       }
-      const prior = await this.reconciledDomain(job);
-      if (prior !== undefined) {
-        await this.queue.finish(job, "succeeded", prior);
-        return true;
-      }
       const actor = await this.jobActor(job);
       if (job.cancel_requested) throw new JobCancelled();
       let result: JsonValue;
-      if (job.kind === "history_archive")
-        result = await this.archives.run(actor, job);
-      else if (job.kind === "import" || job.kind === "validate_import") {
+      if (job.kind === "import" || job.kind === "validate_import") {
         let artifact = await this.artifacts.get(
           actor,
           String(job.checkpoint.artifactId ?? job.input.artifactId),
@@ -1671,30 +1242,7 @@ export class JobsService {
           ...(diagnostic.table ? { table: diagnostic.table } : {}),
         }),
       );
-      {
-        await this.queue.fail(job, error);
-        const terminal = await withOrg(
-          this.queue.workerPool,
-          orgId,
-          async (client) =>
-            (
-              await client.query<{ state: string }>(
-                "SELECT state FROM rootset_control.jobs WHERE id=$1",
-                [job.id],
-              )
-            ).rows[0],
-        );
-        if (
-          job.kind === "history_archive" &&
-          ["failed", "cancelled"].includes(terminal?.state ?? "")
-        )
-          await withOrg(this.queue.workerPool, orgId, (client) =>
-            client.query(
-              "UPDATE rootset_control.history_archives SET state=$2,updated_at=now() WHERE job_id=$1",
-              [job.id, terminal!.state],
-            ),
-          );
-      }
+      await this.queue.fail(job, error);
     } finally {
       clearInterval(heartbeat);
     }
@@ -1868,10 +1416,6 @@ export class JobsService {
             }
           };
           if (orgId && !options.signal?.aborted) {
-            if (index === 0)
-              await activity("history_scheduler", orgId, async () => {
-                await this.scheduleHistoryDue(orgId);
-              });
             if (index === 0)
               await activity("artifact_cleanup", orgId, async () => {
                 await this.cleanupArtifacts(orgId);

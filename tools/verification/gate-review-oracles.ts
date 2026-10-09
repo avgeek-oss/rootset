@@ -82,7 +82,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-21",
-    "Row/field deletion, field renames and retained table/database history remain interpretable and obey current role; archive readback/retention never loses required history silently.",
+    "Row/field deletion, field renames and retained table/database history remain interpretable and obey current role; each cell retains only its latest 200 saved changes; no-op and failed writes add no entry.",
   ],
   [
     "V1-22",
@@ -110,7 +110,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-28",
-    "The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and history archives remain functional.",
+    "The fresh baseline contains no backup, restore or backup-notification tables; imports, exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.",
   ],
   [
     "V1-29",

@@ -408,7 +408,7 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
       async function counters() {
         return (
           await db.owner.query(
-            `SELECT (SELECT count(*)::int FROM ${physical}) AS rows,(SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.row_events WHERE table_id=$1) AS events,(SELECT count(*)::int FROM rootset_control.mutations WHERE table_id=$1) AS mutations`,
+            `SELECT (SELECT count(*)::int FROM ${physical}) AS rows,(SELECT count(*)::int FROM rootset_control.cell_changes WHERE table_id=$1) AS cells,(SELECT count(*)::int FROM rootset_control.mutations WHERE table_id=$1) AS mutations`,
             [tableId],
           )
         ).rows[0];
@@ -475,18 +475,6 @@ test("FLD-15 actual REST/MCP eight-type create/patch boundary matrix with native
           history.sort(historyOrder),
           expectedHistory.sort(historyOrder),
         );
-        const events = (
-          await db.owner.query(
-            "SELECT operation,old_version::text,new_version::text FROM rootset_control.row_events WHERE table_id=$1 AND row_id=$2 ORDER BY id",
-            [tableId, row.id],
-          )
-        ).rows;
-        assert.deepEqual(events, [
-          { operation: "insert", old_version: null, new_version: "1" },
-          ...(changed.length
-            ? [{ operation: "update", old_version: "1", new_version: "2" }]
-            : []),
-        ]);
       }
       for (const surface of ["rest", "mcp"] as const) {
         const common = [

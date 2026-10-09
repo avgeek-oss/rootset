@@ -1653,7 +1653,6 @@ function CellHistory({
           actor: { kind: string; id: string };
           operation: string;
         }[];
-        retentionGaps: { from: string; to: string; archiveId?: string }[];
         nextCursor: string | null;
         hasMore: boolean;
       }>(
@@ -1663,17 +1662,15 @@ function CellHistory({
   });
   return (
     <Dialog title={`${field.name} history`} onClose={onClose} wide>
-      {history.isPending ? (
-        <p role="status">Loading cell history…</p>
-      ) : history.isError ? (
+      {history.isPending ? null : history.isError ? (
         <p className="error-message" role="alert">
           {history.error.message}
         </p>
       ) : (
         <>
           <p>
-            Values below use canonical storage values. History belongs to the
-            selected cell.
+            The latest 200 saved changes to this cell are kept automatically.
+            Each entry shows the previous value, new value, and when it changed.
           </p>
           {history.data.data.length ? (
             <ol className="history-list">
@@ -1702,19 +1699,6 @@ function CellHistory({
           ) : (
             <p>No retained changes for this cell.</p>
           )}
-          {history.data.retentionGaps?.map((gap, index) => (
-            <p className="notice" key={index}>
-              {gap.archiveId ? "Archived history" : "Retention gap"}: {gap.from}{" "}
-              to {gap.to}.
-              {gap.archiveId && (
-                <>
-                  {" "}
-                  Retained archive {gap.archiveId}. Review its manifest in Table
-                  settings.
-                </>
-              )}
-            </p>
-          ))}
           <footer>
             <Button
               variant="secondary"

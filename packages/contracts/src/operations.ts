@@ -31,8 +31,6 @@ import {
   DatabaseSchema,
   DatabaseSummarySchema,
   HistoryPageSchema,
-  HistoryRetentionPolicySchema,
-  HistoryArchiveSchema,
   ImportMappingSchema,
   IndexSchema,
   InvitationSchema,
@@ -1227,68 +1225,6 @@ operation(
   z.strictObject({ ...org, id: IdSchema }),
   ArtifactSchema,
   "Get authenticated expiring artifact access after current source/target permission checks.",
-);
-operation(
-  "getHistoryRetentionPolicy",
-  "get_history_retention_policy",
-  "GET",
-  `${T}/history-retention-policy`,
-  ["history:read"],
-  z.strictObject(table),
-  HistoryRetentionPolicySchema,
-  "Read the optional history archive schedule; disabled policies retain hot history indefinitely.",
-);
-operation(
-  "setHistoryRetentionPolicy",
-  "set_history_retention_policy",
-  "PUT",
-  `${T}/history-retention-policy`,
-  ["history:read", "schema:manage"],
-  z.strictObject({
-    ...table,
-    ...HistoryRetentionPolicySchema.omit({ suspension: true }).shape,
-    ...approval,
-  }),
-  HistoryRetentionPolicySchema,
-  "Configure verified encrypted history archiving before removing old events from hot storage. Cold archives remain retained.",
-  { minimumRole: "admin", stepUp: "conditional" },
-);
-operation(
-  "archiveHistory",
-  "archive_history",
-  "POST",
-  `${T}/history-archives`,
-  ["history:read", "schema:manage"],
-  z.strictObject({ ...table, before: DateTimeSchema, ...approval }),
-  JobAcceptedSchema,
-  "Archive history strictly before a UTC cutoff, verify its encrypted content, then purge covered hot events in resumable batches.",
-  {
-    minimumRole: "admin",
-    stepUp: "conditional",
-    job: true,
-    successStatus: 202,
-    destructive: true,
-  },
-);
-operation(
-  "listHistoryArchives",
-  "list_history_archives",
-  "GET",
-  `${T}/history-archives`,
-  ["history:read"],
-  z.strictObject({ ...table, ...jobPaging }),
-  list(HistoryArchiveSchema),
-  "List authorised history archive manifests and their verification or purge state.",
-);
-operation(
-  "getHistoryArchive",
-  "get_history_archive",
-  "GET",
-  `${T}/history-archives/{id}`,
-  ["history:read"],
-  z.strictObject({ ...table, id: IdSchema }),
-  HistoryArchiveSchema,
-  "Read one retained history archive manifest without exposing storage credentials.",
 );
 
 operation(

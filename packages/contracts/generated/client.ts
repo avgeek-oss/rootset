@@ -210,8 +210,6 @@ export type beginAccountActionInput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_history_retention_policy"
-    | "archive_history"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -237,8 +235,6 @@ export type beginAccountActionOutput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_history_retention_policy"
-    | "archive_history"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -279,8 +275,6 @@ export type getAccountActionOutput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_history_retention_policy"
-    | "archive_history"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -321,8 +315,6 @@ export type completeAccountActionOutput = {
     | "sign_out_everywhere"
     | "create_key"
     | "rotate_key"
-    | "set_history_retention_policy"
-    | "archive_history"
     | "delete_database"
     | "delete_table"
     | "update_installation_configuration"
@@ -3462,7 +3454,6 @@ export type getCellHistoryOutput = {
   }[];
   nextCursor: unknown;
   hasMore: boolean;
-  retentionGaps: { from: string; to: string; archiveId?: string }[];
 };
 export type queryHistoryInput = {
   orgId: string;
@@ -3626,7 +3617,6 @@ export type queryHistoryOutput = {
   }[];
   nextCursor: unknown;
   hasMore: boolean;
-  retentionGaps: { from: string; to: string; archiveId?: string }[];
 };
 export type getMutationInput = { orgId: string; id: string };
 export type getMutationOutput = {
@@ -3775,137 +3765,14 @@ export type getArtifactInput = { orgId: string; id: string };
 export type getArtifactOutput = {
   id: string;
   orgId: string;
-  kind: "import" | "export" | "report" | "history_archive";
-  format: "csv" | "jsonl" | "json" | "archive";
+  kind: "import" | "export" | "report";
+  format: "csv" | "jsonl" | "json";
   sizeBytes: number;
   checksum: string;
   expiresAt: string;
   downloadUrl?: string;
   resourceUri?: string;
   rowCount?: number;
-};
-export type getHistoryRetentionPolicyInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-};
-export type getHistoryRetentionPolicyOutput = {
-  enabled: boolean;
-  retentionDays: number;
-  cron: string;
-  timezone: string;
-  maxRuntimeSeconds: number;
-  suspension?: { code: string; at: string };
-};
-export type setHistoryRetentionPolicyInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  enabled: boolean;
-  retentionDays: number;
-  cron: string;
-  timezone: string;
-  maxRuntimeSeconds: number;
-  approvalId?: string;
-};
-export type setHistoryRetentionPolicyOutput = {
-  enabled: boolean;
-  retentionDays: number;
-  cron: string;
-  timezone: string;
-  maxRuntimeSeconds: number;
-  suspension?: { code: string; at: string };
-};
-export type archiveHistoryInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  before: string;
-  approvalId?: string;
-};
-export type archiveHistoryOutput = {
-  jobId: string;
-  state:
-    | "queued"
-    | "running"
-    | "succeeded"
-    | "failed"
-    | "cancelled"
-    | "partially_completed";
-  statusUrl: string;
-};
-export type listHistoryArchivesInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  limit?: number;
-  cursor?: string | null;
-};
-export type listHistoryArchivesOutput = {
-  data: {
-    id: string;
-    orgId: string;
-    databaseId: string;
-    tableId: string;
-    jobId: string;
-    artifactId: string | null;
-    state:
-      | "queued"
-      | "snapshotting"
-      | "uploading"
-      | "verifying"
-      | "purging"
-      | "succeeded"
-      | "failed"
-      | "cancelled";
-    from: string | null;
-    to: string;
-    createdAt: string;
-    verifiedAt: string | null;
-    cellEvents: number;
-    rowEvents: number;
-    sizeBytes?: number;
-    checksum?: string;
-    manifest?:
-      null | boolean | number | string | unknown[] | Record<string, unknown>;
-    error?: string;
-  }[];
-  nextCursor?: unknown;
-  hasMore?: boolean;
-};
-export type getHistoryArchiveInput = {
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  id: string;
-};
-export type getHistoryArchiveOutput = {
-  id: string;
-  orgId: string;
-  databaseId: string;
-  tableId: string;
-  jobId: string;
-  artifactId: string | null;
-  state:
-    | "queued"
-    | "snapshotting"
-    | "uploading"
-    | "verifying"
-    | "purging"
-    | "succeeded"
-    | "failed"
-    | "cancelled";
-  from: string | null;
-  to: string;
-  createdAt: string;
-  verifiedAt: string | null;
-  cellEvents: number;
-  rowEvents: number;
-  sizeBytes?: number;
-  checksum?: string;
-  manifest?:
-    null | boolean | number | string | unknown[] | Record<string, unknown>;
-  error?: string;
 };
 export type listJobsInput = {
   orgId: string;
@@ -4424,31 +4291,6 @@ const routes = {
   },
   getArtifact: {
     path: "/v1/orgs/{orgId}/artifacts/{id}",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  getHistoryRetentionPolicy: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-retention-policy",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  setHistoryRetentionPolicy: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-retention-policy",
-    method: "PUT",
-    idempotencyRequired: true,
-  },
-  archiveHistory: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-archives",
-    method: "POST",
-    idempotencyRequired: true,
-  },
-  listHistoryArchives: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-archives",
-    method: "GET",
-    idempotencyRequired: false,
-  },
-  getHistoryArchive: {
-    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history-archives/{id}",
     method: "GET",
     idempotencyRequired: false,
   },
@@ -5181,56 +5023,6 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<getArtifactOutput>;
-  }
-  getHistoryRetentionPolicy(
-    input: getHistoryRetentionPolicyInput,
-    options?: CallOptions,
-  ): Promise<getHistoryRetentionPolicyOutput> {
-    return this.call(
-      "getHistoryRetentionPolicy",
-      input,
-      options,
-    ) as Promise<getHistoryRetentionPolicyOutput>;
-  }
-  setHistoryRetentionPolicy(
-    input: setHistoryRetentionPolicyInput,
-    options?: CallOptions,
-  ): Promise<setHistoryRetentionPolicyOutput> {
-    return this.call(
-      "setHistoryRetentionPolicy",
-      input,
-      options,
-    ) as Promise<setHistoryRetentionPolicyOutput>;
-  }
-  archiveHistory(
-    input: archiveHistoryInput,
-    options?: CallOptions,
-  ): Promise<archiveHistoryOutput> {
-    return this.call(
-      "archiveHistory",
-      input,
-      options,
-    ) as Promise<archiveHistoryOutput>;
-  }
-  listHistoryArchives(
-    input: listHistoryArchivesInput,
-    options?: CallOptions,
-  ): Promise<listHistoryArchivesOutput> {
-    return this.call(
-      "listHistoryArchives",
-      input,
-      options,
-    ) as Promise<listHistoryArchivesOutput>;
-  }
-  getHistoryArchive(
-    input: getHistoryArchiveInput,
-    options?: CallOptions,
-  ): Promise<getHistoryArchiveOutput> {
-    return this.call(
-      "getHistoryArchive",
-      input,
-      options,
-    ) as Promise<getHistoryArchiveOutput>;
   }
   listJobs(
     input: listJobsInput,

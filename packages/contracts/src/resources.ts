@@ -163,8 +163,6 @@ export const AccountActionTypeSchema = z.enum([
   "sign_out_everywhere",
   "create_key",
   "rotate_key",
-  "set_history_retention_policy",
-  "archive_history",
   "delete_database",
   "delete_table",
   "update_installation_configuration",
@@ -313,65 +311,13 @@ export const HistoryPageSchema = z.strictObject({
   data: z.array(CellChangeSchema).max(limits.queryRows),
   nextCursor: z.string().nullable(),
   hasMore: z.boolean(),
-  retentionGaps: z.array(
-    z.strictObject({
-      from: DateTimeSchema,
-      to: DateTimeSchema,
-      archiveId: IdSchema.optional(),
-    }),
-  ),
-});
-export const HistoryRetentionPolicySchema = z.strictObject({
-  enabled: z.boolean(),
-  retentionDays: z.number().int().min(1).max(36500),
-  cron: z
-    .string()
-    .min(9)
-    .max(128)
-    .refine(
-      (value) => value.trim().split(/\s+/).length === 5,
-      "Expected a five-field cron",
-    ),
-  timezone: PreferencesSchema.shape.timezone,
-  maxRuntimeSeconds: z.number().int().min(60).max(86400),
-  suspension: z
-    .strictObject({ code: z.string(), at: DateTimeSchema })
-    .optional(),
-});
-export const HistoryArchiveSchema = z.strictObject({
-  id: IdSchema,
-  orgId: IdSchema,
-  databaseId: IdSchema,
-  tableId: IdSchema,
-  jobId: IdSchema,
-  artifactId: IdSchema.nullable(),
-  state: z.enum([
-    "queued",
-    "snapshotting",
-    "uploading",
-    "verifying",
-    "purging",
-    "succeeded",
-    "failed",
-    "cancelled",
-  ]),
-  from: DateTimeSchema.nullable(),
-  to: DateTimeSchema,
-  createdAt: DateTimeSchema,
-  verifiedAt: DateTimeSchema.nullable(),
-  cellEvents: z.number().int().safe().nonnegative(),
-  rowEvents: z.number().int().safe().nonnegative(),
-  sizeBytes: z.number().int().safe().nonnegative().optional(),
-  checksum: z.string().optional(),
-  manifest: JsonValueSchema.optional(),
-  error: z.string().optional(),
 });
 
 export const ArtifactSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
-  kind: z.enum(["import", "export", "report", "history_archive"]),
-  format: z.enum(["csv", "jsonl", "json", "archive"]),
+  kind: z.enum(["import", "export", "report"]),
+  format: z.enum(["csv", "jsonl", "json"]),
   sizeBytes: z.number().int().nonnegative(),
   checksum: z.string(),
   expiresAt: DateTimeSchema,

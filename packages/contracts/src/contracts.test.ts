@@ -94,6 +94,11 @@ const invalid = (call: () => unknown, code = "VALIDATION_FAILED") =>
 
 test("V1-26 removed feature operations are absent while API/MCP row creation remains available", () => {
   const removed = [
+    "getHistoryRetentionPolicy",
+    "setHistoryRetentionPolicy",
+    "archiveHistory",
+    "listHistoryArchives",
+    "getHistoryArchive",
     "createOrganisation",
     "listOrganisations",
     "switchOrganisation",
@@ -129,7 +134,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 81);
+  assert.equal(operations.length, 76);
   assert.equal(getOperation("createRow").readOnly, false);
   assert(
     operations.every((operation) =>
@@ -938,7 +943,6 @@ test("mixed destructive tools and actual protocol routes have conservative expli
     "mutateRows",
     "applySchemaChange",
     "completeAccountAction",
-    "archiveHistory",
   ]) {
     const definition = operationMap[name]!;
     const tool = tools.find((entry) => entry.name === definition.toolName)!;
@@ -948,7 +952,7 @@ test("mixed destructive tools and actual protocol routes have conservative expli
     );
   }
   assert.equal(operationMap.revokeSession!.stepUp, "never");
-  for (const name of ["listJobs", "listHistoryArchives"]) {
+  for (const name of ["listJobs"]) {
     const definition = operationMap[name]!;
     assert.equal(
       definition.inputSchema.safeParse({
@@ -1169,7 +1173,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.ok(operation.errors.includes("STEP_UP_REQUIRED"));
-  assert.equal(operations.length, 81);
+  assert.equal(operations.length, 76);
   const api = generateOpenApi() as {
     paths: Record<
       string,

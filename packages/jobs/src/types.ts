@@ -96,17 +96,12 @@ export type TableInfo = TableRecord;
 export type StoragePort = Pick<
   TableStorage,
   | "getTable"
-  | "getArchivedTable"
-  | "getArchivedDatabase"
   | "getRow"
   | "getDatabase"
   | "listUniqueRules"
   | "queryRows"
   | "mutateRows"
   | "snapshotTable"
-  | "snapshotHistory"
-  | "publishHistoryArchive"
-  | "purgeArchivedHistory"
 >;
 export interface JobsOptions {
   pool: Pool;

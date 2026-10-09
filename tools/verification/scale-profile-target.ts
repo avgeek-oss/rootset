@@ -114,12 +114,8 @@ export async function prepareScaleTarget(
     const quarantined = await target.pools.owner.query(
       "UPDATE rootset_control.jobs SET state='cancelled',stage='qa_quarantined',lease_token=NULL,lease_until=NULL,completed_at=now(),updated_at=now() WHERE state IN ('queued','running') RETURNING id",
     );
-    const historyPolicies = await target.pools.owner.query(
-      "UPDATE rootset_control.history_retention_policies SET enabled=false WHERE enabled RETURNING id",
-    );
     report.copiedWorkQuarantine = {
       jobs: quarantined.rowCount,
-      historyPolicies: historyPolicies.rowCount,
       reason:
         "Do not replay copied user jobs or scheduled maintenance during benchmark setup.",
     };

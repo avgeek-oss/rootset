@@ -22,7 +22,6 @@
     "@aws-sdk/s3-request-presigner": "catalog:",
     "csv-parse": "catalog:",
     "csv-stringify": "catalog:",
-    "cron-parser": "catalog:",
     "ulid": "catalog:"
   },
   "devDependencies": {

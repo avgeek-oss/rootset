@@ -51,7 +51,9 @@ Spreadsheet windows fetch at most 200 rows. Numeric position zero uses the first
 
 ## Retained history
 
-History retention is optional. `snapshotHistory` extracts a half-open UTC range; the jobs package encrypts and verifies its artifact. `publishHistoryArchive` binds the verified manifest to the range before `purgeArchivedHistory` removes hot cells and row events in bounded, fenced transactions. Published gaps exclude that range from hot snapshots throughout an interrupted purge. Published archive objects remain pinned.
+Rootset automatically retains the latest 200 saved changes for each cell. Each entry records its previous value, new value, actor, source and UTC timestamp. Older entries are deleted in the same transaction as the next change; there is no retention policy, archive job or cold storage. Equal assignments and rolled-back writes do not add history.
+
+The PostgreSQL history trigger covers native row writes, imports and field conversions. API and MCP history operations read the same retained entries as the dashboard cell changelog. Pagination preserves complete entries within the response byte budget.
 
 ## Verification
 
@@ -64,6 +66,6 @@ pnpm --filter @rootset/table-storage typecheck
 pnpm exec eslint packages/table-storage/src --max-warnings=0
 ```
 
-The package tests cover typed query/keyset and byte boundaries, canonical finite-number parity, depth-32 JSON, atomic mutation rollback, schema idempotency paths, actual concurrent index retry and old-snapshot races, window anchor reuse, archive publication/purge, worker cancellation at publication, private token omission and artifact verification. The executable spike verifies all eight native types, UTC round trips, revisions, history, idempotency, native uniqueness and query/window behavior in a disposable installed database.
+The package tests cover typed query/keyset and byte boundaries, canonical finite-number parity, depth-32 JSON, atomic mutation rollback, schema idempotency paths, actual concurrent index retry and old-snapshot races, window anchor reuse, per-cell retention, worker cancellation at publication, private token omission and artifact verification. The executable spike verifies all eight native types, UTC round trips, revisions, history, idempotency, native uniqueness and query/window behavior in a disposable installed database.
 
 The independent verification package owns the broader concurrency, digest collision, role/access, five-million-row and ten-million-history checks. The implementation checklist records candidate evidence and reviewer sign-off separately; this package's tests alone do not constitute release acceptance.

@@ -22,7 +22,7 @@ completion credit for the revised model.
    Remove database backup/restore and keep operation progress; remove the standalone jobs
    page and storage admission package. Configure SMTP and S3 only through `.env`.
 6. Verify storage, uniqueness, concurrency, schema reconciliation, imports,
-   history archives and imports/exports on the current empty-baseline fixture.
+   200-entry cell history and imports/exports on the current empty-baseline fixture.
 7. Adapt the actual Towbar/Mill primary/secondary navigation, account menu, compact
    controls, widget cards and responsive drawer. Separate account, team, database
    and table settings; keep the bounded DOM spreadsheet. Verify real navigation,

@@ -34,7 +34,7 @@ Change SMTP and S3 settings in `.env` and restart API/worker; the UI has no
 configuration overrides or test-email action. SMTP-only failure
 should leave data reads available.
 
-For object failure, inspect artifact state, storage errors, endpoint, bucket permissions and the installation encryption key. Retry follows persisted run/object identity. If checksum or authentication-tag verification fails, preserve the object for diagnosis; never replace it with empty content. Published history archives remain protected from temporary artifact cleanup.
+For object failure, inspect artifact state, storage errors, endpoint, bucket permissions and the installation encryption key. Retry follows persisted run/object identity. If checksum or authentication-tag verification fails, preserve the object for diagnosis; never replace it with empty content.
 
 ## Resources and foreground health
 
