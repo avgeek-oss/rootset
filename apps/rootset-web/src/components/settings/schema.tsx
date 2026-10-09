@@ -34,13 +34,13 @@ import {
   useConfirmation,
 } from "./ui";
 import {
-  FIELD_TYPES,
   type SettingsPanelProps,
   type Job,
   type TableField,
   type TableSchemaResult,
 } from "./types";
 
+import { FIELD_TYPE_OPTIONS } from "./field-type-options";
 import { fieldDraft, parseFieldDraft, type FieldDraft } from "./field-draft";
 
 const EMPTY_SCHEMA: TableSchemaResult = {
@@ -216,7 +216,7 @@ export function FieldForm({
         label="Field type"
         value={value.type}
         onChange={(next) => patch("type", next as TableField["type"])}
-        options={FIELD_TYPES}
+        options={FIELD_TYPE_OPTIONS}
       />
       {value.type === "text" && (
         <Field

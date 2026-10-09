@@ -137,12 +137,19 @@ export function Choice({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: readonly (string | { value: string; label: string })[];
+  options: readonly (
+    string | { value: string; label: string; icon?: ReactNode }
+  )[];
   description?: string;
   required?: boolean;
   error?: string;
   disabled?: boolean;
 }) {
+  const items: { value: string; label: string; icon?: ReactNode }[] =
+    options.map((option) =>
+      typeof option === "string" ? { value: option, label: option } : option,
+    );
+  const selected = items.find((item) => item.value === value);
   return (
     <Select
       variant="secondary"
@@ -155,23 +162,35 @@ export function Choice({
     >
       <Label>{label}</Label>
       <Select.Trigger>
-        <Select.Value />
+        {selected?.icon ? (
+          <Select.Value>
+            <span className="flex items-center gap-2">
+              {selected.icon}
+              {selected.label}
+            </span>
+          </Select.Value>
+        ) : (
+          <Select.Value />
+        )}
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover>
         <ListBox>
-          {options.map((option) => {
-            const item =
-              typeof option === "string"
-                ? { value: option, label: option }
-                : option;
+          {items.map((item) => {
             return (
               <ListBox.Item
                 key={item.value}
                 id={item.value}
                 textValue={item.label}
               >
-                {item.label}
+                {item.icon ? (
+                  <span className="flex items-center gap-2">
+                    {item.icon}
+                    {item.label}
+                  </span>
+                ) : (
+                  item.label
+                )}
                 <ListBox.ItemIndicator />
               </ListBox.Item>
             );
