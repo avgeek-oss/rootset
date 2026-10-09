@@ -579,9 +579,9 @@ export function generateMcpTools(): Record<string, unknown>[] {
         openWorldHint: false,
       },
       _meta: {
-        "rootset.fyi/jsonRequestMaxBytes": limits.requestBytes,
-        "rootset.fyi/jsonReadTimeoutMs": limits.requestTimeoutMs,
-        "rootset.fyi/errorCodes": definition.errors,
+        "rootset.dev/jsonRequestMaxBytes": limits.requestBytes,
+        "rootset.dev/jsonReadTimeoutMs": limits.requestTimeoutMs,
+        "rootset.dev/errorCodes": definition.errors,
       },
     };
   });

@@ -786,7 +786,7 @@ test("ordinary JSON budgets retain 8 MiB input, a separate read deadline and unc
     (value) => value.name === "rootset_query_rows",
   )!;
   assert.equal(
-    (tool._meta as Record<string, unknown>)["rootset.fyi/jsonRequestMaxBytes"],
+    (tool._meta as Record<string, unknown>)["rootset.dev/jsonRequestMaxBytes"],
     limits.requestBytes,
   );
   const client = generateClientSource();
@@ -912,7 +912,7 @@ test("published invitation authority requires an admin and only supported member
   assert.ok(
     (
       (tool._meta as Record<string, unknown>)[
-        "rootset.fyi/errorCodes"
+        "rootset.dev/errorCodes"
       ] as string[]
     ).includes("PERSONAL_IDENTITY_REQUIRED"),
   );

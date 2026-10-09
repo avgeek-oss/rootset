@@ -259,9 +259,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -397,9 +397,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -545,9 +545,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -681,9 +681,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -841,9 +841,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -983,9 +983,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1142,9 +1142,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1293,9 +1293,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1414,9 +1414,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1582,9 +1582,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1703,9 +1703,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1836,9 +1836,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -1974,9 +1974,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -2148,9 +2148,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -2305,9 +2305,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -2435,9 +2435,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -2615,9 +2615,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -2781,9 +2781,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -2907,9 +2907,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -3108,9 +3108,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -3336,9 +3336,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -3556,9 +3556,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -3678,9 +3678,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -3893,9 +3893,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -4121,9 +4121,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -4345,9 +4345,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -4471,9 +4471,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -4623,9 +4623,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -4812,9 +4812,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -4981,9 +4981,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -5145,9 +5145,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -5318,9 +5318,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -5457,9 +5457,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -5662,9 +5662,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -6709,9 +6709,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -6890,9 +6890,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -7092,9 +7092,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -7246,9 +7246,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -7940,9 +7940,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -8497,9 +8497,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -9589,9 +9589,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -10688,9 +10688,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -11442,9 +11442,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -12162,9 +12162,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -12413,9 +12413,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -12654,9 +12654,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -15070,9 +15070,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -15240,9 +15240,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -15452,9 +15452,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -15597,9 +15597,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -15832,9 +15832,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -16159,9 +16159,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -16316,9 +16316,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -16521,9 +16521,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -16737,9 +16737,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -16890,9 +16890,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -17238,9 +17238,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -17390,9 +17390,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -17672,9 +17672,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -18363,9 +18363,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -19072,9 +19072,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -19201,9 +19201,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -19350,9 +19350,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -19502,9 +19502,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -19792,9 +19792,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -20044,9 +20044,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -20302,9 +20302,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -20438,9 +20438,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -20578,9 +20578,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -20747,9 +20747,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",
@@ -20976,9 +20976,9 @@
       "openWorldHint": false
     },
     "_meta": {
-      "rootset.fyi/jsonRequestMaxBytes": 8388608,
-      "rootset.fyi/jsonReadTimeoutMs": 10000,
-      "rootset.fyi/errorCodes": [
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
         "VALIDATION_FAILED",
         "UNAUTHENTICATED",
         "ACCESS_DENIED",

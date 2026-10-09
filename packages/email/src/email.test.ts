@@ -10,7 +10,7 @@ import {
 const encryption = { encryptionKey: randomBytes(32).toString("base64") };
 test("protected payloads round-trip with the installation key and reject wrong keys or modification", () => {
   const input = {
-    actionUrl: "https://rootset.fyi/verify?token=protected",
+    actionUrl: "https://rootset.dev/verify?token=protected",
     name: "Test",
   };
   const encrypted = encryptProtected(input, encryption);
@@ -35,10 +35,10 @@ test("AUTH-12 all security templates render branded escaped HTML and plain text"
       {
         name: "<script>alert(1)</script>",
         organisationName: "A & B",
-        actionUrl: "https://rootset.fyi/action",
+        actionUrl: "https://rootset.dev/action",
         expiresAt: "2026-10-02T13:45:00.000Z",
       },
-      "https://rootset.fyi",
+      "https://rootset.dev",
     );
     assert.ok(result.subject.includes("Rootset"));
     assert.ok(result.html.includes("Rootset"));
@@ -52,7 +52,7 @@ test("AUTH-12 all security templates render branded escaped HTML and plain text"
     renderEmail(
       "account-verification",
       { actionUrl: "https://attacker.invalid/secret" },
-      "https://rootset.fyi",
+      "https://rootset.dev",
     ),
   );
   await renderEmail(

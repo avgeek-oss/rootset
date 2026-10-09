@@ -22,12 +22,12 @@
     "metatags": {
       "og:type": "website",
       "twitter:card": "summary_large_image",
-      "canonical": "https://rootset.fyi"
+      "canonical": "https://rootset.dev"
     },
     "organization": {
       "name": "Rootset",
-      "url": "https://rootset.fyi",
-      "logo": "https://rootset.fyi/assets/rootset-logo.png",
+      "url": "https://rootset.dev",
+      "logo": "https://rootset.dev/assets/rootset-logo.png",
       "sameAs": ["https://github.com/avgeek-oss/rootset"]
     }
   },
