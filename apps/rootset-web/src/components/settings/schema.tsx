@@ -233,10 +233,12 @@ export function FieldForm({
         <div className="settings-inline">
           <Field
             label="Minimum (inclusive)"
-            value={value.min}
+            value={
+              value.type === "date-time" ? value.min.slice(0, 10) : value.min
+            }
             onChange={(next) => patch("min", next)}
             type={
-              value.type === "date"
+              ["date", "date-time"].includes(value.type)
                 ? "date"
                 : ["integer", "float"].includes(value.type)
                   ? "number"
@@ -245,16 +247,18 @@ export function FieldForm({
             step={value.type === "float" ? "any" : 1}
             description={
               value.type === "date-time"
-                ? "UTC instant, for example 2026-01-01T00:00:00.000Z."
+                ? "Selected dates use midnight UTC."
                 : undefined
             }
           />
           <Field
             label="Maximum (inclusive)"
-            value={value.max}
+            value={
+              value.type === "date-time" ? value.max.slice(0, 10) : value.max
+            }
             onChange={(next) => patch("max", next)}
             type={
-              value.type === "date"
+              ["date", "date-time"].includes(value.type)
                 ? "date"
                 : ["integer", "float"].includes(value.type)
                   ? "number"

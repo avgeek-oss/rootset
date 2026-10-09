@@ -62,6 +62,10 @@ Defaults do not rewrite existing rows and cannot contain expressions.
 | Date-time | `timestamptz(3)`   | Four-digit-year instant with `T` and mandatory `Z`, 0–3 fractional digits accepted and three emitted; optional UTC bounds. |
 | JSON      | `jsonb`            | Typed JSON within byte/depth limits; top-level null clears the cell and nested null is retained.                           |
 
+The field form uses date pickers for date-time minimum and maximum bounds.
+Selected dates become midnight UTC; REST/MCP continue to accept UTC instants.
+Editing another setting preserves an existing bound until its date is changed.
+
 Time rejects 24:00, leap seconds, offsets and missing `Z`. Date-time rejects
 missing/non-UTC zones and excess precision. PostgreSQL sessions and serializers
 use UTC. Do not attach today's date to a time-only value. User timezone preferences

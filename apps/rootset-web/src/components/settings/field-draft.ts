@@ -59,7 +59,10 @@ export function parseFieldDraft(
       if (value[bound] !== "")
         result[bound] = ["integer", "float"].includes(value.type)
           ? Number(value[bound])
-          : value[bound];
+          : value.type === "date-time" &&
+              /^\d{4}-\d{2}-\d{2}$/.test(value[bound])
+            ? `${value[bound]}T00:00:00.000Z`
+            : value[bound];
   if (value.defaultMode === "null") result.default = null;
   if (value.defaultMode === "value") {
     if (
