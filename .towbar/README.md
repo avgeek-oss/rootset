@@ -6,13 +6,15 @@ The application is served at `https://rootset.avgeek.ltd`; authentication, REST,
 
 ## Before deployment
 
-Register and prepare the target server in Towbar, connect this repository, map `production` to `main`, and sync. Configure Towbar's Cloudflare DNS integration for `avgeek.ltd` before deploying the two public services.
+Use Towbar **2.0.36 or later**. Register and prepare the target server in Towbar, connect this repository, map `production` to `main`, and sync. Configure Towbar's Cloudflare DNS integration for `avgeek.ltd` before deploying the two public services.
 
 The limits match the published Compose installation: PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB and UI 1 GiB. Check available capacity alongside existing services before deployment; allow additional host headroom. Named volumes preserve PostgreSQL data and the API/worker artifact spools across redeployments.
 
-Towbar’s managed PostgreSQL datastore currently accepts version 17. Rootset uses PostgreSQL 18, so `rootset-postgres` is a private image Service with a persistent data volume, rather than a managed Datastore. Towbar’s managed database backup/restore controls do not apply; use PostgreSQL-native backups or your database provider.
+`rootset-postgres` is a managed PostgreSQL 18 Datastore declared in `.towbar/datastores/rootset-postgres.datastore.yml`. Its image is pinned to an immutable digest, with the PostgreSQL 18 data volume mounted at `/var/lib/postgresql`. Towbar manages its deployment, health checks and persistent volume. The API and worker continue to connect to `rootset-postgres:5432` on the private network.
 
-The bundled PostgreSQL service is for a **fresh installation**. Save these values in its production runtime secrets:
+Use PostgreSQL-native backups and restores for recovery. Towbar’s current datastore restore flow does not replay this repository’s initialization script, so it does not recreate Rootset’s ordinary database-owner role and ownership setup. No automatic backup schedule is configured by these manifests.
+
+The bundled PostgreSQL datastore is for a **fresh installation**. Save these values in its production runtime secrets:
 
 | Key                 | Value                                                                            |
 | ------------------- | -------------------------------------------------------------------------------- |
@@ -20,7 +22,7 @@ The bundled PostgreSQL service is for a **fresh installation**. Save these value
 | `POSTGRES_DB`       | `rootset`                                                                        |
 | `POSTGRES_PASSWORD` | A generated URL-safe password, for example the output of `openssl rand -hex 32`. |
 
-The repository-backed initialization script creates an ordinary `rootset` database owner without superuser or `BYPASSRLS`, and removes password login for the bootstrap `postgres` role. It runs only on an empty PostgreSQL data volume. Do not reuse a prelaunch database or delete an existing volume to force initialization. With external PostgreSQL, remove the PostgreSQL service manifest before syncing and supply an ordinary database-owner URL with permission to create schemas and `pgcrypto`.
+The repository-backed initialization script creates an ordinary `rootset` database owner without superuser or `BYPASSRLS`, and removes password login for the bootstrap `postgres` role. It runs only on an empty PostgreSQL data volume. Do not reuse a prelaunch database or delete an existing volume to force initialization. With external PostgreSQL, remove the PostgreSQL datastore manifest before syncing and supply an ordinary database-owner URL with permission to create schemas and `pgcrypto`.
 
 ## API and worker runtime values
 
