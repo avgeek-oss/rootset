@@ -1,0 +1,33 @@
+---
+title: "Troubleshooting"
+description: "Diagnose image pulls, startup, API connectivity, email and export failures."
+---
+
+## Container image cannot be pulled
+
+Confirm the version appears in a published GitHub release and has API, worker and UI image references. The first release must be published before installation works. Check registry visibility and platform support; a source PR or Git tag alone does not prove a public image exists.
+
+## API or worker does not start
+
+```bash
+docker compose ps -a
+docker compose logs --tail=100 migrate api worker
+```
+
+Fix the first failed prerequisite. A migration failure blocks API/worker startup. Verify that PostgreSQL is reachable and its owner can create schemas and `pgcrypto`. A baseline mismatch needs a separate fresh installation, not a deleted ledger.
+
+## The UI cannot reach the API
+
+Check `ROOTSET_API_URL` is the public API origin, accessible from the browser and routed to port 4310. Check `ROOTSET_WEB_URL` matches the actual UI origin. Restart the containers after environment changes. The UI needs the public address, not a private Docker service name. Test `/health/ready` at the API origin and inspect the browser's failed response.
+
+## Verification or invitations do not arrive
+
+Check SMTP host, port, TLS mode, provider authentication and verified sender. SMTP must be reachable from the API container. Use the provider's delivery logs without sharing passwords or verification links.
+
+## Export remains queued or fails
+
+Check the worker is healthy, PostgreSQL is reachable, and API/worker use the same private bucket and encryption key. Inspect the request's failure details and runtime logs. Correct the service configuration, then create a new export request.
+
+## Lost secrets or data
+
+Recover using the provider-level backup and matching image version, application secret and encryption key. A new encryption key does not unlock old artifacts. Rootset has no in-app restore or deleted-row recovery.

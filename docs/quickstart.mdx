@@ -1,0 +1,52 @@
+---
+title: "Get started with Rootset"
+description: "Create a typed table, add records through the API, and edit them in the spreadsheet."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Rootset gives your team one place for structured data. The browser, REST API and MCP use the same tables and permissions.
+
+<Steps>
+  <Step title="Install and claim your workspace">
+    Follow the [image-based installation](/self-hosting/installation). Open the
+    UI, enter the installation secret, and verify your email to create the first
+    administrator and workspace. The configured SMTP service delivers the
+    verification message.
+  </Step>
+  <Step title="Create a database and table">
+    Select **Create database**, give it a name, and open it. Select **Create
+    Table** to create your first table. In its **Settings → Fields**, add the
+    columns your application needs, such as `NAME` (text), `STOCK` (integer) and
+    `ACTIVE` (boolean).
+  </Step>
+  <Step title="Populate the table">
+    Create rows through the [REST API](/api-guide) or an [MCP
+    client](/mcp-guide). Rootset's browser edits existing rows; it has no Add
+    row or import action.
+  </Step>
+  <Step title="Edit and review">
+    Open the table and double-click a cell to edit it. Right-click for **Set to
+    NULL**, **View cell history** or **Delete row**. Rootset keeps the last 200
+    saved changes per existing cell. Use **Cmd+Z** (Ctrl+Z on Windows/Linux) to
+    undo saved cell edits in the current table session, one at a time.
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Choose your field types" icon="columns-3" href="/fields">
+    Text, numbers, dates, JSON, links and image URLs.
+  </Card>
+  <Card title="Share access" icon="users" href="/team-access">
+    Admin, Member and Viewer roles with personal and team API keys.
+  </Card>
+</CardGroup>
+
+<Screenshot
+  light="/assets/screenshots/rows-light.png"
+  dark="/assets/screenshots/rows-dark.png"
+  alt="Rootset product catalog with typed columns and inline spreadsheet cells"
+  caption="A synthetic product catalog in Rootset."
+  width={3840}
+  height={2160}
+/>

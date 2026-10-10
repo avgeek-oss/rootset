@@ -1,0 +1,56 @@
+{
+  "name": "rootset",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build && tsx tools/build-apps.ts",
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint apps packages tools --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo run test",
+    "test:integration": "tsx --test tools/verification/*.test.ts",
+    "verify": "pnpm docs:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:migrate": "tsx tools/migrate.ts",
+    "setup:env": "tsx tools/setup-env.ts",
+    "verify:signoff": "tsx tools/evidence-audit.ts",
+    "contracts:generate": "tsx tools/generate-contracts.ts",
+    "auth:operator": "tsx tools/operator.ts",
+    "docs:sync": "node tools/docs/sync-reference.mjs && oss-docs sync --config docs/site.json --dir docs",
+    "docs:check": "oss-docs check --config docs/site.json --dir docs && node tools/docs/check.mjs",
+    "docs:dev": "cd docs && npx --yes mint@4.2.851 dev --port 4178",
+    "docs:screenshots": "node tools/docs/capture-screenshots.mjs"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/core": "workspace:*",
+    "@rootset/database": "workspace:*"
+  },
+  "devDependencies": {
+    "@avgeek-oss/docs": "0.1.5",
+    "@axe-core/playwright": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "@types/nodemailer": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "better-auth": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "pg": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "yaml": "2.8.1"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@rootset/table-storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./query": "./src/query.ts"
+  },
+  "scripts": {
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "spike": "tsx src/spike.ts"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/pg": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

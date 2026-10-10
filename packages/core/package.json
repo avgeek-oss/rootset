@@ -1,0 +1,30 @@
+{
+  "name": "@rootset/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./runtime": "./src/runtime.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "@rootset/observability": "workspace:*",
+    "@rootset/idempotency": "workspace:*",
+    "@rootset/access": "workspace:*",
+    "@rootset/table-storage": "workspace:*",
+    "@rootset/identity": "workspace:*",
+    "@rootset/jobs": "workspace:*",
+    "@rootset/oauth": "workspace:*",
+    "@rootset/email": "workspace:*",
+    "@aws-sdk/client-s3": "catalog:",
+    "zod": "catalog:"
+  }
+}

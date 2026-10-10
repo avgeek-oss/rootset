@@ -1,0 +1,28 @@
+---
+title: "Export Requests"
+description: "Export every row and field as CSV or JSONL and track the request in a table."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Open a table's **Export Requests** page and select **Create export request**. Choose **CSV** or **JSONL**, then select **Start export**.
+
+Each request exports a complete snapshot of the table: every row and every field. You do not select individual fields, and spreadsheet filters do not limit the export. The worker prepares the artifact; the requests table shows progress and the download action when ready. Viewers can request exports of data they can read.
+
+| Format | Use it for                                               |
+| ------ | -------------------------------------------------------- |
+| CSV    | Spreadsheet tools and tabular processing.                |
+| JSONL  | One JSON object per line for scripts and data pipelines. |
+
+Downloads require current access to the source table and use expiring artifact access. Keep the exported file if you need it later. CSV and JSONL serialize values according to their format; the UI's `NULL` label is not a replacement for JSON's native `null`.
+
+Exports are data downloads, not an in-app backup or restore mechanism. Rootset does not import these files through the UI.
+
+<Screenshot
+  light="/assets/screenshots/export-editor-light.png"
+  dark="/assets/screenshots/export-editor-dark.png"
+  alt="Export request form offering CSV and JSONL"
+  caption="Choose the format; Rootset exports all rows and fields."
+  width={3840}
+  height={2160}
+/>

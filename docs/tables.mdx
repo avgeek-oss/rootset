@@ -1,0 +1,31 @@
+---
+title: "Tables"
+description: "Create tables, manage their fields and settings, and delete them as an administrator."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Open a database and select **Create Table** at the top right. Give the table a name and optional description. Open **Settings → Fields** to define its columns.
+
+Each table card shows the row count. Opening a table shows its spreadsheet; the secondary sidebar provides **General**, **Fields**, **Unique rules**, **Danger Zone** and **Export Requests**.
+
+## General settings
+
+Change the table's name and description in **General**. Renaming keeps its opaque ID and rows intact. Members can create and edit tables and fields.
+
+## Delete a table
+
+An Admin can delete a table from **Danger Zone**. This removes the table, rows, fields, unique rules and cell history. A Member cannot delete tables or databases. Deletion has no undo or in-app restore.
+
+## Populate a table
+
+[Create rows through REST](/api-guide#create-a-row) or MCP. The browser edits records already present in the table; it does not have an Add row or import form.
+
+<Screenshot
+  light="/assets/screenshots/tables-light.png"
+  dark="/assets/screenshots/tables-dark.png"
+  alt="Database tables page with Create Table button"
+  caption="Create tables from the database page."
+  width={3840}
+  height={2160}
+/>

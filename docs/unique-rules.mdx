@@ -1,0 +1,21 @@
+---
+title: "Unique rules"
+description: "Keep individual values or combinations of fields unique across a table."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Open **Settings → Unique rules** and select **Create unique rule**. Choose one or more scalar fields from the dropdown, then create the rule. A rule can cover up to eight fields. Rows containing NULL in any selected field are excluded from uniqueness enforcement.
+
+Rootset checks existing rows before activating a rule. Once active, it rejects writes that would duplicate another row's selected values. For a combination such as `SKU` and `REGION`, the combination is unique; either field may repeat separately.
+
+The rules table shows the selected fields, status and actions. The same set of fields cannot have duplicate rules, even when selected in another order. If existing records collide, correct the data and create the rule again. Removing a rule removes its enforcement, not the records.
+
+<Screenshot
+  light="/assets/screenshots/unique-rule-editor-light.png"
+  dark="/assets/screenshots/unique-rule-editor-dark.png"
+  alt="Create unique rule dialog with a field selector"
+  caption="Select fields from the dropdown; the chosen names appear comma-separated."
+  width={3840}
+  height={2160}
+/>

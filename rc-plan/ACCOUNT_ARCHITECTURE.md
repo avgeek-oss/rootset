@@ -1,128 +1,191 @@
-# Account architecture
+# Accounts and installation
 
-Baseline: 2026-10-02. Status: v1 design contract; implementation pending. Related contracts: [database](MDM_DATABASE_ARCHITECTURE.md), [API and MCP](API_AND_MCP_ARCHITECTURE.md), [stack](STACK_ARCHITECTURE.md), and [verification](IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
+An installation has exactly one organisation. The baseline enforces this with a
+SQL singleton constraint, and setup claims the first Admin and organisation
+atomically. Invitations add people to that organisation; there is no selector
+or organisation creation/deletion workflow after setup.
 
-## Organisation structure
+Public authentication uses the published shared auth layouts and forms. Setup
+first collects Rootset's installation secret, then uses `TeamSetup` for the team,
+admin account and date/time preferences. The server validates the secret and
+preferences before claiming setup, and saves the initial preferences in the same
+transaction as the account and organisation. An identical retry reconciles the
+original claim; changed account details or preferences cannot claim it again.
 
-An installation contains organisations. An organisation owns logical databases, resource grants, team API keys, backup policies, and organisation audit events. A user is a global identity and receives access through an organisation membership. Do not put the organisation role on the user record.
+Password reset uses the shared confirmation form and removes the reset token
+from the browser URL after success. Rootset retains verified-email invitations
+and binds published shared forms to those protocols. Invitation and account email verification remain required. Sign-in and sensitive-action confirmation use Towbar's passkey workflow.
 
-Initial self-hosted onboarding creates one organisation and its first Owner. General public signup and arbitrary organisation creation are disabled in v1. The schema supports users with multiple memberships so future hosting does not require replacing identity records. If several organisations are provisioned through supported administration, sessions select one explicitly; every request resolves and authorises its organisation. The initial product does not promise public SaaS signup or billing.
+The prelaunch Editor role is now called Member, with identical permissions.
+Membership stores a user and one role: `admin`, `member` or `viewer`. A present
+membership grants access; removing it removes access. There is no active-member
+flag or deleted-account lifecycle. Preserve actor references needed to interpret
+row/cell history when membership is removed.
 
-An installation operator controls deployment, migrations, secrets, and recovery. Operator authority is separate from an organisation role. A deployment-controlled CLI can bind operator authority to a verified Rootset user for installation settings through the browser, REST or OAuth/MCP; an organisation Owner cannot grant it through organisation administration. Delegated access also requires explicit installation scopes, and team keys cannot acquire this authority. An operator recovery action must have a bounded CLI/runbook, an audit record, and a notification. Database ownership is never inferred from knowing a resource ID.
+Profile, team, member, passkey and personal-key names follow the shared Towbar
+forms: trimmed, non-empty names with a 120-character maximum. The public account
+contracts, identity service and fresh SQL baseline enforce that limit. Email
+addresses are normalized and capped at 320 characters; resource names retain
+their separate Rootset limits.
 
-## Management records
+## Roles
 
-| Record              | Main attributes                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| User                | ID, display name, canonical email, email verification, disabled state, authentication version, created/updated timestamps.                       |
-| Preferences         | User ID, IANA timezone, date format, 12/24-hour time format, locale, system/light/dark theme.                                                    |
-| Organisation        | ID, name, description, lifecycle state, timestamps.                                                                                              |
-| Membership          | Organisation ID, user ID, role, membership version, active/disabled state. Unique on organisation plus user.                                     |
-| Invitation          | Organisation, target email, role, inviter, hashed token, expiry, acceptance/cancellation state.                                                  |
-| Resource grant      | Membership or service principal, database/table target, read/edit/manage level, grant version.                                                   |
-| Browser session     | User, selected organisation, expiry, last activity, last completed authentication, revocation state.                                             |
-| Credential          | Password account, passkey credential, encrypted TOTP secret, hashed recovery codes.                                                              |
-| API key             | Organisation, owner kind, owner user if personal, creator attribution, key hash/prefix, scopes, targets, expiry, revocation, last use.           |
-| OAuth grant         | User membership, organisation, client, audience, operation scopes, resource targets, consent and revocation state.                               |
-| Refresh token       | Hashed token, grant, token family, previous token, expiry, used/revoked state.                                                                   |
-| Account action      | User/client/organisation, immutable requested action digest, expiry, interactive approval and consumption state.                                 |
-| Account audit event | Actor, operation, target, request ID, UTC timestamp, redacted outcome.                                                                           |
-| Email outbox        | Template, recipient, payload, dedupe key, attempt state, next attempt, provider result. Sensitive payloads require protected storage and expiry. |
+| Capability                                                 | Admin | Member | Viewer |
+| ---------------------------------------------------------- | ----- | ------ | ------ |
+| Read tables and history; export readable data              | Yes   | Yes    | Yes    |
+| Create, edit and delete rows                               | Yes   | Yes    | No     |
+| Manage databases, schema and uniqueness                    | Yes   | No     | No     |
+| Invite people and change/remove memberships                | Yes   | No     | No     |
+| Manage own profile, factors, preferences and personal keys | Yes   | Yes    | Yes    |
 
-Identity and management IDs use the same alphanumeric ID convention as other Rootset resources. Auth-library adapters must preserve it or map their internal identifiers explicitly.
+Protect the last Admin from removal or demotion that would leave the installation
+without administration. Role changes and removals must take effect on browser,
+REST, MCP, job admission/publication and replay. Installation management does not
+require another role or binding flag.
 
-## Roles and resource access
+Team settings use the shared member table, member-edit dialog and invitation
+table. Member edits can change a name, a role or both, with the membership
+version checked before either write. Last-Admin checks, current Admin authority
+and removal revocation remain server-side. The Admin-only member response
+includes a passkey-enrollment flag. The shared security column is labelled Passkeys; the existing `twoFactorEnabled` response field means registered passkeys, with no authenticator-code capability.
 
-| Capability                                    | Owner                | Admin                | Editor                                   | Viewer                 |
-| --------------------------------------------- | -------------------- | -------------------- | ---------------------------------------- | ---------------------- |
-| Read allowed databases/tables and history     | Yes                  | Yes                  | Yes                                      | Yes                    |
-| Create/edit/delete rows within edit grants    | Yes                  | Yes                  | Yes                                      | No                     |
-| Create databases, manage fields/rules/indexes | Yes                  | Yes                  | Only with explicit resource manage grant | No                     |
-| Run exports                                   | Yes                  | Yes                  | With read/export grant                   | With read/export grant |
-| Manage backups/restores                       | Yes                  | Yes                  | No                                       | No                     |
-| Invite/manage non-owner members               | Yes                  | Yes                  | No                                       | No                     |
-| Manage team keys                              | Yes                  | Yes                  | No                                       | No                     |
-| Change owners/delete organisation             | Yes                  | No                   | No                                       | No                     |
-| Edit own profile/security/preferences         | Yes                  | Yes                  | Yes                                      | Yes                    |
-| Create personal keys                          | Within own authority | Within own authority | Within own authority                     | Read scopes only       |
+Members and pending invitations use cursor pagination. The invitation API accepts
+an optional state filter and computes expired state on the server. The UI also
+refreshes at the next expiry and on focus, so an expired invitation cannot stay
+actionable merely because the page remains open. Invitation creation returns an ID-based link that can be copied from the shared
+invite dialog. The ID is a locator, not email proof or password authority; list
+responses retain only metadata. A new recipient requests a six-digit email code,
+then submits their name and code using the shared verification form. The code is
+hashed at rest, expires after ten minutes and permits five failed attempts.
+Successful proof issues a hashed, invitation-bound, single-use ten-minute password
+receipt. The shared first-password form consumes that receipt and creates the
+verified account, credential and membership atomically. Existing accounts sign in
+with the matching verified email before accepting. Expiry, revocation or loss of
+the inviter's Admin role blocks acceptance and new-account creation. Delivery
+payloads remain encrypted.
 
-Read/edit/manage resource grants are inherited from organisation to database to table. Resource restrictions intersect with the organisation role; they never raise an operation beyond its role ceiling. A manage grant can give an Editor table/schema administration but cannot give organisation membership or team-key administration. Owners and Admins retain organisation-wide access in v1. Row-level and column-level access rules are deferred.
+## Authentication
 
-All active members can read shared data by default. Administrators can replace this default with explicit database/table grants for Editors and Viewers. Inheritance and restrictions must be visible in settings. History and export use the same resource restrictions as live values.
+Keep verified email/password sign-in, password reset, passkeys, passkey recovery codes and session management. There is no authenticator/TOTP plugin, setup secret, verification endpoint, database table or action type. Setup/invitation/reset/factor tokens
+are bounded, single-use and protected at rest. Rate-limit authentication and
+identity confirmation attempts; errors must not reveal unrelated account existence.
 
-At least one enabled, verified Owner must remain. Owner removal, demotion, transfer, and organisation deletion lock the relevant organisation/memberships and validate that invariant under concurrency. Invitations cannot create Owners; ownership transfer is a separate step-up operation.
+Passwords contain 15–1,024 characters and use salted credential hashes.
+Hash/verify work shares a fixed bounded FIFO gate: two active operations and
+sixteen waiting. Overflow returns a retryable 503. There is no external password
+breach lookup or installation setting for password-work concurrency.
 
-## Setup and invitations
+Public resend takes only a normalized email and returns a neutral acknowledgement
+for unknown, verified and unverified accounts, with a common 500 ms response
+floor. It inherits no session and fixes the callback to the configured login
+route. Apply IP 20/minute, email 1/minute and email 5/24-hour budgets to every
+request before checking eligibility. Hash rate-limit identifiers at rest. Private
+outbox limits permit no more than one delivery/minute and five/24 hours and stay
+hidden from the public response. The signed-in resend route requires the session's
+exact email and fixes its callback to Email & Password. Unverified password
+sign-in does not issue a session or trigger an automatic email.
 
-Setup is a one-time, transactional claim gated by an installation bootstrap secret available through deployment configuration. It creates the first organisation and Owner, requires email verification, and disables the bootstrap path after success. Two simultaneous setup requests cannot create competing first owners. A lost initial response can be reconciled by the setup status endpoint without revealing credentials.
+Once a user registers a passkey, successful password verification creates a bounded pending sign-in instead of a usable session. The second step requires a cryptographically verified passkey with user verification. Its challenge binds the exact pending sign-in and user. Direct passkey sign-in remains supported. Reauthentication binds the exact existing session, keeps its identifier and updates only its fresh-proof timestamp; password-only reauthentication is refused for an account with passkeys.
 
-Invitation acceptance requires a valid, unexpired token, verified control of the invited email, and the correct organisation. Existing users authenticate and accept the membership. New users establish their account through the invitation flow. Tokens are single-use and stored hashed. Cancellation, inviter loss of authority, organisation suspension, and membership creation must be handled before acceptance. Replays return an intelligible terminal result without adding a second membership.
+The first passkey returns ten random recovery codes once. Only SHA-256 hashes of their normalized 128-bit values are stored in `auth_recovery_codes`. A recovery code completes a pending password sign-in and is consumed atomically with that pending proof, so concurrent attempts cannot both succeed. A recovery-created session has no fresh-proof timestamp: read access remains available, but key issuance, credential changes, passkey management and database deletion require an actual passkey assertion bound to that session. Adding another passkey preserves codes; replacement invalidates the previous set; removing the last key removes its codes. Password reset preserves passkeys. Access revocation invalidates pending sign-in and bound challenge receipts. Explicit host-authorized operator recovery removes passkeys/codes and revokes sessions and delegated credentials.
 
-Use invite links as the normal way to add users. Administrators never choose or receive another user's permanent password. Login, signup-through-invitation, verification, password reset, and step-up screens follow Towbar's layout and interaction patterns after Rootset branding and routes are applied.
+Sensitive account and credential changes require recent password or passkey
+authentication in the browser. Database deletion also requires this confirmation.
+Administrators can delete databases and tables; editors can create and edit them.
+Authorized API and MCP credentials execute operations directly. There are no
+account-action tickets or approval pages. Changes to email verify the new address and handle uniqueness races;
+revocation invalidates affected sessions and grants. Email-change links hold
+proof in a URL fragment; opening the page only inspects it. An explicit shared
+confirmation button submits the proof. Email update, session/key/grant revocation
+and both encrypted notices are atomic; failure preserves the previous email,
+authority and usable proof.
 
-## Authentication and recovery
+## Personal API keys
 
-Use Better Auth with the PostgreSQL/Drizzle adapter, passkey and two-factor plugins, and application-owned authorisation. Preserve the reference's checks for disabled accounts, verified invitations, WebAuthn origin/RP binding, and user verification. Reuse security behavior with its regression tests.
+A key belongs to a person and has a name, protected secret hash, creation/expiry
+and revocation metadata. Show the random secret once and retain only its keyed
+hash and redacted metadata. The default expiry remains 90 days; an Admin can
+create a non-expiring key. Rotation uses a bounded overlap before revocation.
 
-V1 supports email/password, authenticator-app TOTP, single-use recovery codes, and passkeys. A successful user-verified passkey can complete authentication without an extra TOTP challenge; a password login for a 2FA-enabled account must complete TOTP or a recovery code before receiving a fully authenticated session. Enabling TOTP requires confirmation with a valid code. Password reset must not silently disable 2FA.
+Personal keys have Read-only, Edit or Administrative permission ceilings,
+intersected with the person's live role. They do not contain selected operations
+or database/table whitelists. Demotion or removal invalidates excess authority.
+Every person manages their own personal keys.
 
-Engineering defaults are seven-day browser sessions with server-side revocation checks and a five-minute recent-authentication window for sensitive changes. Password reset/change, account disablement, and credential recovery revoke relevant sessions and delegated grants. Normal logout revokes the current browser session; "sign out everywhere" revokes all sessions and allows explicit revocation of delegated access.
+Team keys belong to the workspace and have no user owner. Only current admins
+can create, list, rotate or revoke them. They have the same name, permission and
+expiry inputs, remain valid when the creator leaves, and cannot access personal
+account operations or manage credentials. Both REST and MCP enforce their stored
+permission ceiling, expiry and revocation. Rotation preserves permissions and
+expiry unless changed; secret values are shown once and omitted on replay.
 
-Sensitive operations include changing email/password, registering/removing passkeys, disabling 2FA, rotating recovery codes, transferring ownership, creating or expanding privileged keys, changing backup credentials or installation configuration, restoring over existing data, and deleting an organisation/database/table. Browser users complete step-up. API/MCP users start the same action through an account-action ticket and finish its approval in the browser. A ticket binds the immutable request, client, user, organisation, target, and expiry. It cannot be reused for another action.
+## OAuth and MCP
 
-The passkey RP ID and allowed origins derive from the configured installation URL. Existing Towbar credentials and RP bindings are not copied. Challenge replay, origin mismatch, missing user verification, duplicate credential attachment, and expired challenges must fail. V1 operator recovery must work for a lost factor without printing credentials or silently adding unrestricted access.
+An OAuth connection belongs to the person who grants consent. PKCE, exact
+redirects, issuer/audience/resource binding, single-use codes and rotating refresh
+tokens remain required. Here resource binding identifies the MCP server URL; it
+does not select databases or tables.
 
-Email change verifies the new address, preserves the old address until completion, handles email uniqueness races, revokes appropriate sessions/grants, and notifies both addresses. Rate-limit login, reset, verification, invitation acceptance, factor verification, and action approval. Error responses must not reveal whether an unrelated email has an account.
+Consent approves operations. Effective access is the intersection of those
+operations and the person's current role. Demotion, membership removal and
+revocation apply to existing access/refresh tokens and waiting work. The consent
+screen has no database/table chooser. Approving OAuth/MCP access requires recent authentication; a recovery code cannot grant this proof. The native identity-confirmation dialog completes bound passkey proof and retries the same reviewed request.
 
-## Personal and team API keys
+## Preferences and history
 
-Personal keys belong to a user membership in exactly one organisation. Effective permissions are the intersection of the current membership, resource grants, and key scopes/targets. A demotion, membership removal, user disablement, or resource restriction takes effect on the next request; a token is not a snapshot of old authority.
+Display formats use the same identifiers and defaults as Towbar: `day-short-month-year`,
+`short-month-day-year`, `year-month-day`, `day-month-year`, `month-day-year`;
+and `24-hour`, `12-hour`, `24-hour-seconds`, `12-hour-seconds`. New accounts default
+to `day-short-month-year`, `24-hour`, and `UTC`. The public and internal preference
+operations accept the earlier `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `24h` and
+`12h` aliases and return/store their canonical equivalents. Reading earlier values
+also normalizes them without modifying the database on a read. Fresh SQL storage
+accepts only canonical identifiers. Preference aliases do not alter domain DATE,
+UTC TIME or UTC DATETIME values, editor precision, or API wire representations.
 
-Team keys belong to the organisation as service principals. They have explicit operation scopes and database/table targets. The creator is audit attribution, not the runtime owner. Leaving the organisation does not silently disable a team integration. Owners/Admins can list, rotate, and revoke these keys. A team key cannot act as a person, authenticate to the browser, manage a person's factors, or perform ownership transfer.
+People can set an IANA timezone, locale, date/time format and theme. UTC is the
+fallback. Date-time displays and edits use the selected timezone; resolve DST
+ambiguities explicitly. Date-only values remain calendar dates and time-only
+values remain labelled UTC. Preference changes do not mutate cells or history.
 
-Keys have at least 256 bits of random secret material, a Rootset prefix, a non-secret lookup identifier, and a one-time secret display. Store only a keyed hash of the secret and redacted metadata. Never log headers, tokens, recovery codes, password material, or backup credentials. The default key expiry is 90 days; only Owners/Admins can approve a non-expiring key. Rotation creates a replacement and supports an explicitly bounded overlap before revoking the old key.
+The account page and navigation are called **Preferences**, matching Towbar and
+Mill. Reuse Towbar's Date and time form: paired date/time format selectors, a
+searchable Time zone selector with UTC offsets, a live formatting preview and
+Save. Show example values for Rootset's supported formats. Keep appearance in
+the shared header control; retain locale in the preference API without a separate
+free-text field in this form. Saving date/time settings patches only those three
+values, preserving the user's current locale and appearance.
 
-Key creation uses an idempotency key. A replay returns metadata and does not re-display the secret. If the first response was lost, the user can revoke that key and create a replacement. A delegated credential cannot mint a key with scopes/targets beyond its own authority, even if the user's browser role has broader access. Privileged key creation also requires the bound step-up action.
+Cell/row and schema history retain the responsible person's identity and
+credential/client attribution without secrets. V1 has no organisation-wide audit
+browser or organisation audit resource. Keep the security/recovery records needed
+to verify authentication and operations, without inventing another product area.
 
-Expose creation, listing, rotation, and revocation through the public API and MCP subject to these rules. Unlike the Towbar reference, Rootset must not rely on a blanket browser-only prohibition for all team/key operations.
+SMTP and S3-compatible storage settings belong to the deployment `.env` file.
+There is no UI/API configuration override or test-email action. Apply provider
+changes by restarting API and worker; Deployment readiness validates dependencies separately.
 
-## OAuth grants
+## Account settings pages
 
-Remote MCP uses user-delegated OAuth with consent identifying the client, organisation, scopes, and databases/tables. The API can also accept audience-bound OAuth grants for registered API integrations. A token for MCP is not accepted as a REST API token, or vice versa.
+Reuse the current Towbar account sidebar, page titles, wording and HeroUI
+components. Each route has only its account navigation, even if the URL still
+contains a previous database or table identifier.
 
-Use short-lived access tokens and rotating refresh tokens. Engineering defaults are 15-minute access tokens, seven-day refresh inactivity expiry, and a 30-day absolute grant lifetime. Reuse of a rotated refresh token revokes its family. Consent revocation, user disablement, membership loss, and grant expiry prevent refresh and further access. Permission checks still evaluate current grants on every request.
+| Group     | Page             | Route                      | Content                                                                                                                |
+| --------- | ---------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Account   | Profile          | `/settings/profile`        | Appearance, linked Gravatar image and Your Name with Save                                                              |
+| Account   | Preferences      | `/settings/preferences`    | Towbar Date and time form, supported format selectors, Time zone, preview and Save                                     |
+| Security  | Email & Password | `/settings/email-password` | Current email verification status, confirmed email change with pending/cancel controls, and password confirmation form |
+| Security  | Passkeys         | `/settings/passkeys`       | Shared PasskeySettings add/rename/remove flows and one-time passkey recovery-code saving/replacement                   |
+| Security  | Sessions         | `/settings/sessions`       | Towbar session table; current browser identified with its Revoke button disabled                                       |
+| API & MCP | API Keys         | `/settings/api-keys`       | Personal keys table and MCP Connections table; creation/expiry and one-time secret modal; role-inherited permissions   |
+| API & MCP | MCP Guide        | `/settings/mcp`            | Towbar client selector, client configuration code blocks, copy controls and OAuth connection instructions              |
 
-OAuth clients are not team service principals. Unattended team automation uses a scoped team key in v1. The connected-apps screen lists grants and lets users revoke them; administrators can revoke an organisation's grants without gaining access to token secrets.
+Legacy `/settings/security` and `/settings/2fa` links resolve to Passkeys; keys/connections aliases resolve to API Keys. Account pages consume published `ProfileImageSettings`, `ProfileSettings`, `EmailChangeSettings`, `PasswordChangeSettings`, `PasskeySettings`, `SessionsSettings`, and the shared API/MCP patterns. Shared labels, dialogs and fixed copy stay in the library. Recovery-code saving belongs to the passkey ceremony, with no separate recovery-code administration panel.
 
-## Preferences and viewing
+Browser identity confirmation uses the shared `ConfirmIdentityDialog`: password for an account without passkeys, or an abortable passkey request for an enrolled account. Cancellation cannot continue into the mutation. Once identity is confirmed, the browser sends the mutation directly. Table deletion uses the normal destructive confirmation; database deletion additionally verifies identity. Operator repair runs directly for authorized administrators.
 
-Preferences belong to the user and apply across memberships. Store a validated IANA timezone, locale, date format, time format, and theme. UTC is the fallback timezone. Never infer and persist a new timezone from an API request.
-
-Date-time viewing and editing use the selected timezone. The editor explicitly resolves ambiguous daylight-saving times and rejects nonexistent times until corrected. Date-only values remain calendar dates. Time-only values remain UTC and show a UTC label. REST, MCP, exports, history, and backups always use the canonical UTC contract, independently of the viewing preference.
-
-Preference changes do not mutate table values or add cell-history entries. Locale formatting must not change stored floating-point or integer values. Add preview controls so users can inspect date/time formatting before saving.
-
-## Emails and maintenance
-
-Adapt Towbar's React Email templates for invitation, invitation verification, account verification, reset, password change, email-change verification and notices, factor changes, team-key creation/revocation, and account recovery. Replace branding, domains, sender names, links, issuer labels, and contact copy. Keep template rendering independent of delivery.
-
-Use a transactional outbox so a committed account action cannot lose its email merely because SMTP was unavailable. Worker retries have dedupe keys, bounded backoff, and visible failures. A reused dedupe key must not suppress a later distinct security event. SMTP/object-storage secrets are encrypted and are never returned by a read endpoint. Account deletion and organisation deletion are durable jobs with explicit confirmation, resource accounting, retention handling, and auditable terminal states.
-
-## Towbar reuse map
-
-Reference commit: `bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2`.
-
-| Reference                                                                                                                                           | Reuse                                                         | Rootset adaptation                                                                     |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [Identity UI](https://github.com/avgeek-inc/towbar/tree/bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2/packages/identity-web-ui/src)                      | Auth frame and credential-form patterns.                      | Branding, routes, invitation/setup state, Rootset errors.                              |
-| [Identity service](https://github.com/avgeek-inc/towbar/blob/bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2/apps/towbar-api/src/areas/auth/identity.ts)   | Password, passkey, TOTP, verification, session checks.        | Owner role, alphanumeric IDs, organisation selection, Rootset RP/issuer.               |
-| [Access model](https://github.com/avgeek-inc/towbar/blob/bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2/packages/towbar-access/src/index.ts)              | Actor types and permission intersections.                     | Database/table grants and administrative API/MCP coverage.                             |
-| [API-key service](https://github.com/avgeek-inc/towbar/blob/bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2/apps/towbar-api/src/areas/api-keys/service.ts) | Key ownership, hashes, one-time display, audit.               | Resource targets, narrower operation scopes, rotation.                                 |
-| [Account emails](https://github.com/avgeek-inc/towbar/tree/bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2/packages/towbar-email/emails/account)           | Template structure and security notifications.                | All Rootset text, links, sender/issuer, delivery configuration.                        |
-| [MCP OAuth](https://github.com/avgeek-inc/towbar/tree/bf3354d7e3c9a8d9ec634b5057fd42a11b6edba2/apps/towbar-api/src/areas/mcp-oauth)                 | PKCE/resource checks, client attribution, discovery, consent. | Fine-grained scopes, short tokens, refresh rotation, complete administrative coverage. |
-
-Copying reference code requires preserving its applicable licence and notices. The project's public-distribution licence remains a release decision. Do not create a production dependency on Towbar-specific private packages, operational services, or credentials.
-
-## Completion evidence
-
-The account gates are `ACC-*`, `AUTH-*`, and `KEY-*` in the [verification checklist](IMPLEMENTATION_VERIFICATION_CHECKLIST.md). They require role/resource cross-product checks, real-factor authentication, rendered auth/email review, concurrent membership transitions, and rejection checks across session, personal-key, team-key, and OAuth actors.
+The browser-only `/v1/auth/email-change` GET/DELETE endpoint reads or cancels only
+the signed-in user's pending confirmation. Cancellation invalidates its token and
+expires unsent outbox work. Cross-origin mutations and bearer-key requests are
+rejected. These controls reuse the existing email-change table and add no schema.

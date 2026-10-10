@@ -1,0 +1,23 @@
+{
+  "name": "@rootset/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@rootset/observability": "workspace:*",
+    "ulid": "catalog:",
+    "zod": "catalog:",
+    "json-canonicalize": "catalog:"
+  }
+}

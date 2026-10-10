@@ -1,0 +1,37 @@
+---
+title: "API keys"
+description: "Create personal or workspace-owned API keys with Read-only, Edit or Administrative permissions."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+## Personal keys
+
+Open **My API Keys** from the profile menu. Select **Create API key**, enter a name, choose an expiry and select **Read-only**, **Edit** or **Administrative** permissions. A key's effective permission is capped by your current workspace role.
+
+The secret is shown when created. Copy it to your client's protected environment and close the dialog. Rootset does not show it again in the key list. Revoke a key when it is no longer needed; rotate a key to replace its secret and update the clients using it.
+
+## Team keys
+
+Admins manage **Team Settings → API Keys**. Team keys are workspace-owned credentials for automation with the same three permission levels. Creation, rotation and revocation are Admin actions.
+
+## Use a key
+
+```bash
+export ROOTSET_API_ORIGIN="https://rootset-api.example.com"
+read -rs ROOTSET_API_KEY
+export ROOTSET_API_KEY
+curl --fail-with-body "$ROOTSET_API_ORIGIN/v1/me" \
+  -H "Authorization: Bearer $ROOTSET_API_KEY"
+```
+
+Use the public API origin for REST and [MCP](/mcp-guide). Do not put keys into URLs, documentation screenshots, browser bundles or Git. Authentication still checks expiration, revocation and current authority on each request.
+
+<Screenshot
+  light="/assets/screenshots/api-key-editor-light.png"
+  dark="/assets/screenshots/api-key-editor-dark.png"
+  alt="Create an API key with permission and expiry controls"
+  caption="Create narrowly scoped keys for your own clients; use team keys for workspace automation."
+  width={3840}
+  height={2160}
+/>

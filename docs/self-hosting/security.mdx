@@ -1,0 +1,18 @@
+---
+title: "Security and recovery"
+description: "Protect API credentials, HTTPS origins, private artifacts and persistent installation secrets."
+---
+
+Use HTTPS for both public origins. Configure the exact UI and API URLs; the API accepts credentialed browser requests from the configured UI origin. API browser session cookies belong to the API host. The UI does not proxy API traffic.
+
+Use Admin access only for people and clients that need it. Member credentials cannot delete databases or tables. Read-only credentials cannot mutate data. Revoke unused API keys, OAuth connections and sessions.
+
+## Storage and recovery
+
+Use a private S3-compatible bucket with credentials limited to the bucket. Export artifacts are encrypted and downloads require authentication and current permissions. Keep PostgreSQL, private objects and the matching encryption key in your provider-level recovery plan. Database/table backup and restore are not Rootset features.
+
+The API, worker and UI run as an unprivileged user with read-only root filesystems, dropped capabilities and narrow writable mounts. They do not require a Docker socket. Keep databases and artifact storage on private networks where possible.
+
+## Report a vulnerability
+
+Follow [SECURITY.md](https://github.com/avgeek-oss/rootset/blob/main/SECURITY.md) for responsible reporting. Do not post credentials or private data in public issues. For installation support, include the image version, HTTP status and redacted request ID rather than a full environment file.

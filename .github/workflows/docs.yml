@@ -1,0 +1,35 @@
+name: Documentation
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+jobs:
+  docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: https://npm.pkg.github.com
+          scope: "@avgeek-oss"
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install --global pnpm@11.5.3
+          pnpm install --frozen-lockfile
+      - name: Shared component drift, content and release checks
+        run: |
+          pnpm docs:check
+          node --test tools/release/*.test.mjs
+          docker compose --env-file rootset.env.example -f compose.images.yaml config --quiet
+          docker compose --env-file rootset.env.example -f compose.images.yaml --profile local-db config --quiet
+      - name: Validate Mintlify pages
+        working-directory: docs
+        run: npx --yes mint@4.2.851 validate

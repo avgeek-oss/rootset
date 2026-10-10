@@ -1,0 +1,21 @@
+---
+title: "Filter your table"
+description: "Build field conditions from the floating Filter button without changing stored data."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Select the floating **Filter** button at the bottom right of the table. Choose a field, a match operator, and a value. Add another condition when needed and select whether all or any conditions should match.
+
+Available operators follow the selected field's type. NULL checks do not need a literal value. Select **Apply** to refresh the table with the matching rows; **Clear all filters** returns to the complete view.
+
+Filters do not edit or delete records and do not require search indexes. Export Requests exports the complete table, even when the spreadsheet view has active filters.
+
+<Screenshot
+  light="/assets/screenshots/filters-light.png"
+  dark="/assets/screenshots/filters-dark.png"
+  alt="Filters dialog with Field, Match and Value controls"
+  caption="Choose fields and conditions, then apply them to the table view."
+  width={3840}
+  height={2160}
+/>

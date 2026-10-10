@@ -1,0 +1,29 @@
+---
+title: "Connect an MCP client"
+description: "Use Rootset\u2019s public MCP endpoint with OAuth or an API key."
+---
+
+Rootset exposes Streamable HTTP MCP at **`https://your-api-origin/mcp`**. Use the same API origin as REST; do not point MCP clients at the UI.
+
+## OAuth-capable clients
+
+Add Rootset as a remote MCP server using the `/mcp` URL. Follow the client's OAuth sign-in flow, sign in to Rootset, and review the requested access. The approved scopes are bounded by your current workspace role. Manage connections in **Account Settings → MCP connections**.
+
+## Clients supporting a bearer header
+
+Create a [personal or team API key](/api-keys). Configure the remote URL and an `Authorization: Bearer <your-key>` header through the client's secret configuration. Client syntax varies; keep the key out of checked-in config files.
+
+```json
+{
+  "url": "https://rootset-api.example.com/mcp",
+  "headers": {
+    "Authorization": "Bearer <your-rootset-api-key>"
+  }
+}
+```
+
+## Work with a table
+
+Ask the client to discover the workspace, list databases and tables, and read the table schema before querying or creating rows. [MCP tools](/mcp-tools) share the REST contract and permissions. Schema changes, exports and deletion can return jobs; inspect their status before treating the operation as complete.
+
+Read-only keys cannot edit records. Edit keys cannot delete databases or tables. Administrative automation keys can execute those operations directly; browser-only identity confirmation is not an approval ticket for MCP.

@@ -1,0 +1,744 @@
+{
+  "kind": "v1-pending-checks",
+  "requiredChecks": 40,
+  "acceptance": false,
+  "note": "Test source pointers are partial coverage plans. Actual results and review of every named behavior are still required.",
+  "checks": [
+    {
+      "id": "V1-01",
+      "area": "Installation and accounts",
+      "requirement": "An empty PostgreSQL 18 installation applies only `0001_baseline.sql`; concurrent startup and digest mismatch behave safely.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/runtime-ownership.integration.test.ts",
+          "line": 28,
+          "title": "OWNERSHIP-01"
+        },
+        {
+          "path": "tools/verification/storage-collision.integration.test.ts",
+          "line": 9,
+          "title": "STORAGE-COLLISION-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-02",
+      "area": "Installation and accounts",
+      "requirement": "An incompatible earlier prelaunch ledger refuses startup without changing data; the message gives fresh-install guidance and preserves the original installation.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-03",
+      "area": "Installation and accounts",
+      "requirement": "Setup claims one organisation and the first Admin atomically; SQL rejects a second organisation, including concurrent/direct fixture attempts.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 137,
+          "title": "ACCESS-SINGLE-ORG-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-04",
+      "area": "Installation and accounts",
+      "requirement": "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema; SMTP/S3 configuration is read only from the deployment environment.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 182,
+          "title": "ACCESS-ROLE-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-05",
+      "area": "Installation and accounts",
+      "requirement": "Invitations and member role/removal flows work, protect the last Admin, and have no organisation switcher or removed lifecycle fields.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 304,
+          "title": "ACCESS-PERSONAL-01"
+        },
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 409,
+          "title": "ACCESS-LAST-ADMIN-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-06",
+      "area": "Installation and accounts",
+      "requirement": "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and direct sensitive actions work with recent identity confirmation, role enforcement and expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/identity/src/passkey-security.test.ts",
+          "line": 18,
+          "title": "V1-06 AUTH-03 AUTH-04 passkey crypto, password gates, bound fresh proof and one-use recovery"
+        }
+      ]
+    },
+    {
+      "id": "V1-07",
+      "area": "Installation and accounts",
+      "requirement": "Personal keys have read-only, edit or administrative ceilings intersected with current role; demotion, member removal, expiry and revocation affect existing and waiting requests and replay. Team keys use the same ceilings independently of their creator, with admin-only management and no personal account authority.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 226,
+          "title": "V1-07 V1-24: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 274,
+          "title": "V1-07 V1-24: metadata cursors bind request limits, filters and current membership"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 306,
+          "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 430,
+          "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 587,
+          "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 656,
+          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 899,
+          "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
+        },
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 304,
+          "title": "ACCESS-PERSONAL-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-08",
+      "area": "Installation and accounts",
+      "requirement": "OAuth PKCE, redirect/state/issuer/audience, code replay, refresh reuse, revocation and operation consent work with a real MCP client; no database/table selections remain.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-09",
+      "area": "Contracts and storage",
+      "requirement": "Generated OpenAPI/client/MCP artifacts match the catalog; supported operations share strict input/output validation and have useful typed errors.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-10",
+      "area": "Contracts and storage",
+      "requirement": "Browser Origin/CSRF, REST/MCP audience separation, nested-parent validation and SQL parameter/identifier boundaries reject abuse without leaking secrets or data.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 219,
+          "title": "ACCESS-PARENT-01"
+        },
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 254,
+          "title": "ACCESS-DATABASE-COUNTS-01"
+        },
+        {
+          "path": "tools/verification/runtime-ownership.integration.test.ts",
+          "line": 55,
+          "title": "OWNERSHIP-02"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 169,
+          "title": "STORAGE-CATALOG-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-11",
+      "area": "Contracts and storage",
+      "requirement": "Field definitions have only one `name`; 1\u201364 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 84,
+          "title": "STORAGE-FIELD-NAME-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 251,
+          "title": "STORAGE-TYPES-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-12",
+      "area": "Contracts and storage",
+      "requirement": "Field rename changes the UI label and JSON key together while preserving internal ID, values, query references and interpretable cell history.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 828,
+          "title": "STORAGE-SCHEMA-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-13",
+      "area": "Contracts and storage",
+      "requirement": "All eleven types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 251,
+          "title": "STORAGE-TYPES-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 441,
+          "title": "STORAGE-DEFAULTS-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 501,
+          "title": "STORAGE-BYTES-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-14",
+      "area": "Contracts and storage",
+      "requirement": "UTC time/date-time precision, calendar dates and timezone/DST editing round-trip through browser, REST, MCP, export and history.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 251,
+          "title": "STORAGE-TYPES-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-15",
+      "area": "Contracts and storage",
+      "requirement": "Row bytes, 200 fields, JSON depth, request/result bytes, query rows and 1,000-row mutation caps enforce exact boundaries.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 251,
+          "title": "STORAGE-TYPES-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 541,
+          "title": "STORAGE-AUDIT-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1025,
+          "title": "STORAGE-BYTEPAGE-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-16",
+      "area": "Contracts and storage",
+      "requirement": "The 5,000,000th live row succeeds and the next fails; concurrent writers cannot race the limit, rollback releases reservations and committed deletion frees capacity.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-17",
+      "area": "Contracts and storage",
+      "requirement": "Revision conflicts, no-op updates, atomic batches and idempotent retry preserve the committed outcome under concurrent writes and network/process loss.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 430,
+          "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 899,
+          "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
+        },
+        {
+          "path": "tools/verification/access.integration.test.ts",
+          "line": 304,
+          "title": "ACCESS-PERSONAL-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 251,
+          "title": "STORAGE-TYPES-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 441,
+          "title": "STORAGE-DEFAULTS-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 501,
+          "title": "STORAGE-BYTES-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 541,
+          "title": "STORAGE-AUDIT-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 613,
+          "title": "STORAGE-CONCURRENCY-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1062,
+          "title": "STORAGE-SCHEMA-BYTES-02"
+        }
+      ]
+    },
+    {
+      "id": "V1-18",
+      "area": "Contracts and storage",
+      "requirement": "Single/composite scalar uniqueness handles nulls, exact text/float equality, wide tuples, forced digest collisions and concurrent insert/update/delete.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage-collision.integration.test.ts",
+          "line": 9,
+          "title": "STORAGE-COLLISION-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 701,
+          "title": "STORAGE-UNIQUE-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 764,
+          "title": "STORAGE-UNIQUE-02"
+        }
+      ]
+    },
+    {
+      "id": "V1-19",
+      "area": "Contracts and storage",
+      "requirement": "Schema/rule/index jobs validate existing values and row size; interrupted conversion/index activation reconciles actual catalog state and preserves the original generation on failure.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 169,
+          "title": "STORAGE-CATALOG-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 828,
+          "title": "STORAGE-SCHEMA-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1062,
+          "title": "STORAGE-SCHEMA-BYTES-02"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1091,
+          "title": "STORAGE-CONVERSION-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1146,
+          "title": "STORAGE-CONVERSION-02"
+        }
+      ]
+    },
+    {
+      "id": "V1-20",
+      "area": "History, jobs and recovery",
+      "requirement": "Inserts/edits/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 656,
+          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 899,
+          "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
+        },
+        {
+          "path": "tools/verification/runtime-ownership.integration.test.ts",
+          "line": 55,
+          "title": "OWNERSHIP-02"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 413,
+          "title": ""
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 541,
+          "title": "STORAGE-AUDIT-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 613,
+          "title": "STORAGE-CONCURRENCY-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 828,
+          "title": "STORAGE-SCHEMA-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 893,
+          "title": "STORAGE-RLS-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1091,
+          "title": "STORAGE-CONVERSION-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1146,
+          "title": "STORAGE-CONVERSION-02"
+        }
+      ]
+    },
+    {
+      "id": "V1-21",
+      "area": "History, jobs and recovery",
+      "requirement": "Row/field deletion, field renames and retained table/database history remain interpretable and obey current role; archive readback/retention never loses required history silently.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 828,
+          "title": "STORAGE-SCHEMA-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1091,
+          "title": "STORAGE-CONVERSION-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-22",
+      "area": "History, jobs and recovery",
+      "requirement": "Typed filters, JSON operators, projection/sort, signed cursors, byte-capped continuation and deep window navigation return correct complete rows.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 113,
+          "title": "STORAGE-FILTERED-WINDOW-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 937,
+          "title": "STORAGE-PAGING-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1025,
+          "title": "STORAGE-BYTEPAGE-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-23",
+      "area": "History, jobs and recovery",
+      "requirement": "Scan timeout/disconnect cancels owned work and preserves peer requests; native connection cleanup/restart tests cover idle and active pools without leaks.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-24",
+      "area": "History, jobs and recovery",
+      "requirement": "Durable jobs fence stale leases, resume committed checkpoints, disclose partial cancellation and publish effects once under worker/process termination.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 226,
+          "title": "V1-07 V1-24: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 274,
+          "title": "V1-07 V1-24: metadata cursors bind request limits, filters and current membership"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 306,
+          "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 430,
+          "title": "V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute under current role and deny foreign requesters or lost current authority"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 587,
+          "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 656,
+          "title": "V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserves first attribution, canonical input and all other business/security/target bindings"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 899,
+          "title": "V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered counts, authenticates lifetime business/proof/source provenance and fails closed on stale receipts or altered durable metadata"
+        }
+      ]
+    },
+    {
+      "id": "V1-25",
+      "area": "History, jobs and recovery",
+      "requirement": "CSV/JSONL exports preserve types/UTC/leading-zero text and produce authenticated checksummed artifacts.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 190,
+          "title": "V1-25: filtered snapshot export has canonical quoted content and encrypted storage"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 306,
+          "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 587,
+          "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1188,
+          "title": "STORAGE-SNAPSHOT-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-26",
+      "area": "History, jobs and recovery",
+      "requirement": "Database backup/restore operations, scopes and generated REST/MCP contracts are absent; API/MCP row creation remains available.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/contracts/src/contracts.test.ts",
+          "line": 95,
+          "title": "V1-26 removed feature operations are absent while API/MCP row creation remains available"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 1188,
+          "title": "STORAGE-SNAPSHOT-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-27",
+      "area": "History, jobs and recovery",
+      "requirement": "The browser provides filters and inline edits without an Add row button, row-creation modal or backup navigation.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "apps/rootset-web/src/components/cells/CellEditor.browser.spec.ts",
+          "line": 822,
+          "title": "V1-27 compact rows select on click, edit on double-click, and expose header actions"
+        }
+      ]
+    },
+    {
+      "id": "V1-28",
+      "area": "History, jobs and recovery",
+      "requirement": "The fresh baseline contains no backup, restore or backup-notification tables; exports and bounded cell history remain functional; import batch and rejection tables are absent.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/database/src/baseline.test.ts",
+          "line": 14,
+          "title": "V1-28 fresh baseline is repeatable, enforces singleton and roles, and preserves incompatible prelaunch databases"
+        }
+      ]
+    },
+    {
+      "id": "V1-29",
+      "area": "History, jobs and recovery",
+      "requirement": "Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-30",
+      "area": "History, jobs and recovery",
+      "requirement": "Object/SMTP outage, corruption, missing keys, disk pressure and connection saturation produce truthful failures/retry behavior; retention preserves the last verified recovery point.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 306,
+          "title": "V1-07 V1-24 V1-25 V1-30: an expired uploader cannot overwrite the artifact produced by its replacement lease"
+        },
+        {
+          "path": "packages/jobs/src/integration.ts",
+          "line": 587,
+          "title": "V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact"
+        }
+      ]
+    },
+    {
+      "id": "V1-31",
+      "area": "Browser and performance",
+      "requirement": "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-32",
+      "area": "Browser and performance",
+      "requirement": "Keyboard, touch, screen-reader and zoom behavior work on the actual grid; no removed account/resource-selection, installation tuning/provider configuration or standalone Background Jobs controls remain.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-33",
+      "area": "Browser and performance",
+      "requirement": "Record genuine five-million-row and 200-field near-limit fixtures, counts/checksums, at least ten million history events and the approved resource/network profile.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-34",
+      "area": "Browser and performance",
+      "requirement": "Warm/cold indexed queries, normal/byte-capped REST pages, unindexed scans and deep navigation meet the targets below with plans, percentiles and errors.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-35",
+      "area": "Browser and performance",
+      "requirement": "Ten simultaneous editing clients meet committed edit/history targets without lost changes or duplicate history; background work keeps foreground reads responsive.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-36",
+      "area": "Browser and performance",
+      "requirement": "Safari/Chromium viewport, five-minute scroll, cache eviction, memory and restart/query-switching checks meet the targets without growing leaks.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-37",
+      "area": "Candidate review",
+      "requirement": "`pnpm contracts:generate` drift, `pnpm verify` and affected genuine integration/browser checks pass for the exact candidate; missing prerequisites are reported.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-38",
+      "area": "Candidate review",
+      "requirement": "Fresh images/installation, non-root runtime privileges, narrow mounts/environments and readiness are verified, including failed migration/dependency startup.",
+      "status": "pending",
+      "testSources": [
+        {
+          "path": "tools/verification/runtime-ownership.integration.test.ts",
+          "line": 28,
+          "title": "OWNERSHIP-01"
+        },
+        {
+          "path": "tools/verification/runtime-ownership.integration.test.ts",
+          "line": 55,
+          "title": "OWNERSHIP-02"
+        },
+        {
+          "path": "tools/verification/storage-collision.integration.test.ts",
+          "line": 9,
+          "title": "STORAGE-COLLISION-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 169,
+          "title": "STORAGE-CATALOG-01"
+        },
+        {
+          "path": "tools/verification/storage.integration.test.ts",
+          "line": 893,
+          "title": "STORAGE-RLS-01"
+        }
+      ]
+    },
+    {
+      "id": "V1-39",
+      "area": "Candidate review",
+      "requirement": "A reviewer follows the current installation, account/key and PostgreSQL/provider recovery runbooks successfully with synthetic isolated data.",
+      "status": "pending",
+      "testSources": []
+    },
+    {
+      "id": "V1-40",
+      "area": "Candidate review",
+      "requirement": "The report lists current results and unresolved checks, keeps historical evidence separate and states acceptance/publication/deployment status truthfully.",
+      "status": "pending",
+      "testSources": []
+    }
+  ],
+  "checksWithoutTestPointers": [
+    "V1-02",
+    "V1-08",
+    "V1-09",
+    "V1-16",
+    "V1-29",
+    "V1-31",
+    "V1-32",
+    "V1-33",
+    "V1-34",
+    "V1-35",
+    "V1-36",
+    "V1-37",
+    "V1-39",
+    "V1-40"
+  ]
+}

@@ -1,0 +1,45 @@
+---
+title: "Fields and types"
+description: "Define columns, defaults and constraints with Rootset\u2019s field editor."
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Open a table's **Settings → Fields**. The table lists each column's name and type, required setting, default and constraints. Use the arrows before the name to change its position. Select **Add field** or **Edit** to open the form.
+
+## Supported types
+
+| Type        | Stored value and browser behaviour                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `text`      | String with an optional maximum character count.                                                                     |
+| `uri`       | Plain string representing a URI. No address-format validation.                                                       |
+| `url`       | Plain string representing a URL. No address-format validation.                                                       |
+| `image`     | URL stored as a plain string, displayed as a compact image thumbnail. An unavailable image shows a muted image icon. |
+| `integer`   | Whole number with optional inclusive minimum and maximum.                                                            |
+| `float`     | Number with optional inclusive minimum and maximum.                                                                  |
+| `boolean`   | `true` or `false`; displayed in green and orange.                                                                    |
+| `date`      | Calendar date such as `2026-10-09`.                                                                                  |
+| `time`      | UTC time; the browser edits hours and minutes.                                                                       |
+| `date-time` | UTC instant; the browser displays your chosen date/time format.                                                      |
+| `json`      | JSON object, array, number, string, boolean or NULL.                                                                 |
+
+Date, time and date-time fields support inclusive minimum and maximum bounds. Date-time bounds use a date picker and default to midnight UTC. URI, URL and image fields have no custom address constraints.
+
+## Required and default values
+
+Optional fields allow `NULL` and use `NULL` as their default unless you supply a literal value. Required fields cannot contain `NULL`; the editor requires a valid non-NULL literal default. New rows must supply a valid value or use that default. There is no separate nullable setting.
+
+Column names use 1–64 letters or underscores. They are the keys used in API row values. Rootset rejects reserved system names.
+
+## Change or remove a field
+
+Editing a field previews the proposed schema change before applying it. Changes validate existing data, and long operations run through the worker. An invalid change fails without silently converting incompatible values. Removing a field also removes its cell history; review any dependent unique rules before removal.
+
+<Screenshot
+  light="/assets/screenshots/fields-light.png"
+  dark="/assets/screenshots/fields-dark.png"
+  alt="Fields table showing types, required checks, defaults and constraints"
+  caption="Types appear below column names; defaults and constraints have their own columns."
+  width={3840}
+  height={2160}
+/>

@@ -1,0 +1,253 @@
+name: ${ROOTSET_COMPOSE_PROJECT:-rootset}
+
+x-runtime-environment: &runtime-environment
+  ROOTSET_API_URL: ${ROOTSET_API_URL:?Run pnpm setup:env and configure the API origin}
+  ROOTSET_WEB_URL: ${ROOTSET_WEB_URL:?Run pnpm setup:env and configure the web origin}
+  ROOTSET_PORT: 4310
+  ROOTSET_HOST: 0.0.0.0
+  ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
+  ROOTSET_SECRET: ${ROOTSET_SECRET:?Persistent application secret required}
+  ROOTSET_OAUTH_CLIENTS: ${ROOTSET_OAUTH_CLIENTS:-[]}
+  ROOTSET_ENCRYPTION_KEY: ${ROOTSET_ENCRYPTION_KEY:?Persistent encryption key required}
+  ROOTSET_S3_ENDPOINT: ${ROOTSET_S3_ENDPOINT:?Artifact storage endpoint required}
+  ROOTSET_S3_REGION: ${ROOTSET_S3_REGION:-us-east-1}
+  ROOTSET_S3_BUCKET: ${ROOTSET_S3_BUCKET:?Artifact bucket required}
+  ROOTSET_S3_ACCESS_KEY: ${ROOTSET_S3_ACCESS_KEY:?Artifact access key required}
+  ROOTSET_S3_SECRET_KEY: ${ROOTSET_S3_SECRET_KEY:?Artifact secret required}
+  ROOTSET_ARTIFACT_TEMP_DIR: /var/lib/rootset/artifact-spool
+  ROOTSET_SMTP_HOST: ${ROOTSET_SMTP_HOST:?SMTP host required}
+  ROOTSET_SMTP_PORT: ${ROOTSET_SMTP_PORT:-587}
+  ROOTSET_SMTP_SECURE: ${ROOTSET_SMTP_SECURE:-true}
+  ROOTSET_SMTP_USER: ${ROOTSET_SMTP_USER:-}
+  ROOTSET_SMTP_PASSWORD: ${ROOTSET_SMTP_PASSWORD:-}
+  ROOTSET_EMAIL_FROM: ${ROOTSET_EMAIL_FROM:?Sender required}
+  ROOTSET_WORKER_ID_FILE: /tmp/rootset-worker-id
+  ROOTSET_LOG_LEVEL: ${ROOTSET_LOG_LEVEL:-info}
+
+x-runtime: &runtime
+  image: ${ROOTSET_RUNTIME_IMAGE:-rootset-runtime:local}
+  build:
+    context: .
+    target: runtime
+    secrets: [npmrc]
+    args:
+      ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  environment: *runtime-environment
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    objects-init:
+      condition: service_completed_successfully
+      required: false
+
+services:
+  postgres:
+    profiles: [local]
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    user: postgres
+    restart: unless-stopped
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: ${ROOTSET_POSTGRES_CPUS:-4}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: rootset
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres-init.sh:/docker-entrypoint-initdb.d/10-rootset.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U rootset -d rootset"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    image: ${ROOTSET_RUNTIME_IMAGE:-rootset-runtime:local}
+    build:
+      context: .
+      target: runtime
+      secrets: [npmrc]
+      args:
+        ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
+    init: true
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command: [node, dist/migrate.mjs]
+    environment:
+      ROOTSET_DATABASE_URL: ${ROOTSET_DATABASE_URL:?PostgreSQL database URL required}
+      NODE_OPTIONS: --max-old-space-size=768
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+
+  objects:
+    profiles: [local]
+    image: rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+    user: "10001:10001"
+    restart: unless-stopped
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    environment:
+      RUSTFS_ACCESS_KEY: ${ROOTSET_S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${ROOTSET_S3_SECRET_KEY}
+      RUSTFS_CONSOLE_ENABLE: "false"
+    volumes:
+      - objects-data:/data
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:9000/health]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  objects-init:
+    profiles: [local]
+    image: ${ROOTSET_RUNTIME_IMAGE:-rootset-runtime:local}
+    build:
+      context: .
+      target: runtime
+      secrets: [npmrc]
+      args:
+        ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
+    init: true
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command: [node, dist/objects-init.mjs]
+    environment:
+      ROOTSET_S3_ENDPOINT: ${ROOTSET_S3_ENDPOINT}
+      ROOTSET_S3_REGION: ${ROOTSET_S3_REGION:-us-east-1}
+      ROOTSET_S3_BUCKET: ${ROOTSET_S3_BUCKET}
+      ROOTSET_S3_ACCESS_KEY: ${ROOTSET_S3_ACCESS_KEY}
+      ROOTSET_S3_SECRET_KEY: ${ROOTSET_S3_SECRET_KEY}
+    depends_on:
+      objects:
+        condition: service_healthy
+
+  mail:
+    profiles: [local]
+    image: axllent/mailpit@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.5
+    ports:
+      - "127.0.0.1:${ROOTSET_MAIL_UI_PORT:-8025}:8025"
+
+  worker:
+    <<: *runtime
+    image: ${ROOTSET_WORKER_IMAGE:-rootset-worker:local}
+    build:
+      context: .
+      target: worker
+      secrets: [npmrc]
+      args:
+        ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
+    command: [node, dist/worker.mjs]
+    volumes:
+      - worker-artifact-spool:/var/lib/rootset/artifact-spool
+    environment:
+      <<: *runtime-environment
+      NODE_OPTIONS: --max-old-space-size=1536
+    healthcheck:
+      test: [CMD, node, dist/worker-health.mjs]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 2
+
+  api:
+    <<: *runtime
+    command: [node, dist/api.mjs]
+    volumes:
+      - api-artifact-spool:/var/lib/rootset/artifact-spool
+    environment:
+      <<: *runtime-environment
+      NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
+    ports:
+      - "${ROOTSET_API_BIND:-127.0.0.1}:${ROOTSET_API_PORT:-4310}:4310"
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:4310/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+
+  web:
+    image: ${ROOTSET_WEB_IMAGE:-rootset-web:local}
+    build:
+      context: .
+      target: web
+      secrets: [npmrc]
+      args:
+        ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PORT: 4300
+      HOSTNAME: 0.0.0.0
+      ROOTSET_PUBLIC_API_ORIGIN: ${ROOTSET_API_URL:?Public API origin required}
+      NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
+    ports:
+      - "${ROOTSET_WEB_BIND:-127.0.0.1}:${ROOTSET_WEB_PORT:-4300}:4300"
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:4300/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+
+secrets:
+  npmrc:
+    file: ${ROOTSET_NPM_CONFIG_FILE:-${HOME}/.npmrc}
+
+volumes:
+  postgres-data:
+  objects-data:
+  api-artifact-spool:
+  worker-artifact-spool:

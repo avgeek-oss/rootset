@@ -1,0 +1,254 @@
+name: Publish release images
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Reviewed stable tag on main to verify and publish, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rootset-release-publication
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      commit: ${{ steps.release.outputs.commit }}
+      created: ${{ steps.release.outputs.created }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: release
+        name: Require matching version, main commit and successful verification
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(gh api "repos/$GH_REPO" --jq .private)" = "false"
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          version="${RELEASE_TAG#v}"
+          test "$(jq -r .version package.json)" = "$version"
+          test "$(sed -n 's/^ROOTSET_VERSION=//p' rootset.env.example)" = "$version"
+          commit="$(git rev-parse HEAD)"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$commit"
+          gh api "repos/$GH_REPO/commits/$commit/check-runs?filter=latest&per_page=100" > "$RUNNER_TEMP/release-checks.json"
+          node tools/release/check.mjs "$RUNNER_TEMP/release-checks.json"
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-state"; then
+            test "$(cat "$RUNNER_TEMP/release-state")" = "true"
+          fi
+          {
+            echo "created=$(git show -s --format=%cI HEAD)"
+            echo "commit=$commit"
+            echo "tag=$RELEASE_TAG"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, worker, web]
+        architecture: [amd64, arm64]
+        include:
+          - service: api
+            target: runtime
+          - service: worker
+            target: worker
+          - service: web
+            target: web
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Prepare private dependency registry secret
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/build-registry-config.mjs "$RUNNER_TEMP/rootset.npmrc"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/${{ matrix.architecture }}
+          secret-files: npmrc=${{ runner.temp }}/rootset.npmrc
+          outputs: type=image,name=ghcr.io/avgeek-oss/rootset-${{ matrix.service }},push-by-digest=true,name-canonical=true,push=true
+          build-args: ROOTSET_SOURCE_REVISION=${{ needs.prepare.outputs.commit }}
+          labels: |
+            org.opencontainers.image.created=${{ needs.prepare.outputs.created }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=release-${{ matrix.service }}-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.service }}-${{ matrix.architecture }}
+      - name: Record immutable platform digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          mkdir -p digests
+          touch "digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.service }}-${{ matrix.architecture }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 14
+
+  manifest:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: digest-*
+          path: digests
+      - name: Assemble versioned multi-platform images
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: |
+          set -euo pipefail
+          for service in api worker web; do
+            image="ghcr.io/avgeek-oss/rootset-$service"
+            sources=()
+            for architecture in amd64 arm64; do
+              files=(digests/digest-"$service"-"$architecture"/*)
+              test "${#files[@]}" -eq 1
+              digest="$(basename "${files[0]}")"
+              [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+              sources+=("$image@sha256:$digest")
+            done
+            docker buildx imagetools create --tag "$image:$RELEASE_VERSION" --tag "$image:$RELEASE_TAG" --tag "$image:$RELEASE_COMMIT" "${sources[@]}"
+          done
+      - name: Require anonymous pulls, platform coverage and matching source labels
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: node tools/release/images.mjs "$RELEASE_VERSION" "$RELEASE_COMMIT" rootset-images.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-images
+          path: rootset-images.json
+          if-no-files-found: error
+          retention-days: 14
+
+  local-installation-smoke:
+    needs: [prepare, manifest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-images
+      - name: Verify anonymous pulled images, installation and preserved restart
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          RELEASE_ARCHITECTURE: ${{ matrix.architecture }}
+        run: node tools/release/verify-installation.mjs rootset-images.json "$RELEASE_VERSION" "$RELEASE_COMMIT" "$RELEASE_ARCHITECTURE"
+      - name: Preserve installation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-installation-${{ matrix.architecture }}
+          path: verification/ci/*.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    needs: [prepare, manifest, local-installation-smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-images
+      - name: Publish validated release with images and installation files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = "true"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --target "$RELEASE_COMMIT" --draft --title "Rootset $RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" rootset-images.json compose.images.yaml rootset.env.example --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest

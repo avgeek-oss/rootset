@@ -1,0 +1,31 @@
+{
+  "name": "@rootset/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/app.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "@rootset/access": "workspace:*",
+    "@rootset/contracts": "workspace:*",
+    "@rootset/database": "workspace:*",
+    "@rootset/core": "workspace:*",
+    "@rootset/identity": "workspace:*",
+    "@rootset/oauth": "workspace:*",
+    "@rootset/jobs": "workspace:*",
+    "hono": "catalog:",
+    "@hono/node-server": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/pg": "catalog:"
+  }
+}

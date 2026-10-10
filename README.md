@@ -1,39 +1,134 @@
+<img src="design/brand/rootset-logo.png" alt="Rootset logo" width="96" height="96" />
+
 # Rootset
 
-Rootset is a simple MDM structured-storage application. Organisations create databases containing typed tables, edit data through a spreadsheet interface, and use the same operations through a public API and OAuth-authenticated MCP tools.
+Rootset is self-hosted structured storage for one organisation. Create logical
+databases and typed tables, edit records in a spreadsheet, and use the same data
+through REST or MCP using API keys or OAuth. PostgreSQL stores values, revisions and
+the latest 200 changes per existing cell. Deleting a row, field, table, or database removes its cell changelogs. The project domain is `rootset.dev`.
 
-Project domain: [rootset.fyi](https://rootset.fyi). Repository: [avgeek-inc/rootset](https://github.com/avgeek-inc/rootset).
+V1 uses Admin, Member and Viewer roles. Admins manage people and can delete databases and tables. Members can create and edit databases, tables and fields. Viewers can read data. Browser database deletion requires password/passkey confirmation; authorised API/MCP credentials execute directly.
+SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
+There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
+Each table can have only one unique rule for a given set of fields; selecting the same fields in a different order does not create another rule.
+Personal API keys have Read-only, Edit or Administrative permissions, capped by
+the person's current role. Workspace-owned team keys use the same permissions,
+with admin-only creation, rotation and revocation independent of the creator.
+OAuth connections add approved operations to that
+current authority. Field definitions have one `name`
+property, used both as the UI label and the JSON row key. Required is the only
+nullability setting: optional fields allow null and default to null unless a
+literal default is supplied. The field editor requires a valid non-null literal
+default for required fields; new rows must receive a valid value or use that
+default.
 
-## Current state
+Fields support text, URI, URL, image, integer, float, boolean, date, time, date-time and JSON. URI, URL and image values are stored as plain strings without address-format validation or custom constraints. Image cells display a compact thumbnail and edit the stored URL inline; unavailable images show a muted image icon.
 
-This repository contains the v1 architecture, implementation plan, and verification contract. Application implementation has not started. The presence of these documents does not establish working features, deployment, performance, or release readiness.
+The [current V1 plan](rc-plan/README.md) and its
+[verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) define
+the revised scope. Implementation and verification are being aligned with it.
+Earlier candidate receipts and the former checklist are historical; acceptance
+remains false until the current checks have genuine evidence.
 
-The product direction and reviewed architectural proposals were accepted on 2026-10-02. Engineering defaults are recorded explicitly in the plan and can change through a reviewed decision with corresponding checklist updates.
+## Install published images
 
-## V1 decisions
+The public documentation source lives directly in [docs](docs). Start with the
+[installation guide](docs/self-hosting/installation.mdx) and
+[environment reference](docs/self-hosting/configuration.mdx).
 
-- PostgreSQL stores management metadata, typed user tables, and cell change history. Each user-created table has a physical PostgreSQL table.
-- Databases are logical containers. A logical database has a managed PostgreSQL schema; it does not provision a new server.
-- Field types are text, integer, float, boolean, date, time, date-time, and JSON.
-- Tables support up to 5,000,000 live rows, bounded row sizes, optional scalar uniqueness rules, and structured column queries.
-- Date-time values are stored and accepted in UTC, with user timezone preferences applied in the UI. Time-only cells display UTC. Calendar dates do not undergo timezone conversion.
-- Every committed cell change has an atomic history entry. Internal row IDs are alphanumeric and hidden from the grid.
-- Public REST queries default to 5,000 rows; MCP queries default to 200. Page sizes are 1 through 25,000, subject to byte and execution limits.
-- The spreadsheet loads bounded windows and renders visible cells. Scale claims require measured evidence against the release candidate.
-- Accounts, authentication screens, emails, 2FA, passkeys, preferences, and API-key behavior use Towbar as the implementation reference, with Rootset-specific permissions.
-- Database-wide backups use consistent snapshots and include restore verification.
+Use [compose.images.yaml](compose.images.yaml) and [rootset.env.example](rootset.env.example)
+with Docker Compose. API, worker and UI have separate images sharing
+`ROOTSET_VERSION`; migrations reuse the API image. Supply your own PostgreSQL URL,
+private S3-compatible bucket and SMTP settings, or use the optional `local-db`
+profile for bundled PostgreSQL. Published images do not require Node.js, pnpm,
+or a GitHub Packages token on the host.
 
-## Plan documents
+Container images become available after the first reviewed release. The
+[release procedure](development/documentation.md#publish-release-images) builds
+Linux AMD64 and ARM64 images, tests their installation and restart on both native
+architectures, then publishes the release with its image manifest and installation files.
 
-Start with the [plan index](rc-plan/README.md).
+## Run from source
 
-| Document                                                                                      | Purpose                                                                                                   |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [Account architecture](rc-plan/ACCOUNT_ARCHITECTURE.md)                                       | Organisations, memberships, roles, authentication, API keys, preferences, and account maintenance.        |
-| [MDM database architecture](rc-plan/MDM_DATABASE_ARCHITECTURE.md)                             | Physical storage, field semantics, uniqueness, history, queries, limits, backups, and schema changes.     |
-| [API and MCP architecture](rc-plan/API_AND_MCP_ARCHITECTURE.md)                               | Authentication, public and browser APIs, MCP tools, operation inventory, OpenAPI, and protocol contracts. |
-| [Stack architecture](rc-plan/STACK_ARCHITECTURE.md)                                           | Backend, PostgreSQL, workers, storage, UI, grid, packaging, and deployment.                               |
-| [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)                                         | Work packages, dependencies, deliverables, and acceptance evidence.                                       |
-| [Implementation and verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) | Complete v1 sign-off gates, failure scenarios, performance targets, and release evidence.                 |
+Use Node.js 24, pnpm 11.5.3, Docker and Docker Compose v2. The published
+`@avgeek-oss/design-system` package is hosted on GitHub Packages. Authenticate
+with a GitHub token that has `read:packages`; another Avgeek checkout is not needed.
+See [registry and build setup](development/operations/installation.md#package-registry).
 
-The repository starts private. Public distribution, project licensing, and a hosted offering remain separate release decisions. No DNS or hosting configuration is established by this plan.
+```sh
+pnpm install --frozen-lockfile
+pnpm setup:env
+docker compose --profile local up --build -d
+docker compose --profile local ps
+```
+
+`setup:env` creates the protected `.env` once. Keep it outside Git and retain an
+encrypted recovery copy. Open `http://localhost:4300`, claim setup with the
+value of `ROOTSET_SECRET`, and establish the first Admin and the installation's single
+organisation. Local email is captured at `http://localhost:8025`.
+
+The API and worker use one `ROOTSET_DATABASE_URL`, one `ROOTSET_SECRET` and one
+`ROOTSET_ENCRYPTION_KEY`. The database URL also applies the installation baseline.
+For external PostgreSQL, use an ordinary database owner without superuser or
+BYPASSRLS access. Retain the secret and encryption key across restart and backup.
+See the [environment reference](development/operations/installation.md#external-services-and-https)
+for S3 and SMTP settings.
+
+The browser calls `http://localhost:4310` directly for authentication, REST,
+OAuth, MCP and artifact transfer. For HTTPS routing, configure
+`ROOTSET_WEB_URL=https://rootset.avgeek.ltd` and
+`ROOTSET_API_URL=https://rootset-api.avgeek.ltd`. The API owns the host-only
+browser session cookie and accepts credentialed requests from the exact UI
+origin.
+
+V1 has one fresh-install schema, [0001_baseline.sql](packages/database/migrations/0001_baseline.sql).
+It can be regenerated before V1 release. An earlier prelaunch database is not an
+upgrade target: startup must refuse its incompatible ledger without changing data.
+Preserve that installation and use an empty, separate installation for the new
+baseline. Do not clear its ledger or delete its volumes to bypass the refusal.
+
+See [installation](development/operations/installation.md) for external PostgreSQL,
+S3-compatible storage, SMTP and HTTPS, and [recovery](development/operations/upgrade-and-recovery.md)
+for protecting and restoring an installation.
+
+## Develop and verify
+
+```sh
+pnpm contracts:generate
+pnpm verify
+pnpm test:integration
+```
+
+Use isolated PostgreSQL fixtures and synthetic data for integration checks.
+Configure test object storage and SMTP where the scenario needs them. Missing
+prerequisites must fail visibly. Generated OpenAPI, client and MCP contracts live
+in `packages/contracts/generated`; regenerate them when an operation changes.
+
+The performance target remains a five-million-row table under combined
+PostgreSQL/API/worker/web memory caps of 8 GiB, with no additional swap. Ordinary
+checks, real recovery rehearsals and browser evidence establish different facts.
+Record remaining full-scale work in the [verification guide](development/verification/README.md).
+
+## Documentation
+
+- [Accounts and roles](rc-plan/ACCOUNT_ARCHITECTURE.md)
+- [Tables, fields and history](rc-plan/MDM_DATABASE_ARCHITECTURE.md)
+- [REST and MCP](rc-plan/API_AND_MCP_ARCHITECTURE.md)
+- [Runtime and frontend](rc-plan/STACK_ARCHITECTURE.md)
+- [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)
+- [Operations](development/operations/README.md)
+- [Contributing](CONTRIBUTING.md) and [security reports](SECURITY.md)
+
+Source/image publication, production deployment and production health are
+separate release decisions. Adapted material retains its applicable licence and
+source notices.
+
+The table UI loads 200 rows initially and requests more as you scroll. It keeps at most 1,000 loaded rows (and a 32 MiB active window), fetching earlier batches again when you scroll back. React Data Grid renders only visible rows. Resource pages use `/databases/:id` and `/databases/:id/tables/:id`; filters and sorts stay part of the data query. Invalid or failed cell saves show a toast and restore the committed value.
+
+Press Command-Z (Control-Z on Windows/Linux) while the grid is focused to undo
+saved cell edits, null changes and pastes, one action at a time. The current table
+session retains up to 200 undo actions; leaving the table or reloading clears them.
+A paste is undone atomically. Undo uses normal API revision checks and records
+the restored values in cell history. A toast confirms success or explains a
+failure. Text inputs retain their normal unsaved-text undo. Redo and undoing
+deletions or schema changes are not supported.
