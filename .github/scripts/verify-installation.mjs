@@ -319,7 +319,7 @@ try {
   assert.equal(provision.state, "ready");
   assert.equal(
     sql(
-      "SELECT count(*) AS count FROM rootset_control.email_outbox WHERE template='account-verification'",
+      "SELECT json_build_object('count',count(*)) FROM rootset_control.email_outbox WHERE template='account-verification'",
     ).count,
     0,
     "Installation does not queue a verification email",
