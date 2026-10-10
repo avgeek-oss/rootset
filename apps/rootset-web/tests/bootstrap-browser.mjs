@@ -43,7 +43,7 @@ try {
   );
   await page.goto(webURL);
   if (!setup.claimed) {
-    await page.getByRole("heading", { name: "Set up Rootset" }).waitFor();
+    await page.getByRole("heading", { name: "Set up your team" }).waitFor();
     await page.screenshot({
       path: new URL(
         "../test-results/browser/setup-desktop.png",
@@ -53,7 +53,7 @@ try {
     await page
       .getByLabel("Installation setup secret", { exact: true })
       .fill(config.ROOTSET_SECRET);
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+
     await page
       .getByLabel("Team name", { exact: true })
       .fill("Rootset UI verification");

@@ -17,7 +17,6 @@ import {
   VerificationEmail,
 } from "@avgeek-oss/design-system";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { Modal } from "@avgeek-oss/design-system/overlays/modal";
 import {
   QueryError,
   QueryLoading,
@@ -33,21 +32,8 @@ const publicApi = new RootsetClient({
   baseUrl: () => `${browserApiOrigin()}/v1`,
 });
 const back = () => window.location.assign("/login");
-const secretFields = [
-  {
-    name: "bootstrapSecret",
-    label: "Installation setup secret",
-    type: "password",
-    required: true,
-    autoComplete: "off",
-  },
-];
-
 export function InitialTeamSetup({ onContinue }: { onContinue: () => void }) {
-  const [secret, setSecret] = useState("");
-  const [editingSecret, setEditingSecret] = useState(false);
   const [complete, setComplete] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [options] = useState(setupPreferenceOptions);
   if (complete)
     return (
@@ -60,91 +46,39 @@ export function InitialTeamSetup({ onContinue }: { onContinue: () => void }) {
         </Button>
       </AuthFrame>
     );
-  if (!secret)
-    return (
-      <AuthFrame
-        title="Set up Rootset"
-        description="Enter the installation setup secret from your environment file."
-      >
-        <AuthForm
-          fields={secretFields}
-          submitLabel="Continue"
-          onSubmit={async (values) => setSecret(values.bootstrapSecret ?? "")}
-        />
-      </AuthFrame>
-    );
   return (
-    <div className="grid w-full gap-4">
-      <TeamSetup
-        brand={<AuthBrand />}
-        preferenceOptions={options}
-        onSubmit={async ({
-          team,
-          name,
-          email,
-          password,
-          timeZone,
-          dateFormat,
-          timeFormat,
-        }) => {
-          setBusy(true);
-          try {
-            await publicApi.request("/setup", {
-              method: "POST",
-              body: {
-                bootstrapSecret: secret,
-                organisationName: team.trim(),
-                name: name.trim(),
-                email: email.trim(),
-                password,
-                preferences: PreferencesSchema.pick({
-                  timezone: true,
-                  dateFormat: true,
-                  timeFormat: true,
-                }).parse({ timezone: timeZone, dateFormat, timeFormat }),
-              },
-            });
-            setSecret("");
-            setComplete(true);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      <div className="mx-auto w-full max-w-sm px-4 sm:px-0">
-        <Button
-          variant="secondary"
-          isDisabled={busy}
-          onPress={() => setEditingSecret(true)}
-        >
-          Change setup secret
-        </Button>
-      </div>
-      <Modal.Backdrop isOpen={editingSecret} onOpenChange={setEditingSecret}>
-        <Modal.Container size="sm">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>Installation setup secret</Modal.Heading>
-              <Modal.CloseTrigger />
-            </Modal.Header>
-            <Modal.Body>
-              <AuthForm
-                variant="secondary"
-                fields={secretFields.map((field) => ({
-                  ...field,
-                  defaultValue: secret,
-                }))}
-                submitLabel="Save changes"
-                onSubmit={async (values) => {
-                  setSecret(values.bootstrapSecret ?? "");
-                  setEditingSecret(false);
-                }}
-              />
-            </Modal.Body>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </div>
+    <TeamSetup
+      brand={<AuthBrand />}
+      preferenceOptions={options}
+      setupSecretDescription="Enter ROOTSET_SECRET from your environment file."
+      onSubmit={async ({
+        setupSecret,
+        team,
+        name,
+        email,
+        password,
+        timeZone,
+        dateFormat,
+        timeFormat,
+      }) => {
+        await publicApi.request("/setup", {
+          method: "POST",
+          body: {
+            bootstrapSecret: setupSecret,
+            organisationName: team.trim(),
+            name: name.trim(),
+            email: email.trim(),
+            password,
+            preferences: PreferencesSchema.pick({
+              timezone: true,
+              dateFormat: true,
+              timeFormat: true,
+            }).parse({ timezone: timeZone, dateFormat, timeFormat }),
+          },
+        });
+        setComplete(true);
+      }}
+    />
   );
 }
 

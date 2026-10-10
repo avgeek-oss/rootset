@@ -44,7 +44,8 @@ docker compose --profile local ps
 
 `setup:env` creates `.env` once with mode 0600. Keep it outside Git and retain an
 encrypted recovery copy. Open `http://localhost:4300`, supply `ROOTSET_SECRET` as the setup secret
-privately and verify email to establish the first Admin and single organisation.
+privately to establish the first Admin and single organisation. The first Admin
+is email-verified automatically.
 Mailpit at `http://localhost:8025` captures local email. There is no organisation
 chooser or second-organisation setup.
 
