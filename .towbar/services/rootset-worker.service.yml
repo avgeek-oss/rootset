@@ -33,7 +33,13 @@ health:
   type: command
   command: [node, dist/worker-health.mjs]
   timeoutSeconds: 180
+hooks:
+  preDeploy:
+    entrypoint: node
+    command: [dist/migrate.mjs]
+    timeoutSeconds: 300
 secrets:
+  preDeploy: [ROOTSET_DATABASE_URL]
   runtime:
     - ROOTSET_DATABASE_URL
     - ROOTSET_API_URL

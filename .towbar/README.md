@@ -42,19 +42,19 @@ Save the following production runtime values **on both services**, using the sam
 | `ROOTSET_SMTP_HOST`      | Your SMTP hostname.                                                                                      |
 | `ROOTSET_EMAIL_FROM`     | Your verified sender email address.                                                                      |
 
-Save `ROOTSET_DATABASE_URL` separately in the API's **pre-deploy secrets** as well; the hook runs `node dist/migrate.mjs` from the selected API image before startup. Keep the hook URL identical to the runtime URL.
+Save `ROOTSET_DATABASE_URL` separately in both services' **pre-deploy secrets** as well; each hook runs `node dist/migrate.mjs` from its selected image before startup. Keep the hook URL identical to the runtime URL. Already applied migrations are skipped.
 
 The manifests declare `ROOTSET_SMTP_PORT`, `ROOTSET_SMTP_SECURE`, `ROOTSET_SMTP_USER` and `ROOTSET_SMTP_PASSWORD` for authenticated SMTP. For the Mumbai SES endpoint, use port `587` with `ROOTSET_SMTP_SECURE=false` (STARTTLS), dedicated SMTP credentials and sender `rootset@hq.avgeek.ltd`. SES sandbox accounts can send only to verified recipients or simulator addresses. The sender-limited IAM policy is in `.towbar/ses-send-policy.json`.
 
-For R2, use a private bucket and an object read/write credential scoped to that bucket. Rootset signs export downloads; leave public bucket access disabled. If another S3 provider requires `ROOTSET_S3_REGION` (default `us-east-1`), add that key to both manifests' runtime declarations before setting it in Towbar.
+For R2, use the private `rootset-data` bucket and an object read/write credential scoped to that bucket. Rootset signs export downloads; leave public bucket access disabled. If another S3 provider requires `ROOTSET_S3_REGION` (default `us-east-1`), add that key to both manifests' runtime declarations before setting it in Towbar.
 
 On the UI, save only `ROOTSET_PUBLIC_API_ORIGIN=https://rootset-api.avgeek.ltd` in production runtime secrets. Browser requests go directly to this public API; the UI does not proxy them.
 
 ## Deploy in order
 
 1. Deploy PostgreSQL and wait for readiness, or verify your external database connection.
-2. Deploy the API. Its migration hook must succeed and `/health/ready` must pass.
-3. Deploy the worker. Its command health check verifies its own fresh database heartbeat; a running process alone is insufficient.
+2. Deploy the worker. Its migration hook initializes the database; its command health check verifies its own fresh database heartbeat. A running process alone is insufficient.
+3. Deploy the API. Its migration hook must succeed and `/health/ready` must pass, including the worker heartbeat, object storage and SMTP checks.
 4. Deploy the UI and check both HTTPS origins.
 5. Open the UI, privately supply `ROOTSET_SECRET` to claim the installation, verify your email and create the first administrator. Verify sign-in, a saved cell edit, and a completed export request with a download.
 
