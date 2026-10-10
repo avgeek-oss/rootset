@@ -1,15 +1,9 @@
-# yaml-language-server: $schema=https://towbar.dev/schemas/app.v2.json
+# yaml-language-server: $schema=https://oss.avgeek.ltd/towbar/schemas/resource.v2.json
 id: rootset-postgres
 name: Rootset PostgreSQL
-deployment:
-  type: image
-  image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
-  platform: linux/arm64
+type: postgres
+image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
 autoDeploy: false
-rollout:
-  type: recreate
-  maintenanceMode: true
-  reason: One PostgreSQL instance owns the persistent database volume.
 container:
   port: 5432
   network: rootset
@@ -20,7 +14,6 @@ container:
   volumes:
     - name: data
       mountPath: /var/lib/postgresql
-      initialData: image
   configFiles:
     - source: .towbar/config/postgres-init.sh
       mountPath: /docker-entrypoint-initdb.d/10-rootset.sh
