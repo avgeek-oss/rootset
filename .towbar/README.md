@@ -44,7 +44,7 @@ Save the following production runtime values **on both services**, using the sam
 
 Save `ROOTSET_DATABASE_URL` separately in both services' **pre-deploy secrets** as well; each hook runs `node dist/migrate.mjs` from its selected image before startup. Keep the hook URL identical to the runtime URL. Already applied migrations are skipped.
 
-The manifests declare `ROOTSET_SMTP_PORT`, `ROOTSET_SMTP_SECURE`, `ROOTSET_SMTP_USER` and `ROOTSET_SMTP_PASSWORD` for authenticated SMTP. For the Mumbai SES endpoint, use port `587` with `ROOTSET_SMTP_SECURE=false` (STARTTLS), dedicated SMTP credentials and sender `rootset@hq.avgeek.ltd`. SES sandbox accounts can send only to verified recipients or simulator addresses. The sender-limited IAM policy is in `.towbar/ses-send-policy.json`.
+The manifests declare `ROOTSET_SMTP_PORT`, `ROOTSET_SMTP_SECURE`, `ROOTSET_SMTP_USER` and `ROOTSET_SMTP_PASSWORD` for authenticated SMTP. Use your provider's SMTP hostname, dedicated credentials and verified sender address. For STARTTLS, use port `587` with `ROOTSET_SMTP_SECURE=false`; for implicit TLS, use port `465` with `ROOTSET_SMTP_SECURE=true`.
 
 For R2, use the private `rootset-data` bucket and an object read/write credential scoped to that bucket. Rootset signs export downloads; leave public bucket access disabled. If another S3 provider requires `ROOTSET_S3_REGION` (default `us-east-1`), add that key to both manifests' runtime declarations before setting it in Towbar.
 
