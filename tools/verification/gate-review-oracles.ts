@@ -14,7 +14,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-04",
-    "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members, schema; SMTP/S3 configuration is read only from the deployment environment.",
+    "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members and deletes databases/tables; Members create and edit databases/tables/schema; SMTP/S3 configuration is read only from the deployment environment.",
   ],
   [
     "V1-05",
@@ -26,7 +26,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-07",
-    "Personal keys have read-only, edit or administrative ceilings intersected with current role; demotion, member removal, expiry and revocation affect existing and waiting requests and replay. Team keys use the same ceilings independently of their creator, with admin-only management and no personal account authority.",
+    "Personal key permissions are capped by live membership; workspace-owned team keys have admin-only management and cannot access personal accounts. Verify REST/MCP permission ceilings, rotation, revocation, expiry, creator departure, waiting requests and replay.",
   ],
   [
     "V1-08",
@@ -50,7 +50,7 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-13",
-    "All eight types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.",
+    "All eleven types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss.",
   ],
   [
     "V1-14",

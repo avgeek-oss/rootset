@@ -156,6 +156,13 @@ services:
 
   worker:
     <<: *runtime
+    image: ${ROOTSET_WORKER_IMAGE:-rootset-worker:local}
+    build:
+      context: .
+      target: worker
+      secrets: [npmrc]
+      args:
+        ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
     command: [node, dist/worker.mjs]
     volumes:
       - worker-artifact-spool:/var/lib/rootset/artifact-spool

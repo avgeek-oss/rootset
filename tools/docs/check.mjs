@@ -38,9 +38,16 @@ for (const [name, service] of Object.entries(compose.services)) {
   if (name !== "postgres")
     assert.match(
       service.image,
-      /^ghcr\.io\/avgeek-oss\/rootset-(api|web):\$\{ROOTSET_VERSION:/,
+      /^ghcr\.io\/avgeek-oss\/rootset-(api|worker|web):\$\{ROOTSET_VERSION:/,
     );
 }
+assert.equal(compose.services.migrate.image, compose.services.api.image);
+for (const service of ["api", "worker", "web"])
+  assert.equal(
+    compose.services[service].image,
+    `ghcr.io/avgeek-oss/rootset-${service}:\${ROOTSET_VERSION:?Choose a published release version}`,
+    `${service} must use its own image and the shared version`,
+  );
 assert.equal(
   compose.services.web.environment.ROOTSET_PUBLIC_API_ORIGIN,
   "${ROOTSET_API_URL:?Public API origin required}",

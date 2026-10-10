@@ -127,6 +127,7 @@ try {
     .replace(/^ROOTSET_API_URL=.*$/m, `ROOTSET_API_URL=${apiURL}`);
   content += `ROOTSET_WEB_PORT=${webPort}\nROOTSET_API_PORT=${apiPort}\nROOTSET_MAIL_UI_PORT=${mailPort}\n`;
   content += `ROOTSET_RUNTIME_IMAGE=${process.env.ROOTSET_SMOKE_RUNTIME_IMAGE ?? "rootset-runtime:ci"}\n`;
+  content += `ROOTSET_WORKER_IMAGE=${process.env.ROOTSET_SMOKE_WORKER_IMAGE ?? "rootset-worker:ci"}\n`;
   content += `ROOTSET_WEB_IMAGE=${process.env.ROOTSET_SMOKE_WEB_IMAGE ?? "rootset-web:ci"}\n`;
   if (process.env.ROOTSET_SMOKE_CI_HOST_CPU === "1") {
     assert.equal(process.env.CI, "true");

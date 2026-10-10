@@ -205,7 +205,11 @@ verificationCase(
         ["listMembers", { orgId }],
       ] as const) {
         const work = execute(operation, actor, input);
-        if (role === "admin") await work;
+        if (
+          role === "admin" ||
+          (role === "member" && operation === "createTable")
+        )
+          await work;
         else await deny(work);
       }
     }

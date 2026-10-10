@@ -41,10 +41,10 @@ committing them. Never capture real customer records or visible API key secrets.
 2. Create and push a matching `vMAJOR.MINOR.PATCH` tag on that exact main commit.
 3. Run **Publish release images** on main with that tag. It rejects mismatched
    versions, commits, incomplete checks and an already published release.
-4. On first publication, make both GHCR packages public. Anonymous image pulls
+4. On first publication, make all three GHCR packages public. Anonymous image pulls
    must succeed before the workflow can attach the installation files; rerun
    the failed manifest job after correcting visibility.
-5. Both native Linux runners pull the immutable API and UI images anonymously,
+5. Both native Linux runners pull the immutable API, worker and UI images anonymously,
    verify their architecture and source/version labels, then run the existing
    disposable installation and preserved-restart gate. They do not rebuild the
    application. Reports are retained as workflow artifacts.

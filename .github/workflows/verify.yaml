@@ -116,8 +116,9 @@ jobs:
           trap 'rm -f verification/ci/package-registry.npmrc' EXIT
           rootset_revision=$(git rev-parse HEAD)
           docker build --secret id=npmrc,src=verification/ci/package-registry.npmrc --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target runtime --tag rootset-runtime:ci .
+          docker build --secret id=npmrc,src=verification/ci/package-registry.npmrc --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target worker --tag rootset-worker:ci .
           docker build --secret id=npmrc,src=verification/ci/package-registry.npmrc --build-arg "ROOTSET_SOURCE_REVISION=$rootset_revision" --target web --tag rootset-web:ci .
-          docker image inspect rootset-runtime:ci rootset-web:ci --format '{{.Id}} {{.Config.User}}' > verification/ci/images.txt
+          docker image inspect rootset-runtime:ci rootset-worker:ci rootset-web:ci --format '{{.Id}} {{.Config.User}}' > verification/ci/images.txt
       - name: Verify actual fresh Compose installation and preserved restart
         run: |
           node --test .github/scripts/installation-diagnostics.test.mjs

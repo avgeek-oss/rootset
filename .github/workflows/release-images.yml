@@ -68,11 +68,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, web]
+        service: [api, worker, web]
         architecture: [amd64, arm64]
         include:
           - service: api
             target: runtime
+          - service: worker
+            target: worker
           - service: web
             target: web
           - architecture: amd64
@@ -159,7 +161,7 @@ jobs:
           RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
         run: |
           set -euo pipefail
-          for service in api web; do
+          for service in api worker web; do
             image="ghcr.io/avgeek-oss/rootset-$service"
             sources=()
             for architecture in amd64 arm64; do

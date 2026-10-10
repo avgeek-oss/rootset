@@ -48,6 +48,7 @@ if (
       ...process.env,
       ROOTSET_SMOKE_SOURCE_REVISION: commit,
       ROOTSET_SMOKE_RUNTIME_IMAGE: manifest.images.api,
+      ROOTSET_SMOKE_WORKER_IMAGE: manifest.images.worker,
       ROOTSET_SMOKE_WEB_IMAGE: manifest.images.web,
       ROOTSET_SMOKE_CI_HOST_CPU: "1",
     },

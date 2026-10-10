@@ -9,7 +9,7 @@ COPY . .
 RUN --mount=type=secret,id=npmrc,target=/root/.npmrc,required=true pnpm install --frozen-lockfile
 RUN pnpm typecheck && pnpm build
 
-FROM ${NODE_IMAGE} AS runtime
+FROM ${NODE_IMAGE} AS backend
 ARG ROOTSET_SOURCE_REVISION
 LABEL org.opencontainers.image.source="https://github.com/avgeek-oss/rootset" \
       org.opencontainers.image.revision="${ROOTSET_SOURCE_REVISION}"
@@ -20,7 +20,12 @@ RUN groupadd --gid 10001 rootset && useradd --uid 10001 --gid rootset --no-creat
 COPY --from=build --chown=rootset:rootset /workspace/dist /app/dist
 COPY --from=build --chown=rootset:rootset /workspace/packages/database/migrations /app/migrations
 USER 10001:10001
+
+FROM backend AS runtime
 CMD ["node", "dist/api.mjs"]
+
+FROM backend AS worker
+CMD ["node", "dist/worker.mjs"]
 
 FROM ${NODE_IMAGE} AS web
 ARG ROOTSET_SOURCE_REVISION

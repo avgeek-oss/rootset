@@ -24,25 +24,26 @@ workflow before building.
 | Stage        | Result                                                                                                                                                                           |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Prepare      | Validate the stable version, main commit, tag and successful CI.                                                                                                                 |
-| Build        | Build API and UI on native AMD64 and ARM64 runners, with SBOM, provenance and source/version labels.                                                                             |
+| Build        | Build API, worker and UI on native AMD64 and ARM64 runners, with SBOM, provenance and source/version labels.                                                                     |
 | Manifest     | Assemble multi-platform images, verify public access and content digests, then retain `rootset-images.json`.                                                                     |
 | Installation | Pull the immutable images on both native architectures; verify setup, email verification, migrations, health, non-root execution, permissions and preserved state after restart. |
 | Publish      | Attach the image manifest and installation files, then publish the GitHub release only after both installation checks pass.                                                      |
 
-Both images use one version:
+All three images use one version:
 
 ```text
 ghcr.io/avgeek-oss/rootset-api:0.1.0
+ghcr.io/avgeek-oss/rootset-worker:0.1.0
 ghcr.io/avgeek-oss/rootset-web:0.1.0
 ```
 
-The API image also runs the migration and worker commands. The same images are
+The worker image runs background jobs independently. Migrations reuse the API image. The same images are
 tagged with `v0.1.0` and the full source commit, following Mill's release tags.
 The release manifest records immutable `@sha256` references. The UI talks to the
 independent public API origin at runtime.
 
 The installation gate uses the existing isolated verification Compose fixture
-for PostgreSQL, S3 and SMTP. It runs the actual pulled API/UI images with
+for PostgreSQL, S3 and SMTP. It runs the actual pulled API/worker/UI images with
 `--no-build`; it does not require a package-registry credential. Its fixture
 containers and volumes are removed afterward. Reports are retained for each
 architecture. Public installation uses `compose.images.yaml` with external
@@ -50,7 +51,7 @@ services or the optional bundled PostgreSQL profile.
 
 ## First publication and retries
 
-On first publication, make `rootset-api` and `rootset-web` public in GHCR. Both
+On first publication, make `rootset-api`, `rootset-worker` and `rootset-web` public in GHCR. Both
 anonymous manifest requests and anonymous Docker pulls must work. If package
 visibility blocks the manifest job, correct it and rerun that failed job and its
 dependent jobs. Do not bypass the access or installation gates.

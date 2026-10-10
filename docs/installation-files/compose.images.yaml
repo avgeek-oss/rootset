@@ -48,7 +48,7 @@ services:
         condition: service_healthy
         required: false
   worker:
-    image: ghcr.io/avgeek-oss/rootset-api:${ROOTSET_VERSION:?Choose a published release version}
+    image: ghcr.io/avgeek-oss/rootset-worker:${ROOTSET_VERSION:?Choose a published release version}
     init: true
     restart: unless-stopped
     read_only: true

@@ -73,8 +73,12 @@ export async function readReleaseImages(path, version, commit) {
   assert.equal(manifest.version, version);
   assert.equal(manifest.commit, commit);
   assert.deepEqual(manifest.platforms, ["linux/amd64", "linux/arm64"]);
-  assert.deepEqual(Object.keys(manifest.images).sort(), ["api", "web"]);
-  for (const service of ["api", "web"])
+  assert.deepEqual(Object.keys(manifest.images).sort(), [
+    "api",
+    "web",
+    "worker",
+  ]);
+  for (const service of ["api", "worker", "web"])
     assert.match(
       manifest.images[service],
       new RegExp(
@@ -91,7 +95,7 @@ if (
   assert.match(version, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/);
   assert.match(commit, /^[0-9a-f]{40}$/);
   const images = {};
-  for (const service of ["api", "web"])
+  for (const service of ["api", "worker", "web"])
     images[service] = await inspectPublicImage(
       "rootset-" + service,
       version,

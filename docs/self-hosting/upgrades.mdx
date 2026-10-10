@@ -1,9 +1,9 @@
 ---
 title: "Releases and upgrades"
-description: "Pin both images to a release version and preserve your installation data."
+description: "Pin all three images to a release version and preserve your installation data."
 ---
 
-A release publishes `ghcr.io/avgeek-oss/rootset-api:<version>` and `ghcr.io/avgeek-oss/rootset-web:<version>` for Linux amd64 and arm64. The API image also runs the worker and migration commands. Both images are built from the same reviewed commit.
+A release publishes `ghcr.io/avgeek-oss/rootset-api:<version>`, `ghcr.io/avgeek-oss/rootset-worker:<version>` and `ghcr.io/avgeek-oss/rootset-web:<version>` for Linux amd64 and arm64. Migrations reuse the API image. All three images share one version and are built from the same reviewed commit.
 
 The release workflow validates the version/tag and requires verification for that exact commit to pass before building images. It assembles the architecture manifests, verifies anonymous access, and tests installation and restart using the pulled images on both native architectures. Only after those checks pass does it publish the GitHub release with image digests and installation files. Publishing a tag does not by itself mean the release is ready for installation.
 

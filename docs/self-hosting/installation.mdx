@@ -3,7 +3,7 @@ title: "Install with container images"
 description: "Run the Rootset API, worker and UI with Docker Compose and your PostgreSQL database."
 ---
 
-Rootset runs from two versioned images: **`rootset-api`** (API, worker and migration commands) and **`rootset-web`** (UI). They share the same release version. You do not need Node.js, pnpm, GitHub Packages credentials or a local source build to run published images.
+Rootset runs from three versioned images: **`rootset-api`** (API and migration commands), **`rootset-worker`** (background jobs) and **`rootset-web`** (UI). They share the same release version. You do not need Node.js, pnpm, GitHub Packages credentials or a local source build to run published images.
 
 <Note>
   The image workflow is part of this launch PR. Install a version only after its
@@ -33,7 +33,7 @@ curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/
 chmod 600 .env
 ```
 
-The downloaded Compose file contains only image references, not build instructions. Set `ROOTSET_VERSION` in `.env` to the chosen release version; it selects the same version for both images and all three runtime commands.
+The downloaded Compose file contains only image references, not build instructions. Set `ROOTSET_VERSION` in `.env` to the chosen release version; it selects the same version for API, worker and UI; migrations use the API image.
 
 ## 2. Configure your services
 

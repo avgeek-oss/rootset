@@ -37,8 +37,8 @@ The public documentation source lives directly in [docs](docs). Start with the
 [environment reference](docs/self-hosting/configuration.mdx).
 
 Use [compose.images.yaml](compose.images.yaml) and [rootset.env.example](rootset.env.example)
-with Docker Compose. The packaged API and UI share `ROOTSET_VERSION`; API,
-worker and migrations use the same API image. Supply your own PostgreSQL URL,
+with Docker Compose. API, worker and UI have separate images sharing
+`ROOTSET_VERSION`; migrations reuse the API image. Supply your own PostgreSQL URL,
 private S3-compatible bucket and SMTP settings, or use the optional `local-db`
 profile for bundled PostgreSQL. Published images do not require Node.js, pnpm,
 or a GitHub Packages token on the host.

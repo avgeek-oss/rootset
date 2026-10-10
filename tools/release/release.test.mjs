@@ -136,7 +136,7 @@ test("wrong source, version and content digests block publication", async () => 
   );
 });
 
-test("installation accepts only the reviewed immutable API and web manifest", async () => {
+test("installation requires reviewed immutable API, worker and web images", async () => {
   const directory = await mkdtemp(join(tmpdir(), "rootset-release-"));
   const path = join(directory, "images.json");
   const manifest = () => ({
@@ -145,6 +145,7 @@ test("installation accepts only the reviewed immutable API and web manifest", as
     platforms: ["linux/amd64", "linux/arm64"],
     images: {
       api: `ghcr.io/avgeek-oss/rootset-api@sha256:${"1".repeat(64)}`,
+      worker: `ghcr.io/avgeek-oss/rootset-worker@sha256:${"3".repeat(64)}`,
       web: `ghcr.io/avgeek-oss/rootset-web@sha256:${"2".repeat(64)}`,
     },
   });
@@ -159,8 +160,10 @@ test("installation accepts only the reviewed immutable API and web manifest", as
       (input) => (input.commit = "b".repeat(40)),
       (input) => input.platforms.pop(),
       (input) => delete input.images.web,
+      (input) => delete input.images.worker,
       (input) => (input.images.api = "ghcr.io/avgeek-oss/rootset-api:latest"),
       (input) => (input.images.web = input.images.api),
+      (input) => (input.images.worker = input.images.api),
     ]) {
       const input = manifest();
       change(input);
