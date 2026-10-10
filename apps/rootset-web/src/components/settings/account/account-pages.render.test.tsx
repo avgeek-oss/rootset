@@ -119,14 +119,16 @@ describe("Towbar account component parity", () => {
     expect(connections).not.toContain("Create API key");
     expect(html).not.toContain("Team keys");
   });
-  it("uses a real Rootset MCP endpoint and Rootset key placeholder", () => {
+  it("uses the configured Rootset MCP endpoint without manual credentials", () => {
     const html = render(() =>
       createElement(ApiMcpSettings, { section: "mcp" }),
     );
     expect(html).toContain("Connect your MCP client");
     expect(html).toContain("~/.codex/config.toml");
     expect(html).toContain("https://rootset.example/mcp");
-    expect(html).toContain("ROOTSET_API_KEY");
+    expect(html).not.toContain("ROOTSET_API_KEY");
+    expect(html).not.toContain("bearer_token_env_var");
+    expect(html).toContain("https://www.rootset.app/mcp-guide");
     expect(html).not.toContain("TOWBAR_API_KEY");
   });
 });

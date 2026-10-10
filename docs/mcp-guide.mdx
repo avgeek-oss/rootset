@@ -1,29 +1,78 @@
 ---
 title: "Connect an MCP client"
-description: "Use Rootset\u2019s public MCP endpoint with OAuth or an API key."
+description: "Connect to Rootset's public MCP endpoint with browser sign-in."
 ---
 
 Rootset exposes Streamable HTTP MCP at **`https://your-api-origin/mcp`**. Use the same API origin as REST; do not point MCP clients at the UI.
 
-## OAuth-capable clients
+Add the remote server URL, then sign in to Rootset in your browser and review the requested access. The configurations below use OAuth; you do not need to create an API key or configure an authentication header.
 
-Add Rootset as a remote MCP server using the `/mcp` URL. Follow the client's OAuth sign-in flow, sign in to Rootset, and review the requested access. The approved scopes are bounded by your current workspace role. Manage connections in **Account Settings → MCP connections**.
+## Codex
 
-## Clients supporting a bearer header
+Add this entry to `~/.codex/config.toml`, replacing the example URL with your installation's public API origin:
 
-Create a [personal or team API key](/api-keys). Configure the remote URL and an `Authorization: Bearer <your-key>` header through the client's secret configuration. Client syntax varies; keep the key out of checked-in config files.
+```toml
+[mcp_servers.rootset]
+url = "https://rootset-api.example.com/mcp"
+```
+
+Save the configuration, then start browser sign-in:
+
+```sh
+codex mcp login rootset
+```
+
+If you previously used the API-key configuration, remove `bearer_token_env_var` and any custom authentication headers before signing in. See [Codex's MCP guide](https://developers.openai.com/codex/mcp).
+
+## Cursor
+
+Add the server to `.cursor/mcp.json`, then connect and complete the browser sign-in prompt:
 
 ```json
 {
-  "url": "https://rootset-api.example.com/mcp",
-  "headers": {
-    "Authorization": "Bearer <your-rootset-api-key>"
+  "mcpServers": {
+    "rootset": {
+      "url": "https://rootset-api.example.com/mcp"
+    }
   }
 }
 ```
 
+## VS Code
+
+Add the server to `.vscode/mcp.json`, start it from VS Code's MCP controls, and follow the authorization prompt:
+
+```json
+{
+  "servers": {
+    "rootset": {
+      "type": "http",
+      "url": "https://rootset-api.example.com/mcp"
+    }
+  }
+}
+```
+
+## Claude Code
+
+Add the remote server:
+
+```sh
+claude mcp add --transport http rootset 'https://rootset-api.example.com/mcp'
+```
+
+Open `/mcp` in Claude Code and select Rootset to authenticate through your browser. See [Claude Code's MCP guide](https://code.claude.com/docs/en/mcp#authenticate-with-remote-mcp-servers).
+
+## Other clients
+
+Use a client that supports Streamable HTTP and OAuth. Add your installation's `/mcp` URL and follow its browser sign-in flow.
+
+## Permissions and connections
+
+The approved scopes are bounded by your current workspace role. Read-only access cannot edit records. Edit access cannot delete databases or tables. Administrators can authorize those operations; browser-only identity confirmation is not an approval ticket for MCP.
+
+Manage and revoke access in **Account Settings → MCP connections**. When access expires or is revoked, sign in again from your client.
+
 ## Work with a table
 
 Ask the client to discover the workspace, list databases and tables, and read the table schema before querying or creating rows. [MCP tools](/mcp-tools) share the REST contract and permissions. Schema changes, exports and deletion can return jobs; inspect their status before treating the operation as complete.
-
-Read-only keys cannot edit records. Edit keys cannot delete databases or tables. Administrative automation keys can execute those operations directly; browser-only identity confirmation is not an approval ticket for MCP.
