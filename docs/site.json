@@ -223,11 +223,11 @@
   },
   "seo": {
     "indexing": "all",
-    "metatags": { "canonical": "https://rootset.dev" },
+    "metatags": { "canonical": "https://www.rootset.app" },
     "organization": {
       "name": "Rootset",
-      "url": "https://rootset.dev",
-      "logo": "https://rootset.dev/assets/rootset-logo.png",
+      "url": "https://www.rootset.app",
+      "logo": "https://www.rootset.app/assets/rootset-logo.png",
       "sameAs": ["https://github.com/avgeek-oss/rootset"]
     }
   },
