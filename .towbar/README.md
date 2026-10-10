@@ -44,7 +44,9 @@ Save the following production runtime values **on both services**, using the sam
 
 Save `ROOTSET_DATABASE_URL` separately in the API's **pre-deploy secrets** as well; the hook runs `node dist/migrate.mjs` from the selected API image before startup. Keep the hook URL identical to the runtime URL.
 
-If required by your providers, also set `ROOTSET_S3_REGION` (default `us-east-1`), `ROOTSET_SMTP_PORT` (default `587`), `ROOTSET_SMTP_SECURE` (default `true`), `ROOTSET_SMTP_USER` and `ROOTSET_SMTP_PASSWORD` in both services' runtime secrets. `ROOTSET_SMTP_SECURE=false` uses SMTP/STARTTLS, commonly on port 587; `true` uses implicit TLS. Optional provider values are not listed as required manifest secrets. Configure their actual TLS mode before deployment.
+The manifests declare `ROOTSET_SMTP_PORT`, `ROOTSET_SMTP_SECURE`, `ROOTSET_SMTP_USER` and `ROOTSET_SMTP_PASSWORD` for authenticated SMTP. For the Mumbai SES endpoint, use port `587` with `ROOTSET_SMTP_SECURE=false` (STARTTLS), dedicated SMTP credentials and sender `rootset@hq.avgeek.ltd`. SES sandbox accounts can send only to verified recipients or simulator addresses. The sender-limited IAM policy is in `.towbar/ses-send-policy.json`.
+
+For R2, use a private bucket and an object read/write credential scoped to that bucket. Rootset signs export downloads; leave public bucket access disabled. If another S3 provider requires `ROOTSET_S3_REGION` (default `us-east-1`), add that key to both manifests' runtime declarations before setting it in Towbar.
 
 On the UI, save only `ROOTSET_PUBLIC_API_ORIGIN=https://rootset-api.avgeek.ltd` in production runtime secrets. Browser requests go directly to this public API; the UI does not proxy them.
 
