@@ -43,7 +43,7 @@ const secretFields = [
   },
 ];
 
-export function InitialTeamSetup() {
+export function InitialTeamSetup({ onContinue }: { onContinue: () => void }) {
   const [secret, setSecret] = useState("");
   const [editingSecret, setEditingSecret] = useState(false);
   const [complete, setComplete] = useState(false);
@@ -52,12 +52,12 @@ export function InitialTeamSetup() {
   if (complete)
     return (
       <AuthFrame
-        title="Verify your email"
-        description="Check your email to verify the admin account, then sign in."
+        title="Your account is ready"
+        description="Your administrator account has been created. Sign in to get started."
       >
-        <Link href="/login" className={authTextActionClassName}>
+        <Button variant="secondary" onPress={onContinue}>
           Continue to sign in
-        </Link>
+        </Button>
       </AuthFrame>
     );
   if (!secret)

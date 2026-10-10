@@ -45,29 +45,6 @@ function request(path: string, body?: unknown, cookie?: string): Request {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
-async function latestVerification(
-  service: IdentityService,
-  pool: Pool,
-  email: string,
-): Promise<void> {
-  const row = (
-    await pool.query(
-      `SELECT payload_encrypted FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification' ORDER BY created_at DESC LIMIT 1`,
-      [email],
-    )
-  ).rows[0];
-  assert.ok(row, "A persisted verification email is required");
-  const payload = decryptProtected<EmailPayload>(
-    row.payload_encrypted,
-    service.config,
-  );
-  assert.ok(payload.actionUrl);
-  const result = await service.auth.handler(new Request(payload.actionUrl!));
-  assert.ok(
-    result.status === 200 || result.status === 302,
-    "Email verification completes",
-  );
-}
 async function login(
   service: IdentityService,
   email: string,
@@ -122,7 +99,6 @@ test(
         password,
         organisationName: "Disposable sign-out approval fixture",
       });
-      await latestVerification(service, fixture.identity, email);
       const actor = await freshSession();
       const key = KeyCreatedSchema.parse(
         await execute("createPersonalKey", actor, {
@@ -252,7 +228,7 @@ test(
       let cookie = "";
       let orgId = "";
       await t.test(
-        "ACC-01 concurrent setup creates one pending admin and retries reconcile",
+        "ACC-01 concurrent setup creates one verified admin without an email and retries reconcile",
         async () => {
           const input = {
             bootstrapSecret: config.bootstrapSecret,
@@ -350,45 +326,26 @@ test(
           );
           assert.deepEqual(await service.setupStatus(), {
             claimed: true,
-            verified: false,
+            verified: true,
           });
-          await owner.query(
-            `DELETE FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification'`,
-            [email],
-          );
-          const refused = await login(service, email, password);
-          assert.equal(refused.response.ok, false);
-          assert.equal(refused.response.status, 403);
-          assert.equal(
-            (await refused.response.json()).code,
-            "EMAIL_NOT_VERIFIED",
-          );
-          const resend = await service.auth.handler(
-            request("/request-verification-email", { email }),
-          );
-          assert.equal(resend.status, 200);
-          assert.deepEqual(await resend.json(), { status: true });
           assert.equal(
             (
               await owner.query(
-                `SELECT count(*) FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification' AND state='pending'`,
+                `SELECT email_verified FROM rootset_control.users WHERE id=$1`,
+                [claimed.user_id],
+              )
+            ).rows[0].email_verified,
+            true,
+          );
+          assert.equal(
+            (
+              await owner.query(
+                `SELECT count(*) FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification'`,
                 [email],
               )
             ).rows[0].count,
-            "1",
+            "0",
           );
-          assert.equal(
-            await service.resolveActor(
-              request("/get-session", undefined, refused.cookie),
-              "browser",
-            ),
-            null,
-          );
-          await latestVerification(service, pool, email);
-          assert.deepEqual(await service.setupStatus(), {
-            claimed: true,
-            verified: true,
-          });
           const session = await login(service, email, password);
           assert.ok(session.response.ok);
           cookie = session.cookie;
@@ -1465,7 +1422,6 @@ test(
         password,
         organisationName: "Personal key lifecycle",
       });
-      await latestVerification(service, fixture.identity, email);
       const signedIn = await login(service, email, password);
       assert.equal(signedIn.response.status, 200);
       const admin = (await service.resolveActor(

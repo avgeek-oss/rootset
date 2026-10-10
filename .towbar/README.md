@@ -56,7 +56,7 @@ On the UI, save only `ROOTSET_PUBLIC_API_ORIGIN=https://rootset-api.avgeek.ltd` 
 2. Deploy the worker. Its migration hook initializes the database; its command health check verifies its own fresh database heartbeat. A running process alone is insufficient.
 3. Deploy the API. Its migration hook must succeed and `/health/ready` must pass, including the worker heartbeat, object storage and SMTP checks.
 4. Deploy the UI and check both HTTPS origins.
-5. Open the UI, privately supply `ROOTSET_SECRET` to claim the installation, verify your email and create the first administrator. Verify sign-in, a saved cell edit, and a completed export request with a download.
+5. Open the UI, privately supply `ROOTSET_SECRET` to claim the installation and create the first administrator. This initial account is email-verified automatically. Verify sign-in, a saved cell edit, and a completed export request with a download.
 
 Towbar does not order independent workloads. For upgrades, select one published release and update all three image digests together, then deploy API, worker and UI in order. The API hook migrates before replacement; image rollback does not undo database migrations. Keep the persistent secret and encryption key stable.
 

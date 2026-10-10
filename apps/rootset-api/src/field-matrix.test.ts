@@ -13,7 +13,6 @@ import {
   type JsonValue,
   type FieldDefinition,
 } from "@rootset/contracts";
-import { decryptProtected } from "../../../packages/email/src/index.js";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { createRuntimeApp } from "./runtime-app.js";
 import { MCP_PROTOCOL_VERSION } from "./app.js";
@@ -219,17 +218,6 @@ test("FLD-15 actual REST/MCP eleven-type create/patch boundary matrix with nativ
     });
     assert.equal(setup.status, 201);
     const provision = await setup.json();
-    const message = (
-      await db.owner.query(
-        "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE template='account-verification' ORDER BY created_at DESC LIMIT 1",
-      )
-    ).rows[0];
-    const verification = await fetch(
-      decryptProtected<{ actionUrl: string }>(message.payload_encrypted, config)
-        .actionUrl,
-      { redirect: "manual" },
-    );
-    assert([200, 302].includes(verification.status));
     const login = await browserFetch("/v1/auth/sign-in/email", "POST", {
       email,
       password,

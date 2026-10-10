@@ -4,7 +4,6 @@ import { createHash, randomBytes } from "node:crypto";
 import { OAuthService } from "../../oauth/src/index";
 import { MetadataPaging } from "../../core/src/paging";
 import { newId, type Actor } from "@rootset/contracts";
-import { decryptProtected, type EmailPayload } from "@rootset/email";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
 import { createIdentityService } from "./index";
 import { testAuthenticator } from "./webauthn-test-authenticator";
@@ -93,20 +92,6 @@ test(
         password,
         organisationName: "Disposable passkeys",
       });
-      const verify = (
-        await fixture.owner.query(
-          `SELECT payload_encrypted FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification' ORDER BY created_at DESC LIMIT 1`,
-          [email],
-        )
-      ).rows[0];
-      const payload = decryptProtected<EmailPayload>(
-        verify.payload_encrypted,
-        config,
-      );
-      const verified = await service.auth.handler(
-        new Request(payload.actionUrl!),
-      );
-      assert.ok(verified.ok || verified.status === 302);
       const signed = await ok(await signIn());
       sessionCookie = responseCookies(signed);
       actor = (await service.resolveActor(

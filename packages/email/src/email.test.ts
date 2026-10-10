@@ -47,6 +47,8 @@ test("AUTH-12 all security templates render branded escaped HTML and plain text"
     assert.ok(result.html.includes("&lt;script&gt;"));
     assert.ok(!result.html.includes("Towbar"));
     assert.ok(!result.text.includes("Towbar"));
+    assert.match(result.html, /background-color:#2c5f40/);
+    assert.doesNotMatch(result.html, /#514127/);
   }
   await assert.rejects(() =>
     renderEmail(

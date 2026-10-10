@@ -13,8 +13,7 @@
     "@rootset/database": "workspace:*",
     "nodemailer": "catalog:",
     "react": "catalog:",
-    "@react-email/components": "catalog:",
-    "@react-email/render": "catalog:"
+    "@avgeek-oss/design-system": "1.2.12"
   },
   "devDependencies": {
     "@types/nodemailer": "catalog:"

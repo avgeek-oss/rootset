@@ -372,6 +372,13 @@ export function RootsetApp() {
       <AuthScreen
         path={path}
         claimed={setup.data?.claimed ?? false}
+        onSetupComplete={() => {
+          queryClient.setQueryData(["setup"], {
+            claimed: true,
+            verified: true,
+          });
+          router.replace("/login");
+        }}
         onSignedIn={() => {
           queryClient.removeQueries({ queryKey: ["context"] });
           const returnTo = new URLSearchParams(location.search).get("returnTo");

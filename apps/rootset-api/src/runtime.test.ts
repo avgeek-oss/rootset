@@ -158,20 +158,15 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       userId: string;
       state: string;
     };
-    assert.equal(provision.state, "awaiting_verification");
-    const email = (
-      await db.owner.query(
-        "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE template=$1 ORDER BY created_at DESC LIMIT 1",
-        ["account-verification"],
-      )
-    ).rows[0];
-    assert(email);
-    const message = decryptProtected<{ actionUrl: string }>(
-        email.payload_encrypted,
-        config,
-      ),
-      verification = await fetch(message.actionUrl, { redirect: "manual" });
-    assert([200, 302].includes(verification.status));
+    assert.equal(provision.state, "ready");
+    assert.equal(
+      (
+        await db.owner.query(
+          "SELECT count(*) FROM rootset_control.email_outbox WHERE template='account-verification'",
+        )
+      ).rows[0].count,
+      "0",
+    );
     const user = (
       await db.owner.query(
         "SELECT email,email_verified FROM rootset_control.users WHERE id=$1",

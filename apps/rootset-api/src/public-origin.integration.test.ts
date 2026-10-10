@@ -57,6 +57,25 @@ test("split public API owns the browser session and accepts only the configured 
     assert.equal(setup.status, 201);
     assert.equal(setup.headers.get("Access-Control-Allow-Origin"), webURL);
     assert.equal(setup.headers.get("Access-Control-Allow-Credentials"), "true");
+    const provision = await setup.json();
+    assert.equal(provision.state, "ready");
+    assert.equal(
+      (
+        await db.owner.query(
+          "SELECT count(*) FROM rootset_control.email_outbox WHERE template='account-verification'",
+        )
+      ).rows[0].count,
+      "0",
+    );
+    await db.owner.query(
+      "UPDATE rootset_control.users SET email_verified=false WHERE id=$1",
+      [provision.userId],
+    );
+    await fetch(`${apiURL}/v1/auth/request-verification-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: webURL },
+      body: JSON.stringify({ email }),
+    });
     const row = (
       await db.owner.query<{ payload_encrypted: string }>(
         "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE template='account-verification' ORDER BY created_at DESC LIMIT 1",
