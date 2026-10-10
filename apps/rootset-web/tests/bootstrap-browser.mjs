@@ -43,7 +43,7 @@ try {
   );
   await page.goto(webURL);
   if (!setup.claimed) {
-    await page.getByRole("heading", { name: "Set up Rootset" }).waitFor();
+    await page.getByRole("heading", { name: "Set up your team" }).waitFor();
     await page.screenshot({
       path: new URL(
         "../test-results/browser/setup-desktop.png",
@@ -51,62 +51,56 @@ try {
       ).pathname,
     });
     await page
-      .getByLabel("Organisation name", { exact: true })
+      .getByLabel("Installation setup secret", { exact: true })
+      .fill(config.ROOTSET_SECRET);
+
+    await page
+      .getByLabel("Team name", { exact: true })
       .fill("Rootset UI verification");
     await page
-      .getByLabel("Your name", { exact: true })
+      .getByLabel("Your Name", { exact: true })
       .fill("UI verification admin");
     await page
-      .getByLabel("Email address", { exact: true })
+      .getByLabel("Email", { exact: true })
       .fill(credentials.ROOTSET_TEST_OWNER_EMAIL);
     await page
       .getByLabel("Password", { exact: true })
       .fill(credentials.ROOTSET_TEST_OWNER_PASSWORD);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page
-      .getByLabel("Installation setup secret", { exact: true })
-      .fill(config.ROOTSET_SECRET);
-    await page
-      .getByRole("button", { name: "Create admin account", exact: true })
+      .getByRole("button", { name: "Complete Setup", exact: true })
       .click();
     await page
-      .getByText("Check your email to verify the admin account", {
-        exact: false,
-      })
-      .waitFor({ timeout: 15000 });
+      .getByRole("heading", { name: "Your account is ready", exact: true })
+      .waitFor();
+    if (
+      await page
+        .getByRole("heading", { name: "Verify your email", exact: true })
+        .count()
+    )
+      throw new Error(
+        "The installation administrator should be verified automatically",
+      );
+    await page
+      .getByRole("button", { name: "Continue to sign in", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).waitFor();
+    if (new URL(page.url()).pathname !== "/login")
+      throw new Error(
+        "Continue to sign in should navigate to /login without a reload",
+      );
+  } else {
+    await page.goto(new URL("/login", webURL).href);
   }
-  let verificationUrl;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const mailbox = await fetch("http://localhost:59080/api/v1/messages").then(
-      (response) => response.json(),
-    );
-    const message = mailbox.messages?.find((candidate) =>
-      candidate.To?.some(
-        (recipient) =>
-          recipient.Address === credentials.ROOTSET_TEST_OWNER_EMAIL,
-      ),
-    );
-    if (message) {
-      const content = await fetch(
-        `http://localhost:59080/api/v1/message/${message.ID}`,
-      ).then((response) => response.json());
-      verificationUrl = (content.HTML ?? content.Text ?? "")
-        .match(/https?:\/\/[^\s"<>]+\/v1\/auth\/verify-email\?[^\s"<>]+/)?.[0]
-        ?.replaceAll("&amp;", "&");
-      if (verificationUrl) break;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  if (verificationUrl) await page.goto(verificationUrl);
-  await page.goto("http://localhost:4300/login");
   await page
-    .getByLabel("Email address", { exact: true })
+    .getByLabel("Email", { exact: true })
     .fill(credentials.ROOTSET_TEST_OWNER_EMAIL);
   await page
     .getByLabel("Password", { exact: true })
     .fill(credentials.ROOTSET_TEST_OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page
-    .getByRole("heading", { name: "Create your first database", exact: true })
+    .getByRole("button", { name: "Create database", exact: true })
     .waitFor({ timeout: 15000 });
   await context.storageState({ path: "/tmp/rootset-browser-state.json" });
   await page.screenshot({

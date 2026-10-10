@@ -316,39 +316,26 @@ try {
   assert.equal(claim.status, 201);
   const provision = await claim.json();
   assert.match(provision.userId, /^[0-9A-HJKMNP-TV-Z]{26}$/);
-  const verificationURL = await poll(async () => {
-    const list = await (
-      await fetch(`http://127.0.0.1:${mailPort}/api/v1/messages`)
-    ).json();
-    for (const message of list.messages ?? []) {
-      const detail = await (
-        await fetch(`http://127.0.0.1:${mailPort}/api/v1/message/${message.ID}`)
-      ).json();
-      const text = `${detail.Text ?? ""} ${detail.HTML ?? ""}`;
-      const value = text.match(
-        /https?:\/\/[^\s"<>]+\/v1\/auth\/verify-email[^\s"<>]*/,
-      )?.[0];
-      if (value) {
-        const url = new URL(value.replaceAll("&amp;", "&"));
-        assert.equal(url.origin, apiURL);
-        return url;
-      }
-    }
-    return null;
-  }, "bootstrap verification email");
-  const verified = await fetch(verificationURL, { redirect: "manual" });
-  assert.equal(verified.status, 302);
+  assert.equal(provision.state, "ready");
+  assert.equal(
+    sql(
+      "SELECT json_build_object('count',count(*)) FROM rootset_control.email_outbox WHERE template='account-verification'",
+    ).count,
+    0,
+    "Installation does not queue a verification email",
+  );
   assert.deepEqual(await (await fetch(`${apiURL}/v1/setup`)).json(), {
     claimed: true,
     verified: true,
   });
   const before = sql(
-    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships),'admins',(SELECT count(*) FROM rootset_control.memberships WHERE role='admin'))",
+    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships),'admins',(SELECT count(*) FROM rootset_control.memberships WHERE role='admin'),'verifiedUsers',(SELECT count(*) FROM rootset_control.users WHERE email_verified))",
   );
   assert.equal(before.migrations, report.migrationInventory.count);
   assert.equal(before.users, 1);
   assert.equal(before.memberships, 1);
   assert.equal(before.admins, 1);
+  assert.equal(before.verifiedUsers, 1);
   report.checks.bootstrapVerifiedWithAdmin = true;
   report.stage = "preserved_restart";
   compose("restart", "api", "worker", "web");
@@ -377,7 +364,7 @@ try {
     verified: true,
   });
   const after = sql(
-    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships),'admins',(SELECT count(*) FROM rootset_control.memberships WHERE role='admin'))",
+    "SELECT json_build_object('migrations',(SELECT count(*) FROM rootset_control.migrations),'users',(SELECT count(*) FROM rootset_control.users),'memberships',(SELECT count(*) FROM rootset_control.memberships),'admins',(SELECT count(*) FROM rootset_control.memberships WHERE role='admin'),'verifiedUsers',(SELECT count(*) FROM rootset_control.users WHERE email_verified))",
   );
   assert.deepEqual(after, before);
   assertMigrationLedger(installedMigrations(), report.migrationInventory);

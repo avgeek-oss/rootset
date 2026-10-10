@@ -15,7 +15,6 @@ import {
 import { replaceRecoveryCodes, ensureRecoveryCodes } from "./recovery-codes.js";
 import {
   enqueueVerificationEmail,
-  isPrivateVerificationRejection,
   requestPublicVerificationEmail,
 } from "./email-verification.js";
 import { passkey } from "@better-auth/passkey";
@@ -511,7 +510,7 @@ export class IdentityService {
         orgId,
       ]);
       await client.query(
-        `INSERT INTO rootset_control.users(id,name,email) VALUES($1,$2,$3)`,
+        `INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)`,
         [userId, input.name, input.email],
       );
       const preferences = parse(PreferencesSchema, {
@@ -542,22 +541,12 @@ export class IdentityService {
         [newId(), orgId, userId],
       );
       await client.query(
-        `UPDATE rootset_control.bootstrap SET org_id=$1,user_id=$2,claimed_at=now(),claim_digest=$3 WHERE singleton`,
+        `UPDATE rootset_control.bootstrap SET org_id=$1,user_id=$2,claimed_at=now(),verified_at=now(),claim_digest=$3 WHERE singleton`,
         [orgId, userId, claimDigest],
       );
       return { orgId, userId };
     });
-    try {
-      await this.rawAuth.api.sendVerificationEmail({
-        body: {
-          email: input.email,
-          callbackURL: `${this.config.webURL ?? this.config.baseURL}/login`,
-        },
-      });
-    } catch (error) {
-      if (!isPrivateVerificationRejection(error)) throw error;
-    }
-    return { state: "awaiting_verification", ...result };
+    return { state: "ready", ...result };
   }
   async refreshActor(actor: Actor): Promise<Actor> {
     return this.hydrateActor(actor, true);

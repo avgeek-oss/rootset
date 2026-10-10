@@ -26,10 +26,12 @@ export function AuthScreen({
   path,
   claimed,
   onSignedIn,
+  onSetupComplete,
 }: {
   path: string;
   claimed: boolean;
   onSignedIn: () => void;
+  onSetupComplete: () => void;
 }) {
   const invitation = path.startsWith("/invite/")
     ? path.slice(8)
@@ -39,7 +41,7 @@ export function AuthScreen({
   return (
     <AuthPage>
       {!claimed ? (
-        <InitialTeamSetup />
+        <InitialTeamSetup onContinue={onSetupComplete} />
       ) : path === "/forgot-password" ? (
         <ForgotPasswordForm />
       ) : path === "/reset-password" ? (

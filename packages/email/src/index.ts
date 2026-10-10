@@ -1,8 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import nodemailer from "nodemailer";
-import { createElement } from "react";
-import { render } from "@react-email/render";
-import { EmailShell } from "./email-shell";
+import { renderEmailMessage } from "@avgeek-oss/design-system/emails/render";
 import { newId, RootsetError } from "@rootset/contracts";
 import { transaction, type Pool, type PoolClient } from "@rootset/database";
 
@@ -193,17 +191,30 @@ export async function renderEmail(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const html = await render(
-    createElement(EmailShell, {
-      logoUrl: new URL("/brand/rootset-logo.png", baseURL).href,
+  const brand = {
+    name: "Rootset",
+    accentColor: "#2c5f40",
+    logoUrl: new URL("/brand/rootset-logo.png", baseURL).href,
+    theme: {
+      foreground: "#1f2621",
+      muted: "#5f6761",
+      accentForeground: "#fbfcfb",
+    },
+  };
+  const { html } = await renderEmailMessage({
+    brand,
+    message: {
       title: entry.title,
-      body: entry.body,
       name: payload.name,
-      context,
+      paragraphs: [
+        entry.body,
+        ...(context ? [context] : []),
+        "If you did not request this, contact your installation operator.",
+      ],
       actionUrl: url?.href,
       actionLabel: action,
-    }),
-  );
+    },
+  });
   return { subject: entry.subject, html, text };
 }
 export interface EmailConfig extends EncryptionConfig {
@@ -310,7 +321,9 @@ export class EmailOutbox {
         this.config.allowedActionOrigins,
       );
       const result = await transport.sendMail({
-        from: smtp.from,
+        from: smtp.from.includes("<")
+          ? smtp.from
+          : { name: "Rootset", address: smtp.from },
         to: row.to_address,
         ...rendered,
         messageId: `<${row.id}@${new URL(this.config.baseURL).hostname}>`,

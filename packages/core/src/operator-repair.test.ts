@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
-import { decryptProtected, type EmailPayload } from "@rootset/email";
 import {
   JobAcceptedSchema,
   JobSchema,
@@ -73,20 +72,6 @@ test(
         password,
         organisationName: "Disposable operator repair",
       });
-      const mail = (
-        await fixture.owner.query(
-          "SELECT payload_encrypted FROM rootset_control.email_outbox WHERE to_address=$1 AND template='account-verification'",
-          [email],
-        )
-      ).rows[0];
-      const verification = decryptProtected<EmailPayload>(
-        mail.payload_encrypted,
-        service.config,
-      );
-      const verified = await service.auth.handler(
-        new Request(verification.actionUrl!),
-      );
-      assert.ok(verified.status === 200 || verified.status === 302);
       const signedIn = await service.auth.handler(
         new Request("http://localhost:6313/v1/auth/sign-in/email", {
           method: "POST",
