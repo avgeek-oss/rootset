@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://towbar.dev/schemas/app.v2.json
+id: rootset-web
+name: Rootset UI
+deployment:
+  type: image
+  # Rootset 0.1.0; update API, worker and UI together from rootset-images.json.
+  image: ghcr.io/avgeek-oss/rootset-web@sha256:66c9e6a49e6b29c292b25050065197ba9e6522d85f0b96b8a6e5c66b6ec3910f
+  platform: linux/arm64
+autoDeploy: false
+rollout:
+  type: recreate
+  maintenanceMode: true
+  reason: Keep one instance per service on the shared Platform Services server.
+container:
+  network: rootset
+  port: 4300
+  resources:
+    cpus: 0.25
+    memory: 1g
+  entrypoint: /bin/sh
+  command:
+    - -ec
+    - |
+      export NODE_OPTIONS="--max-old-space-size=768 --max-http-header-size=196608"
+      exec node apps/rootset-web/server.js
+health:
+  type: http
+  path: /
+  timeoutSeconds: 180
+secrets:
+  runtime: [ROOTSET_PUBLIC_API_ORIGIN]
+ingress:
+  type: proxy
+domains:
+  primary: rootset.avgeek.ltd
+tls:
+  mode: cloudflare-dns
+environments:
+  production:
+    server: 13.206.149.158
