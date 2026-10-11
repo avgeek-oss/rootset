@@ -12,7 +12,63 @@ import {
   fetchClientMetadata,
   OAuthError,
   parseConfiguredClients,
+  redirectMatches,
 } from "./index.js";
+
+test("native OAuth callbacks allow only literal loopback port variation", () => {
+  for (const host of ["127.0.0.1", "[::1]"]) {
+    const registered = `http://${host}/callback/codex?client=codex`;
+    assert(
+      redirectMatches(
+        registered,
+        `http://${host}:51255/callback/codex?client=codex`,
+      ),
+    );
+    assert(
+      redirectMatches(
+        `http://${host}:10000/callback`,
+        `http://${host}:20000/callback`,
+      ),
+    );
+    for (const supplied of [
+      `http://${host}:51255/callback/other?client=codex`,
+      `http://${host}:51255/callback/codex?client=other`,
+      `http://${host}:51255/callback/codex?client=codex#`,
+      `http://user@${host}:51255/callback/codex?client=codex`,
+      `https://${host}:51255/callback/codex?client=codex`,
+      "http://localhost:51255/callback/codex?client=codex",
+      "http://127.0.0.2:51255/callback/codex?client=codex",
+      "http://127.0.0.1.attacker.example:51255/callback/codex?client=codex",
+      `http://${host}:70000/callback/codex?client=codex`,
+    ])
+      assert.equal(redirectMatches(registered, supplied), false, supplied);
+  }
+  assert.equal(
+    redirectMatches("http://127.0.0.1/callback", "http://[::1]:51255/callback"),
+    false,
+  );
+  assert.equal(
+    redirectMatches(
+      "http://localhost:10000/callback",
+      "http://localhost:20000/callback",
+    ),
+    false,
+  );
+  assert.equal(
+    redirectMatches(
+      "https://client.example/callback",
+      "https://client.example:51255/callback",
+    ),
+    false,
+  );
+  assert(
+    redirectMatches(
+      "https://client.example/callback",
+      "https://client.example/callback",
+    ),
+  );
+  assert.equal(redirectMatches("not-a-url", "not-a-url"), false);
+});
 
 test("configured public OAuth clients validate bounded strict JSON, unique IDs and exact redirect registration", () => {
   assert.equal(parseConfiguredClients(undefined), undefined);
@@ -210,6 +266,33 @@ function network(
     },
   };
 }
+
+test("Codex client metadata accepts native callbacks and both declared grant types", async (t) => {
+  const codexId = "https://chatgpt.com/oauth/codex/client.json";
+  const codex = {
+    client_id: codexId,
+    client_uri: "https://chatgpt.com/codex",
+    application_type: "native",
+    redirect_uris: ["http://127.0.0.1/callback", "http://localhost/callback"],
+    token_endpoint_auth_method: "none",
+    token_endpoint_auth_methods_supported: ["none"],
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    client_name: "Codex",
+    logo_uri: "https://persistent.oaistatic.com/sonic/misc/openai-logo.png",
+  };
+  network(t, { chunks: [Buffer.from(JSON.stringify(codex))] });
+  const metadata = await fetchClientMetadata(codexId);
+  assert.equal(metadata.client_id, codexId);
+  assert.equal(metadata.client_name, "Codex");
+  assert.deepEqual(metadata.redirect_uris, codex.redirect_uris);
+  assert(
+    redirectMatches(
+      metadata.redirect_uris[0]!,
+      "http://127.0.0.1:51255/callback",
+    ),
+  );
+});
 
 test("metadata fetch pins the validated DNS address while retaining HTTPS hostname verification", async (t) => {
   const fixture = network(t);

@@ -1,6 +1,6 @@
 ---
 title: "Connect an MCP client"
-description: "Use Rootset\u2019s public MCP endpoint with OAuth or an API key."
+description: "Connect to Rootset\u2019s public MCP endpoint with OAuth."
 ---
 
 Rootset exposes Streamable HTTP MCP at **`https://your-api-origin/mcp`**. Use the same API origin as REST; do not point MCP clients at the UI.
@@ -9,21 +9,32 @@ Rootset exposes Streamable HTTP MCP at **`https://your-api-origin/mcp`**. Use th
 
 Add Rootset as a remote MCP server using the `/mcp` URL. Follow the client's OAuth sign-in flow, sign in to Rootset, and review the requested access. The approved scopes are bounded by your current workspace role. Manage connections in **Account Settings → MCP connections**.
 
-## Clients supporting a bearer header
+## Codex
 
-Create a [personal or team API key](/api-keys). Configure the remote URL and an `Authorization: Bearer <your-key>` header through the client's secret configuration. Client syntax varies; keep the key out of checked-in config files.
+Add the remote server to Codex using your installation's API origin:
 
-```json
-{
-  "url": "https://rootset-api.example.com/mcp",
-  "headers": {
-    "Authorization": "Bearer <your-rootset-api-key>"
-  }
-}
+```sh
+codex mcp add rootset --url https://rootset-api.example.com/mcp
 ```
+
+Codex uses its client metadata document and a local callback with a dynamically assigned port. Rootset accepts port changes for literal loopback HTTP callbacks (`127.0.0.1` or `[::1]`), while the registered host, path and query must still match. The authorization code is bound to the exact callback selected for that request.
+
+For administrator access, sign in with an administrator account and approve the requested management scopes. The scopes determine which operations the connection can use; for example, `org:manage` permits changing the team name and `members:manage` permits managing membership. Read scopes alone do not permit these actions. A member or viewer cannot approve administrator-only scopes, and removing or downgrading the owner immediately restricts the connection. Refreshing a token cannot restore removed permissions.
+
+For example, request team administration with:
+
+```sh
+codex mcp login rootset --scopes org:read,org:manage,members:read,members:manage
+```
+
+Include any additional scopes needed for your workflow from the [MCP tools reference](/mcp-tools). Signing in without explicit scopes defaults to read-only table access.
+
+To request a narrower grant, use `codex mcp login rootset --scopes databases:read,tables:read,rows:read,history:read`. Connections can be revoked in **Account Settings → MCP connections**.
+
+MCP requires OAuth. [Personal and team API keys](/api-keys) are for REST requests, not MCP configuration.
 
 ## Work with a table
 
 Ask the client to discover the workspace, list databases and tables, and read the table schema before querying or creating rows. [MCP tools](/mcp-tools) share the REST contract and permissions. Schema changes, exports and deletion can return jobs; inspect their status before treating the operation as complete.
 
-Read-only keys cannot edit records. Edit keys cannot delete databases or tables. Administrative automation keys can execute those operations directly; browser-only identity confirmation is not an approval ticket for MCP.
+Read-only connections cannot edit records. Members cannot delete databases or tables. Administrator connections with the required management scopes can execute those operations directly; browser-only identity confirmation is not an approval ticket for MCP.
