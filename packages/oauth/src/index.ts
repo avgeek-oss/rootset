@@ -13,7 +13,7 @@ import {
   type Actor,
 } from "@rootset/contracts";
 
-import { roleAllows } from "@rootset/access";
+import { keyScopes, roleAllows } from "@rootset/access";
 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
@@ -513,7 +513,8 @@ export class OAuthService {
     if (
       !current ||
       current.userId !== row.user_id ||
-      current.orgId !== row.org_id
+      current.orgId !== row.org_id ||
+      current.role !== actor.role
     )
       return null;
     const parsed = ActorSchema.safeParse({
@@ -710,14 +711,14 @@ export class OAuthService {
             "Authorization request is unavailable.",
           );
         const orgId = bound.org_id || actor.orgId;
-        this.grantActor(actor, orgId, bound.scopes);
+        this.grantActor(actor, orgId, []);
         await db.query(
           "UPDATE rootset_control.oauth_requests SET org_id=$2,user_id=$3,reviewed_at=now() WHERE id=$1",
           [requestId, orgId, actor.userId],
         );
         return { ...bound, org_id: orgId, user_id: actor.userId };
       });
-    this.grantActor(actor, row.org_id, row.scopes);
+    this.grantActor(actor, row.org_id, []);
     const client = await this.client(row.client_id);
     return response({
       id: row.id,
@@ -731,6 +732,12 @@ export class OAuthService {
             : "unverified_client",
       },
       organizationId: row.org_id,
+      availableAccessLevels:
+        actor.role === "admin"
+          ? ["read", "write", "admin"]
+          : actor.role === "member"
+            ? ["read", "write"]
+            : ["read"],
       resource: row.resource,
       scopes: row.scopes,
       expiresAt: row.expires_at,
@@ -744,17 +751,21 @@ export class OAuthService {
       body = decodeJsonBytes(await boundedBody(request, 4096), {
         maxBytes: 4096,
         maxDepth: 4,
-      }) as { approve?: unknown };
+      }) as { approve?: unknown; accessLevel?: unknown };
     if (
       !body ||
       typeof body !== "object" ||
       Array.isArray(body) ||
       typeof body.approve !== "boolean" ||
-      Object.keys(body).some((k) => k !== "approve")
+      (body.approve &&
+        (typeof body.accessLevel !== "string" ||
+          !["read", "write", "admin"].includes(body.accessLevel))) ||
+      (!body.approve && body.accessLevel !== undefined) ||
+      Object.keys(body).some((k) => k !== "approve" && k !== "accessLevel")
     )
       throw new OAuthError(
         "invalid_request",
-        "Consent requires a boolean approve decision.",
+        "Choose an access level when approving this connection.",
       );
     if (
       body.approve &&
@@ -805,8 +816,35 @@ export class OAuthService {
         redirect.searchParams.set("error", "access_denied");
         return response({ redirectUri: redirect.toString() });
       }
+      const membership = (
+        await db.query<{ role: Actor["role"] }>(
+          "SELECT role FROM rootset_control.memberships WHERE user_id=$1 AND org_id=$2 FOR SHARE",
+          [actor.userId, row.org_id],
+        )
+      ).rows[0];
+      if (
+        !membership ||
+        (body.accessLevel === "admin" && membership.role !== "admin") ||
+        (body.accessLevel === "write" && membership.role === "viewer")
+      )
+        throw new OAuthError(
+          "access_denied",
+          "Selected access exceeds your current role.",
+          403,
+        );
+      const scopes = keyScopes(
+        body.accessLevel === "read" ? "read" : "edit",
+        body.accessLevel === "admin",
+      ).filter(
+        (scope) =>
+          scope !== "installation:manage" && this.config.scopes.includes(scope),
+      );
       const granted = {
-        ...this.grantActor(actor, row.org_id, row.scopes),
+        ...this.grantActor(
+          { ...actor, role: membership.role },
+          row.org_id,
+          scopes,
+        ),
         clientId: row.client_id,
       };
       const grantId = id(),
@@ -819,7 +857,7 @@ export class OAuthService {
           (actor as { userId?: string }).userId,
           row.org_id,
           row.resource,
-          row.scopes,
+          scopes,
           granted,
         ],
       );
@@ -918,7 +956,8 @@ export class OAuthService {
     if (
       !current ||
       current.userId !== grant.user_id ||
-      current.orgId !== grant.org_id
+      current.orgId !== grant.org_id ||
+      current.role !== grant.actor.role
     )
       return null;
     const effectiveScopes = grant.scopes.filter((scope: string) =>

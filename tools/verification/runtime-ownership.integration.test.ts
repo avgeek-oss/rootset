@@ -33,7 +33,10 @@ verificationCase(
       "One ordinary database owner migrates and runs Rootset without additional database roles",
   },
   async () => {
-    assert.deepEqual(db.appliedMigrations, ["0001_baseline.sql"]);
+    assert.deepEqual(db.appliedMigrations, [
+      "0001_baseline.sql",
+      "0002_mcp_role_revocation.sql",
+    ]);
     const role = (
       await db.app.query(
         "SELECT current_user,rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user",

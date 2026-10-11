@@ -8,17 +8,17 @@ import {
   dateFormatOptions,
   timeFormatOptions,
 } from "../../contracts/src/date-time-preferences";
-import { createPool, migrate, migrationStatus } from "./index.js";
+import { Pool, createPool, migrate, migrationStatus } from "./index.js";
 
 const source = process.env.ROOTSET_TEST_DATABASE_URL;
 test(
-  "V1-28 fresh baseline is repeatable, enforces singleton and roles, and preserves incompatible prelaunch databases",
+  "V1-28 baseline upgrades are repeatable, enforce singleton and roles, and preserves incompatible prelaunch databases",
   { skip: !source },
   async (t) => {
     const url = new URL(source!);
     assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
     const name = `rootset_baseline_${randomBytes(8).toString("hex")}`;
-    const admin = createPool(url.toString(), 1);
+    const admin = new Pool({ connectionString: url.toString(), max: 1 });
     await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
     url.pathname = `/${name}`;
     const pool = createPool(url.toString(), 1);
@@ -32,7 +32,17 @@ test(
       }
       await rm(directory, { recursive: true, force: true });
     });
-    assert.deepEqual(await migrate(pool), ["0001_baseline.sql"]);
+    const sql = await readFile(
+      new URL("../migrations/0001_baseline.sql", import.meta.url),
+      "utf8",
+    );
+    await writeFile(join(directory, "0001_baseline.sql"), sql);
+    assert.deepEqual(await migrate(pool, directory), ["0001_baseline.sql"]);
+    assert.deepEqual(await migrationStatus(pool), {
+      complete: false,
+      version: "0001_baseline.sql",
+    });
+    assert.deepEqual(await migrate(pool), ["0002_mcp_role_revocation.sql"]);
     for (const relation of ["indexes", "import_batches", "import_rejections"])
       assert.equal(
         (
@@ -45,7 +55,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0001_baseline.sql",
+      version: "0002_mcp_role_revocation.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -171,17 +181,20 @@ test(
       "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN('resource_grants','operator_bindings','account_audit','capacity_organisation_quotas','capacity_policy','capacity_reports','capacity_reservations','installation_settings','installation_settings_audit','backup_policies','backup_occurrences','backups','restore_provenance','restore_publications','restore_write_barriers','notification_events','notification_receipts')",
     );
     assert.equal(removed.rowCount, 0);
-    const sql = await readFile(
-      new URL("../migrations/0001_baseline.sql", import.meta.url),
-      "utf8",
-    );
+
     await writeFile(
       join(directory, "0001_baseline.sql"),
       `${sql}\n-- edited before release\n`,
     );
+    await writeFile(
+      join(directory, "0002_mcp_role_revocation.sql"),
+      await readFile(
+        new URL("../migrations/0002_mcp_role_revocation.sql", import.meta.url),
+      ),
+    );
     await assert.rejects(migrate(pool, directory), /changed after application/);
     await pool.query(
-      "UPDATE rootset_control.migrations SET name='001_identity.sql'",
+      "UPDATE rootset_control.migrations SET name='001_identity.sql' WHERE name='0001_baseline.sql'",
     );
     await assert.rejects(migrate(pool), /earlier prelaunch schema/);
     assert.equal(

@@ -590,7 +590,7 @@ test(
                   cookie: recoverySessionCookie,
                   "content-type": "application/json",
                 },
-                body: JSON.stringify({ approve: true }),
+                body: JSON.stringify({ approve: true, accessLevel: "admin" }),
               }),
             );
           const refused = (await decide())!;

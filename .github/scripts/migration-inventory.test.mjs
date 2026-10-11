@@ -30,11 +30,26 @@ test("inventory hashes exact SQL bytes and derives the candidate boundary", asyn
   assert.equal(before.count, 1);
   assert.equal(before.last, "0001_baseline.sql");
   await writeFile(join(directory, "0002_extra.sql"), "SELECT 2;\n");
-  await assert.rejects(candidateMigrationInventory(root));
+  const upgraded = await candidateMigrationInventory(root);
+  assert.deepEqual(upgraded.entries, [
+    ...before.entries,
+    { name: "0002_extra.sql", digest: digest("SELECT 2;\n") },
+  ]);
+  assert.equal(upgraded.count, 2);
+  assert.equal(upgraded.last, "0002_extra.sql");
+  assert.notEqual(upgraded.sha256, before.sha256);
+  assert.throws(() => assertMigrationLedger(before.entries, upgraded));
+  assertMigrationLedger(upgraded.entries, upgraded);
   await rm(join(directory, "0002_extra.sql"));
   await writeFile(join(directory, "0001_baseline.sql"), "SELECT 1;\r\n");
   const changed = await candidateMigrationInventory(root);
   assert.notEqual(changed.entries[0].digest, before.entries[0].digest);
+});
+
+test("malformed SQL migration filenames are rejected", async (t) => {
+  const { root, directory } = await fixture(t);
+  await writeFile(join(directory, "999_extra.sql"), "SELECT 2;\n");
+  await assert.rejects(candidateMigrationInventory(root));
 });
 
 test("ledger rejects missing, extra, wrong-hash and duplicate entries", async (t) => {

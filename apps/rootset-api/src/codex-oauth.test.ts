@@ -157,7 +157,7 @@ test(
             Origin: baseURL,
             "Content-Type": "application/json",
           },
-          body: '{"approve":true}',
+          body: '{"approve":true,"accessLevel":"admin"}',
         },
       );
       assert.equal(approved.status, 200);
@@ -185,7 +185,11 @@ test(
       const issued = await exchange(callback);
       assert.equal(issued.status, 200);
       const tokens = await issued.json();
-      assert.equal(tokens.scope, "org:read org:manage");
+      const grantedScopes = tokens.scope.split(" ");
+      assert.ok(grantedScopes.includes("org:read"));
+      assert.ok(grantedScopes.includes("org:manage"));
+      assert.ok(grantedScopes.includes("rows:write"));
+      assert.ok(!grantedScopes.includes("installation:manage"));
       assert(tokens.refresh_token);
       await sdk.connect(
         new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
@@ -230,26 +234,31 @@ test(
             idempotencyKey: newId(),
           },
         }),
-        /ACCESS_DENIED/,
+        /UNAUTHENTICATED/,
       );
-      const read = await sdk.callTool({
-        name: "rootset_get_organisation",
-        arguments: { orgId },
-      });
-      assert.notEqual(read.isError, true);
+      await assert.rejects(
+        sdk.callTool({
+          name: "rootset_get_organisation",
+          arguments: { orgId },
+        }),
+        /UNAUTHENTICATED/,
+      );
       const nextAuthorization = await authorize();
       assert.equal(nextAuthorization.status, 302);
       const nextId = new URL(
         nextAuthorization.headers.get("location")!,
       ).searchParams.get("requestId")!;
-      assert.equal(
-        (
-          await fetch(`${baseURL}/api/internal/v1/oauth/requests/${nextId}`, {
-            headers: { Cookie: "fixture=session" },
-          })
-        ).status,
-        403,
+      const nextConsent = await fetch(
+        `${baseURL}/api/internal/v1/oauth/requests/${nextId}`,
+        {
+          headers: { Cookie: "fixture=session" },
+        },
       );
+      assert.equal(nextConsent.status, 200);
+      assert.deepEqual((await nextConsent.json()).availableAccessLevels, [
+        "read",
+        "write",
+      ]);
       const refreshed = await fetch(`${baseURL}/oauth/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -260,14 +269,13 @@ test(
           resource: `${baseURL}/mcp`,
         }),
       });
-      assert.equal(refreshed.status, 200);
-      const narrowed = await refreshed.json();
-      assert.equal(narrowed.scope, "org:read");
+      assert.equal(refreshed.status, 400);
+      assert.equal((await refreshed.json()).error, "invalid_grant");
       assert.equal((await exchange(callback)).status, 400);
       assert.equal(
         await oauth.resolveActor(
           new Request(`${baseURL}/mcp`, {
-            headers: { Authorization: `Bearer ${narrowed.access_token}` },
+            headers: { Authorization: `Bearer ${tokens.access_token}` },
           }),
           "mcp",
         ),
