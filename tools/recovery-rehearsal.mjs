@@ -5,6 +5,11 @@ import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 
+import {
+  assertMigrationLedger,
+  candidateMigrationInventory,
+} from "../.github/scripts/migration-inventory.mjs";
+
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const sourceName = process.env.ROOTSET_RECOVERY_SOURCE_NAME;
 if (!sourceName || !/^rootset-[a-z0-9-]+$/.test(sourceName))
@@ -122,13 +127,10 @@ const sourcePool = new Pool({
 async function inventory(pool) {
   const migrations = (
     await pool.query(
-      "SELECT name FROM rootset_control.migrations ORDER BY name",
+      "SELECT name,digest FROM rootset_control.migrations ORDER BY name",
     )
   ).rows;
-  if (migrations.length !== 1 || migrations[0].name !== "0001_baseline.sql")
-    throw new Error(
-      "Recovery requires a fresh installation using only 0001_baseline.sql",
-    );
+  assertMigrationLedger(migrations, await candidateMigrationInventory(root));
   const metadata = (
     await pool.query(
       "SELECT d.id AS database_id,d.schema_name,t.id AS table_id,t.physical_name,t.row_count,t.schema_version,t.state FROM rootset_control.databases d JOIN rootset_control.tables t ON t.database_id=d.id ORDER BY d.id,t.id",

@@ -7,6 +7,11 @@ import { TableStorage } from "../packages/table-storage/src/index.ts";
 import { ArtifactStore } from "../packages/jobs/src/artifacts.ts";
 import { loadConfig } from "../packages/core/src/config.ts";
 
+import {
+  assertMigrationLedger,
+  candidateMigrationInventory,
+} from "../.github/scripts/migration-inventory.mjs";
+
 const url = new URL(process.env.ROOTSET_TEST_DATABASE_URL ?? "");
 if (
   !["localhost", "127.0.0.1"].includes(url.hostname) ||
@@ -34,13 +39,13 @@ const marker = randomBytes(32).toString("hex");
 try {
   const migrations = (
     await owner.query(
-      "SELECT name FROM rootset_control.migrations ORDER BY name",
+      "SELECT name,digest FROM rootset_control.migrations ORDER BY name",
     )
   ).rows;
-  if (migrations.length !== 1 || migrations[0].name !== "0001_baseline.sql")
-    throw new Error(
-      "Recovery fixture requires a fresh 0001_baseline.sql installation",
-    );
+  assertMigrationLedger(
+    migrations,
+    await candidateMigrationInventory(resolve(import.meta.dirname, "..")),
+  );
   await owner.query(
     "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,true)",
     [
