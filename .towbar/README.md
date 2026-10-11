@@ -1,6 +1,6 @@
 # Deploy Rootset with Towbar
 
-These manifests deploy the public Rootset **0.1.1** API, worker and UI images to the Platform Services server (`13.206.149.158`, Linux ARM64). All three images are pinned to the immutable multi-platform digests in the [release image manifest](https://github.com/avgeek-oss/rootset/releases/download/v0.1.1/rootset-images.json). There is no source build. `autoDeploy: false` keeps each deployment manual.
+These manifests deploy the public Rootset **0.1.2** API, worker and UI images to the Platform Services server (`13.206.149.158`, Linux ARM64). All three images are pinned to the immutable multi-platform digests in the [release image manifest](https://github.com/avgeek-oss/rootset/releases/download/v0.1.2/rootset-images.json). There is no source build. `autoDeploy: false` keeps each deployment manual.
 
 The application is served at `https://rootset.avgeek.ltd`; authentication, REST, MCP and downloads use `https://rootset-api.avgeek.ltd`. The documentation site is separate, at `https://www.rootset.app`. The worker and PostgreSQL have no public domains. All four workloads share the private `rootset` Docker network on one server.
 
