@@ -1,3 +1,4 @@
+import release from "../../../package.json" with { type: "json" };
 import {
   RootsetError,
   assertQueryLexemes,
@@ -12,6 +13,7 @@ export function createRuntimeApp(
 ) {
   return createApp({
     ...runtime,
+    config: { ...runtime.config, version: release.version },
     windowQuery: async (actor, input, context) => {
       const request = input as {
         orgId: string;

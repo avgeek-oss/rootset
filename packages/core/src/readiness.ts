@@ -1,3 +1,4 @@
+import release from "../../../package.json" with { type: "json" };
 import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { migrationStatus, type Pool } from "@rootset/database";
 import type { EmailOutbox } from "@rootset/email";
@@ -67,7 +68,7 @@ export class ReadinessService {
       healthy: Object.values(dependencies).every(
         (state) => state === "healthy",
       ),
-      version: "0.1.0",
+      version: release.version,
       migrationVersion,
       dependencies,
       workerHeartbeatAt,
