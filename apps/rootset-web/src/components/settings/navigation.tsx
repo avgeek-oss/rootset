@@ -2,7 +2,7 @@
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Link01Icon,
+  McpServerIcon,
   DatabaseIcon,
   DatabaseSettingIcon,
   Delete02Icon,
@@ -11,7 +11,6 @@ import {
   FingerPrintIcon,
   Download01Icon,
   Key01Icon,
-  BookOpen01Icon,
   Mail01Icon,
   ComputerIcon,
   SecurityCheckIcon,
@@ -134,10 +133,10 @@ export const settingsIcons = {
   sessions: ComputerIcon,
   "api-keys": Key01Icon,
   "team-api-keys": Key01Icon,
-  mcp: BookOpen01Icon,
+  mcp: McpServerIcon,
   organisation: Settings01Icon,
   members: UserGroupIcon,
-  "mcp-connections": Link01Icon,
+  "mcp-connections": McpServerIcon,
   database: DatabaseSettingIcon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
