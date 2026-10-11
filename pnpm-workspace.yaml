@@ -54,4 +54,4 @@ minimumReleaseAgeExclude:
   - "@tanstack/react-query@5.104.1"
   - "@types/node@24.19.1"
   - lucide-react@1.50.0
-  - "@avgeek-oss/design-system@1.2.13 || 1.2.15"
+  - "@avgeek-oss/design-system@1.2.13 || 1.2.15 || 1.2.16"
