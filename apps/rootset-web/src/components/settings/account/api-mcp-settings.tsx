@@ -48,6 +48,7 @@ import { api } from "./adapter";
 import { ActionButton } from "./page-parts";
 import { RelativeTime } from "./last-synced-time";
 import { McpClientLogo } from "./mcp-client-logo";
+import { mcpClientConfigurations } from "./mcp-client-configurations";
 
 type ApiKey = {
   id: string;
@@ -592,76 +593,13 @@ function CreateKey({
 }
 
 function McpSetup({ url }: { url: string }) {
-  const configs = {
-    codex: {
-      title: "~/.codex/config.toml",
-      code: `[mcp_servers.rootset]\nurl = ${JSON.stringify(url)}\nbearer_token_env_var = "ROOTSET_API_KEY"`,
-    },
-    cursor: {
-      title: ".cursor/mcp.json",
-      code: JSON.stringify(
-        {
-          mcpServers: {
-            rootset: {
-              url,
-              headers: { Authorization: "Bearer YOUR_ROOTSET_API_KEY" },
-            },
-          },
-        },
-        null,
-        2,
-      ),
-    },
-    vscode: {
-      title: ".vscode/mcp.json",
-      code: JSON.stringify(
-        {
-          inputs: [
-            {
-              type: "promptString",
-              id: "rootset-key",
-              description: "Rootset API key",
-              password: true,
-            },
-          ],
-          servers: {
-            rootset: {
-              type: "http",
-              url,
-              headers: { Authorization: "Bearer ${input:rootset-key}" },
-            },
-          },
-        },
-        null,
-        2,
-      ),
-    },
-    claude: {
-      title: "Claude Code",
-      code: `claude mcp add --transport http rootset '${url}' \\\n  --header "Authorization: Bearer $ROOTSET_API_KEY"`,
-    },
-    other: {
-      title: "Connection details",
-      code: `Transport: Streamable HTTP\nURL: ${url}\nAuthorization: Bearer YOUR_ROOTSET_API_KEY`,
-    },
-  };
-  const labels = {
-    codex: "Codex",
-    claude: "Claude Code",
-    cursor: "Cursor",
-    vscode: "VS Code",
-    other: "Other clients",
-  };
   return (
     <McpGuideSettings
-      configurations={Object.entries(configs).map(([id, config]) => ({
-        id,
-        label: labels[id as keyof typeof labels],
-        filename: config.title,
-        code: config.code,
-        icon: <McpClientLogo client={id} />,
+      configurations={mcpClientConfigurations(url).map((config) => ({
+        ...config,
+        icon: <McpClientLogo client={config.id} />,
       }))}
-      documentationUrl="https://github.com/avgeek-oss/rootset/blob/main/rc-plan/API_AND_MCP_ARCHITECTURE.md"
+      documentationUrl="https://www.rootset.app/mcp-guide"
     />
   );
 }

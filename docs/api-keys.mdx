@@ -25,7 +25,7 @@ curl --fail-with-body "$ROOTSET_API_ORIGIN/v1/me" \
   -H "Authorization: Bearer $ROOTSET_API_KEY"
 ```
 
-Use the public API origin for REST and [MCP](/mcp-guide). Do not put keys into URLs, documentation screenshots, browser bundles or Git. Authentication still checks expiration, revocation and current authority on each request.
+Use the public API origin for REST. Connect interactive [MCP clients](/mcp-guide) through browser sign-in with OAuth. Do not put keys into URLs, documentation screenshots, browser bundles or Git. Authentication still checks expiration, revocation and current authority on each request.
 
 <Screenshot
   light="/assets/screenshots/api-key-editor-light.png"
