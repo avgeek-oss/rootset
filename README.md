@@ -43,7 +43,7 @@ private S3-compatible bucket and SMTP settings, or use the optional `local-db`
 profile for bundled PostgreSQL. Published images do not require Node.js, pnpm,
 or a GitHub Packages token on the host.
 
-Container images become available after the first reviewed release. The
+Published images are available through GitHub Releases. The
 [release procedure](development/documentation.md#publish-release-images) builds
 Linux AMD64 and ARM64 images, tests their installation and restart on both native
 architectures, then publishes the release with its image manifest and installation files.

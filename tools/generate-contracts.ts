@@ -1,3 +1,4 @@
+import release from "../package.json" with { type: "json" };
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -20,8 +21,11 @@ const configuration =
   )) ?? {};
 const documents: Record<string, string> = {};
 for (const [name, value] of Object.entries({
-  "openapi.json": generateOpenApi(),
-  "internal-openapi.json": generateOpenApi({ internal: true }),
+  "openapi.json": generateOpenApi({ version: release.version }),
+  "internal-openapi.json": generateOpenApi({
+    internal: true,
+    version: release.version,
+  }),
   "mcp-tools.json": generateMcpTools(),
   "operation-inventory.json": generateCoverageInventory(),
 }))
