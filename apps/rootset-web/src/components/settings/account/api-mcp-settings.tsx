@@ -342,10 +342,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
                     : "Edit",
               client: {
                 name: key.oauthClientName ?? key.name,
-                id:
-                  key.oauthClientTrust === "metadata-document"
-                    ? (key.oauthClientId ?? undefined)
-                    : undefined,
+                id: key.oauthClientId ?? undefined,
                 logo: (
                   <McpClientLogo client={key.oauthClientLogo ?? "unknown"} />
                 ),
