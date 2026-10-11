@@ -23,6 +23,7 @@ async function fixture(
     grant: (
       resource?: string,
       approve?: boolean,
+      accessLevel?: "read" | "write" | "admin",
     ) => Promise<Record<string, unknown>>;
   }) => Promise<void>,
 ) {
@@ -77,7 +78,11 @@ async function fixture(
     resolveSession: async (request) =>
       request.headers.get("cookie") === "test=session" ? actor : null,
   });
-  const grant = async (resource = `${baseURL}/mcp`, approve = true) => {
+  const grant = async (
+    resource = `${baseURL}/mcp`,
+    approve = true,
+    accessLevel: "read" | "write" | "admin" = "read",
+  ) => {
     const verifier = randomBytes(40).toString("base64url"),
       challenge = createHash("sha256").update(verifier).digest("base64url");
     const url = new URL(`${baseURL}/oauth/authorize`);
@@ -115,7 +120,9 @@ async function fixture(
             Cookie: "test=session",
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ approve }),
+          body: JSON.stringify(
+            approve ? { approve, accessLevel } : { approve },
+          ),
         },
       ),
     ))!;
@@ -201,7 +208,7 @@ test(
               Cookie: "test=session",
               "Content-Type": "application/json",
             },
-            body: '{"approve":true}',
+            body: '{"approve":true,"accessLevel":"admin"}',
           },
         ),
       ))!;
@@ -401,7 +408,7 @@ test(
               Origin: baseURL,
               "Content-Type": "application/json",
             },
-            body: '{"approve":true}',
+            body: '{"approve":true,"accessLevel":"read"}',
           },
         ),
       ))!.json();
@@ -545,7 +552,7 @@ test("OAuth bearer authority follows live role demotion and user removal", async
     role: "admin",
     scopes: ["rows:read", "rows:write"],
   };
-  let liveRole: Actor["role"] | null = "member";
+  let liveRole: Actor["role"] | null = "admin";
   const pool = {
     query: async (_sql: string, values: unknown[]) => ({
       rows:
@@ -578,10 +585,13 @@ test("OAuth bearer authority follows live role demotion and user removal", async
     "rows:read",
     "rows:write",
   ]);
+  liveRole = "member";
+  assert.equal(await service.resolveActor(request, "mcp"), null);
   liveRole = "viewer";
-  const demoted = ActorSchema.parse(await service.resolveActor(request, "mcp"));
-  assert.equal(demoted.role, "viewer");
-  assert.deepEqual(demoted.scopes, ["rows:read"]);
+  assert.equal(await service.resolveActor(request, "mcp"), null);
+  saved.role = "member";
+  liveRole = "admin";
+  assert.equal(await service.resolveActor(request, "mcp"), null);
   assert.equal(await service.resolveActor(request, "api"), null);
   liveRole = null;
   assert.equal(await service.resolveActor(request, "mcp"), null);
@@ -616,6 +626,8 @@ function consentUnitFixture() {
   };
   const writes: string[] = [];
   const query = async (sql: string) => {
+    if (sql.startsWith("SELECT role FROM rootset_control.memberships"))
+      return { rows: [{ role: actor.role }] };
     if (sql.startsWith("SELECT * FROM rootset_control.oauth_requests"))
       return { rows: [{ ...row }] };
     if (sql.includes("reviewed_at=now()")) row.reviewed_at = new Date();
@@ -638,14 +650,14 @@ function consentUnitFixture() {
     service.handler(
       new Request(`${baseURL}/api/internal/v1/oauth/requests/${requestId}`),
     );
-  const decide = () =>
+  const decide = (accessLevel: unknown = "admin") =>
     service.handler(
       new Request(
         `${baseURL}/api/internal/v1/oauth/requests/${requestId}/decision`,
         {
           method: "POST",
           headers: { Origin: baseURL, "Content-Type": "application/json" },
-          body: '{"approve":true}',
+          body: JSON.stringify({ approve: true, accessLevel }),
         },
       ),
     );
@@ -663,6 +675,9 @@ test("OAuth approval requires reviewed real consent and rechecks the current rol
   assert.deepEqual(detail.scopes, ["rows:read", "rows:write"]);
   assert.equal("targets" in detail, false);
   assert.equal("unrestricted" in detail, false);
+  for (const level of [["admin"], 1, null, {}, "owner"])
+    assert.equal((await fixture.decide(level))!.status, 400);
+  assert.equal(fixture.writes.length, 0);
   fixture.actor.role = "viewer";
   assert.equal((await fixture.decide())!.status, 403);
   assert.equal(fixture.writes.length, 0);
@@ -697,3 +712,63 @@ test("OAuth rejects resource whitelists and requires S256 PKCE", async () => {
   for (const extra of invalidParameters)
     assert.equal((await authorize(extra)).status, 400);
 });
+
+test(
+  "user-selected access overrides client requests and role changes permanently revoke access, refresh and unexchanged codes",
+  { skip: !databaseURL },
+  async () =>
+    fixture(async ({ owner, service, actor, grant }) => {
+      const write = await grant(undefined, true, "write");
+      const credentials = await (await service.handler(
+        form(exchange(write)),
+      ))!.json();
+      assert.match(credentials.scope, /rows:write/);
+      const access = new Request(`${baseURL}/mcp`, {
+        headers: { Authorization: `Bearer ${credentials.access_token}` },
+      });
+      assert(await service.resolveActor(access, "mcp"));
+      await owner.query(
+        "UPDATE rootset_control.memberships SET role='member' WHERE user_id=$1 AND org_id=$2",
+        [actor.userId, actor.orgId],
+      );
+      actor.role = "member";
+      assert.equal(await service.resolveActor(access, "mcp"), null);
+      const member = await grant();
+      const memberCredentials = await (await service.handler(
+        form(exchange(member)),
+      ))!.json();
+      const pending = await grant();
+      await owner.query(
+        "UPDATE rootset_control.memberships SET role='admin' WHERE user_id=$1 AND org_id=$2",
+        [actor.userId, actor.orgId],
+      );
+      actor.role = "admin";
+      assert.equal(await service.resolveActor(access, "mcp"), null);
+      assert.equal(
+        await service.resolveActor(
+          new Request(`${baseURL}/mcp`, {
+            headers: {
+              Authorization: `Bearer ${memberCredentials.access_token}`,
+            },
+          }),
+          "mcp",
+        ),
+        null,
+      );
+      assert.equal(
+        (await service.handler(form(exchange(pending))))!.status,
+        400,
+      );
+      assert.equal(
+        (await service.handler(
+          form({
+            grant_type: "refresh_token",
+            client_id: clientId,
+            resource: `${baseURL}/mcp`,
+            refresh_token: memberCredentials.refresh_token,
+          }),
+        ))!.status,
+        400,
+      );
+    }),
+);

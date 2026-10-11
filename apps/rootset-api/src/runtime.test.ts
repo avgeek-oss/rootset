@@ -1280,7 +1280,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       const decision = await request(
         `/api/internal/v1/oauth/requests/${consentId}/decision`,
         "POST",
-        { approve: true },
+        { approve: true, accessLevel: "admin" },
         { browser: true },
       );
       assert.equal(decision.status, 200);
@@ -1299,10 +1299,16 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         }),
       });
       assert.equal(tokensResponse.status, 200);
-      return tokensResponse.json() as Promise<{
+      const issued = (await tokensResponse.json()) as {
         access_token: string;
         refresh_token: string;
-      }>;
+      };
+      // Test narrower server policy independently of the client's requested scope.
+      await db.owner.query(
+        "UPDATE rootset_control.oauth_grants SET scopes=$2, actor=jsonb_set(actor,'{scopes}',to_jsonb($2::text[])) WHERE id=(SELECT grant_id FROM rootset_control.oauth_codes WHERE request_id=$1)",
+        [consentId, scopes],
+      );
+      return issued;
     };
     const tokens = await issueMcpGrant([
       "profile:manage",
@@ -2502,9 +2508,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       expectedVersion: String(viewerMember.version),
     });
     await call("listFields", ids, "rest", undefined, newId(), scopeKey.secret);
-    assert.equal(
-      (await scopeClient.listTools()).tools.length,
-      operations.length,
+    await assert.rejects(
+      () => scopeClient.listTools(),
+      (error) => error instanceof StreamableHTTPError && error.code === 401,
     );
     const targetRestDenied = await call(
       "deleteTable",
@@ -2524,7 +2530,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             idempotencyKey: "runtime-target-scope-mcp-action",
           },
         }),
-      (error) => error instanceof StreamableHTTPError && error.code === 403,
+      (error) => error instanceof StreamableHTTPError && error.code === 401,
     );
     viewerMember = (
       await db.owner.query(

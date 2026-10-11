@@ -2,7 +2,7 @@
 export const gateReviewOracles = new Map<string, string>([
   [
     "V1-01",
-    "An empty PostgreSQL 18 installation applies only `0001_baseline.sql`; concurrent startup and digest mismatch behave safely.",
+    "An empty PostgreSQL 18 installation applies the baseline and current forward migrations; concurrent startup and digest mismatch behave safely.",
   ],
   [
     "V1-02",

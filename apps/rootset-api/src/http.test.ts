@@ -327,7 +327,7 @@ test(
             Origin: baseURL,
             "Content-Type": "application/json",
           },
-          body: '{"approve":true}',
+          body: '{"approve":true,"accessLevel":"read"}',
         },
       );
       assert.equal(decision.status, 200);
@@ -688,7 +688,7 @@ test(
                 Origin: baseURL,
                 "Content-Type": "application/json",
               },
-              body: '{"approve":true}',
+              body: '{"approve":true,"accessLevel":"read"}',
             },
           );
           assert.equal(consent.status, 200);

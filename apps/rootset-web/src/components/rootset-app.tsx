@@ -17,12 +17,12 @@ import {
   resourcePath,
   unwrapData,
 } from "@rootset/web-client";
-import { AuthPage } from "@avgeek-oss/design-system";
 import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
-import { AuthFrame } from "./auth-frame";
+import { AuthPage } from "@avgeek-oss/design-system";
+import { ConsentScreen } from "./mcp-oauth-consent";
 import {
   ContextSchema,
   IdSchema,
@@ -78,11 +78,6 @@ const AuthScreen = dynamic(() =>
 const EmailChangeConfirmation = dynamic(() =>
   import("./email-change-confirmation").then(
     (module) => module.EmailChangeConfirmation,
-  ),
-);
-const ReauthenticationDialog = dynamic(() =>
-  import("./settings/account/reauthentication-dialog").then(
-    (module) => module.ReauthenticationDialog,
   ),
 );
 const Spreadsheet = dynamic(() =>
@@ -859,167 +854,5 @@ export function RootsetApp() {
         </Dialog>
       )}
     </RouteProvider>
-  );
-}
-
-function ConsentScreen() {
-  const requestId =
-    typeof location === "undefined"
-      ? ""
-      : (new URLSearchParams(location.search).get("requestId") ?? "");
-  const request = useQuery({
-    queryKey: ["oauth-request", requestId],
-    queryFn: ({ signal }) =>
-      client.request<{
-        client: { id: string; name: string; provenance: string; trust: string };
-        scopes: string[];
-        organizationId: string;
-        resource: string;
-        expiresAt: string;
-      }>(`/oauth/requests/${encodeURIComponent(requestId)}`, { signal }),
-    enabled: !!requestId,
-  });
-  const organisation = useQuery({
-    queryKey: ["consent-organisation", request.data?.organizationId],
-    queryFn: ({ signal }) =>
-      client.request<{ name: string }>(
-        `/orgs/${request.data!.organizationId}`,
-        { signal },
-      ),
-    enabled: !!request.data?.organizationId,
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [needsProof, setNeedsProof] = useState(false);
-  const security = useQuery({
-    queryKey: ["consent-security"],
-    queryFn: ({ signal }) =>
-      client.request<{ twoFactorEnabled: boolean }>("/me/security", { signal }),
-    enabled: !!request.data,
-  });
-  async function decide(approve: boolean, proofVerified = false) {
-    setPending(true);
-    setError(null);
-    try {
-      const result = await client.request<{ redirectUri: string }>(
-        `/oauth/requests/${encodeURIComponent(requestId)}/decision`,
-        { method: "POST", body: { approve } },
-      );
-      location.assign(result.redirectUri);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Consent failed");
-      if (
-        failure instanceof ApiError &&
-        [
-          "STEP_UP_REQUIRED",
-          "RECENT_AUTH_REQUIRED",
-          "interaction_required",
-        ].includes(failure.code)
-      )
-        setNeedsProof(true);
-      if (proofVerified) throw failure;
-    } finally {
-      setPending(false);
-    }
-  }
-  return (
-    <AuthPage>
-      <AuthFrame
-        title="Connect to Rootset"
-        description="Review the application and requested access before connecting."
-      >
-        {request.isPending ? (
-          <p role="status">Loading application request…</p>
-        ) : request.isError ? (
-          <>
-            <p role="alert" className="error-message">
-              {request.error.message}
-            </p>
-            {request.error instanceof ApiError &&
-              request.error.status === 401 && (
-                <a
-                  href={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
-                >
-                  Sign in to review this request
-                </a>
-              )}
-          </>
-        ) : (
-          request.data && (
-            <>
-              <p>
-                <strong>{request.data.client.name}</strong> requests access to{" "}
-                <strong>
-                  {organisation.data?.name ?? "your organisation"}
-                </strong>
-                .
-              </p>
-              <dl>
-                <dt>Resource</dt>
-                <dd>{request.data.resource}</dd>
-                <dt>Client verification</dt>
-                <dd>
-                  {request.data.client.trust === "operator_registered"
-                    ? "Registered by an installation administrator"
-                    : "Unverified client. Check this application’s identity before approving."}
-                </dd>
-                <dt>Client identifier</dt>
-                <dd>{request.data.client.id}</dd>
-                <dt>Requested permissions</dt>
-                <dd>
-                  <ul>
-                    {request.data.scopes.map((scope) => (
-                      <li key={scope}>{scope}</li>
-                    ))}
-                  </ul>
-                </dd>
-              </dl>
-              <p>
-                Request expires{" "}
-                {new Date(request.data.expiresAt).toLocaleString()}.
-              </p>
-              <p>
-                Access stays within your current permissions. You can revoke
-                this connection in settings.
-              </p>
-              {error && (
-                <p role="alert" className="error-message">
-                  {error}
-                </p>
-              )}
-              {security.isError && (
-                <p role="alert" className="error-message">
-                  {security.error.message}
-                </p>
-              )}
-              <ReauthenticationDialog
-                isOpen={needsProof && !!security.data}
-                onOpenChange={setNeedsProof}
-                hasPasskey={Boolean(security.data?.twoFactorEnabled)}
-                onConfirmed={async () => {
-                  await decide(true, true);
-                  setNeedsProof(false);
-                }}
-              />
-              <div className="action-row">
-                <Button
-                  variant="secondary"
-                  isDisabled={pending}
-                  onPress={() => void decide(false)}
-                >
-                  Deny access
-                </Button>
-                <Button
-                  isDisabled={pending || !security.data}
-                  onPress={() => void decide(true)}
-                >
-                  Allow access
-                </Button>
-              </div>
-            </>
-          )
-        )}
-      </AuthFrame>
-    </AuthPage>
   );
 }

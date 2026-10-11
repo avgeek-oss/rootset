@@ -12,7 +12,7 @@ recovery, installed browser or full-scale result.
 
 ## Installation and accounts
 
-- [ ] `V1-01` An empty PostgreSQL 18 installation applies only `0001_baseline.sql`; concurrent startup and digest mismatch behave safely.
+- [ ] `V1-01` An empty PostgreSQL 18 installation applies the baseline and current forward migrations; concurrent startup and digest mismatch behave safely.
 - [ ] `V1-02` An incompatible earlier prelaunch ledger refuses startup without changing data; the message gives fresh-install guidance and preserves the original installation.
 - [ ] `V1-03` Setup claims one organisation and the first Admin atomically; SQL rejects a second organisation, including concurrent/direct fixture attempts.
 - [ ] `V1-04` Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members and deletes databases/tables; Members create and edit databases/tables/schema; SMTP/S3 configuration is read only from the deployment environment.

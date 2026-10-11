@@ -26,19 +26,15 @@ If you previously used the API-key configuration, remove `bearer_token_env_var` 
 
 Codex uses its client metadata document and a local callback with a dynamically assigned port. Rootset accepts port changes for literal loopback HTTP callbacks (`127.0.0.1` or `[::1]`), while the registered host, path and query must still match. The authorization code is bound to the exact callback selected for that request.
 
-For administrator access, sign in with an administrator account and approve the requested management scopes. The scopes determine which operations the connection can use; for example, `org:manage` permits changing the team name and `members:manage` permits managing membership. Read scopes alone do not permit these actions. A member or viewer cannot approve administrator-only scopes, and removing or downgrading the owner immediately restricts the connection. Refreshing a token cannot restore removed permissions.
+The consent form starts with **Read-only**. Choose **Write** or **Administrator** yourself before approving; the client's requested scopes do not select or limit this choice. The available choices are bounded by your current team role. Administrator access requires an administrator account and recent identity confirmation.
 
-For example, request team administration with:
-
-```sh
-codex mcp login rootset --scopes org:read,org:manage,members:read,members:manage
+```bash
+codex mcp login rootset
 ```
 
-Include any additional scopes needed for your workflow from the [MCP tools reference](/mcp-tools). Signing in without explicit scopes defaults to read-only table access.
+Changing your team role, including a promotion, or removing your membership automatically revokes your MCP connections and pending approvals. Reconnect and approve again with your new role. Restoring the previous role does not reactivate an old connection. You can also revoke connections in **Account Settings → MCP connections**.
 
-To request a narrower grant, use `codex mcp login rootset --scopes databases:read,tables:read,rows:read,history:read`. Connections can be revoked in **Account Settings → MCP connections**.
-
-MCP requires OAuth. [Personal and team API keys](/api-keys) are for REST requests, not MCP configuration.
+MCP requires OAuth. [Personal and team API keys](/api-keys) remain available for REST requests.
 
 ## Cursor
 

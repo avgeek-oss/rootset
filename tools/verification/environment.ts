@@ -40,9 +40,9 @@ export async function assertPreparedDatabase(pool: Pool): Promise<void> {
       "Control migrations are not ready. Apply finalized migrations before this suite.",
     );
   const status = await migrationStatus(pool);
-  if (!status.complete || status.version !== "0001_baseline.sql")
+  if (!status.complete)
     throw new Error(
-      "Use a fresh current V1 database with only 0001_baseline.sql; historical installations are not fixture targets.",
+      "Use a fresh verification database with every current migration applied; historical installations are not fixture targets.",
     );
 }
 

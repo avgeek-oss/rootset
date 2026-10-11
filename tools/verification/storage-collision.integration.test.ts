@@ -16,7 +16,10 @@ verificationCase(
   async () => {
     const fixture = await isolatedDatabase();
     try {
-      assert.deepEqual(fixture.appliedMigrations, ["0001_baseline.sql"]);
+      assert.deepEqual(fixture.appliedMigrations, [
+        "0001_baseline.sql",
+        "0002_mcp_role_revocation.sql",
+      ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();
       const actor: Actor = {

@@ -269,7 +269,7 @@ test("FLD-15 actual REST/MCP eleven-type create/patch boundary matrix with nativ
     const consent = await browserFetch(
       `/api/internal/v1/oauth/requests/${requestId}/decision`,
       "POST",
-      { approve: true },
+      { approve: true, accessLevel: "admin" },
     );
     assert.equal(consent.status, 200);
     const callback = new URL((await consent.json()).redirectUri);
