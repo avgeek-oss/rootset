@@ -244,7 +244,7 @@ function validRedirect(uri: string): boolean {
   try {
     const u = new URL(uri);
     return (
-      !u.hash &&
+      !uri.includes("#") &&
       !u.username &&
       !u.password &&
       (u.protocol === "https:" ||
@@ -254,6 +254,20 @@ function validRedirect(uri: string): boolean {
   } catch {
     return false;
   }
+}
+export function redirectMatches(registered: string, supplied: string): boolean {
+  if (!validRedirect(registered) || !validRedirect(supplied)) return false;
+  if (registered === supplied) return true;
+  const stripLoopbackPort = (value: string) =>
+    value.replace(
+      /^(http:\/\/(?:127\.0\.0\.1|\[::1\]))(?::\d+)?(?=\/|\?|$)/,
+      "$1",
+    );
+  // RFC 8252 allows a native client's literal loopback port to vary.
+  return (
+    /^http:\/\/(?:127\.0\.0\.1|\[::1\])(?::\d+)?\//.test(registered) &&
+    stripLoopbackPort(registered) === stripLoopbackPort(supplied)
+  );
 }
 async function boundedBody(
   request: Request,
@@ -624,10 +638,14 @@ export class OAuthService {
     const clientId = p.get("client_id") ?? "",
       client = await this.client(clientId),
       redirect = p.get("redirect_uri") ?? "";
-    if (!client.metadata.redirect_uris.includes(redirect))
+    if (
+      !client.metadata.redirect_uris.some((uri) =>
+        redirectMatches(uri, redirect),
+      )
+    )
       throw new OAuthError(
         "invalid_request",
-        "Redirect URI does not exactly match client registration.",
+        "Redirect URI does not match client registration.",
       );
     const actor = await this.config.resolveSession(request);
     const resource = p.get("resource") ?? "",
