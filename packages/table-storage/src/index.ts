@@ -736,13 +736,19 @@ export class TableStorage {
   }
   async listDatabases(
     a: Actor,
-  ): Promise<(DatabaseRecord & { tableCount: number })[]> {
+  ): Promise<
+    (DatabaseRecord & { tableCount: number; storageBytes: number })[]
+  > {
     return this.run(a, async (c) => {
       const r = await c.query<Raw>(
         `SELECT d.*,
           (SELECT count(*) FROM rootset_control.tables t
            WHERE t.database_id=d.id AND t.org_id=d.org_id
-             AND t.state IN ('active','maintenance')) AS table_count
+             AND t.state IN ('active','maintenance')) AS table_count,
+          (SELECT COALESCE(sum(pg_total_relation_size(to_regclass(format('%I.%I', d.schema_name, t.physical_name)))), 0)
+           FROM rootset_control.tables t
+           WHERE t.database_id=d.id AND t.org_id=d.org_id
+             AND t.state IN ('active','maintenance')) AS storage_bytes
          FROM rootset_control.databases d
          WHERE d.org_id=$1 AND d.state='active' ORDER BY d.created_at,d.id`,
         [a.orgId],
@@ -750,6 +756,7 @@ export class TableStorage {
       return r.rows.map((d) => ({
         ...this.databaseRecord(d),
         tableCount: Number(d.table_count),
+        storageBytes: Number(d.storage_bytes),
       }));
     });
   }
@@ -980,14 +987,22 @@ export class TableStorage {
       ],
     );
   }
-  async listTables(a: Actor, databaseId: string): Promise<TableRecord[]> {
+  async listTables(
+    a: Actor,
+    databaseId: string,
+  ): Promise<(TableRecord & { storageBytes: number })[]> {
     return this.run(a, async (c) => {
       const d = await this.database(c, a, databaseId);
-      const r = await c.query<{ id: string }>(
-        "SELECT id FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2 AND state IN ('active','maintenance') ORDER BY created_at,id",
-        [d.id, a.orgId],
+      const r = await c.query<{ id: string; storage_bytes: string }>(
+        "SELECT id, COALESCE(pg_total_relation_size(to_regclass(format('%I.%I', $3::text, physical_name))), 0)::text AS storage_bytes FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2 AND state IN ('active','maintenance') ORDER BY created_at,id",
+        [d.id, a.orgId, d.schemaName],
       );
-      return Promise.all(r.rows.map((t) => this.table(c, a, t.id)));
+      return Promise.all(
+        r.rows.map(async (t) => ({
+          ...(await this.table(c, a, t.id)),
+          storageBytes: Number(t.storage_bytes),
+        })),
+      );
     });
   }
   async getTable(a: Actor, tableId: string): Promise<TableRecord> {

@@ -2947,3 +2947,42 @@ test(
     assert.equal(removed.rowCount, 0);
   },
 );
+
+test(
+  "list summaries report tenant-scoped physical table sizes including indexes",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Storage sizes",
+      fields: [{ name: "VALUE", type: "text", charLimit: 10000 }],
+    });
+    await storage!.createRow(actor, table.id, { VALUE: "data".repeat(2000) });
+    const statistics = await storage!.statistics(actor, table.id);
+    const tables = await storage!.listTables(actor, databaseId);
+    const summary = tables.find((entry) => entry.id === table.id)!;
+    assert.equal(
+      summary.storageBytes,
+      statistics.bytes + statistics.indexBytes,
+    );
+    assert.ok(summary.storageBytes > 0);
+    const databases = await storage!.listDatabases(actor);
+    assert.equal(
+      databases.find((entry) => entry.id === databaseId)?.storageBytes,
+      tables.reduce((bytes, entry) => bytes + entry.storageBytes, 0),
+    );
+    const empty = await storage!.createDatabase(actor, { name: "Empty size" });
+    assert.equal(
+      (await storage!.listDatabases(actor)).find(
+        (entry) => entry.id === empty.id,
+      )?.storageBytes,
+      0,
+    );
+    const other = { ...actor, orgId: newId() };
+    assert.deepEqual(await storage!.listDatabases(other), []);
+    await assert.rejects(
+      storage!.listTables(other, databaseId),
+      (error: unknown) =>
+        error instanceof RootsetError && error.code === "RESOURCE_NOT_FOUND",
+    );
+  },
+);

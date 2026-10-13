@@ -12,6 +12,7 @@ import {
 } from "@avgeek-oss/design-system";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, DatabaseIcon, TableIcon } from "@hugeicons/core-free-icons";
+import { formatStorageBytes } from "../lib/format-storage";
 import { dataHref } from "./settings/navigation";
 
 export function DatabasesPage({
@@ -69,16 +70,24 @@ export function DatabasesPage({
                       <h2 className="break-words text-base font-medium">
                         {database.name}
                       </h2>
-                      <dl className="mt-auto grid gap-1">
-                        <dt className="text-xs text-muted">Tables</dt>
-                        <dd className="flex items-center gap-2 text-lg font-medium tabular-nums">
-                          <HugeiconsIcon
-                            icon={TableIcon}
-                            size={20}
-                            aria-hidden
-                          />
-                          {database.tableCount.toLocaleString()}
-                        </dd>
+                      <dl className="mt-auto grid grid-cols-2 gap-4">
+                        <div className="grid gap-1">
+                          <dt className="text-xs text-muted">Tables</dt>
+                          <dd className="flex items-center gap-2 text-lg font-medium tabular-nums">
+                            <HugeiconsIcon
+                              icon={TableIcon}
+                              size={20}
+                              aria-hidden
+                            />
+                            {database.tableCount.toLocaleString()}
+                          </dd>
+                        </div>
+                        <div className="grid gap-1">
+                          <dt className="text-xs text-muted">Size</dt>
+                          <dd className="text-lg font-medium tabular-nums">
+                            {formatStorageBytes(database.storageBytes)}
+                          </dd>
+                        </div>
                       </dl>
                     </Widget.Content>
                   </Widget>

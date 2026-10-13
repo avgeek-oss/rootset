@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dataHref,
+  resourceBreadcrumbs,
   resourceRoute,
   settingsGroups,
   settingsHref,
@@ -131,5 +132,51 @@ describe("context settings navigation", () => {
     expect(danger?.href).toBe("/databases/db/settings/danger-zone");
     for (const item of groups.flatMap((group) => group.items))
       expect(item.href).not.toContain("tableId");
+  });
+});
+
+describe("resource breadcrumbs", () => {
+  const context = {
+    databaseId: "db",
+    databaseName: "Products",
+    tableId: "table",
+    tableName: "Stock",
+  };
+  it("keeps collection links when opening a table or its settings", () => {
+    expect(resourceBreadcrumbs(context)).toEqual([
+      { label: "Rootset", href: "/" },
+      { label: "Databases", href: "/" },
+      { label: "Products", href: "/databases/db" },
+      { label: "Tables", href: "/databases/db" },
+      { label: "Stock" },
+    ]);
+    expect(resourceBreadcrumbs({ ...context, section: "fields" })).toEqual([
+      { label: "Rootset", href: "/" },
+      { label: "Databases", href: "/" },
+      { label: "Products", href: "/databases/db" },
+      { label: "Tables", href: "/databases/db" },
+      { label: "Stock", href: "/databases/db/tables/table" },
+      { label: "Fields" },
+    ]);
+  });
+  it("keeps database settings free of stale table and account context", () => {
+    expect(
+      resourceBreadcrumbs({ ...context, section: "database" }).map(
+        (item) => item.label,
+      ),
+    ).toEqual(["Rootset", "Databases", "Products", "General"]);
+    expect(resourceBreadcrumbs({ ...context, section: "profile" })).toEqual([
+      { label: "Account Settings", href: "/settings/profile" },
+      { label: "Profile" },
+    ]);
+    expect(resourceBreadcrumbs({})).toEqual([
+      { label: "Rootset", href: "/" },
+      { label: "Databases" },
+    ]);
+    expect(
+      resourceBreadcrumbs({ databaseId: "db", databaseName: "Products" }).map(
+        (item) => item.label,
+      ),
+    ).toEqual(["Rootset", "Databases", "Products", "Tables"]);
   });
 });

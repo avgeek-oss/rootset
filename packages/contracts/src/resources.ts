@@ -39,6 +39,7 @@ export const DatabaseSchema = z.strictObject({
 export type Database = z.infer<typeof DatabaseSchema>;
 export const DatabaseSummarySchema = DatabaseSchema.extend({
   tableCount: z.number().int().nonnegative(),
+  storageBytes: z.number().int().nonnegative(),
 });
 export type DatabaseSummary = z.infer<typeof DatabaseSummarySchema>;
 
@@ -54,6 +55,10 @@ export const TableSchema = z.strictObject({
   ...timestamps,
 });
 export type Table = z.infer<typeof TableSchema>;
+export const TableSummarySchema = TableSchema.extend({
+  storageBytes: z.number().int().nonnegative(),
+});
+export type TableSummary = z.infer<typeof TableSummarySchema>;
 export const UniqueRuleSchema = z.strictObject({
   id: IdSchema,
   tableId: IdSchema,

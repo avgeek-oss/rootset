@@ -4,9 +4,11 @@
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { TableIcon } from "@hugeicons/core-free-icons";
-import type { Table } from "@rootset/contracts";
+import type { TableSummary } from "@rootset/contracts";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Widget } from "@avgeek-oss/design-system/data-display/widget";
 import { AppShell } from "@avgeek-oss/design-system";
+import { formatStorageBytes } from "../lib/format-storage";
 import { dataHref } from "./settings/navigation";
 
 export function TablesPage({
@@ -19,7 +21,7 @@ export function TablesPage({
   onRetry,
 }: {
   databaseId: string;
-  tables: Table[];
+  tables: TableSummary[];
   pending: boolean;
   error: string;
   canCreate: boolean;
@@ -64,19 +66,27 @@ export function TablesPage({
                   aria-label={table.name}
                   className="block h-full w-full min-w-0 rounded-2xl no-underline outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
-                  <div className="widget h-full">
-                    <div className="widget__content flex flex-col gap-5">
+                  <Widget className="h-full">
+                    <Widget.Content className="flex flex-col gap-5">
                       <h2 className="min-w-0 break-words text-base font-medium">
                         {table.name}
                       </h2>
-                      <dl className="mt-auto grid gap-1">
-                        <dt className="text-xs text-muted">Rows</dt>
-                        <dd className="text-lg font-medium tabular-nums text-foreground">
-                          {table.rowCount.toLocaleString()}
-                        </dd>
+                      <dl className="mt-auto grid grid-cols-2 gap-4">
+                        <div className="grid gap-1">
+                          <dt className="text-xs text-muted">Rows</dt>
+                          <dd className="text-lg font-medium tabular-nums text-foreground">
+                            {table.rowCount.toLocaleString()}
+                          </dd>
+                        </div>
+                        <div className="grid gap-1">
+                          <dt className="text-xs text-muted">Size</dt>
+                          <dd className="text-lg font-medium tabular-nums">
+                            {formatStorageBytes(table.storageBytes)}
+                          </dd>
+                        </div>
                       </dl>
-                    </div>
-                  </div>
+                    </Widget.Content>
+                  </Widget>
                 </Link>
               </li>
             ))}

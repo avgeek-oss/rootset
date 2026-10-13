@@ -42,6 +42,7 @@ import {
   SchemaOperationReportSchema,
   SessionMetadataSchema,
   TableSchema,
+  TableSummarySchema,
   TableSchemaResultSchema,
   UniqueRuleSchema,
   ViewPreferencesResultSchema,
@@ -658,7 +659,7 @@ operation(
   `${D}/tables`,
   ["tables:read"],
   z.strictObject({ ...database, ...paging }),
-  list(TableSchema),
+  list(TableSummarySchema),
   "List accessible tables inside a database.",
 );
 operation(
