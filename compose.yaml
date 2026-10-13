@@ -29,7 +29,6 @@ x-runtime: &runtime
   build:
     context: .
     target: runtime
-    secrets: [npmrc]
     args:
       ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
   init: true
@@ -74,7 +73,6 @@ services:
     build:
       context: .
       target: runtime
-      secrets: [npmrc]
       args:
         ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
     init: true
@@ -120,7 +118,6 @@ services:
     build:
       context: .
       target: runtime
-      secrets: [npmrc]
       args:
         ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
     init: true
@@ -160,7 +157,6 @@ services:
     build:
       context: .
       target: worker
-      secrets: [npmrc]
       args:
         ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
     command: [node, dist/worker.mjs]
@@ -210,7 +206,6 @@ services:
     build:
       context: .
       target: web
-      secrets: [npmrc]
       args:
         ROOTSET_SOURCE_REVISION: ${ROOTSET_SOURCE_REVISION:-unknown}
     init: true
@@ -241,10 +236,6 @@ services:
     mem_limit: 1g
     memswap_limit: 1g
     cpus: 1
-
-secrets:
-  npmrc:
-    file: ${ROOTSET_NPM_CONFIG_FILE:-${HOME}/.npmrc}
 
 volumes:
   postgres-data:

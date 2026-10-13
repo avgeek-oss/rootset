@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import { validateNavigation } from "@avgeek-oss/docs";
+import { validateNavigation } from "@avgeek-oss/mintlify-docs";
 const root = path.resolve(import.meta.dirname, "../..");
 const docs = path.join(root, "docs");
 const site = JSON.parse(await readFile(path.join(docs, "site.json"), "utf8"));

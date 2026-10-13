@@ -22,8 +22,8 @@
     "verify:signoff": "tsx tools/evidence-audit.ts",
     "contracts:generate": "tsx tools/generate-contracts.ts",
     "auth:operator": "tsx tools/operator.ts",
-    "docs:sync": "node tools/docs/sync-reference.mjs && oss-docs sync --config docs/site.json --dir docs",
-    "docs:check": "oss-docs check --config docs/site.json --dir docs && node tools/docs/check.mjs",
+    "docs:sync": "node tools/docs/sync-reference.mjs && mintlify-docs sync --config docs/site.json --dir docs",
+    "docs:check": "mintlify-docs check --config docs/site.json --dir docs && node tools/docs/check.mjs",
     "docs:dev": "cd docs && npx --yes mint@4.2.851 dev --port 4178",
     "docs:screenshots": "node tools/docs/capture-screenshots.mjs"
   },
@@ -33,7 +33,6 @@
     "@rootset/database": "workspace:*"
   },
   "devDependencies": {
-    "@avgeek-oss/docs": "0.1.5",
     "@axe-core/playwright": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "@playwright/test": "catalog:",
@@ -51,6 +50,7 @@
     "turbo": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
-    "yaml": "2.8.1"
+    "yaml": "2.8.1",
+    "@avgeek-oss/mintlify-docs": "0.1.6"
   }
 }
