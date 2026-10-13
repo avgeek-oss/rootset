@@ -6,7 +6,7 @@ WORKDIR /workspace
 ENV CI=true NEXT_TELEMETRY_DISABLED=1 TURBO_TELEMETRY_DISABLED=1
 RUN npm install --global pnpm@11.5.3
 COPY . .
-RUN --mount=type=secret,id=npmrc,target=/root/.npmrc,required=true pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 RUN pnpm typecheck && pnpm build
 
 FROM ${NODE_IMAGE} AS backend

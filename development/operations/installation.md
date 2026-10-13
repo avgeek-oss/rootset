@@ -6,32 +6,14 @@ a failed one-shot baseline migration must prevent API/worker startup.
 
 ## Package registry
 
-Rootset consumes `@avgeek-oss/design-system@1.2.12` from GitHub Packages through its
-public package exports. Authenticate before installing:
+Rootset consumes `@avgeek-oss/design-system` and `@avgeek-oss/mintlify-docs` from npmjs.org through their public exports. Source installation and Docker builds require no registry credential:
 
 ```sh
-npm login --scope=@avgeek-oss --auth-type=legacy --registry=https://npm.pkg.github.com
+pnpm install --frozen-lockfile
+docker build --target web --tag rootset-web:local .
 ```
 
-Use your GitHub username and a personal access token (classic) with
-`read:packages` as the password. GitHub requires registry authentication even
-for public packages. Keep the token in your user npm configuration, outside Git.
-
-Docker builds receive an authenticated npm configuration only as a BuildKit
-secret. Compose uses `$HOME/.npmrc` by default; set `ROOTSET_NPM_CONFIG_FILE` to
-another protected file when needed. A build configuration must contain the
-registry and an authentication token, rather than an unresolved environment
-placeholder. Registry credentials are not build arguments or runtime variables.
-
-For a direct build, pass the same secret:
-
-```sh
-docker build --secret id=npmrc,src="$HOME/.npmrc" --target web --tag rootset-web:local .
-```
-
-GitHub Actions grants `packages: read` and uses its job token for dependency
-installation and the BuildKit secret. Grant Rootset access in the package's
-Manage Actions access settings if the registry rejects that token.
+The repository maps `@avgeek-oss` to `https://registry.npmjs.org`. Update that mapping and the dependency lockfile when migrating an older checkout. GitHub authentication remains separate for GHCR image publication.
 
 ## Local installation
 

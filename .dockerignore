@@ -1,7 +1,7 @@
 .git
 **/.git
-.npmrc
 **/.npmrc
+!.npmrc
 node_modules
 **/node_modules
 .env
