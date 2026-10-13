@@ -19,6 +19,8 @@ import {
   UserAccountIcon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
+import type { ComponentProps } from "react";
+import type { AppShellBreadcrumb } from "@avgeek-oss/design-system/layouts/app-shell-breadcrumb";
 import type { Database, Table } from "@rootset/contracts";
 import {
   SecondaryItems,
@@ -98,6 +100,48 @@ export function settingsHref(
 export function dataHref(databaseId?: string | null, tableId?: string | null) {
   if (!databaseId) return "/";
   return `/databases/${encodeURIComponent(databaseId)}${tableId ? `/tables/${encodeURIComponent(tableId)}` : ""}`;
+}
+
+export function resourceBreadcrumbs(context: {
+  databaseId?: string | null;
+  databaseName?: string;
+  tableId?: string | null;
+  tableName?: string;
+  section?: SettingsSection | null;
+}): ComponentProps<typeof AppShellBreadcrumb>["items"] {
+  const { databaseId, databaseName, tableId, tableName, section } = context;
+  const scope = section ? settingsScope(section) : null;
+  if (section && (scope === "account" || scope === "team"))
+    return [
+      scope === "account"
+        ? { label: "Account Settings", href: "/settings/profile" }
+        : { label: "Team Settings", href: "/team-settings/general" },
+      { label: SECTION_LABELS[section] },
+    ];
+  return [
+    { label: "Rootset", href: "/" },
+    { label: "Databases", ...(databaseId ? { href: "/" } : {}) },
+    ...(databaseId
+      ? [{ label: databaseName ?? "Database", href: dataHref(databaseId) }]
+      : []),
+    ...(databaseId && scope !== "database"
+      ? [
+          {
+            label: "Tables",
+            ...(tableId ? { href: dataHref(databaseId) } : {}),
+          },
+        ]
+      : []),
+    ...(tableId && scope !== "database"
+      ? [
+          {
+            label: tableName ?? "Table",
+            ...(section ? { href: dataHref(databaseId, tableId) } : {}),
+          },
+        ]
+      : []),
+    ...(section ? [{ label: SECTION_LABELS[section] }] : []),
+  ];
 }
 
 export function resourceRoute(path: string) {
@@ -246,7 +290,7 @@ export function PageNavigation({
     : tableId
       ? "table"
       : "database";
-  if (scope === "account" || scope === "team")
+  if (section && (scope === "account" || scope === "team"))
     return <SettingsSections scope={scope} section={section} role={role} />;
   if (!databaseId) return null;
   const tableScope = scope === "table";

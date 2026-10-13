@@ -29,6 +29,7 @@ import {
   type Database,
   type DatabaseSummary,
   type Table,
+  type TableSummary,
 } from "@rootset/contracts";
 import type { z } from "zod";
 import { authClient } from "../lib/auth-client";
@@ -38,6 +39,7 @@ import type { SettingsSection } from "./settings/types";
 import { resolveSettingsSection, SECTION_LABELS } from "./settings/types";
 import {
   dataHref,
+  resourceBreadcrumbs,
   resourceRoute,
   settingsHref,
   settingsScope,
@@ -68,7 +70,6 @@ import {
   Key01Icon,
   Mail01Icon,
   News01Icon,
-  GithubIcon,
   Message01Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -91,7 +92,6 @@ const repositoryUrl = "https://github.com/avgeek-oss/rootset";
 const productLinks: Partial<Record<string, string>> = {
   changelog: `${repositoryUrl}/releases`,
   documentation: "https://www.rootset.app/quickstart",
-  repository: repositoryUrl,
   feedback: `${repositoryUrl}/issues/new`,
 };
 
@@ -181,7 +181,7 @@ export function RootsetApp() {
     queryKey: ["tables", orgId, selectedDatabaseId],
     queryFn: async ({ signal }) =>
       unwrapData(
-        await client.request<Table[] | { data: Table[] }>(
+        await client.request<TableSummary[] | { data: TableSummary[] }>(
           `${resourcePath(orgId!, selectedDatabaseId!)}/tables`,
           { signal },
         ),
@@ -595,12 +595,12 @@ export function RootsetApp() {
                           },
                           {
                             id: "email-password",
-                            label: "Auth & Security",
+                            label: "Email & Password",
                             icon: icon(Mail01Icon),
                           },
                           {
                             id: "api-keys",
-                            label: "My API Keys",
+                            label: "API Keys",
                             icon: icon(Key01Icon),
                           },
                         ],
@@ -620,13 +620,8 @@ export function RootsetApp() {
                             icon: icon(BookOpen01Icon),
                           },
                           {
-                            id: "repository",
-                            label: "Repo / Contribute",
-                            icon: icon(GithubIcon),
-                          },
-                          {
                             id: "feedback",
-                            label: "Feedback",
+                            label: "Leave Feedback",
                             icon: icon(Message01Icon),
                           },
                         ],
@@ -669,40 +664,13 @@ export function RootsetApp() {
           }
         >
           <AppShellBreadcrumb
-            items={[
-              settings && settingsScope(settings) === "account"
-                ? { label: "Account Settings", href: "/settings/profile" }
-                : settings && settingsScope(settings) === "team"
-                  ? { label: "Team Settings", href: "/team-settings/general" }
-                  : { label: "Rootset", href: "/" },
-              ...(settings
-                ? [
-                    ...(selectedDatabaseId
-                      ? [
-                          {
-                            label: database?.name ?? "Database",
-                            href: dataHref(selectedDatabaseId),
-                          },
-                        ]
-                      : []),
-                    ...(selectedTableId
-                      ? [
-                          {
-                            label: table?.name ?? "Table",
-                            href: dataHref(selectedDatabaseId, selectedTableId),
-                          },
-                        ]
-                      : []),
-                    { label: SECTION_LABELS[settings] },
-                  ]
-                : [
-                    {
-                      label: database?.name ?? "Databases",
-                      href: dataHref(selectedDatabaseId),
-                    },
-                    { label: table?.name ?? "Tables" },
-                  ].filter((_, index) => selectedDatabaseId || index === 0)),
-            ]}
+            items={resourceBreadcrumbs({
+              databaseId: selectedDatabaseId,
+              databaseName: database?.name,
+              tableId: selectedTableId,
+              tableName: table?.name,
+              section: settings,
+            })}
             title={
               settings
                 ? SECTION_LABELS[settings]

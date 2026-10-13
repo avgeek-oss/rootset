@@ -468,6 +468,7 @@ export type listDatabasesOutput = {
     createdAt: string;
     updatedAt: string;
     tableCount: number;
+    storageBytes: number;
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;
@@ -545,6 +546,7 @@ export type listTablesOutput = {
       "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
     createdAt: string;
     updatedAt: string;
+    storageBytes: number;
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;

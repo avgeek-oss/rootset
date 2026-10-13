@@ -14,6 +14,7 @@ import {
   DataGrid,
   Row as DataGridRow,
   type Column,
+  type SortColumn,
   type DataGridHandle,
   type CellKeyDownArgs,
   type CellKeyboardEvent,
@@ -1192,7 +1193,11 @@ export function Spreadsheet({
     where: FilterNode | undefined,
   ) {
     leaveEditor(() => {
-      setQuery({ limit: windowLimit, ...(where ? { where } : {}) });
+      setQuery((current) => ({
+        limit: windowLimit,
+        ...(current.orderBy ? { orderBy: current.orderBy } : {}),
+        ...(where ? { where } : {}),
+      }));
       setFilterConditions(conditions);
       setFilterCombination(combination);
       setFilterVisible(false);
@@ -1269,7 +1274,22 @@ export function Spreadsheet({
     },
     ...fields.map((field, index): Column<Row> => ({
       key: field.id,
-      name: field.name,
+      name: (
+        <Tooltip delay={250} closeDelay={0}>
+          <Tooltip.Trigger
+            tabIndex={-1}
+            className="inline-flex max-w-full items-center gap-1.5 align-middle"
+          >
+            <FieldTypeIcon type={field.type} size={14} />
+            <span className="truncate">{field.name}</span>
+          </Tooltip.Trigger>
+          <Tooltip.Content placement="top">
+            {field.type === "time" ? "UTC time" : field.type}
+            {field.required ? " · required" : ""}
+          </Tooltip.Content>
+        </Tooltip>
+      ),
+      sortable: field.type !== "json" && !accessRevoked && !saving,
       width:
         viewPrefs.columnWidths[field.id] ??
         (field.type === "date-time"
@@ -1282,21 +1302,6 @@ export function Spreadsheet({
       frozen: index < viewPrefs.frozenColumns,
       maxWidth: 2000,
       editable: (row) => writable && Object.hasOwn(row.values, field.name),
-      renderHeaderCell: ({ tabIndex }) => (
-        <Tooltip delay={250} closeDelay={0}>
-          <Tooltip.Trigger
-            tabIndex={tabIndex}
-            className="inline-flex max-w-full items-center gap-1.5 align-middle"
-          >
-            <FieldTypeIcon type={field.type} size={14} />
-            <span className="truncate">{field.name}</span>
-          </Tooltip.Trigger>
-          <Tooltip.Content placement="top">
-            {field.type === "time" ? "UTC time" : field.type}
-            {field.required ? " · required" : ""}
-          </Tooltip.Content>
-        </Tooltip>
-      ),
       cellClass: (row) => {
         if (!selection) return undefined;
         const rowIdx = rows.findIndex((candidate) => candidate.id === row.id);
@@ -1512,6 +1517,34 @@ export function Spreadsheet({
               className="rootset-grid"
               aria-label={`${table.name} spreadsheet`}
               aria-describedby="grid-instructions"
+              sortColumns={(query.orderBy ?? []).map((sort): SortColumn => ({
+                columnKey: sort.field,
+                direction: sort.direction === "asc" ? "ASC" : "DESC",
+              }))}
+              onSortColumnsChange={(columns) => {
+                if (columns.length > limits.querySorts) {
+                  toast.danger(`Sort by at most ${limits.querySorts} columns.`);
+                  return;
+                }
+                void leaveEditor(() => {
+                  setSelection(null);
+                  setQuery((current) => ({
+                    limit: windowLimit,
+                    ...(current.where ? { where: current.where } : {}),
+                    ...(columns.length
+                      ? {
+                          orderBy: columns.map((sort) => ({
+                            field: sort.columnKey,
+                            direction:
+                              sort.direction === "ASC"
+                                ? ("asc" as const)
+                                : ("desc" as const),
+                          })),
+                        }
+                      : {}),
+                  }));
+                });
+              }}
               defaultColumnOptions={{
                 resizable: view.isSuccess && !accessRevoked,
               }}

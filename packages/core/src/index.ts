@@ -578,6 +578,7 @@ export class RootsetCore {
           (await s.listDatabases(a)).map((database) => ({
             ...databasePublic(database),
             tableCount: database.tableCount,
+            storageBytes: database.storageBytes,
           })),
           a,
           {
@@ -615,7 +616,10 @@ export class RootsetCore {
         return s.deleteDatabase(a, databaseId, mutationOptions(input, ctx));
       case "listTables":
         return this.paging.paginate(
-          (await s.listTables(a, databaseId)).map(tablePublic),
+          (await s.listTables(a, databaseId)).map((table) => ({
+            ...tablePublic(table),
+            storageBytes: table.storageBytes,
+          })),
           a,
           {
             resource: `database:${databaseId}:tables`,
