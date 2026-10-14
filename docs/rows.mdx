@@ -19,7 +19,19 @@ Press **Cmd+Z** on macOS or **Ctrl+Z** on Windows/Linux to revert saved cell edi
 
 ## Delete a row
 
-Right-click the row-number cell or a data cell and select **Delete row**. Rootset highlights the affected row in red while the confirmation dialog is open. Deleting removes the row and its cell history, and cannot be undone.
+Right-click the row-number cell or a data cell and select **Delete row**. Rootset highlights the affected row in red while the confirmation dialog is open. Deleting removes the row, its cell history and comments, and cannot be undone.
+
+## Discuss a row
+
+Select the speech bubble beside the row number to open its comments. The number shows how many comments the row has. Keyboard users can navigate to that column and press Enter or Space. On a phone, tap the same control to open the discussion.
+
+Viewers can read discussions. Members and administrators can add plain-text comments of up to 4,096 characters. Press **Cmd+Enter** on macOS or **Ctrl+Enter** elsewhere to post. Authors with write access can permanently delete their own comments; administrators can delete any comment they can access. Comments cannot be edited. Deletion does not leave a placeholder body.
+
+Comments preserve the author's name at posting time, even if the account is later deleted. Personal API keys and MCP connections use the authenticated person's name; team keys use the key name. Names cannot be supplied by clients.
+
+The Comments column is a system control. It cannot be renamed, moved into the field schema, assigned a type, edited as cell data or exported as an ordinary field. Posting or deleting a comment does not change the row revision or table schema version.
+
+REST and MCP expose `listRowComments`, `createRowComment`, `deleteRowComment` and `countRowComments`. Counts accept at most 200 row IDs per request and omit missing rows. Discussion pages contain at most 50 comments in chronological order and use opaque cursors. Create/delete requests require an idempotency key; retry an unchanged request with the same key. During the standard receipt lifetime, retrying a deleted comment's creation returns its original ID without recreating it. Receipts contain IDs and status, not comment bodies.
 
 ## Loading more rows
 

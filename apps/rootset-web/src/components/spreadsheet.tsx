@@ -33,7 +33,14 @@ import {
   ResourceTable,
 } from "@avgeek-oss/design-system/patterns/resource-table";
 import { Dropdown, Tooltip } from "@heroui/react";
-import { Filter, Columns3, Eraser, History, Trash2 } from "./ui/icons";
+import {
+  Filter,
+  Columns3,
+  Eraser,
+  History,
+  Trash2,
+  MessageSquare,
+} from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
@@ -61,6 +68,7 @@ import { CellUndoStack } from "../lib/cell-undo";
 import { CellEditor, formatCellValue } from "./cells";
 import { ImageCell } from "./cells/ImageCell";
 import { Dialog } from "./dialog";
+import { RowComments, useRowCommentCounts } from "./row-comments";
 import { useConfirmation } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { TableFilterDialog } from "./table-filter-dialog";
@@ -88,6 +96,7 @@ interface CellDraft {
 }
 const rowHeight = 32;
 const windowLimit = 200;
+const systemColumns = 2;
 const preferencesEmpty = {
   columnOrder: [] as string[],
   columnWidths: {} as Record<string, number>,
@@ -153,6 +162,10 @@ export function Spreadsheet({
     row: Row;
     field: FieldDefinition;
   } | null>(null);
+  const [discussion, setDiscussion] = useState<{
+    rowId: string;
+    rowNumber: number;
+  } | null>(null);
   const [pastePreview, setPastePreview] = useState<{
     cells: string[][];
     operations: {
@@ -176,6 +189,15 @@ export function Spreadsheet({
   const contextAnchor = useRef<Element | null>(null);
   const gridRef = useRef<DataGridHandle>(null);
   const gridContainer = useRef<HTMLDivElement>(null);
+  const commentCounts = useRowCommentCounts(
+    { orgId, databaseId, tableId: table.id },
+    rows,
+    gridContainer,
+    !accessRevoked,
+  );
+  const countsByRow = new Map(
+    commentCounts.data?.data.map((item) => [item.rowId, item.count]),
+  );
   const resizingColumn = useRef(false);
   const resizeScrollLimit = useRef<number | null>(null);
   function releaseResizeSpace(grid: HTMLElement) {
@@ -506,7 +528,7 @@ export function Spreadsheet({
             gridRef.current?.setActivePosition(
               {
                 rowIdx: nextSelection?.row ?? -1,
-                idx: nextSelection ? nextSelection.column + 1 : 0,
+                idx: nextSelection ? nextSelection.column + systemColumns : 0,
               },
               { shouldFocus: false },
             );
@@ -602,7 +624,7 @@ export function Spreadsheet({
 
   function focusCell(row: number, column: number) {
     gridRef.current?.setActivePosition(
-      { rowIdx: row, idx: column + 1 },
+      { rowIdx: row, idx: column + systemColumns },
       { shouldFocus: true },
     );
   }
@@ -825,6 +847,16 @@ export function Spreadsheet({
     }
     const { row, column, rowIdx } = args;
     if (!row || !column || rowIdx < 0) return;
+    if (column.key === "__comments") {
+      if (["Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        event.preventGridDefault();
+        leaveEditor(() =>
+          setDiscussion({ rowId: row.id, rowNumber: windowStart + rowIdx + 1 }),
+        );
+      }
+      return;
+    }
     if (
       event.key === "ContextMenu" ||
       (event.shiftKey && event.key === "F10")
@@ -1272,6 +1304,57 @@ export function Spreadsheet({
       resizable: false,
       renderCell: ({ rowIdx }) => windowStart + rowIdx + 1,
     },
+    {
+      key: "__comments",
+      name: (
+        <span aria-label="Comments" title="Comments">
+          <MessageSquare />
+        </span>
+      ),
+      width: 64,
+      frozen: true,
+      resizable: false,
+      sortable: false,
+      cellClass: "row-comment-cell",
+      renderCell: ({ row, rowIdx, tabIndex }) => {
+        const count = countsByRow.get(row.id);
+        const openDiscussion = () =>
+          leaveEditor(() =>
+            setDiscussion({
+              rowId: row.id,
+              rowNumber: windowStart + rowIdx + 1,
+            }),
+          );
+        return (
+          <button
+            type="button"
+            className="row-comment-trigger"
+            tabIndex={tabIndex}
+            aria-label={`Row ${windowStart + rowIdx + 1} comments${count === undefined ? "" : `, ${count}`}`}
+            disabled={accessRevoked || staleResults}
+            onClick={openDiscussion}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                openDiscussion();
+              }
+            }}
+          >
+            <MessageSquare size={14} />
+            <span>
+              {count === undefined
+                ? commentCounts.isError
+                  ? "?"
+                  : "…"
+                : count > 999
+                  ? "999+"
+                  : count}
+            </span>
+          </button>
+        );
+      },
+    },
     ...fields.map((field, index): Column<Row> => ({
       key: field.id,
       name: (
@@ -1353,6 +1436,30 @@ export function Spreadsheet({
 
   return (
     <section className="spreadsheet-pane" aria-label={table.name}>
+      {commentCounts.isError && (
+        <div className="error-banner" role="status">
+          Comment counts are unavailable.
+          <button onClick={() => void commentCounts.refetch()}>
+            Retry counts
+          </button>
+        </div>
+      )}
+      {discussion && (
+        <RowComments
+          key={discussion.rowId}
+          target={{
+            orgId,
+            databaseId,
+            tableId: table.id,
+            rowId: discussion.rowId,
+          }}
+          rowNumber={discussion.rowNumber}
+          canCreate={canEdit && !accessRevoked}
+          locale={preferences.locale}
+          timeZone={preferences.timezone}
+          onClose={() => setDiscussion(null)}
+        />
+      )}
       <div
         className="table-floating-actions"
         role="toolbar"
@@ -1596,9 +1703,10 @@ export function Spreadsheet({
               onCellContextMenu={({ row, column, rowIdx }, event) => {
                 event.preventDefault();
                 event.preventGridDefault();
+                if (column.key === "__comments") return;
                 const anchor = event.currentTarget;
                 leaveEditor(() => {
-                  focusCell(rowIdx, column.idx - 1);
+                  focusCell(rowIdx, column.idx - systemColumns);
                   contextAnchor.current = anchor;
                   setContextMenu(
                     column.key === "__row_number"
@@ -1613,11 +1721,11 @@ export function Spreadsheet({
                 });
               }}
               onActivePositionChange={({ rowIdx, column }) => {
-                if (rowIdx < 0 || !column || column.idx === 0) {
+                if (rowIdx < 0 || !column || column.idx < systemColumns) {
                   setSelection(null);
                   return;
                 }
-                const index = column.idx - 1;
+                const index = column.idx - systemColumns;
                 const extend = extendSelection.current;
                 setSelection((previous) =>
                   extend && previous
@@ -1633,6 +1741,7 @@ export function Spreadsheet({
               }}
               onCellKeyDown={onKey}
               onColumnResize={(column, width) => {
+                if (!fields.some((field) => field.id === column.key)) return;
                 const next = {
                   ...latestViewPrefs.current,
                   columnWidths: {

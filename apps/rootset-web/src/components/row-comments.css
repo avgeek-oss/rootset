@@ -1,0 +1,115 @@
+.row-comment-cell {
+  padding: 0;
+}
+.row-comment-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.row-comment-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .row-comment-trigger:hover {
+    background: var(--surface-secondary);
+    color: var(--foreground);
+  }
+}
+.rootset-dialog.row-comments-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+}
+.row-discussion {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.row-comment-list {
+  display: grid;
+  gap: 24px;
+}
+.row-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.row-comment-content {
+  min-width: 0;
+  flex: 1;
+}
+.row-comment-byline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+.row-comment-author {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.row-comment-byline time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.row-comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+.row-comment-composer {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--separator);
+  padding-top: 20px;
+}
+.row-comment-composer label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.row-comment-composer textarea {
+  font-size: 16px;
+  min-height: 96px;
+}
+.row-comment-compose-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+.row-comment-error {
+  color: var(--danger);
+}
+.row-comment-pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+@media (pointer: coarse) {
+  .row-comment button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+@media (max-width: 640px) {
+  .rootset-dialog.row-comments-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .row-comment {
+    gap: 8px;
+  }
+}

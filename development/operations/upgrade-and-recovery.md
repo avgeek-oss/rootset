@@ -26,6 +26,8 @@ or live memberships to perform that conversion.
 
 Rootset does not provide database backup or restore operations. Full installation recovery uses PostgreSQL/provider tooling and needs SQL privileges, referenced objects, protected configuration and retained keys.
 
+Row comments live in `rootset_control.row_comments`, shared across logical databases. Back up and restore that table with the rest of the control schema and all physical row tables in a single consistent snapshot. Ordinary row exports omit discussions. Hard deletion removes live comments and does not retain bodies in application replay receipts or audit outcomes; existing provider backups remain subject to their own retention policy.
+
 1. Identify the installation/project, source version, PostgreSQL major, baseline
    digest, object bucket and encryption-key recovery copy. Retain the existing images and configuration.
 2. Stop new changes and let jobs reach safe checkpoints. Stop this installation's

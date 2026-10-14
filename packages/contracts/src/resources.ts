@@ -19,6 +19,17 @@ import {
   FieldInputSchema,
 } from "./values";
 
+export const RowCommentSchema = z.strictObject({
+  id: IdSchema,
+  rowId: IdSchema,
+  authorUserId: IdSchema.nullable(),
+  authorName: z.string().max(120),
+  body: z.string().min(1).max(4096),
+  createdAt: DateTimeSchema,
+  canDelete: z.boolean(),
+});
+export type RowComment = z.infer<typeof RowCommentSchema>;
+
 const timestamps = { createdAt: DateTimeSchema, updatedAt: DateTimeSchema };
 export const LifecycleSchema = z.enum([
   "active",

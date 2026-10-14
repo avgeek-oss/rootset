@@ -552,6 +552,37 @@ export class TableStorage {
     if (!acquired.rows[0]!.acquired) throw new SchemaLockBusy(databaseId);
   }
 
+  /** Share the schema/deletion lock order with row mutations before touching discussions. */
+  async withCommentRows<T>(
+    actor: Actor,
+    tableId: string,
+    rowIds: string[],
+    work: (client: PoolClient, existingRowIds: string[]) => Promise<T>,
+  ): Promise<T> {
+    return this.run(actor, async (c) => {
+      let table = await this.table(c, actor, tableId);
+      await c.query(
+        "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+        [table.databaseId],
+      );
+      await c.query(
+        "SELECT id FROM rootset_control.tables WHERE id=$1 AND org_id=$2 FOR SHARE",
+        [tableId, actor.orgId],
+      );
+      table = await this.table(c, actor, tableId);
+      if (table.state !== "active")
+        fail("SCHEMA_MAINTENANCE", "Table is in maintenance", 409);
+      const rows = await c.query<{ row_id: string }>(
+        `SELECT row_id FROM ${tablePath(table)} WHERE org_id=$1 AND row_id=ANY($2::varchar[]) ORDER BY row_id FOR UPDATE`,
+        [actor.orgId, rowIds.map(id)],
+      );
+      return work(
+        c,
+        rows.rows.map((row) => row.row_id),
+      );
+    });
+  }
+
   private async audit(
     c: PoolClient,
     a: Actor,
@@ -855,6 +886,10 @@ export class TableStorage {
           [d.id],
         );
         await c.query(
+          "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id IN (SELECT id FROM rootset_control.tables WHERE database_id=$2)",
+          [a.orgId, d.id],
+        );
+        await c.query(
           "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND database_id=$2",
           [a.orgId, d.id],
         );
@@ -1046,6 +1081,10 @@ export class TableStorage {
       "table.delete",
       options,
       async (c, t) => {
+        await c.query(
+          "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id=$2",
+          [a.orgId, t.id],
+        );
         await c.query(
           "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND table_id=$2",
           [a.orgId, t.id],
@@ -1596,6 +1635,10 @@ export class TableStorage {
               { currentVersion: String(found.rows[0].row_version) },
             );
           await c.query(`DELETE FROM ${tablePath(t)} WHERE row_id=$1`, [rowId]);
+          await c.query(
+            "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id=$2 AND row_id=$3",
+            [a.orgId, t.id, rowId],
+          );
           deletedIds.push(rowId);
         } else fail("VALIDATION_FAILED", "Unknown mutation operation");
       }

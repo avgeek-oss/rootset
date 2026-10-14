@@ -3532,6 +3532,52 @@ export type createRowOutput = {
   };
   mutationId: string;
 };
+export type listRowCommentsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listRowCommentsOutput = {
+  data: {
+    id: string;
+    rowId: string;
+    authorUserId: string | null;
+    authorName: string;
+    body: string;
+    createdAt: string;
+    canDelete: boolean;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type countRowCommentsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowIds: string[];
+};
+export type countRowCommentsOutput = {
+  data: { rowId: string; count: number }[];
+};
+export type createRowCommentInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+  body: string;
+};
+export type createRowCommentOutput = { id: string };
+export type deleteRowCommentInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+  commentId: string;
+};
+export type deleteRowCommentOutput = { deleted: boolean; mutationId?: string };
 export type updateRowInput = {
   orgId: string;
   databaseId: string;
@@ -4592,6 +4638,26 @@ const routes = {
     method: "POST",
     idempotencyRequired: true,
   },
+  listRowComments: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}/comments",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  countRowComments: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/comments/counts",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  createRowComment: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}/comments",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  deleteRowComment: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}/comments/{commentId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
   updateRow: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}",
     method: "PATCH",
@@ -5245,6 +5311,46 @@ export class RootsetClient {
     options?: CallOptions,
   ): Promise<createRowOutput> {
     return this.call("createRow", input, options) as Promise<createRowOutput>;
+  }
+  listRowComments(
+    input: listRowCommentsInput,
+    options?: CallOptions,
+  ): Promise<listRowCommentsOutput> {
+    return this.call(
+      "listRowComments",
+      input,
+      options,
+    ) as Promise<listRowCommentsOutput>;
+  }
+  countRowComments(
+    input: countRowCommentsInput,
+    options?: CallOptions,
+  ): Promise<countRowCommentsOutput> {
+    return this.call(
+      "countRowComments",
+      input,
+      options,
+    ) as Promise<countRowCommentsOutput>;
+  }
+  createRowComment(
+    input: createRowCommentInput,
+    options?: CallOptions,
+  ): Promise<createRowCommentOutput> {
+    return this.call(
+      "createRowComment",
+      input,
+      options,
+    ) as Promise<createRowCommentOutput>;
+  }
+  deleteRowComment(
+    input: deleteRowCommentInput,
+    options?: CallOptions,
+  ): Promise<deleteRowCommentOutput> {
+    return this.call(
+      "deleteRowComment",
+      input,
+      options,
+    ) as Promise<deleteRowCommentOutput>;
   }
   updateRow(
     input: updateRowInput,

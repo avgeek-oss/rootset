@@ -1437,6 +1437,40 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         unknown
       >;
     };
+    await t.test(
+      "issued MCP OAuth uses the same row-comment operations and attribution as REST",
+      async () => {
+        const target = { ...ids, rowId };
+        const comment = await mcpOperation("createRowComment", {
+          ...target,
+          body: "OAuth discussion verification",
+        });
+        const discussion = await mcpOperation("listRowComments", target);
+        const comments = discussion.data as {
+          id: string;
+          authorUserId: string;
+          body: string;
+        }[];
+        assert.equal(
+          comments.find((item) => item.id === comment.id)?.authorUserId,
+          provision.userId,
+        );
+        const counts = await mcpOperation("countRowComments", {
+          ...ids,
+          rowIds: [rowId],
+        });
+        assert.equal((counts.data as { count: number }[])[0]?.count, 1);
+        await call(
+          "deleteRowComment",
+          { ...target, commentId: comment.id },
+          "rest",
+        );
+        assert.deepEqual(
+          (await mcpOperation("listRowComments", target)).data,
+          [],
+        );
+      },
+    );
     const terminalJob = async (id: string) => {
       let job = await call("getJob", { orgId, id }, "rest");
       for (
