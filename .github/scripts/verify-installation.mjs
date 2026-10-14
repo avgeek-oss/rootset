@@ -13,6 +13,7 @@ import {
   assertMigrationLedger,
   candidateMigrationInventory,
 } from "./migration-inventory.mjs";
+import { verifyReleasedUpgrade } from "./verify-released-upgrade.mjs";
 
 const root = process.cwd();
 const project = `rootset-install-${Date.now()}`;
@@ -370,6 +371,41 @@ try {
   assertMigrationLedger(installedMigrations(), report.migrationInventory);
   report.checks.restartPreservesExactMigrationLedger = true;
   report.checks.restartPreservesControlState = true;
+  report.stage = "released_database_upgrade";
+  report.releaseUpgrade = await verifyReleasedUpgrade({
+    root,
+    compose,
+    inputSQL: (database, input) =>
+      execFileSync(
+        "docker",
+        [
+          ...composeArguments,
+          "exec",
+          "-T",
+          "postgres",
+          "psql",
+          "-X",
+          "-q",
+          "-U",
+          "rootset",
+          "-d",
+          database,
+          "-A",
+          "-t",
+          "-v",
+          "ON_ERROR_STOP=1",
+        ],
+        {
+          cwd: root,
+          env: environment,
+          encoding: "utf8",
+          input,
+          stdio: ["pipe", "pipe", "pipe"],
+          timeout: 240_000,
+        },
+      ).trim(),
+  });
+  report.checks.releasedDatabaseUpgradePreservesData = true;
   report.status = "passed";
   report.stage = "complete";
 } catch (error) {

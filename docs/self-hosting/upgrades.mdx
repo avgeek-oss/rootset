@@ -20,9 +20,28 @@ curl --fail http://localhost:4310/health/ready
 
 Include `--profile local-db` if you use bundled PostgreSQL. Preserve the Compose project name and volumes. `docker compose down` preserves named volumes; `down --volumes` deletes them.
 
+## Upgrading to v0.1.5
+
+Version `0.1.5` supports in-place upgrades from released `0.1.2`, `0.1.3` and `0.1.4` installations. Back up the database and stop the API and worker before running migrations. Keep your database volume, object storage, application secret and encryption key.
+
+The `0.1.4` release appended the comments schema to the existing baseline. Version `0.1.5` recognizes the exact baseline and migration hashes from `0.1.2` and `0.1.3`, adds the comments schema and deletion log, and reconciles the baseline checksum in one transaction. The original migration ledger, including its timestamps, is retained in `rootset_control.migration_repairs`. Existing rows, users, credentials, metadata and history are preserved. An existing `0.1.4` installation keeps its comments unchanged.
+
+The API and worker images include this compatibility upgrade. Compose's migration service and Towbar's pre-deploy hooks run it through the normal migration command; no manual checksum edit or separate SQL command is needed. Repeating the migration is safe. Unknown hashes, conflicting comment tables and unsupported migration histories still stop the upgrade without resetting data.
+
+For Compose, after downloading the `0.1.5` Compose file and preserving your existing `.env`:
+
+```bash
+docker compose pull
+docker compose stop api worker web
+docker compose run --rm migrate
+docker compose up -d --wait
+```
+
+For Towbar, stop the existing API and worker before deploying the new images. Deploy the worker first, then the API and UI. The worker's pre-deploy hook migrates the database; its heartbeat is then available for the API readiness check. Image rollback does not reverse database changes. To restore the earlier schema, use the pre-upgrade backup with the matching images and secrets.
+
 ## Prelaunch databases
 
-V1 has a fresh-install baseline. Earlier incompatible prelaunch ledgers are not supported upgrade targets. Startup refuses a mismatched baseline without changing the original installation. Keep that installation and use a separate empty database; do not clear the ledger to force startup.
+Unreleased prelaunch schemas and unknown modified baselines remain unsupported. Startup refuses them without resetting the original installation. Preserve that database for inspection; do not clear the migration ledger or change its hashes to force startup. The released `0.1.2`–`0.1.4` upgrade path above is separate from these prelaunch schemas.
 
 Rootset does not provide in-app database/table backup or restore. Restore the complete installation with PostgreSQL and object-storage tools, with matching secrets and image versions. Do not assume an older application image can read a newer schema.
 

@@ -19,6 +19,7 @@ RUN groupadd --gid 10001 rootset && useradd --uid 10001 --gid rootset --no-creat
     && install -d -m 0700 -o rootset -g rootset /var/lib/rootset/artifact-spool
 COPY --from=build --chown=rootset:rootset /workspace/dist /app/dist
 COPY --from=build --chown=rootset:rootset /workspace/packages/database/migrations /app/migrations
+COPY --from=build --chown=rootset:rootset /workspace/packages/database/upgrades /app/upgrades
 USER 10001:10001
 
 FROM backend AS runtime

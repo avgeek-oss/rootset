@@ -164,6 +164,9 @@ await writeFile(
           ]),
         ),
       ),
+      upgradeDigests: {
+        "v0.1.4.sql": await sha256("packages/database/upgrades/v0.1.4.sql"),
+      },
       bundledInputs: Object.keys(result.metafile.inputs).sort(),
     },
     null,

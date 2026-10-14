@@ -13,6 +13,22 @@ export type { PoolClient, QueryResultRow };
 export type Queryable = Pool | PoolClient;
 
 const baselineName = "0001_baseline.sql";
+const previousReleaseBaseline =
+  "4eb1bef6adf616d0c93b2165d39cd44655bb2640a29d4033e812cca11dcf8139";
+const commentReleaseMigrations = new Map([
+  [
+    baselineName,
+    "fffd4634da07c05545d925ea7e7e940257a2da180aa552a52243b95475015ebe",
+  ],
+  [
+    "0002_mcp_role_revocation.sql",
+    "381775803fc348664371f2b5209a0b734530b63f69905af4b3ba3355d3ae9932",
+  ],
+  [
+    "0003_comment_deletion_log.sql",
+    "5eecc1162012ca9a8cc4c1933a7047832190c567392a50c6575db80956620b99",
+  ],
+]);
 async function definitions(directory: string) {
   const files = (await readdir(directory))
     .filter((name) => name.endsWith(".sql"))
@@ -167,8 +183,8 @@ export async function migrate(
     await client.query(
       "CREATE TABLE IF NOT EXISTS rootset_control.migrations (name text PRIMARY KEY, digest text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())",
     );
-    const existing = await client.query<{ name: string }>(
-      "SELECT name FROM rootset_control.migrations",
+    const existing = await client.query<{ name: string; digest: string }>(
+      "SELECT name,digest FROM rootset_control.migrations",
     );
     if (
       existing.rows.some(
@@ -178,6 +194,38 @@ export async function migrate(
       throw new Error(
         "This database uses an earlier prelaunch schema. Preserve it and use a fresh database for the V1 baseline.",
       );
+    const upgradeComments =
+      existing.rows.some(
+        (row) =>
+          row.name === baselineName && row.digest === previousReleaseBaseline,
+      ) &&
+      [...commentReleaseMigrations].every(([name, digest]) =>
+        expected.some(
+          (migration) => migration.name === name && migration.digest === digest,
+        ),
+      );
+    for (const previous of existing.rows) {
+      if (upgradeComments && previous.name === baselineName) continue;
+      if (
+        expected.find((migration) => migration.name === previous.name)
+          ?.digest !== previous.digest
+      )
+        throw new Error(`Migration ${previous.name} changed after application`);
+    }
+    if (upgradeComments) {
+      try {
+        await client.query(
+          await readFile(
+            new URL("../upgrades/v0.1.4.sql", import.meta.url),
+            "utf8",
+          ),
+        );
+        applied.push(baselineName, "0003_comment_deletion_log.sql");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    }
     for (const { name, source, digest } of expected) {
       const previous = await client.query<{ digest: string }>(
         "SELECT digest FROM rootset_control.migrations WHERE name=$1",
