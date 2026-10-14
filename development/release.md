@@ -22,13 +22,13 @@ workflow before building.
 
 ## Images and gates
 
-| Stage        | Result                                                                                                                                                                           |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prepare      | Validate the stable version, main commit, tag and successful CI.                                                                                                                 |
-| Build        | Build API, worker and UI on native AMD64 and ARM64 runners, with SBOM, provenance and source/version labels.                                                                     |
-| Manifest     | Assemble multi-platform images, verify public access and content digests, then retain `rootset-images.json`.                                                                     |
-| Installation | Pull the immutable images on both native architectures; verify setup, email verification, migrations, health, non-root execution, permissions and preserved state after restart. |
-| Publish      | Attach the image manifest and installation files, then publish the GitHub release only after both installation checks pass.                                                      |
+| Stage        | Result                                                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prepare      | Validate the stable version, main commit, tag and successful CI.                                                                                                                                     |
+| Build        | Build API, worker and UI on native AMD64 and ARM64 runners, with SBOM, provenance and source/version labels.                                                                                         |
+| Manifest     | Assemble multi-platform images, verify public access and content digests, then retain `rootset-images.json`.                                                                                         |
+| Installation | Pull the immutable images on both native architectures; verify setup, email verification, migrations, health, non-root execution, permissions, preserved restart and upgrades from released schemas. |
+| Publish      | Attach the image manifest and installation files, then publish the GitHub release only after both installation checks pass.                                                                          |
 
 All three images use one version:
 
@@ -49,6 +49,19 @@ for PostgreSQL, S3 and SMTP. It runs the actual pulled API/worker/UI images with
 containers and volumes are removed afterward. Reports are retained for each
 architecture. Public installation uses `compose.images.yaml` with external
 services or the optional bundled PostgreSQL profile.
+
+Released SQL migrations are immutable. Add a new migration for schema changes;
+do not append to the baseline. The v0.1.4 baseline change has one explicit
+compatibility bridge in `packages/database/upgrades/v0.1.4.sql`. It accepts only
+known released hashes, preserves the original ledger and applies the additive
+comments schema in a transaction. The migration runner includes this bridge
+starting with v0.1.5. Do not broaden its accepted hashes to bypass migration drift.
+
+Integration tests compare every existing table before and after upgrading,
+exercise comment permissions and deletion, reject unknown ledgers, and inject
+failure after DDL to verify rollback. The image installation gate also creates a
+nonempty database from the exact v0.1.2/v0.1.3 migration SQL and runs the actual
+API and worker image migrators repeatedly. This runs on both release architectures.
 
 ## First publication and retries
 

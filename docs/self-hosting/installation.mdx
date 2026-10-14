@@ -6,7 +6,7 @@ description: "Run the Rootset API, worker and UI with Docker Compose and your Po
 Rootset runs from three versioned images: **`rootset-api`** (API and migration commands), **`rootset-worker`** (background jobs) and **`rootset-web`** (UI). They share the same release version. You do not need Node.js, pnpm, GitHub Packages credentials or a local source build to run published images.
 
 <Note>
-  [Rootset 0.1.4](https://github.com/avgeek-oss/rootset/releases/tag/v0.1.4) is
+  [Rootset 0.1.5](https://github.com/avgeek-oss/rootset/releases/tag/v0.1.5) is
   available with public API, worker and UI images for Linux AMD64 and ARM64. Use
   the installation files attached to your chosen release.
 </Note>
@@ -23,11 +23,11 @@ The supplied memory caps allow 4 GiB for bundled PostgreSQL, 1 GiB for the API, 
 
 ## 1. Download the release installation files
 
-Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/rootset/releases). Replace `0.1.4` below with that version.
+Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/rootset/releases). Replace `0.1.5` below with that version.
 
 ```bash
 mkdir rootset && cd rootset
-ROOTSET_RELEASE=0.1.4
+ROOTSET_RELEASE=0.1.5
 curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/v$ROOTSET_RELEASE/compose.images.yaml" -o compose.yaml
 curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/v$ROOTSET_RELEASE/rootset.env.example" -o .env
 chmod 600 .env
@@ -39,7 +39,7 @@ The downloaded Compose file pins the API, worker and UI images to that release v
 
 Edit `.env`, replacing every placeholder. Generate the application secret and encryption key separately with `openssl rand -hex 32`. Retain both across restarts. Set the [configuration values](/self-hosting/configuration) for PostgreSQL, S3 and SMTP.
 
-For your own PostgreSQL instance, set `ROOTSET_DATABASE_URL` to one ordinary database owner with permission to create schemas and the `pgcrypto` extension. Do not use a superuser or `BYPASSRLS` role. API, worker and migrations share this URL. A pre-existing Rootset prelaunch schema is not a supported upgrade target.
+For your own PostgreSQL instance, set `ROOTSET_DATABASE_URL` to one ordinary database owner with permission to create schemas and the `pgcrypto` extension. Do not use a superuser or `BYPASSRLS` role. API, worker and migrations share this URL. For an existing released installation, follow [Releases and upgrades](/self-hosting/upgrades). Unreleased prelaunch schemas remain unsupported.
 
 For bundled PostgreSQL, use the `local-db` profile, set `POSTGRES_PASSWORD`, and set `ROOTSET_DATABASE_URL=postgres://rootset:<same-password>@postgres:5432/rootset`. The bundled service creates the ordinary `rootset` owner for you. Use a URL-safe password such as the hex output of `openssl rand -hex 32`.
 
