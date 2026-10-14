@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 import { validateNavigation } from "@avgeek-oss/mintlify-docs";
+import { requirePinnedInstallation } from "../release/check.mjs";
 const root = path.resolve(import.meta.dirname, "../..");
 const docs = path.join(root, "docs");
 const site = JSON.parse(await readFile(path.join(docs, "site.json"), "utf8"));
@@ -33,21 +34,11 @@ for (const file of ["compose.images.yaml", "rootset.env.example"])
 const compose = YAML.parse(
   await readFile(path.join(root, "compose.images.yaml"), "utf8"),
 );
-for (const [name, service] of Object.entries(compose.services)) {
-  assert(!service.build, `${name} must pull a published image`);
-  if (name !== "postgres")
-    assert.match(
-      service.image,
-      /^ghcr\.io\/avgeek-oss\/rootset-(api|worker|web):\$\{ROOTSET_VERSION:/,
-    );
-}
-assert.equal(compose.services.migrate.image, compose.services.api.image);
-for (const service of ["api", "worker", "web"])
-  assert.equal(
-    compose.services[service].image,
-    `ghcr.io/avgeek-oss/rootset-${service}:\${ROOTSET_VERSION:?Choose a published release version}`,
-    `${service} must use its own image and the shared version`,
-  );
+requirePinnedInstallation(
+  compose,
+  await readFile(path.join(root, "rootset.env.example"), "utf8"),
+  JSON.parse(await readFile(path.join(root, "package.json"), "utf8")).version,
+);
 assert.equal(
   compose.services.web.environment.ROOTSET_PUBLIC_API_ORIGIN,
   "${ROOTSET_API_URL:?Public API origin required}",

@@ -33,7 +33,7 @@ curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/
 chmod 600 .env
 ```
 
-The downloaded Compose file contains only image references, not build instructions. Set `ROOTSET_VERSION` in `.env` to the chosen release version; it selects the same version for API, worker and UI; migrations use the API image.
+The downloaded Compose file pins the API, worker and UI images to that release version; migrations use the same API image. Keep `.env` for your installation settings. To select another compatible release, download its Compose file.
 
 ## 2. Configure your services
 
