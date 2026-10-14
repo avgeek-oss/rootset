@@ -1,5 +1,5 @@
 "use client";
-import { Modal } from "@heroui/react";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
 import type { ReactNode } from "react";
 
 export function Dialog({
@@ -8,12 +8,14 @@ export function Dialog({
   onClose,
   wide = false,
   closeDisabled = false,
+  className = "",
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
   closeDisabled?: boolean;
+  className?: string;
 }) {
   return (
     <Modal
@@ -27,7 +29,9 @@ export function Dialog({
         isKeyboardDismissDisabled={closeDisabled}
       >
         <Modal.Container>
-          <Modal.Dialog className={`rootset-dialog ${wide ? "wide" : ""}`}>
+          <Modal.Dialog
+            className={`rootset-dialog ${wide ? "wide" : ""} ${className}`}
+          >
             <Modal.Header>
               <Modal.Heading>{title}</Modal.Heading>
               <Modal.CloseTrigger

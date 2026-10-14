@@ -8,7 +8,13 @@ import {
   dateFormatOptions,
   timeFormatOptions,
 } from "../../contracts/src/date-time-preferences";
-import { Pool, createPool, migrate, migrationStatus } from "./index.js";
+import {
+  Pool,
+  createPool,
+  migrate,
+  migrationStatus,
+  withOrg,
+} from "./index.js";
 
 const source = process.env.ROOTSET_TEST_DATABASE_URL;
 test(
@@ -42,7 +48,34 @@ test(
       complete: false,
       version: "0001_baseline.sql",
     });
-    assert.deepEqual(await migrate(pool), ["0002_mcp_role_revocation.sql"]);
+    await pool.query(
+      "INSERT INTO rootset_control.organisations(id,name) VALUES('00000000000000000000000001','Rootset')",
+    );
+    await withOrg(pool, "00000000000000000000000001", async (client) => {
+      await client.query(
+        "INSERT INTO rootset_control.databases(id,org_id,name,schema_name) VALUES('00000000000000000000000010','00000000000000000000000001','Existing database','rsd_00000000000000000000000010')",
+      );
+      await client.query(
+        "INSERT INTO rootset_control.tables(id,database_id,org_id,name,physical_name) VALUES('00000000000000000000000011','00000000000000000000000010','00000000000000000000000001','Existing table','rst_00000000000000000000000011')",
+      );
+      await client.query(
+        "INSERT INTO rootset_control.row_comments(id,org_id,table_id,row_id,author_name_snapshot,actor,body) VALUES('00000000000000000000000012','00000000000000000000000001','00000000000000000000000011','00000000000000000000000013','Existing author','{}','Existing comment')",
+      );
+    });
+    assert.deepEqual(await migrate(pool), [
+      "0002_mcp_role_revocation.sql",
+      "0003_comment_deletion_log.sql",
+    ]);
+    await withOrg(pool, "00000000000000000000000001", async (client) => {
+      assert.deepEqual(
+        (
+          await client.query(
+            "SELECT body,deleted_at FROM rootset_control.row_comments",
+          )
+        ).rows,
+        [{ body: "Existing comment", deleted_at: null }],
+      );
+    });
     for (const relation of ["indexes", "import_batches", "import_rejections"])
       assert.equal(
         (
@@ -55,16 +88,13 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0002_mcp_role_revocation.sql",
+      version: "0003_comment_deletion_log.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
     );
     assert.equal(names.rowCount, 4);
     assert.ok(names.rows.every((row) => row.character_maximum_length === 120));
-    await pool.query(
-      "INSERT INTO rootset_control.organisations(id,name) VALUES('00000000000000000000000001','Rootset')",
-    );
     await assert.rejects(
       pool.query(
         "INSERT INTO rootset_control.organisations(id,name) VALUES('00000000000000000000000002','Second')",
@@ -186,12 +216,14 @@ test(
       join(directory, "0001_baseline.sql"),
       `${sql}\n-- edited before release\n`,
     );
-    await writeFile(
-      join(directory, "0002_mcp_role_revocation.sql"),
-      await readFile(
-        new URL("../migrations/0002_mcp_role_revocation.sql", import.meta.url),
-      ),
-    );
+    for (const name of [
+      "0002_mcp_role_revocation.sql",
+      "0003_comment_deletion_log.sql",
+    ])
+      await writeFile(
+        join(directory, name),
+        await readFile(new URL(`../migrations/${name}`, import.meta.url)),
+      );
     await assert.rejects(migrate(pool, directory), /changed after application/);
     await pool.query(
       "UPDATE rootset_control.migrations SET name='001_identity.sql' WHERE name='0001_baseline.sql'",

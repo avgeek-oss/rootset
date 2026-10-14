@@ -548,8 +548,8 @@ export class IdentityService {
     });
     return { state: "ready", ...result };
   }
-  async refreshActor(actor: Actor): Promise<Actor> {
-    return this.hydrateActor(actor, true);
+  async refreshActor(actor: Actor, client?: PoolClient): Promise<Actor> {
+    return this.hydrateActor(actor, true, client);
   }
   async refreshPolicyActor(actor: Actor): Promise<Actor> {
     return this.hydrateActor(actor, actor.kind !== "session");

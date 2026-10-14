@@ -38,6 +38,7 @@ import {
   OperatorRepairUpdateSchema,
   ProfileSchema,
   RowValuesInputSchema,
+  RowCommentSchema,
   SchemaChangeSchema,
   SchemaOperationReportSchema,
   SessionMetadataSchema,
@@ -934,6 +935,70 @@ operation(
   z.strictObject({ ...table, ...expected, values }),
   z.strictObject({ row: RowSchema, mutationId: IdSchema }),
   "Commit a validated row, uniqueness, capacity, initial cell history and idempotency.",
+);
+operation(
+  "listRowComments",
+  "list_row_comments",
+  "GET",
+  `${T}/rows/{rowId}/comments`,
+  ["rows:read"],
+  z.strictObject({
+    ...table,
+    rowId: IdSchema,
+    limit: z.number().int().min(1).max(50).optional(),
+    cursor: z.string().max(2048).nullable().optional(),
+  }),
+  list(RowCommentSchema),
+  "Read a row discussion in chronological cursor pages of up to 50 entries, including deleted comments with an empty body and a deletedAt timestamp. Requires current access to the row.",
+);
+operation(
+  "countRowComments",
+  "count_row_comments",
+  "POST",
+  `${T}/comments/counts`,
+  ["rows:read"],
+  z.strictObject({ ...table, rowIds: z.array(IdSchema).min(1).max(200) }),
+  z.strictObject({
+    data: z.array(
+      z.strictObject({
+        rowId: IdSchema,
+        count: z.number().int().nonnegative(),
+      }),
+    ),
+  }),
+  "Read discussion entry counts, including deleted comments, for at most 200 visible rows in one batch. Missing rows are omitted; existing rows without comments return zero.",
+  { readOnly: true, idempotencyRequired: false },
+);
+operation(
+  "createRowComment",
+  "create_row_comment",
+  "POST",
+  `${T}/rows/{rowId}/comments`,
+  ["rows:write"],
+  z.strictObject({
+    ...table,
+    rowId: IdSchema,
+    body: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine(
+        (value) => value.trim().length > 0 && !value.includes("\u0000"),
+        "Enter a nonblank comment without null characters",
+      ),
+  }),
+  z.strictObject({ id: IdSchema }),
+  "Add a plain-text comment of up to 4096 characters with authenticated attribution. Returns its ID; idempotent retries never retain or resurrect deleted bodies. Does not change row or schema versions.",
+);
+operation(
+  "deleteRowComment",
+  "delete_row_comment",
+  "DELETE",
+  `${T}/rows/{rowId}/comments/{commentId}`,
+  ["rows:write"],
+  z.strictObject({ ...table, rowId: IdSchema, commentId: IdSchema }),
+  deleted,
+  "Permanently clear your own comment's body, or moderate as an administrator, while retaining its author, creation time and deletion timestamp in the discussion. Requires current write access to the row. Deleted entries cannot be edited, restored or removed through comment operations.",
 );
 operation(
   "updateRow",

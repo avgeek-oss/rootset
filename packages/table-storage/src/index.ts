@@ -264,6 +264,11 @@ function parameter(field: FieldDefinition, value: JsonValue): unknown {
   if (field.type === "time") return String(value).replace(/Z$/, "");
   return value;
 }
+function commentPresence(t: TableRecord, params: unknown[]): string {
+  params.push(t.orgId, t.id);
+  return `EXISTS(SELECT 1 FROM rootset_control.row_comments c WHERE c.org_id=$${params.length - 1} AND c.table_id=$${params.length} AND c.row_id=${tablePath(t)}.row_id) AS has_comments`;
+}
+
 function rowFrom(raw: Raw, fields: readonly FieldDefinition[]): Row {
   const values: Record<string, JsonValue> = {};
   for (const field of fields) {
@@ -287,6 +292,9 @@ function rowFrom(raw: Raw, fields: readonly FieldDefinition[]): Row {
     version: String(raw.row_version),
     createdAt: iso(raw.created_at),
     updatedAt: iso(raw.updated_at),
+    ...(typeof raw.has_comments === "boolean"
+      ? { hasComments: raw.has_comments }
+      : {}),
     values,
   };
 }
@@ -550,6 +558,37 @@ export class TableStorage {
       [databaseId],
     );
     if (!acquired.rows[0]!.acquired) throw new SchemaLockBusy(databaseId);
+  }
+
+  /** Share the schema/deletion lock order with row mutations before touching discussions. */
+  async withCommentRows<T>(
+    actor: Actor,
+    tableId: string,
+    rowIds: string[],
+    work: (client: PoolClient, existingRowIds: string[]) => Promise<T>,
+  ): Promise<T> {
+    return this.run(actor, async (c) => {
+      let table = await this.table(c, actor, tableId);
+      await c.query(
+        "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+        [table.databaseId],
+      );
+      await c.query(
+        "SELECT id FROM rootset_control.tables WHERE id=$1 AND org_id=$2 FOR SHARE",
+        [tableId, actor.orgId],
+      );
+      table = await this.table(c, actor, tableId);
+      if (table.state !== "active")
+        fail("SCHEMA_MAINTENANCE", "Table is in maintenance", 409);
+      const rows = await c.query<{ row_id: string }>(
+        `SELECT row_id FROM ${tablePath(table)} WHERE org_id=$1 AND row_id=ANY($2::varchar[]) ORDER BY row_id FOR UPDATE`,
+        [actor.orgId, rowIds.map(id)],
+      );
+      return work(
+        c,
+        rows.rows.map((row) => row.row_id),
+      );
+    });
   }
 
   private async audit(
@@ -855,6 +894,10 @@ export class TableStorage {
           [d.id],
         );
         await c.query(
+          "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id IN (SELECT id FROM rootset_control.tables WHERE database_id=$2)",
+          [a.orgId, d.id],
+        );
+        await c.query(
           "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND database_id=$2",
           [a.orgId, d.id],
         );
@@ -1046,6 +1089,10 @@ export class TableStorage {
       "table.delete",
       options,
       async (c, t) => {
+        await c.query(
+          "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id=$2",
+          [a.orgId, t.id],
+        );
         await c.query(
           "DELETE FROM rootset_control.cell_changes WHERE org_id=$1 AND table_id=$2",
           [a.orgId, t.id],
@@ -1596,6 +1643,10 @@ export class TableStorage {
               { currentVersion: String(found.rows[0].row_version) },
             );
           await c.query(`DELETE FROM ${tablePath(t)} WHERE row_id=$1`, [rowId]);
+          await c.query(
+            "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id=$2 AND row_id=$3",
+            [a.orgId, t.id, rowId],
+          );
           deletedIds.push(rowId);
         } else fail("VALIDATION_FAILED", "Unknown mutation operation");
       }
@@ -1677,9 +1728,11 @@ export class TableStorage {
   async getRow(a: Actor, tableId: string, rowId: string): Promise<Row> {
     return this.run(a, async (c) => {
       const t = await this.table(c, a, tableId);
+      const params: unknown[] = [id(rowId)];
+      const presence = commentPresence(t, params);
       const r = await c.query<Raw>(
-        `SELECT * FROM ${tablePath(t)} WHERE row_id=$1`,
-        [id(rowId)],
+        `SELECT *,${presence} FROM ${tablePath(t)} WHERE row_id=$1`,
+        params,
       );
       if (!r.rows[0]) fail("RESOURCE_NOT_FOUND", "Row was not found", 404);
       return rowFrom(r.rows[0], t.fields);
@@ -1750,6 +1803,7 @@ export class TableStorage {
             ),
           ].map((f) => [f.id, f]),
         );
+        const presence = commentPresence(t, params);
         params.push(compiled.limit + 1);
         await c.query("SELECT set_config('statement_timeout',$1,true)", [
           String(limits.queryTimeoutMs),
@@ -1767,7 +1821,7 @@ export class TableStorage {
           fail("VALIDATION_FAILED", "Invalid response byte budget");
         const deadline = Date.now() + limits.queryTimeoutMs;
         await c.query(
-          `DECLARE rootset_page NO SCROLL CURSOR FOR SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length}`,
+          `DECLARE rootset_page NO SCROLL CURSOR FOR SELECT row_id,row_version,created_at,updated_at,${presence}${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length}`,
           params,
         );
         const data: Row[] = [];
@@ -2855,6 +2909,7 @@ export class TableStorage {
     sessionId: string;
     position: number;
     totalRows: number | null;
+    estimatedTotalRows: number | null;
     tableRowCount: number;
     countKind: "live" | "exact" | "unknown";
     anchorsReady: boolean;
@@ -2990,12 +3045,13 @@ export class TableStorage {
         const localOffset = Math.max(0, desired - rank);
         if (localOffset >= 10000)
           fail("QUERY_TIMEOUT", "Window anchors need refreshing");
+        const presence = commentPresence(t, params);
         params.push(compiled.limit + 1, localOffset);
         const needed = new Map(compiled.projection.map((f) => [f.id, f]));
         for (const sort of compiled.sorts)
           if (sort.fieldId) needed.set(sort.fieldId, fieldFor(t, sort.fieldId));
         const raw = await c.query<Raw>(
-          `SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+          `SELECT row_id,row_version,created_at,updated_at,${presence}${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length - 1} OFFSET $${params.length}`,
           params,
         );
         const binding = {
@@ -3027,11 +3083,28 @@ export class TableStorage {
               ),
           },
         );
+        let estimatedTotalRows: number | null = null;
+        if (query.where && totalRows === null && page.page.hasMore) {
+          const plan = await c.query<{
+            "QUERY PLAN": { Plan: { "Plan Rows": number } }[];
+          }>(
+            `EXPLAIN (FORMAT JSON) SELECT 1 FROM ${tablePath(t)} WHERE ${compiled.where}`,
+            compiled.params,
+          );
+          estimatedTotalRows = Math.max(
+            raw.rows.length,
+            Math.min(
+              t.rowCount,
+              plan.rows[0]!["QUERY PLAN"][0]!.Plan["Plan Rows"],
+            ),
+          );
+        }
         return {
           result: page,
           sessionId,
           position: desired,
           totalRows,
+          estimatedTotalRows,
           tableRowCount: t.rowCount,
           countKind: query.where
             ? totalRows === null

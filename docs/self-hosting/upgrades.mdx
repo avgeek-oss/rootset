@@ -25,3 +25,5 @@ Include `--profile local-db` if you use bundled PostgreSQL. Preserve the Compose
 V1 has a fresh-install baseline. Earlier incompatible prelaunch ledgers are not supported upgrade targets. Startup refuses a mismatched baseline without changing the original installation. Keep that installation and use a separate empty database; do not clear the ledger to force startup.
 
 Rootset does not provide in-app database/table backup or restore. Restore the complete installation with PostgreSQL and object-storage tools, with matching secrets and image versions. Do not assume an older application image can read a newer schema.
+
+Row discussions are stored in the shared `rootset_control.row_comments` table. Include the complete control schema and user-data schemas in the same consistent PostgreSQL backup and restore. A CSV/JSON row export does not contain comments, and copying only a logical database's physical tables cannot restore its discussions. Deleting a row, table or database removes its comments from the live installation. Older provider snapshots retain their point-in-time contents according to your backup retention policy.

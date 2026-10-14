@@ -304,8 +304,55 @@ test(
     });
     assert.equal(result.totalRows, null);
     assert.equal(result.countKind, "unknown");
+    assert.equal(result.estimatedTotalRows, null);
     assert.equal(result.anchorsReady, false);
     assert.equal(result.result.data.length, 1);
+  },
+);
+
+test(
+  "Filtered first windows include a bounded planner estimate without creating ranked anchors",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Estimated filter count",
+      fields: [{ name: "code", type: "integer" }],
+    });
+    await storage!.mutateRows(actor, table.id, {
+      operations: Array.from({ length: 100 }, (_, code) => ({
+        kind: "create" as const,
+        values: { code },
+      })),
+    });
+    const query = {
+      where: { field: "code", op: "gte" as const, value: 50 },
+      limit: 10,
+    };
+    const first = await storage!.queryWindow(actor, table.id, { query });
+    assert.equal(first.totalRows, null);
+    assert.equal(first.countKind, "unknown");
+    assert.equal(first.anchorsReady, false);
+    assert(first.estimatedTotalRows !== null);
+    assert(first.estimatedTotalRows >= 11 && first.estimatedTotalRows <= 100);
+    assert.equal(first.result.data.length, 10);
+    const next = await storage!.queryRows(actor, table.id, {
+      ...query,
+      cursor: first.result.page.nextCursor,
+    });
+    assert.equal(next.data.length, 10);
+    assert.equal(
+      new Set([...first.result.data, ...next.data].map((row) => row.id)).size,
+      20,
+    );
+    const last = await storage!.queryWindow(actor, table.id, {
+      query,
+      position: "last",
+      sessionId: first.sessionId,
+    });
+    assert.equal(last.totalRows, 50);
+    assert.equal(last.estimatedTotalRows, null);
+    assert.equal(last.countKind, "exact");
+    assert.equal(last.anchorsReady, true);
   },
 );
 

@@ -1774,3 +1774,27 @@ END $$;
 
 CREATE TRIGGER retain_cell_history AFTER INSERT ON rootset_control.cell_changes
  FOR EACH ROW EXECUTE FUNCTION rootset_control.retain_cell_history();
+
+ALTER TABLE rootset_control.tables ADD CONSTRAINT tables_org_id_id_key UNIQUE (org_id,id);
+
+CREATE TABLE rootset_control.row_comments (
+  id varchar(26) PRIMARY KEY CHECK (id ~ '^[0-7][0-9A-HJKMNP-TV-Z]{25}$'),
+  org_id varchar(26) NOT NULL REFERENCES rootset_control.organisations(id),
+  table_id varchar(26) NOT NULL,
+  row_id varchar(26) NOT NULL CHECK (row_id ~ '^[0-7][0-9A-HJKMNP-TV-Z]{25}$'),
+  author_user_id varchar(26) REFERENCES rootset_control.users(id) ON DELETE SET NULL,
+  author_name_snapshot varchar(120) NOT NULL,
+  actor jsonb NOT NULL CHECK (jsonb_typeof(actor) = 'object'),
+  body text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 4096 AND body ~ '[^[:space:]]'),
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  FOREIGN KEY (org_id,table_id) REFERENCES rootset_control.tables(org_id,id) ON DELETE CASCADE
+);
+CREATE INDEX row_comments_page ON rootset_control.row_comments(org_id,table_id,row_id,created_at,id);
+ALTER TABLE rootset_control.row_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rootset_control.row_comments FORCE ROW LEVEL SECURITY;
+CREATE POLICY row_comments_read ON rootset_control.row_comments FOR SELECT
+  USING (org_id = (SELECT rootset_control.current_org_id()));
+CREATE POLICY row_comments_create ON rootset_control.row_comments FOR INSERT
+  WITH CHECK (org_id = (SELECT rootset_control.current_org_id()));
+CREATE POLICY row_comments_delete ON rootset_control.row_comments FOR DELETE
+  USING (org_id = (SELECT rootset_control.current_org_id()));

@@ -34,6 +34,7 @@ import type { Config } from "./config.js";
 import { MetadataPaging } from "./paging.js";
 import { readUsage } from "./usage.js";
 import { mapSchemaJournal } from "./schema-journal.js";
+import { rowComments } from "./row-comments.js";
 
 export interface OperationContext {
   requestId?: string;
@@ -98,6 +99,9 @@ const rowPublic = (value: Row): Row => ({
   version: value.version,
   createdAt: value.createdAt,
   updatedAt: value.updatedAt,
+  ...(value.hasComments === undefined
+    ? {}
+    : { hasComments: value.hasComments }),
   values: value.values,
 });
 const databasePublic = (d: DatabaseRecord) => ({
@@ -834,6 +838,11 @@ export class RootsetCore {
         });
       case "getRow":
         return rowPublic(await s.getRow(a, tableId, str(input.rowId)));
+      case "listRowComments":
+      case "countRowComments":
+      case "createRowComment":
+      case "deleteRowComment":
+        return rowComments(this.options, id, a, input, ctx);
       case "createRow": {
         const r = await s.createRow(
           a,

@@ -277,6 +277,7 @@ export function PageNavigation({
   table,
   databaseId,
   tableId,
+  locale,
 }: {
   section: SettingsSection | null;
   role: string;
@@ -284,6 +285,7 @@ export function PageNavigation({
   table?: Table;
   databaseId: string | null;
   tableId: string | null;
+  locale: string;
 }) {
   const scope = section
     ? settingsScope(section)
@@ -314,6 +316,10 @@ export function PageNavigation({
             label: tableScope ? "Rows" : "Tables",
             href: dataHref(databaseId, tableScope ? tableId : null),
             icon: <HugeiconsIcon icon={TableIcon} />,
+            badge:
+              tableScope && table
+                ? table.rowCount.toLocaleString(locale)
+                : undefined,
           },
         ]}
       />

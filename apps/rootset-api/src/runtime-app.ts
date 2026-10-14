@@ -56,6 +56,7 @@ export function createRuntimeApp(
           sessionId: window.sessionId,
           start: window.position,
           total: window.totalRows,
+          estimatedTotal: window.estimatedTotalRows,
           anchorsReady: window.anchorsReady,
         },
       };

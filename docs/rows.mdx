@@ -19,11 +19,29 @@ Press **Cmd+Z** on macOS or **Ctrl+Z** on Windows/Linux to revert saved cell edi
 
 ## Delete a row
 
-Right-click the row-number cell or a data cell and select **Delete row**. Rootset highlights the affected row in red while the confirmation dialog is open. Deleting removes the row and its cell history, and cannot be undone.
+Right-click the row-number cell or a data cell and select **Delete row**. Rootset highlights the affected row in red while the confirmation dialog is open. Deleting removes the row, its cell history and comments, and cannot be undone.
+
+## Discuss a row
+
+Select the speech bubble in the first column, beside the row number, to open its comments. A filled bubble in the theme color marks rows with comments; an empty discussion has a muted outline. Keyboard users can navigate to the first column and press Enter or Space. On a phone, tap the same control.
+
+Comments open in a panel that slides in from the right and fills the screen on a phone. The comment list scrolls independently, with the heading at the top and the comment composer at the bottom.
+
+Viewers can read discussions. Members and administrators can add plain-text comments of up to 4,096 characters. Press **Cmd+Enter** on macOS or **Ctrl+Enter** elsewhere to post. Authors with write access can delete their own comments; administrators can delete any comment they can access. Deletion permanently clears the content and records the deletion time, while retaining the author and original timestamp. The panel shows _comment deleted_ in muted text. Comments cannot be edited, and deleted entries cannot be restored or removed from the discussion through comment operations.
+
+Comments preserve the author's name at posting time, even if the account is later deleted. Personal API keys and MCP connections use the authenticated person's name; team keys use the key name. Names cannot be supplied by clients.
+
+The comment icon is a system control in the row-number column. It cannot be renamed, moved into the field schema, assigned a type, edited as cell data or exported as an ordinary field. Posting or deleting a comment does not change the row revision or table schema version.
+
+Row reads and paginated row responses include `hasComments` as system metadata alongside `values`. The spreadsheet uses this flag for its comment indicator and fetches comment contents only when a discussion is opened. Browsing and scrolling do not send comment-count requests. Deleted entries remain part of the discussion, so the icon stays filled even when every comment's content has been deleted.
+
+REST and MCP expose `listRowComments`, `createRowComment`, `deleteRowComment` and `countRowComments`. Explicit count requests remain available for callers that need exact totals; they include deleted entries, accept at most 200 row IDs and omit missing rows. Discussion pages contain at most 50 entries in chronological order and use opaque cursors. Each entry has a nullable `deletedAt`: active comments return `null`, and deleted comments return an ISO timestamp with an empty `body` and `canDelete: false`. Create/delete requests require an idempotency key; retry an unchanged request with the same key. During the standard receipt lifetime, retrying a deleted comment's creation returns its original ID without recreating its content. Receipts contain IDs and status, not comment bodies.
 
 ## Loading more rows
 
 Rootset renders the visible rows and requests bounded windows as you scroll. It does not load every record into the browser at once. The row number is a position in the current view; the API row ID is the stable identifier. Filtering changes the view without modifying the records.
+
+The **Rows** sidebar item shows the table's total row count. With filters applied, the `#` heading also shows the matching count in parentheses. A `~` prefix marks an estimate, such as `# (~1,244)`; it disappears when the loaded results establish an exact count. No matches shows `# (0)`.
 
 <Screenshot
   light="/assets/screenshots/rows-light.png"

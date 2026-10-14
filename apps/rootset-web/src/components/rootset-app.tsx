@@ -391,20 +391,11 @@ export function RootsetApp() {
   if (context.isError && !context.data)
     return (
       <main className="startup-state">
-        <h1>Account context could not be loaded</h1>
-        <p role="alert">{context.error.message}</p>
+        <div className="grid gap-2 text-center">
+          <h1>Account context could not be loaded</h1>
+          <p role="alert">{context.error.message}</p>
+        </div>
         <Button onPress={() => void context.refetch()}>Retry</Button>
-        <Button
-          variant="secondary"
-          onPress={() =>
-            void authClient.signOut().then(
-              () => location.assign("/login"),
-              () => location.assign("/login"),
-            )
-          }
-        >
-          Sign in again
-        </Button>
       </main>
     );
   if (navigationError)
@@ -469,6 +460,7 @@ export function RootsetApp() {
       table={table}
       databaseId={selectedDatabaseId}
       tableId={selectedTableId}
+      locale={preferences.locale}
     />
   );
   const resourceScope =

@@ -33,7 +33,7 @@ import {
   ResourceTable,
 } from "@avgeek-oss/design-system/patterns/resource-table";
 import { Dropdown, Tooltip } from "@heroui/react";
-import { Filter, Columns3, Eraser, History, Trash2 } from "./ui/icons";
+import { Columns3, Eraser, History, Trash2, MessageSquare } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
@@ -48,6 +48,7 @@ import {
   type TableSchemaResult,
 } from "@rootset/contracts";
 import { mergeScrollWindow } from "../lib/scroll-window";
+import { rowResultCount, type RowResultCount } from "../lib/row-result-count";
 import { RowWindowCache } from "../lib/window-cache";
 import { parseTsvCells, type TsvCell } from "../lib/clipboard";
 import { parsePastedCell } from "../lib/pasted-cell";
@@ -61,9 +62,11 @@ import { CellUndoStack } from "../lib/cell-undo";
 import { CellEditor, formatCellValue } from "./cells";
 import { ImageCell } from "./cells/ImageCell";
 import { Dialog } from "./dialog";
+import { RowComments } from "./row-comments";
 import { useConfirmation } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { TableFilterDialog } from "./table-filter-dialog";
+import { TableFilterButton } from "./table-filter-button";
 import type { FilterCombination, FilterCondition } from "../lib/table-filters";
 
 interface WindowResult extends QueryResult {
@@ -71,6 +74,7 @@ interface WindowResult extends QueryResult {
     sessionId: string;
     start: number;
     total?: number | null;
+    estimatedTotal?: number | null;
     previousCursor?: string | null;
   };
 }
@@ -86,8 +90,24 @@ interface CellDraft {
   initialInput?: string;
   initialValue?: JsonValue;
 }
+interface PlaceholderRow {
+  id: string;
+  placeholderIndex: number;
+}
+type GridRow = Row | PlaceholderRow;
+const placeholderRows: PlaceholderRow[] = Array.from(
+  { length: 100 },
+  (_, placeholderIndex) => ({
+    id: `placeholder-${placeholderIndex}`,
+    placeholderIndex,
+  }),
+);
+function isPlaceholderRow(row: GridRow): row is PlaceholderRow {
+  return "placeholderIndex" in row;
+}
 const rowHeight = 32;
 const windowLimit = 200;
+const systemColumns = 1;
 const preferencesEmpty = {
   columnOrder: [] as string[],
   columnWidths: {} as Record<string, number>,
@@ -139,6 +159,10 @@ export function Spreadsheet({
   const [query, setQuery] = useState<QuerySpec>({ limit: windowLimit });
   const [windowStart, setWindowStart] = useState(0);
   const [windowInfo, setWindowInfo] = useState<WindowResult | null>(null);
+  const [filteredCount, setFilteredCount] = useState<{
+    filter: string;
+    value: RowResultCount | null;
+  } | null>(null);
   const [displayedNavigation, setDisplayedNavigation] = useState("");
   const [loading, setLoading] = useState(false);
   const [accessRevoked, setAccessRevoked] = useState(false);
@@ -152,6 +176,11 @@ export function Spreadsheet({
   const [history, setHistory] = useState<{
     row: Row;
     field: FieldDefinition;
+  } | null>(null);
+  const [discussion, setDiscussion] = useState<{
+    rowId: string;
+    rowNumber: number;
+    isOpen: boolean;
   } | null>(null);
   const [pastePreview, setPastePreview] = useState<{
     cells: string[][];
@@ -203,6 +232,19 @@ export function Spreadsheet({
   const submitEditor = useRef<(() => Promise<boolean>) | null>(null);
   const extendSelection = useRef(false);
   const cache = useRef(new RowWindowCache());
+  const updateCommentPresence = useCallback(
+    (rowId: string, hasComments: boolean) => {
+      cache.current.clear();
+      setRows((previous) =>
+        previous.map((row) =>
+          row.id === rowId && row.hasComments !== hasComments
+            ? { ...row, hasComments }
+            : row,
+        ),
+      );
+    },
+    [],
+  );
   const abort = useRef<AbortController | null>(null);
   const copyAbort = useRef<AbortController | null>(null);
   const sessionId = useRef<string | undefined>(undefined);
@@ -276,6 +318,18 @@ export function Spreadsheet({
     orderBy: query.orderBy,
   });
   const staleResults = !!windowInfo && displayedNavigation !== navigationDigest;
+  const currentFilteredCount =
+    filteredCount && filteredCount.filter === JSON.stringify(query.where)
+      ? filteredCount.value
+      : null;
+  const filteredEmpty =
+    rows.length === 0 &&
+    !!query.where &&
+    !!windowInfo &&
+    !loading &&
+    !staleResults &&
+    !error;
+  const gridRows: GridRow[] = rows.length ? rows : placeholderRows;
   const fields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
   const writable =
     canEdit &&
@@ -487,6 +541,22 @@ export function Spreadsheet({
           hasNextWindow.current = response.page.hasMore;
         else if (merged.trimmed) hasNextWindow.current = true;
         setWindowInfo(response);
+        if (query.where) {
+          const filter = JSON.stringify(query.where);
+          setFilteredCount((previous) => ({
+            filter,
+            value: rowResultCount(
+              {
+                start,
+                length: response.data.length,
+                hasMore: response.page.hasMore,
+                total: response.window?.total,
+                estimate: response.window?.estimatedTotal,
+              },
+              direction && previous?.filter === filter ? previous.value : null,
+            ),
+          }));
+        } else setFilteredCount(null);
         if (response.schemaVersion !== schema.data?.table.schemaVersion)
           void schema.refetch();
         setDisplayedNavigation(
@@ -506,7 +576,7 @@ export function Spreadsheet({
             gridRef.current?.setActivePosition(
               {
                 rowIdx: nextSelection?.row ?? -1,
-                idx: nextSelection ? nextSelection.column + 1 : 0,
+                idx: nextSelection ? nextSelection.column + systemColumns : 0,
               },
               { shouldFocus: false },
             );
@@ -602,7 +672,7 @@ export function Spreadsheet({
 
   function focusCell(row: number, column: number) {
     gridRef.current?.setActivePosition(
-      { rowIdx: row, idx: column + 1 },
+      { rowIdx: row, idx: column + systemColumns },
       { shouldFocus: true },
     );
   }
@@ -652,7 +722,9 @@ export function Spreadsheet({
         { before: draft.row, after: updated, fields: [draft.field.name] },
       ]);
       setRows((previous) =>
-        previous.map((row) => (row.id === updated.id ? updated : row)),
+        previous.map((row) =>
+          row.id === updated.id ? { ...row, ...updated } : row,
+        ),
       );
       cache.current.clear();
       setDraft(null);
@@ -708,7 +780,9 @@ export function Spreadsheet({
       }
       if (current)
         setRows((previous) =>
-          previous.map((row) => (row.id === current!.id ? current! : row)),
+          previous.map((row) =>
+            row.id === current!.id ? { ...row, ...current! } : row,
+          ),
         );
       setDraft(null);
       cellAttempt.current.clear();
@@ -764,9 +838,10 @@ export function Spreadsheet({
       undoStack.current.complete(change, restored);
       undoAttempt.current.clear();
       setRows((previous) =>
-        previous.map(
-          (row) => restored.find((next) => next.id === row.id) ?? row,
-        ),
+        previous.map((row) => {
+          const restoredRow = restored.find((next) => next.id === row.id);
+          return restoredRow ? { ...row, ...restoredRow } : row;
+        }),
       );
       cache.current.clear();
       if (query.where || query.orderBy?.length) void loadWindow(windowStart);
@@ -807,7 +882,7 @@ export function Spreadsheet({
     }
   }
 
-  function onKey(args: CellKeyDownArgs<Row>, event: CellKeyboardEvent) {
+  function onKey(args: CellKeyDownArgs<GridRow>, event: CellKeyboardEvent) {
     if (args.mode === "EDIT") {
       event.preventGridDefault();
       return;
@@ -824,7 +899,19 @@ export function Spreadsheet({
       return;
     }
     const { row, column, rowIdx } = args;
-    if (!row || !column || rowIdx < 0) return;
+    if (!row || !column || rowIdx < 0 || isPlaceholderRow(row)) return;
+    if (column.key === "__row_number" && ["Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      event.preventGridDefault();
+      leaveEditor(() =>
+        setDiscussion({
+          rowId: row.id,
+          rowNumber: windowStart + rowIdx + 1,
+          isOpen: true,
+        }),
+      );
+      return;
+    }
     if (
       event.key === "ContextMenu" ||
       (event.shiftKey && event.key === "F10")
@@ -1258,21 +1345,81 @@ export function Spreadsheet({
   const editingRow = draft
     ? rows.findIndex((row) => row.id === draft.row.id)
     : -1;
-  const gridColumns: Column<Row>[] = [
+  const gridColumns: Column<GridRow>[] = [
     {
       key: "__row_number",
-      name: "#",
+      name: (
+        <span className="flex w-full items-center justify-between gap-1 whitespace-nowrap">
+          #
+          {query.where && (
+            <span
+              className="text-xs font-normal text-muted tabular-nums"
+              aria-label={
+                currentFilteredCount
+                  ? `${currentFilteredCount.approximate ? "Approximately " : ""}${currentFilteredCount.count.toLocaleString(preferences.locale)} matching rows`
+                  : "Loading matching row count"
+              }
+            >
+              (
+              {currentFilteredCount
+                ? `${currentFilteredCount.approximate ? "~" : ""}${currentFilteredCount.count.toLocaleString(preferences.locale)}`
+                : "…"}
+              )
+            </span>
+          )}
+        </span>
+      ),
       width: Math.max(
-        52,
+        80,
         String(Math.max(table.rowCount, windowStart + rows.length)).length * 9 +
-          32,
+          48,
+        query.where
+          ? table.rowCount.toLocaleString(preferences.locale).length * 8 + 64
+          : 0,
       ),
       cellClass: "row-number-cell",
       frozen: true,
       resizable: false,
-      renderCell: ({ rowIdx }) => windowStart + rowIdx + 1,
+      sortable: false,
+      renderCell: ({ row, rowIdx, tabIndex }) => {
+        if (isPlaceholderRow(row)) return null;
+        const openDiscussion = () =>
+          leaveEditor(() =>
+            setDiscussion({
+              rowId: row.id,
+              rowNumber: windowStart + rowIdx + 1,
+              isOpen: true,
+            }),
+          );
+        return (
+          <div className="row-number-content">
+            <span>{windowStart + rowIdx + 1}</span>
+            <button
+              type="button"
+              className="row-comment-trigger"
+              data-has-comments={row.hasComments === true}
+              tabIndex={tabIndex}
+              aria-label={`Row ${windowStart + rowIdx + 1} comments, ${row.hasComments ? "has comments" : "no comments"}`}
+              disabled={accessRevoked || staleResults}
+              onClick={openDiscussion}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openDiscussion();
+                }
+              }}
+            >
+              <MessageSquare
+                size={14}
+                fill={row.hasComments ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
+        );
+      },
     },
-    ...fields.map((field, index): Column<Row> => ({
+    ...fields.map((field, index): Column<GridRow> => ({
       key: field.id,
       name: (
         <Tooltip delay={250} closeDelay={0}>
@@ -1299,11 +1446,23 @@ export function Spreadsheet({
             : field.type === "date"
               ? 200
               : 180),
-      frozen: index < viewPrefs.frozenColumns,
+      // Data Grid cannot span frozen and scrolling columns in the same cell.
+      frozen: !filteredEmpty && index < viewPrefs.frozenColumns,
       maxWidth: 2000,
-      editable: (row) => writable && Object.hasOwn(row.values, field.name),
+      colSpan: (args) =>
+        filteredEmpty &&
+        index === 0 &&
+        args.type === "ROW" &&
+        isPlaceholderRow(args.row) &&
+        args.row.placeholderIndex === 0
+          ? fields.length
+          : undefined,
+      editable: (row) =>
+        !isPlaceholderRow(row) &&
+        writable &&
+        Object.hasOwn(row.values, field.name),
       cellClass: (row) => {
-        if (!selection) return undefined;
+        if (!selection || isPlaceholderRow(row)) return undefined;
         const rowIdx = rows.findIndex((candidate) => candidate.id === row.id);
         return rowIdx >= Math.min(selection.row, selection.endRow) &&
           rowIdx <= Math.max(selection.row, selection.endRow) &&
@@ -1312,33 +1471,40 @@ export function Spreadsheet({
           ? "range-selected"
           : undefined;
       },
-      renderCell: ({ row }) => (
-        <span
-          data-cell-loaded={Object.hasOwn(row.values, field.name)}
-          className={
-            field.type === "boolean" &&
-            typeof row.values[field.name] === "boolean"
-              ? `cell-boolean-${row.values[field.name]}`
-              : undefined
-          }
-        >
-          {!Object.hasOwn(row.values, field.name) ? null : field.type ===
-              "image" && typeof row.values[field.name] === "string" ? (
-            <ImageCell
-              key={String(row.values[field.name])}
-              src={String(row.values[field.name])}
-              name={field.name}
-            />
-          ) : (
-            formatCellValue(field, row.values[field.name] ?? null, {
-              timeZone: preferences.timezone,
-              locale: preferences.locale,
-              dateFormat: preferences.dateFormat,
-              timeFormat: preferences.timeFormat,
-            })
-          )}
-        </span>
-      ),
+      renderCell: ({ row }) =>
+        isPlaceholderRow(row) ? (
+          filteredEmpty && index === 0 && row.placeholderIndex === 0 ? (
+            <span className="empty-filter-message">
+              No results returned for the applied filters.
+            </span>
+          ) : null
+        ) : (
+          <span
+            data-cell-loaded={Object.hasOwn(row.values, field.name)}
+            className={
+              field.type === "boolean" &&
+              typeof row.values[field.name] === "boolean"
+                ? `cell-boolean-${row.values[field.name]}`
+                : undefined
+            }
+          >
+            {!Object.hasOwn(row.values, field.name) ? null : field.type ===
+                "image" && typeof row.values[field.name] === "string" ? (
+              <ImageCell
+                key={String(row.values[field.name])}
+                src={String(row.values[field.name])}
+                name={field.name}
+              />
+            ) : (
+              formatCellValue(field, row.values[field.name] ?? null, {
+                timeZone: preferences.timezone,
+                locale: preferences.locale,
+                dateFormat: preferences.dateFormat,
+                timeFormat: preferences.timeFormat,
+              })
+            )}
+          </span>
+        ),
       renderEditCell: ({ onClose }) => (
         <GridEditorBridge closeRef={closeEditor} onClose={onClose}>
           {renderEditor(onClose)}
@@ -1353,27 +1519,39 @@ export function Spreadsheet({
 
   return (
     <section className="spreadsheet-pane" aria-label={table.name}>
+      {discussion && (
+        <RowComments
+          key={discussion.rowId}
+          target={{
+            orgId,
+            databaseId,
+            tableId: table.id,
+            rowId: discussion.rowId,
+          }}
+          rowNumber={discussion.rowNumber}
+          isOpen={discussion.isOpen}
+          canCreate={canEdit && !accessRevoked}
+          locale={preferences.locale}
+          timeZone={preferences.timezone}
+          onClose={() =>
+            setDiscussion((current) => current && { ...current, isOpen: false })
+          }
+          onPresenceChange={updateCommentPresence}
+        />
+      )}
       <div
         className="table-floating-actions"
         role="toolbar"
         aria-label="Table actions"
       >
-        <Tooltip delay={250} closeDelay={0}>
-          <Button
-            isIconOnly
-            size="lg"
-            variant={query.where ? "primary" : "secondary"}
-            aria-label="Filter"
-            aria-pressed={!!query.where}
-            isDisabled={!fields.length || saving}
-            onPress={() => leaveEditor(() => setFilterVisible(true))}
-          >
-            <Filter size={20} />
-          </Button>
-          <Tooltip.Content placement="top">
-            {query.where ? "Filter · active" : "Filter"}
-          </Tooltip.Content>
-        </Tooltip>
+        <TableFilterButton
+          fields={fields}
+          conditions={filterConditions}
+          combination={filterCombination}
+          isDisabled={!fields.length || saving}
+          isEditing={filterVisible}
+          onPress={() => leaveEditor(() => setFilterVisible(true))}
+        />
       </div>
       {filterVisible && (
         <TableFilterDialog
@@ -1395,12 +1573,6 @@ export function Spreadsheet({
         <p className="error-banner" role="alert">
           {error}
           <button onClick={() => void loadWindow(windowStart)}>Retry</button>
-        </p>
-      )}
-      {staleResults && (
-        <p className="notice" role="status">
-          These are previous results. Editing resumes when the current filter
-          loads.
         </p>
       )}
       {(schema.data?.table.state ?? table.state) !== "active" && canEdit && (
@@ -1454,6 +1626,7 @@ export function Spreadsheet({
           </div>
           <div
             className="grid-container"
+            aria-busy={loading}
             ref={gridContainer}
             onPointerDownCapture={(event) => {
               const target = event.target;
@@ -1501,14 +1674,15 @@ export function Spreadsheet({
             onPaste={(event) => {
               if (!draft) {
                 event.preventDefault();
-                previewPaste(event.clipboardData.getData("text/plain"));
+                if (rows.length)
+                  previewPaste(event.clipboardData.getData("text/plain"));
               }
             }}
           >
             <DataGrid
               ref={gridRef}
               columns={gridColumns}
-              rows={rows}
+              rows={gridRows}
               rowKeyGetter={(row) => row.id}
               rowClass={(row) =>
                 row.id === deleteTargetId ? "row-delete-pending" : undefined
@@ -1551,6 +1725,7 @@ export function Spreadsheet({
               onScroll={(event) => {
                 releaseResizeSpace(event.currentTarget);
                 if (
+                  !rows.length ||
                   fetchingWindow.current ||
                   draft ||
                   saving ||
@@ -1589,16 +1764,23 @@ export function Spreadsheet({
               }}
               onCellDoubleClick={({ row, column }, event) => {
                 const field = fields.find((field) => field.id === column.key);
-                if (draft || saving || !field || !writable)
+                if (
+                  isPlaceholderRow(row) ||
+                  draft ||
+                  saving ||
+                  !field ||
+                  !writable
+                )
                   event.preventGridDefault();
                 else beginEdit(row, field);
               }}
               onCellContextMenu={({ row, column, rowIdx }, event) => {
                 event.preventDefault();
                 event.preventGridDefault();
+                if (isPlaceholderRow(row)) return;
                 const anchor = event.currentTarget;
                 leaveEditor(() => {
-                  focusCell(rowIdx, column.idx - 1);
+                  focusCell(rowIdx, column.idx - systemColumns);
                   contextAnchor.current = anchor;
                   setContextMenu(
                     column.key === "__row_number"
@@ -1612,12 +1794,18 @@ export function Spreadsheet({
                   );
                 });
               }}
-              onActivePositionChange={({ rowIdx, column }) => {
-                if (rowIdx < 0 || !column || column.idx === 0) {
+              onActivePositionChange={({ rowIdx, column, row }) => {
+                if (
+                  !row ||
+                  isPlaceholderRow(row) ||
+                  rowIdx < 0 ||
+                  !column ||
+                  column.idx < systemColumns
+                ) {
                   setSelection(null);
                   return;
                 }
-                const index = column.idx - 1;
+                const index = column.idx - systemColumns;
                 const extend = extendSelection.current;
                 setSelection((previous) =>
                   extend && previous
@@ -1633,6 +1821,7 @@ export function Spreadsheet({
               }}
               onCellKeyDown={onKey}
               onColumnResize={(column, width) => {
+                if (!fields.some((field) => field.id === column.key)) return;
                 const next = {
                   ...latestViewPrefs.current,
                   columnWidths: {
@@ -1648,17 +1837,10 @@ export function Spreadsheet({
                   <DataGridRow
                     key={key}
                     {...props}
-                    data-row-id={props.row.id}
+                    data-row-id={
+                      isPlaceholderRow(props.row) ? undefined : props.row.id
+                    }
                   />
-                ),
-                noRowsFallback: (
-                  <div className="empty-state">
-                    {loading
-                      ? null
-                      : query.where
-                        ? "No rows match this filter."
-                        : "This table has no rows yet."}
-                  </div>
                 ),
               }}
             />
