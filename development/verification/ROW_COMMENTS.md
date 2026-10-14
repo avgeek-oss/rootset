@@ -72,6 +72,11 @@ node --env-file=.env.test apps/rootset-web/tests/verify-row-comments.mjs
 - The sample production web/API/worker environment returned healthy PostgreSQL,
   object storage, mail and worker readiness. Browser review used 1440×1000
   desktop and 390×844 mobile viewports.
+- The first candidate CI run passed the comment fixtures but exposed the
+  existing admission contention test's 150 ms pool-exhaustion deadline leaking
+  into queued cleanup. The test now restores its original connection deadline
+  after the intentional exhaustion phase; rejection assertions and the native
+  statement/lock deadline are unchanged.
 
 These observations cover this feature and its regression checks, not the full V1
 acceptance checklist or a production-scale comment benchmark. Candidate image

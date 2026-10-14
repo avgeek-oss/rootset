@@ -128,6 +128,7 @@ test(
     const leases: (() => Promise<void>)[] = [];
     try {
       const held: PoolClient[] = [];
+      const connectionTimeout = pool.options.connectionTimeoutMillis;
       try {
         held.push(await pool.connect());
         held.push(await pool.connect());
@@ -145,6 +146,8 @@ test(
           ),
         );
       } finally {
+        // The short deadline tests exhaustion, not later queued cleanup queries.
+        pool.options.connectionTimeoutMillis = connectionTimeout;
         held.forEach((connection) => connection.release());
       }
       for (const principal of principals) {
