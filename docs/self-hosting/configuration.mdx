@@ -33,7 +33,7 @@ All runtime configuration comes from environment variables. Keep `.env` outside 
 
 ## Compose options
 
-`ROOTSET_VERSION` chooses the published image version and must match the release you downloaded. `ROOTSET_COMPOSE_PROJECT` defaults to `rootset`. `ROOTSET_API_BIND` and `ROOTSET_WEB_BIND` default to `127.0.0.1`; their port defaults are 4310 and 4300. `POSTGRES_PASSWORD` is only for the bundled `local-db` profile, not an external database.
+The downloaded Compose file pins the image versions; no version setting is needed in `.env`. `ROOTSET_COMPOSE_PROJECT` defaults to `rootset`. `ROOTSET_API_BIND` and `ROOTSET_WEB_BIND` default to `127.0.0.1`; their port defaults are 4310 and 4300. `POSTGRES_PASSWORD` is only for the bundled `local-db` profile, not an external database.
 
 Rootset does not need proxy-trust variables, separate identity/DDL database URLs, a server timezone setting or per-table backup settings. Data is stored in UTC; each person chooses presentation preferences.
 

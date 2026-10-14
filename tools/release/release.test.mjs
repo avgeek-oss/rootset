@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { requireVerifiedChecks } from "./check.mjs";
+import { requirePinnedInstallation, requireVerifiedChecks } from "./check.mjs";
 import { inspectPublicImage, readReleaseImages } from "./images.mjs";
 import { verifyPulledImage } from "./verify-installation.mjs";
 
@@ -34,6 +34,46 @@ test("publication requires both current successful GitHub Actions checks", () =>
     assert.throws(() => requireVerifiedChecks(input));
   }
   assert.throws(() => requireVerifiedChecks({}));
+});
+
+test("installation files pin every application service to the release without a version setting", () => {
+  const compose = () => ({
+    services: Object.fromEntries(
+      ["api", "worker", "web", "migrate"].map((service) => [
+        service,
+        {
+          image: `ghcr.io/avgeek-oss/rootset-${service === "migrate" ? "api" : service}:${version}`,
+        },
+      ]),
+    ),
+  });
+  const environment = "ROOTSET_WEB_URL=http://localhost:4300\n";
+  assert.doesNotThrow(() =>
+    requirePinnedInstallation(compose(), environment, version),
+  );
+  for (const change of [
+    (input) => delete input.services.migrate,
+    (input) => (input.services.worker.image = input.services.api.image),
+    (input) =>
+      (input.services.web.image = "ghcr.io/avgeek-oss/rootset-web:latest"),
+    (input) =>
+      (input.services.api.image =
+        "ghcr.io/avgeek-oss/rootset-api:${ROOTSET_VERSION}"),
+    (input) =>
+      (input.services.migrate.image = "ghcr.io/avgeek-oss/rootset-api:0.0.1"),
+    (input) => (input.services.api.build = "."),
+  ]) {
+    const input = compose();
+    change(input);
+    assert.throws(() => requirePinnedInstallation(input, environment, version));
+  }
+  assert.throws(() =>
+    requirePinnedInstallation(
+      compose(),
+      `${environment}ROOTSET_VERSION=${version}\n`,
+      version,
+    ),
+  );
 });
 
 function registryFixture({

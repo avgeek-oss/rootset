@@ -9,7 +9,7 @@ The release workflow validates the version/tag and requires verification for tha
 
 ## Upgrade a released installation
 
-Read the target release notes first. Protect PostgreSQL, object storage, and the persistent application secret/encryption key using your provider's backup tools. Download the matching Compose file, change `ROOTSET_VERSION` in `.env`, and pull before replacing running containers.
+Read the target release notes first. Protect PostgreSQL, object storage, and the persistent application secret/encryption key using your provider's backup tools. Download the target release's Compose file, which pins all images to that version. Preserve your existing `.env` settings, review any configuration changes in the release notes, and pull before replacing running containers.
 
 ```bash
 docker compose pull

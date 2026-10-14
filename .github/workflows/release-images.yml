@@ -43,11 +43,11 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           version="${RELEASE_TAG#v}"
           test "$(jq -r .version package.json)" = "$version"
-          test "$(sed -n 's/^ROOTSET_VERSION=//p' rootset.env.example)" = "$version"
           commit="$(git rev-parse HEAD)"
           test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$commit"
           gh api "repos/$GH_REPO/commits/$commit/check-runs?filter=latest&per_page=100" > "$RUNNER_TEMP/release-checks.json"
-          node tools/release/check.mjs "$RUNNER_TEMP/release-checks.json"
+          docker compose --env-file rootset.env.example -f compose.images.yaml config --format json > "$RUNNER_TEMP/release-compose.json"
+          node tools/release/check.mjs "$RUNNER_TEMP/release-checks.json" "$RUNNER_TEMP/release-compose.json" rootset.env.example "$version"
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-state"; then
             test "$(cat "$RUNNER_TEMP/release-state")" = "true"
           fi

@@ -13,5 +13,34 @@ export function requireVerifiedChecks(input) {
     assert.equal(matches[0].conclusion, "success", `${name} did not pass`);
   }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  requireVerifiedChecks(JSON.parse(await readFile(process.argv[2], "utf8")));
+
+export function requirePinnedInstallation(compose, environment, version) {
+  assert.doesNotMatch(environment, /^\s*(?:export\s+)?ROOTSET_VERSION\s*=/m);
+  for (const [name, service] of Object.entries(compose.services))
+    assert(!service.build, `${name} must pull a published image`);
+  for (const [service, image] of Object.entries({
+    api: "api",
+    worker: "worker",
+    web: "web",
+    migrate: "api",
+  }))
+    assert.equal(
+      compose.services[service]?.image,
+      `ghcr.io/avgeek-oss/rootset-${image}:${version}`,
+      `${service} must be pinned to release ${version}`,
+    );
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  const [checks, compose, environment, version] = process.argv.slice(2);
+  requireVerifiedChecks(JSON.parse(await readFile(checks, "utf8")));
+  if (compose)
+    requirePinnedInstallation(
+      JSON.parse(await readFile(compose, "utf8")),
+      await readFile(environment, "utf8"),
+      version,
+    );
+}
