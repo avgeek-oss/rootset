@@ -1,6 +1,6 @@
 # Deploy Rootset with Towbar
 
-These manifests deploy the public Rootset **0.1.2** API, worker and UI images to the Platform Services server (`13.206.149.158`, Linux ARM64). All three images are pinned to the immutable multi-platform digests in the [release image manifest](https://github.com/avgeek-oss/rootset/releases/download/v0.1.2/rootset-images.json). There is no source build. `autoDeploy: false` keeps each deployment manual.
+These manifests deploy the public Rootset **0.1.5** API, worker and UI images to the Platform Services server (`13.206.149.158`, Linux ARM64). All three images are pinned to the immutable multi-platform digests in the [release image manifest](https://github.com/avgeek-oss/rootset/releases/download/v0.1.5/rootset-images.json). There is no source build. `autoDeploy: false` keeps each deployment manual.
 
 The application is served at `https://rootset.avgeek.ltd`; authentication, REST, MCP and downloads use `https://rootset-api.avgeek.ltd`. The documentation site is separate, at `https://www.rootset.app`. The worker and PostgreSQL have no public domains. All four workloads share the private `rootset` Docker network on one server.
 
@@ -58,7 +58,9 @@ On the UI, save only `ROOTSET_PUBLIC_API_ORIGIN=https://rootset-api.avgeek.ltd` 
 4. Deploy the UI and check both HTTPS origins.
 5. Open the UI, privately supply `ROOTSET_SECRET` to claim the installation and create the first administrator. This initial account is email-verified automatically. Verify sign-in, a saved cell edit, and a completed export request with a download.
 
-Towbar does not order independent workloads. For upgrades, select one published release and update all three image digests together, then deploy API, worker and UI in order. The API hook migrates before replacement; image rollback does not undo database migrations. Keep the persistent secret and encryption key stable.
+Towbar does not order independent workloads. Before upgrading an existing installation, back up PostgreSQL and object storage, then stop the existing API and worker. Preserve the PostgreSQL volume, artifact spools, persistent secret and encryption key. Deploy the worker first, then the API and UI; the worker's successful migration hook and fresh heartbeat must precede API readiness. Do not recreate the datastore to upgrade the application.
+
+Version `0.1.5` upgrades released `0.1.2` and `0.1.3` databases in place. Its migration hook recognizes the exact released checksums, adds the comments schema and deletion log transactionally, and saves the original migration ledger in `rootset_control.migration_repairs`. Existing data is preserved, and an existing `0.1.4` installation retains its comments. Unknown checksums or conflicting schemas still fail. The normal pre-deploy command performs this upgrade; no manual checksum edit is required. Image rollback does not undo database migrations: restoring an earlier schema requires the matching pre-upgrade backup.
 
 The worker has no HTTP listener. Its manifest port is required by Towbar's Service schema and is not an API endpoint; no public domain is configured. The command check uses `dist/worker-health.mjs` from the published image.
 
