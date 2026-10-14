@@ -99,6 +99,9 @@ const rowPublic = (value: Row): Row => ({
   version: value.version,
   createdAt: value.createdAt,
   updatedAt: value.updatedAt,
+  ...(value.hasComments === undefined
+    ? {}
+    : { hasComments: value.hasComments }),
   values: value.values,
 });
 const databasePublic = (d: DatabaseRecord) => ({

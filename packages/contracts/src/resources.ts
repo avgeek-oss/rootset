@@ -24,8 +24,9 @@ export const RowCommentSchema = z.strictObject({
   rowId: IdSchema,
   authorUserId: IdSchema.nullable(),
   authorName: z.string().max(120),
-  body: z.string().min(1).max(4096),
+  body: z.string().max(4096),
   createdAt: DateTimeSchema,
+  deletedAt: DateTimeSchema.nullable(),
   canDelete: z.boolean(),
 });
 export type RowComment = z.infer<typeof RowCommentSchema>;

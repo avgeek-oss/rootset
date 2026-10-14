@@ -19,6 +19,7 @@ verificationCase(
       assert.deepEqual(fixture.appliedMigrations, [
         "0001_baseline.sql",
         "0002_mcp_role_revocation.sql",
+        "0003_comment_deletion_log.sql",
       ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();

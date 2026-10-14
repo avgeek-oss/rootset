@@ -13,6 +13,7 @@ import {
   type Actor,
   type RowComment,
   type Row,
+  type QueryResult,
 } from "@rootset/contracts";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { createRuntimeApp } from "./runtime-app.js";
@@ -25,7 +26,7 @@ const code = (expected: string) => (error: unknown) =>
   "code" in error &&
   error.code === expected;
 
-test("row comments: native permissions, pagination, hard deletion, races and transport parity", async (t) => {
+test("row comments: native permissions, pagination, retained deletion logs, races and transport parity", async (t) => {
   const db = await isolatedDatabase();
   let runtime: Awaited<ReturnType<typeof createRuntime>> | undefined;
   let app: ReturnType<typeof createRuntimeApp> | undefined;
@@ -151,6 +152,11 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
     });
     const ids = { orgId, databaseId: database.id, tableId: table.id };
     const target = { ...ids, rowId: row.id };
+    t.beforeEach(async () => {
+      await withOrg(db.owner, orgId, (client) =>
+        client.query("DELETE FROM rootset_control.row_comments"),
+      );
+    });
     const create = (
       actor: Actor,
       body: string,
@@ -175,6 +181,86 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
       );
 
     await t.test(
+      "row pages carry live comment presence without bodies or counts",
+      async () => {
+        const page = () =>
+          execute<QueryResult>("queryRows", viewer, {
+            ...ids,
+            query: { limit: 1 },
+          });
+        assert.equal((await page()).data[0]?.hasComments, false);
+        assert.equal(
+          (await execute<Row>("getRow", viewer, target)).hasComments,
+          false,
+        );
+        const firstComment = await create(member, "Presence test one");
+        const lastComment = await create(member, "Presence test two");
+        const first = await page();
+        assert.equal(first.data[0]?.id, row.id);
+        assert.equal(first.data[0]?.hasComments, true);
+        assert.deepEqual(first.data[0]?.values, { REGISTRATION: "VT-ONE" });
+        assert(!JSON.stringify(first).includes("Presence test"));
+        const next = await execute<QueryResult>("queryRows", viewer, {
+          ...ids,
+          query: { limit: 1, cursor: first.page.nextCursor },
+        });
+        assert.equal(next.data[0]?.id, second.id);
+        assert.equal(next.data[0]?.hasComments, false);
+        const filteredQuery = {
+          where: { field: "REGISTRATION", op: "eq", value: "VT-ONE" },
+          select: ["REGISTRATION"],
+          orderBy: [{ field: "REGISTRATION", direction: "desc" }],
+          limit: 1,
+        };
+        assert.equal(
+          (
+            await execute<QueryResult>("queryRows", viewer, {
+              ...ids,
+              query: filteredQuery,
+            })
+          ).data[0]?.hasComments,
+          true,
+        );
+        for (const position of ["first", "last", 0]) {
+          const window = await runtime!.core.windowQuery(viewer, {
+            ...ids,
+            query: filteredQuery,
+            position,
+          });
+          assert.equal(window.result.data[0]?.hasComments, true);
+        }
+        const listed = await execute<QueryResult>("listRows", viewer, {
+          ...ids,
+          limit: 2,
+        });
+        assert.deepEqual(
+          listed.data.map((value) => value.hasComments),
+          [true, false],
+        );
+        await remove(member, firstComment.id);
+        assert.equal((await page()).data[0]?.hasComments, true);
+        await remove(member, lastComment.id);
+        assert.equal((await page()).data[0]?.hasComments, true);
+        const reread = await execute<Row>("getRow", viewer, target);
+        assert.equal(reread.hasComments, true);
+        assert.equal(reread.version, row.version);
+        const window = await runtime!.core.windowQuery(viewer, {
+          ...ids,
+          query: { limit: 2 },
+          position: "first",
+        });
+        assert.deepEqual(
+          window.result.data.map((value) => value.hasComments),
+          [true, false],
+        );
+        await assert.rejects(
+          execute("queryRows", viewer, { ...ids, orgId: newId(), query: {} }),
+          code("RESOURCE_NOT_FOUND"),
+        );
+      },
+    );
+
+    await t.test(
       "roles, authenticated names, ownership, immutable versions and bounded batches",
       async () => {
         await assert.rejects(create(viewer, "Forbidden"), code("FORBIDDEN"));
@@ -192,6 +278,7 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
         assert.equal(page.data[0]?.authorName, "Morgan Member");
         assert.equal(page.data[0]?.authorUserId, member.userId);
         assert.equal(page.data[0]?.body, "Plain <b>text</b>\nSecond line");
+        assert.equal(page.data[0]?.deletedAt, null);
         assert.equal(page.data[0]?.canDelete, false);
         assert.equal((await list(member)).data[0]?.canDelete, true);
         await assert.rejects(remove(peer, own.id), code("FORBIDDEN"));
@@ -200,7 +287,7 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
         await remove(admin, (await create(peer, "Moderate this")).id);
         assert.deepEqual(
           (await count()).data.map((item) => item.count),
-          [0, 0],
+          [2, 0],
         );
         assert.equal(
           (await runtime!.storage.getRow(admin, table.id, row.id)).version,
@@ -251,6 +338,12 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
         );
         assert(first.nextCursor);
         await remove(member, first.data[1]!.id);
+        const deletedAnchor = (await list(member, { limit: 2 })).data[1]!;
+        assert.equal(deletedAnchor.id, first.data[1]!.id);
+        assert.equal(deletedAnchor.body, "");
+        assert(deletedAnchor.deletedAt);
+        assert.equal(deletedAnchor.createdAt, first.data[1]!.createdAt);
+        assert.equal(deletedAnchor.canDelete, false);
         const next = await list(member, { limit: 2, cursor: first.nextCursor });
         assert.deepEqual(
           next.data.map((item) => item.id),
@@ -277,7 +370,7 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
         assert.equal(last.data[0]?.id, added[4]?.id);
         assert.equal(
           (await count()).data.find((item) => item.rowId === row.id)?.count,
-          4,
+          5,
         );
         for (const item of (await list()).data) await remove(admin, item.id);
       },
@@ -332,8 +425,36 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
           await create(member, "Erase this unique body", key),
           results[0],
         );
-        assert.equal((await list()).data.length, 0);
+        const deleted = (await list()).data;
+        assert.equal(deleted.length, 1);
+        assert.equal(deleted[0]!.id, results[0]!.id);
+        assert.equal(deleted[0]!.body, "");
+        assert(deleted[0]!.deletedAt);
+        assert.equal(deleted[0]!.canDelete, false);
+        await remove(member, results[0]!.id);
+        assert.deepEqual((await list()).data, deleted);
+        await assert.rejects(remove(peer, results[0]!.id), code("FORBIDDEN"));
+        await assert.rejects(remove(viewer, results[0]!.id), code("FORBIDDEN"));
         await withOrg(db.owner, orgId, async (c) => {
+          const stored = await c.query(
+            "SELECT body,deleted_at FROM rootset_control.row_comments WHERE id=$1",
+            [results[0]!.id],
+          );
+          assert.equal(stored.rowCount, 1);
+          assert.equal(stored.rows[0].body, "");
+          assert.equal(
+            stored.rows[0].deleted_at.toISOString(),
+            deleted[0]!.deletedAt,
+          );
+          assert.equal(
+            (
+              await c.query(
+                "UPDATE rootset_control.row_comments SET body='restored',deleted_at=NULL WHERE id=$1",
+                [results[0]!.id],
+              )
+            ).rowCount,
+            0,
+          );
           for (const relation of [
             "control_mutation_replays",
             "operation_outcomes",
@@ -366,21 +487,33 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
     );
 
     await t.test(
-      "foreign keys, RLS, no update policy, and deleted-user attribution",
+      "foreign keys, RLS, one-way deletion, and deleted-user attribution",
       async () => {
         const departed = await person("Departed author", "member");
         const comment = await create(departed, "Keep my attribution");
-        await withOrg(db.owner, orgId, async (c) => {
-          assert.equal(
-            (
-              await c.query(
-                "UPDATE rootset_control.row_comments SET body='edited' WHERE id=$1",
+        const removed = await create(
+          departed,
+          "Clear my text, keep my attribution",
+        );
+        await remove(departed, removed.id);
+        const deletedBeforeUserRemoval = (await list()).data.find(
+          (entry) => entry.id === removed.id,
+        )!;
+        for (const changes of [
+          "body='edited'",
+          "body='',deleted_at=clock_timestamp(),author_name_snapshot='Forged'",
+          "body='',deleted_at=clock_timestamp(),created_at=clock_timestamp()",
+          "deleted_at=clock_timestamp()",
+        ])
+          await assert.rejects(
+            withOrg(db.owner, orgId, (c) =>
+              c.query(
+                `UPDATE rootset_control.row_comments SET ${changes} WHERE id=$1`,
                 [comment.id],
-              )
-            ).rowCount,
-            0,
+              ),
+            ),
+            { code: "23514" },
           );
-        });
         await withOrg(db.owner, newId(), async (c) => {
           assert.equal(
             (
@@ -403,6 +536,10 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
         assert.equal(saved.authorName, "Departed author");
         assert.equal(saved.authorUserId, null);
         assert.equal(saved.canDelete, true);
+        assert.deepEqual(
+          (await list()).data.find((entry) => entry.id === removed.id),
+          { ...deletedBeforeUserRemoval, authorUserId: null },
+        );
         await remove(admin, comment.id);
         await withOrg(db.owner, orgId, async (c) => {
           await assert.rejects(
@@ -508,6 +645,12 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
           2,
         );
         await call("deleteRowComment", { ...target, commentId: created.id });
+        const deleted = ((await call("listRowComments", target)) as Page)
+          .data[0]!;
+        assert.equal(deleted.id, created.id);
+        assert.equal(deleted.body, "");
+        assert(deleted.deletedAt);
+        assert.equal(deleted.canDelete, false);
         for (const comment of (await list()).data)
           await remove(admin, comment.id);
         const team = KeyCreatedSchema.parse(
@@ -527,8 +670,11 @@ test("row comments: native permissions, pagination, hard deletion, races and tra
         );
         assert(teamActor);
         const teamComment = await create(teamActor, "From the fleet bot");
-        assert.equal((await list()).data[0]?.authorName, "Fleet bot");
-        assert.equal((await list()).data[0]?.authorUserId, null);
+        const savedTeamComment = (await list()).data.find(
+          (entry) => entry.id === teamComment.id,
+        )!;
+        assert.equal(savedTeamComment.authorName, "Fleet bot");
+        assert.equal(savedTeamComment.authorUserId, null);
         await assert.rejects(remove(member, teamComment.id), code("FORBIDDEN"));
         await remove(teamActor, teamComment.id);
       },

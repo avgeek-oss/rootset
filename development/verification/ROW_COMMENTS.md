@@ -2,13 +2,19 @@
 
 Row discussions use one shared `rootset_control.row_comments` table and the
 same four catalog operations in the browser, REST and MCP. The spreadsheet
-loads counts for the visible window, then fetches comment bodies only when a
-discussion opens. It renders at most one 50-comment page at a time.
+receives `hasComments` with each row page and fetches comment bodies only when
+the discussion drawer opens. It renders at most one 50-comment page at a time.
+The comment icon shares the row-number cell; browsing sends no comment-count
+requests. Explicit count operations remain available to REST and MCP callers.
 
-Comments have no edit operation, version, update timestamp or deletion marker.
+Comments have no edit operation, version or update timestamp. Deletion clears
+the body and sets `deleted_at`, preserving author attribution and chronology.
+The drawer displays a muted, italic `comment deleted` entry. A database trigger
+prevents edits, restoration and changes to attribution or chronology; the user
+foreign key can still clear when an account is removed.
 The authenticated user or team key supplies attribution. Create receipts contain
 only the comment ID; delete receipts contain only status. A replay cannot restore
-a hard-deleted body. Comments do not alter row revisions or schema versions and
+a deleted body. Comments do not alter row revisions or schema versions and
 are excluded from ordinary field definitions, row values and exports.
 
 ## Automated coverage
@@ -21,14 +27,15 @@ database and runs the real runtime. It covers:
   maintenance targets; invalid bodies and request bounds.
 - Chronological cursor pages, deletion of a cursor anchor, actor/query binding,
   and response byte budgets for heavily escaped text.
-- Concurrent idempotent creation, conflicting retries, hard deletion, replay
+- Concurrent idempotent creation, conflicting retries, retained deletion logs, replay
   after deletion, and absence of comment bodies from receipts, audit outcomes
   and durable job metadata.
 - Browser sessions, personal REST keys, MCP calls and team-key attribution.
   `runtime.test.ts` also exercises all four operations through an issued OAuth
   MCP token and checks the same author through REST.
-- Forced RLS, composite parent integrity, lack of an update policy, and retained
-  author name after the user foreign key becomes null.
+- Forced RLS, composite parent integrity, guarded redaction updates, immutable
+  deletion timestamps, and retained author name after the user foreign key
+  becomes null.
 - Both lock orderings of concurrent row deletion and comment creation, live
   role demotion while waiting for a row lock, and row/table/database cleanup.
   The races observe PostgreSQL lock waits before releasing their barriers.
@@ -40,9 +47,10 @@ pnpm exec tsx --test apps/rootset-api/src/row-comments.test.ts
 ```
 
 `apps/rootset-web/tests/verify-row-comments.mjs` creates 260 synthetic aircraft
-rows in a loopback-only installation. It checks bounded lazy counts, clipboard
+rows in a loopback-only installation. It checks row-page comment presence without
+count requests, clipboard
 and inline editing, keyboard opening and focus return, literal plain text,
-creation/deletion, failed-request draft retention, pagination, Viewer controls,
+creation/deletion logs, failed-request draft retention, pagination, Viewer controls,
 and desktop/mobile light and dark layouts. It saves screenshots and private
 fixture/session metadata under the ignored `verification/row-comments/` directory.
 The Viewer check requires the dedicated disposable PostgreSQL endpoint on
@@ -53,6 +61,20 @@ node --env-file=.env.test apps/rootset-web/tests/verify-row-comments.mjs
 ```
 
 ## Local observations on 2026-10-14
+
+- The updated browser checks cover the comment drawer, secondary composer,
+  extra-small avatar initials, non-future relative times and retained deletion
+  logs. Desktop and mobile routes were reviewed in light and dark themes.
+- Sheet review covers stable sorting layout, centered sort indicators, 100 blank
+  placeholder rows, the merged no-results message, filter count badges and a
+  two-second hover preview that does not flash when opening the filter editor.
+- Row-count review covers the right-aligned sidebar total and filtered header
+  count, estimates becoming exact on reaching the final page, zero matches,
+  clearing filters and settings navigation. There are no separate count
+  requests. Estimates use PostgreSQL planning without executing a count scan.
+- The authenticated principal limit is 600 requests per minute. Admission tests
+  verify that request 601 is rejected and the next minute resets the budget.
+  Browser checks cover the compact account-context error with its Retry action.
 
 - Frozen dependency installation, contract generation, documentation checks,
   formatting, lint, strict types, all unit/runtime tests and production builds
@@ -79,18 +101,21 @@ node --env-file=.env.test apps/rootset-web/tests/verify-row-comments.mjs
   statement/lock deadline are unchanged.
 
 These observations cover this feature and its regression checks, not the full V1
-acceptance checklist or a production-scale comment benchmark. Candidate image
+acceptance checklist. Candidate image
 builds and fresh Compose installation/restart are checked by the PR's existing
 `Verify candidate` workflow; consult the run for its current result.
 
 ## Recovery boundary
 
-This changes the prelaunch fresh-install baseline, following `CONTRIBUTING.md`.
-Existing installations with another applied baseline digest must remain intact
-and will refuse this schema. This PR does not provide an in-place upgrade.
+The initial comment table changes the prelaunch fresh-install baseline.
+Installations with another applied baseline digest remain intact and refuse
+that incompatible schema. The additive `0003_comment_deletion_log.sql` migration
+upgrades installations already using this PR's comment baseline and preserves
+their existing comments. Native migration tests cover both an existing comment
+and repeat application. There is no conversion from an incompatible baseline.
 
 Comments belong in a consistent full PostgreSQL backup containing both control
 and physical row schemas. Ordinary row exports do not include them. Application
-hard deletion does not rewrite historical provider backups; those retain their
+content deletion does not rewrite historical provider backups; those retain their
 own point-in-time contents and retention policy. See the installation recovery
 procedure for restoring a separate target.

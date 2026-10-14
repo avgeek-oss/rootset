@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@avgeek-oss/design-system/styles.css";
+@import "@fontsource-variable/inter/wght-italic.css";
 @import "react-data-grid/lib/styles.css";
 
 :root {
@@ -300,8 +301,97 @@ h1 {
   border-radius: 9999px;
   box-shadow: var(--overlay-shadow);
 }
+.table-filter-count {
+  min-width: 20px;
+  min-height: 20px;
+  padding-inline: 2px;
+  border: 2px solid var(--background);
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.table-filter-preview {
+  width: min(340px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: 16px;
+  color: var(--foreground);
+}
+.table-filter-preview-header {
+  padding: 16px;
+}
+.table-filter-preview-header h3 {
+  font-size: 14px;
+  font-weight: 500;
+}
+.table-filter-preview-header p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.table-filter-preview-list {
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.table-filter-preview-list li {
+  border-top: 1px solid var(--separator);
+  padding: 12px 16px;
+  overflow-wrap: anywhere;
+}
+.table-filter-preview-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+.table-filter-preview-field svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.table-filter-preview-condition {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.table-filter-preview-value {
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-secondary);
+  color: var(--foreground);
+  white-space: pre-wrap;
+}
+.table-filter-preview-path {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .table-filter-preview {
+    animation: none;
+  }
+}
 .rootset-grid [role="columnheader"] {
   font-weight: 500;
+}
+.rootset-grid .rdg-header-sort-name + span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.empty-filter-message {
+  color: var(--muted);
+  font-style: italic;
 }
 .grid-container {
   flex: 1;

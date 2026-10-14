@@ -37,7 +37,7 @@ export const limits = Object.freeze({
   sessionLifetimeSeconds: 7 * 86400,
   recentAuthenticationSeconds: 300,
   apiKeyLifetimeSeconds: 90 * 86400,
-  principalRequestsPerMinute: 120,
+  principalRequestsPerMinute: 600,
   concurrentReads: 10,
   concurrentMutations: 5,
 });
@@ -357,6 +357,12 @@ export const RowSchema = z.strictObject({
   version: VersionSchema,
   createdAt: CanonicalUtcDateTimeSchema,
   updatedAt: CanonicalUtcDateTimeSchema,
+  hasComments: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+    ),
   values: z.record(FieldNameSchema, JsonValueSchema),
 });
 export type Row = z.infer<typeof RowSchema>;

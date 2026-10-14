@@ -1,17 +1,25 @@
-.row-comment-cell {
-  padding: 0;
+.rootset-grid .row-number-cell {
+  padding-inline: 10px 0;
+}
+.row-number-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
 }
 .row-comment-trigger {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 100%;
+  width: 32px;
   height: 100%;
+  flex-shrink: 0;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
   cursor: pointer;
   touch-action: manipulation;
+}
+.row-comment-trigger[data-has-comments="true"] {
+  color: var(--accent);
 }
 .row-comment-trigger:focus-visible {
   outline: 2px solid var(--accent);
@@ -20,17 +28,43 @@
 @media (hover: hover) and (pointer: fine) {
   .row-comment-trigger:hover {
     background: var(--surface-secondary);
-    color: var(--foreground);
   }
 }
-.rootset-dialog.row-comments-dialog {
-  width: min(640px, calc(100vw - 32px));
-  max-width: calc(100vw - 32px);
+.row-comments-drawer {
+  width: min(440px, 100vw);
+  max-width: 100vw;
+  padding: 0;
+  border-left: 1px solid var(--separator);
+}
+.row-comments-header {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--separator);
+}
+.row-comments-header [data-slot="drawer-close-trigger"] {
+  position: static;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
 }
 .row-discussion {
-  display: grid;
-  gap: 24px;
   min-width: 0;
+  margin: 0;
+  padding: 24px;
+  color: var(--foreground);
+}
+.row-discussion > * + * {
+  margin-top: 24px;
+}
+.row-comments-footer {
+  display: block;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 20px 24px max(24px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--separator);
 }
 .row-comment-list {
   display: grid;
@@ -68,11 +102,13 @@
   line-height: 1.5;
   margin: 4px 0 0;
 }
+.row-comment-deleted {
+  color: var(--muted);
+  font-style: italic;
+}
 .row-comment-composer {
   display: grid;
   gap: 8px;
-  border-top: 1px solid var(--separator);
-  padding-top: 20px;
 }
 .row-comment-composer label {
   font-size: 14px;
@@ -91,6 +127,7 @@
 }
 .row-comment-error {
   color: var(--danger);
+  margin-bottom: 12px;
 }
 .row-comment-pagination {
   display: flex;
@@ -98,16 +135,23 @@
   gap: 8px;
 }
 @media (pointer: coarse) {
-  .row-comment button {
+  .row-comment button,
+  .row-comments-header [data-slot="drawer-close-trigger"] {
     min-width: 44px;
     min-height: 44px;
   }
 }
 @media (max-width: 640px) {
-  .rootset-dialog.row-comments-dialog {
+  .row-comments-drawer {
     width: 100%;
-    max-height: calc(100dvh - 16px);
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    border-left: 0;
+  }
+  .row-comments-header {
+    padding-inline: 16px;
+  }
+  .row-discussion,
+  .row-comments-footer {
+    padding-inline: 16px;
   }
   .row-comment {
     gap: 8px;

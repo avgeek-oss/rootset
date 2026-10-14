@@ -577,7 +577,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const publicClient = new generated.RootsetClient(baseURL, {
       bearer: restSecret,
     });
-    assert.deepEqual(await publicClient.getRow({ ...ids, rowId }), created.row);
+    assert.deepEqual(await publicClient.getRow({ ...ids, rowId }), {
+      ...created.row,
+      hasComments: false,
+    });
     getOperation("queryRows").outputSchema.parse(
       await publicClient.queryRows({
         ...ids,
@@ -1465,10 +1468,17 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           { ...target, commentId: comment.id },
           "rest",
         );
-        assert.deepEqual(
-          (await mcpOperation("listRowComments", target)).data,
-          [],
-        );
+        const deleted = (await mcpOperation("listRowComments", target))
+          .data as {
+          id: string;
+          body: string;
+          deletedAt: string | null;
+          canDelete: boolean;
+        }[];
+        assert.equal(deleted[0]?.id, comment.id);
+        assert.equal(deleted[0]?.body, "");
+        assert(deleted[0]?.deletedAt);
+        assert.equal(deleted[0]?.canDelete, false);
       },
     );
     const terminalJob = async (id: string) => {
@@ -1685,7 +1695,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       name: "rootset_get_row",
       arguments: { ...ids, rowId },
     });
-    assert.deepEqual(mcpRead.structuredContent, created.row);
+    assert.deepEqual(mcpRead.structuredContent, {
+      ...created.row,
+      hasComments: true,
+    });
     const patch = await client.callTool({
       name: "rootset_update_row",
       arguments: {
@@ -1705,7 +1718,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(updated.row.values.NAME, "Example Airways");
     assert.equal(updated.row.version, "2");
     const readBack = await call("getRow", { ...ids, rowId }, "rest");
-    assert.deepEqual(readBack, updated.row);
+    assert.deepEqual(readBack, { ...updated.row, hasComments: true });
     const inspectedMutation = await call(
       "getMutation",
       { orgId, id: updated.mutationId },
@@ -1798,7 +1811,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(viewport.data[0].id, rowId);
     assert.equal(viewport.window.total, 1);
     const browserRow = await call("getRow", { ...ids, rowId }, "browser");
-    assert.deepEqual(browserRow, updated.row);
+    assert.deepEqual(browserRow, { ...updated.row, hasComments: true });
     const exportStart = await client.callTool({
       name: "rootset_export_rows",
       arguments: {

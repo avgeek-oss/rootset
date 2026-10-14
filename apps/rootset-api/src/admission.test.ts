@@ -8,6 +8,68 @@ const url =
   process.env.ROOTSET_TEST_DATABASE_URL ??
   process.env.ROOTSET_TEST_DATABASE_URL;
 test(
+  "authenticated admission allows request 600, rejects 601 across instances, and resets each minute",
+  { skip: !url },
+  async (t) => {
+    const pool = new Pool({ connectionString: url });
+    const principal = `rate-boundary-test:${newId()}`;
+    const first = new Admission(pool);
+    const second = new Admission(pool);
+    let now = Date.now();
+    t.mock.method(Date, "now", () => now);
+    try {
+      await pool.query(
+        "INSERT INTO rootset_control.api_rate_windows(principal,window_start,requests) VALUES($1,$2,599)",
+        [principal, Math.floor(now / 60_000)],
+      );
+      await (
+        await first.enter(principal, true)
+      )();
+      await assert.rejects(
+        second.enter(principal, true),
+        (error) =>
+          error instanceof RootsetError &&
+          error.code === "RATE_LIMITED" &&
+          error.status === 429 &&
+          (error.details as { retryAfter: number }).retryAfter === 60,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT requests FROM rootset_control.api_rate_windows WHERE principal=$1 AND window_start=$2",
+            [principal, Math.floor(now / 60_000)],
+          )
+        ).rows[0].requests,
+        601,
+      );
+      now += 60_000;
+      await (
+        await second.enter(principal, true)
+      )();
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT requests FROM rootset_control.api_rate_windows WHERE principal=$1 AND window_start=$2",
+            [principal, Math.floor(now / 60_000)],
+          )
+        ).rows[0].requests,
+        1,
+      );
+    } finally {
+      await pool.query(
+        "DELETE FROM rootset_control.api_admissions WHERE principal=$1",
+        [principal],
+      );
+      await pool.query(
+        "DELETE FROM rootset_control.api_rate_windows WHERE principal=$1",
+        [principal],
+      );
+      await pool.end();
+    }
+  },
+);
+
+test(
   "PostgreSQL admission enforces shared concurrency, persistent rate counts and expired lease recovery",
   { skip: !url },
   async () => {

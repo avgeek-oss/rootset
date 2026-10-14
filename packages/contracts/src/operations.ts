@@ -949,7 +949,7 @@ operation(
     cursor: z.string().max(2048).nullable().optional(),
   }),
   list(RowCommentSchema),
-  "Read a row discussion in chronological cursor pages of up to 50 comments. Requires current access to the row.",
+  "Read a row discussion in chronological cursor pages of up to 50 entries, including deleted comments with an empty body and a deletedAt timestamp. Requires current access to the row.",
 );
 operation(
   "countRowComments",
@@ -966,7 +966,7 @@ operation(
       }),
     ),
   }),
-  "Read comment counts for at most 200 visible rows in one batch. Missing rows are omitted; existing rows without comments return zero.",
+  "Read discussion entry counts, including deleted comments, for at most 200 visible rows in one batch. Missing rows are omitted; existing rows without comments return zero.",
   { readOnly: true, idempotencyRequired: false },
 );
 operation(
@@ -998,7 +998,7 @@ operation(
   ["rows:write"],
   z.strictObject({ ...table, rowId: IdSchema, commentId: IdSchema }),
   deleted,
-  "Permanently delete your own comment, or moderate as an administrator. Requires current write access to the row. No edit or soft deletion exists.",
+  "Permanently clear your own comment's body, or moderate as an administrator, while retaining its author, creation time and deletion timestamp in the discussion. Requires current write access to the row. Deleted entries cannot be edited, restored or removed through comment operations.",
 );
 operation(
   "updateRow",

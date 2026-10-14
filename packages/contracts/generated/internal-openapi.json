@@ -11901,7 +11901,7 @@
       "get": {
         "operationId": "listRowComments",
         "tags": ["data"],
-        "summary": "Read a row discussion in chronological cursor pages of up to 50 comments. Requires current access to the row.",
+        "summary": "Read a row discussion in chronological cursor pages of up to 50 entries, including deleted comments with an empty body and a deletedAt timestamp. Requires current access to the row.",
         "parameters": [
           {
             "name": "orgId",
@@ -12323,7 +12323,7 @@
       "post": {
         "operationId": "countRowComments",
         "tags": ["data"],
-        "summary": "Read comment counts for at most 200 visible rows in one batch. Missing rows are omitted; existing rows without comments return zero.",
+        "summary": "Read discussion entry counts, including deleted comments, for at most 200 visible rows in one batch. Missing rows are omitted; existing rows without comments return zero.",
         "parameters": [
           {
             "name": "orgId",
@@ -12524,7 +12524,7 @@
       "delete": {
         "operationId": "deleteRowComment",
         "tags": ["data"],
-        "summary": "Permanently delete your own comment, or moderate as an administrator. Requires current write access to the row. No edit or soft deletion exists.",
+        "summary": "Permanently clear your own comment's body, or moderate as an administrator, while retaining its author, creation time and deletion timestamp in the discussion. Requires current write access to the row. Deleted entries cannot be edited, restored or removed through comment operations.",
         "parameters": [
           {
             "name": "orgId",
@@ -26757,6 +26757,10 @@
                   "type": "string",
                   "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
                 },
+                "hasComments": {
+                  "description": "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+                  "type": "boolean"
+                },
                 "values": {
                   "type": "object",
                   "propertyNames": {
@@ -26994,6 +26998,10 @@
                   "type": "string",
                   "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
                 },
+                "hasComments": {
+                  "description": "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+                  "type": "boolean"
+                },
                 "values": {
                   "type": "object",
                   "propertyNames": {
@@ -27094,6 +27102,10 @@
             "type": "string",
             "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
           },
+          "hasComments": {
+            "description": "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+            "type": "boolean"
+          },
           "values": {
             "type": "object",
             "propertyNames": {
@@ -27187,6 +27199,10 @@
                 "type": "string",
                 "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
               },
+              "hasComments": {
+                "description": "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+                "type": "boolean"
+              },
               "values": {
                 "type": "object",
                 "propertyNames": {
@@ -27275,13 +27291,25 @@
                   ]
                 },
                 "authorName": { "type": "string", "maxLength": 120 },
-                "body": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "body": { "type": "string", "maxLength": 4096 },
                 "createdAt": {
                   "type": "string",
                   "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
                   "format": "date-time",
                   "description": "UTC instant with mandatory Z and at most three fractional digits.",
                   "examples": ["2024-01-01T12:30:00.000Z"]
+                },
+                "deletedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                      "format": "date-time",
+                      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                      "examples": ["2024-01-01T12:30:00.000Z"]
+                    },
+                    { "type": "null" }
+                  ]
                 },
                 "canDelete": { "type": "boolean" }
               },
@@ -27292,6 +27320,7 @@
                 "authorName",
                 "body",
                 "createdAt",
+                "deletedAt",
                 "canDelete"
               ],
               "additionalProperties": false
@@ -27506,6 +27535,10 @@
               "updatedAt": {
                 "type": "string",
                 "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+              },
+              "hasComments": {
+                "description": "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+                "type": "boolean"
               },
               "values": {
                 "type": "object",
@@ -27770,6 +27803,10 @@
                         "updatedAt": {
                           "type": "string",
                           "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                        },
+                        "hasComments": {
+                          "description": "Whether the row has discussion entries, including deleted comments. Included in row reads and pages.",
+                          "type": "boolean"
                         },
                         "values": {
                           "type": "object",

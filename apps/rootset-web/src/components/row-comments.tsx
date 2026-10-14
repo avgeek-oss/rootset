@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Avatar } from "@avgeek-oss/design-system/data-display/avatar";
 import { Textarea } from "@avgeek-oss/design-system/forms/textarea";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { Drawer } from "@avgeek-oss/design-system/overlays/drawer";
 import { client } from "@rootset/web-client";
-import type { Row, RowComment } from "@rootset/contracts";
-import { Dialog } from "./dialog";
+import type { RowComment } from "@rootset/contracts";
 import { Trash2 } from "./ui/icons";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { useConfirmation } from "./settings/ui";
@@ -24,60 +24,11 @@ interface CommentPage {
   hasMore: boolean;
   nextCursor: string | null;
 }
-const countKey = (tableId: string) => ["row-comment-counts", tableId];
-
-export function useRowCommentCounts(
-  target: Target,
-  rows: Row[],
-  container: RefObject<HTMLDivElement | null>,
-  enabled: boolean,
-) {
-  const [range, setRange] = useState({ start: 0, size: 50 });
-  useEffect(() => {
-    const grid = container.current?.querySelector<HTMLElement>('[role="grid"]');
-    if (!grid) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const measure = () => {
-      const start = Math.max(0, Math.floor(grid.scrollTop / 32) - 8);
-      const size = Math.min(200, Math.ceil(grid.clientHeight / 32) + 16);
-      setRange((previous) =>
-        previous.start === start && previous.size === size
-          ? previous
-          : { start, size },
-      );
-    };
-    const scroll = () => {
-      clearTimeout(timer);
-      timer = setTimeout(measure, 80);
-    };
-    measure();
-    grid.addEventListener("scroll", scroll, { passive: true });
-    const observer = new ResizeObserver(measure);
-    observer.observe(grid);
-    return () => {
-      clearTimeout(timer);
-      observer.disconnect();
-      grid.removeEventListener("scroll", scroll);
-    };
-  }, [container, rows]);
-  const rowIds = rows
-    .slice(range.start, range.start + range.size)
-    .map((row) => row.id);
-  return useQuery({
-    queryKey: [...countKey(target.tableId), rowIds],
-    queryFn: ({ signal }) =>
-      client.operation<{ data: { rowId: string; count: number }[] }>(
-        "countRowComments",
-        { ...target, rowIds },
-        { signal },
-      ),
-    enabled: enabled && rowIds.length > 0,
-    staleTime: 10_000,
-  });
-}
-
 function relativeTime(value: string, now: number, locale: string): string {
-  const seconds = Math.round((new Date(value).getTime() - now) / 1000);
+  const seconds = Math.min(
+    0,
+    Math.round((new Date(value).getTime() - now) / 1000),
+  );
   const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
   if (Math.abs(seconds) < 60) return formatter.format(seconds, "second");
   if (Math.abs(seconds) < 3600)
@@ -87,25 +38,51 @@ function relativeTime(value: string, now: number, locale: string): string {
   return formatter.format(Math.round(seconds / 86400), "day");
 }
 
-export function RowComments({
+interface RowCommentsProps {
+  target: Target & { rowId: string };
+  rowNumber: number;
+  isOpen: boolean;
+  canCreate: boolean;
+  locale: string;
+  timeZone: string;
+  onClose: () => void;
+  onPresenceChange: (rowId: string, hasComments: boolean) => void;
+}
+
+export function RowComments(props: RowCommentsProps) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Drawer
+      isOpen={props.isOpen}
+      onOpenChange={(open) => {
+        if (!open && !busy) props.onClose();
+      }}
+    >
+      <Drawer.Backdrop isDismissable={false} isKeyboardDismissDisabled={busy}>
+        <Drawer.Content placement="right">
+          <RowDiscussion {...props} busy={busy} setBusy={setBusy} />
+        </Drawer.Content>
+      </Drawer.Backdrop>
+    </Drawer>
+  );
+}
+
+function RowDiscussion({
   target,
   rowNumber,
   canCreate,
   locale,
   timeZone,
-  onClose,
-}: {
-  target: Target & { rowId: string };
-  rowNumber: number;
-  canCreate: boolean;
-  locale: string;
-  timeZone: string;
-  onClose: () => void;
+  onPresenceChange,
+  busy,
+  setBusy,
+}: RowCommentsProps & {
+  busy: boolean;
+  setBusy: (busy: boolean) => void;
 }) {
   const cache = useQueryClient();
   const confirmation = useConfirmation();
   const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now);
   const attempt = useRef(new MutationAttempt());
@@ -125,15 +102,25 @@ export function RowComments({
       ),
     gcTime: 0,
   });
+  const displayTime = Math.max(now, comments.dataUpdatedAt);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (cursor === null && comments.data)
+      onPresenceChange(target.rowId, comments.data.data.length > 0);
+  }, [cursor, comments.data, target.rowId, onPresenceChange]);
   async function refresh() {
-    await Promise.all([
-      cache.invalidateQueries({ queryKey: key }),
-      cache.invalidateQueries({ queryKey: countKey(target.tableId) }),
-    ]);
+    await cache.invalidateQueries({ queryKey: key });
+    if (cursor !== null) {
+      const firstPage = await client.operation<CommentPage>("listRowComments", {
+        ...target,
+        limit: 1,
+        cursor: null,
+      });
+      onPresenceChange(target.rowId, firstPage.data.length > 0);
+    }
   }
   async function create() {
     if (busy || !body.trim() || !canCreate) return;
@@ -163,7 +150,7 @@ export function RowComments({
     if (
       !(await confirmation.confirm(
         "Delete comment?",
-        "This permanently removes the comment.",
+        "This permanently removes the comment’s content. The comment log will remain and cannot be removed.",
         "Delete comment",
       ))
     )
@@ -189,13 +176,15 @@ export function RowComments({
     }
   }
   return (
-    <Dialog
-      title={`Row ${rowNumber} comments`}
-      onClose={onClose}
-      closeDisabled={busy}
-      className="row-comments-dialog"
-    >
-      <div className="row-discussion" aria-busy={busy || comments.isFetching}>
+    <Drawer.Dialog className="row-comments-drawer">
+      <Drawer.Header className="row-comments-header">
+        <Drawer.Heading>Row {rowNumber} comments</Drawer.Heading>
+        <Drawer.CloseTrigger aria-label="Close comments" isDisabled={busy} />
+      </Drawer.Header>
+      <Drawer.Body
+        className="row-discussion"
+        aria-busy={busy || comments.isFetching}
+      >
         {comments.isPending && (
           <p role="status" className="text-muted">
             Loading comments…
@@ -226,7 +215,7 @@ export function RowComments({
                 className="size-7 shrink-0"
                 aria-label={comment.authorName}
               >
-                <Avatar.Fallback>
+                <Avatar.Fallback className="text-xs">
                   {comment.authorName
                     .trim()
                     .split(/\s+/)
@@ -247,12 +236,16 @@ export function RowComments({
                       timeZone,
                     })}
                   >
-                    {relativeTime(comment.createdAt, now, locale)}
+                    {relativeTime(comment.createdAt, displayTime, locale)}
                   </time>
                 </div>
-                <p className="row-comment-body">{comment.body}</p>
+                <p
+                  className={`row-comment-body${comment.deletedAt ? " row-comment-deleted" : ""}`}
+                >
+                  {comment.deletedAt ? "comment deleted" : comment.body}
+                </p>
               </div>
-              {comment.canDelete && (
+              {comment.canDelete && !comment.deletedAt && (
                 <Button
                   variant="ghost"
                   isIconOnly
@@ -304,49 +297,57 @@ export function RowComments({
             </Button>
           </div>
         )}
-        {error && (
-          <p role="alert" className="row-comment-error">
-            {error}
-          </p>
-        )}
-        {canCreate && (
-          <form
-            className="row-comment-composer"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void create();
-            }}
-          >
-            <label htmlFor="row-comment-body">Add a comment</label>
-            <Textarea
-              ref={composer}
-              id="row-comment-body"
-              name="comment"
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              maxLength={4096}
-              rows={3}
-              disabled={busy}
-              placeholder="Write a comment…"
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                  event.preventDefault();
-                  void create();
-                }
+      </Drawer.Body>
+      {(canCreate || error) && (
+        <Drawer.Footer className="row-comments-footer">
+          {error && (
+            <p role="alert" className="row-comment-error">
+              {error}
+            </p>
+          )}
+          {canCreate && (
+            <form
+              className="row-comment-composer"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void create();
               }}
-            />
-            <div className="row-comment-compose-actions">
-              <span className="text-muted">
-                {body.length.toLocaleString()} / 4,096
-              </span>
-              <Button type="submit" isDisabled={busy || !body.trim()}>
-                {busy ? "Saving…" : "Add comment"}
-              </Button>
-            </div>
-          </form>
-        )}
-      </div>
+            >
+              <label htmlFor="row-comment-body">Add a comment</label>
+              <Textarea
+                ref={composer}
+                variant="secondary"
+                id="row-comment-body"
+                name="comment"
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                maxLength={4096}
+                rows={3}
+                disabled={busy}
+                placeholder="Write a comment…"
+                onKeyDown={(event) => {
+                  if (
+                    (event.metaKey || event.ctrlKey) &&
+                    event.key === "Enter"
+                  ) {
+                    event.preventDefault();
+                    void create();
+                  }
+                }}
+              />
+              <div className="row-comment-compose-actions">
+                <span className="text-muted">
+                  {body.length.toLocaleString()} / 4,096
+                </span>
+                <Button type="submit" isDisabled={busy || !body.trim()}>
+                  {busy ? "Saving…" : "Add comment"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </Drawer.Footer>
+      )}
       {confirmation.dialog}
-    </Dialog>
+    </Drawer.Dialog>
   );
 }

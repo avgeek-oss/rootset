@@ -3415,6 +3415,7 @@ export type listRowsOutput = {
     version: string;
     createdAt: string;
     updatedAt: string;
+    hasComments?: boolean;
     values: Record<
       string,
       null | boolean | number | string | unknown[] | Record<string, unknown>
@@ -3478,6 +3479,7 @@ export type queryRowsOutput = {
     version: string;
     createdAt: string;
     updatedAt: string;
+    hasComments?: boolean;
     values: Record<
       string,
       null | boolean | number | string | unknown[] | Record<string, unknown>
@@ -3504,6 +3506,7 @@ export type getRowOutput = {
   version: string;
   createdAt: string;
   updatedAt: string;
+  hasComments?: boolean;
   values: Record<
     string,
     null | boolean | number | string | unknown[] | Record<string, unknown>
@@ -3525,6 +3528,7 @@ export type createRowOutput = {
     version: string;
     createdAt: string;
     updatedAt: string;
+    hasComments?: boolean;
     values: Record<
       string,
       null | boolean | number | string | unknown[] | Record<string, unknown>
@@ -3548,6 +3552,7 @@ export type listRowCommentsOutput = {
     authorName: string;
     body: string;
     createdAt: string;
+    deletedAt: string | null;
     canDelete: boolean;
   }[];
   nextCursor?: unknown;
@@ -3596,6 +3601,7 @@ export type updateRowOutput = {
     version: string;
     createdAt: string;
     updatedAt: string;
+    hasComments?: boolean;
     values: Record<
       string,
       null | boolean | number | string | unknown[] | Record<string, unknown>
@@ -3649,6 +3655,7 @@ export type mutateRowsOutput =
           version: string;
           createdAt: string;
           updatedAt: string;
+          hasComments?: boolean;
           values: Record<
             string,
             | null

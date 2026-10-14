@@ -20,6 +20,7 @@ interface StoredComment {
   actor: Actor;
   body: string;
   created_at: Date;
+  deleted_at: Date | null;
   cursor_time: string;
 }
 
@@ -136,7 +137,8 @@ export async function rowComments(
             authorName: comment.author_name_snapshot,
             body: comment.body,
             createdAt: comment.created_at.toISOString(),
-            canDelete: canDelete(actor, comment),
+            deletedAt: comment.deleted_at?.toISOString() ?? null,
+            canDelete: !comment.deleted_at && canDelete(actor, comment),
           };
           const size = Buffer.byteLength(JSON.stringify(publicComment)) + 1;
           if (bytes + size > budget) break;
@@ -223,7 +225,7 @@ export async function rowComments(
               403,
             );
           await client.query(
-            "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND id=$2",
+            "UPDATE rootset_control.row_comments SET body='',deleted_at=clock_timestamp() WHERE org_id=$1 AND id=$2 AND deleted_at IS NULL",
             [actor.orgId, comment.id],
           );
           return { deleted: true };

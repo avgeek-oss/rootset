@@ -264,6 +264,11 @@ function parameter(field: FieldDefinition, value: JsonValue): unknown {
   if (field.type === "time") return String(value).replace(/Z$/, "");
   return value;
 }
+function commentPresence(t: TableRecord, params: unknown[]): string {
+  params.push(t.orgId, t.id);
+  return `EXISTS(SELECT 1 FROM rootset_control.row_comments c WHERE c.org_id=$${params.length - 1} AND c.table_id=$${params.length} AND c.row_id=${tablePath(t)}.row_id) AS has_comments`;
+}
+
 function rowFrom(raw: Raw, fields: readonly FieldDefinition[]): Row {
   const values: Record<string, JsonValue> = {};
   for (const field of fields) {
@@ -287,6 +292,9 @@ function rowFrom(raw: Raw, fields: readonly FieldDefinition[]): Row {
     version: String(raw.row_version),
     createdAt: iso(raw.created_at),
     updatedAt: iso(raw.updated_at),
+    ...(typeof raw.has_comments === "boolean"
+      ? { hasComments: raw.has_comments }
+      : {}),
     values,
   };
 }
@@ -1720,9 +1728,11 @@ export class TableStorage {
   async getRow(a: Actor, tableId: string, rowId: string): Promise<Row> {
     return this.run(a, async (c) => {
       const t = await this.table(c, a, tableId);
+      const params: unknown[] = [id(rowId)];
+      const presence = commentPresence(t, params);
       const r = await c.query<Raw>(
-        `SELECT * FROM ${tablePath(t)} WHERE row_id=$1`,
-        [id(rowId)],
+        `SELECT *,${presence} FROM ${tablePath(t)} WHERE row_id=$1`,
+        params,
       );
       if (!r.rows[0]) fail("RESOURCE_NOT_FOUND", "Row was not found", 404);
       return rowFrom(r.rows[0], t.fields);
@@ -1793,6 +1803,7 @@ export class TableStorage {
             ),
           ].map((f) => [f.id, f]),
         );
+        const presence = commentPresence(t, params);
         params.push(compiled.limit + 1);
         await c.query("SELECT set_config('statement_timeout',$1,true)", [
           String(limits.queryTimeoutMs),
@@ -1810,7 +1821,7 @@ export class TableStorage {
           fail("VALIDATION_FAILED", "Invalid response byte budget");
         const deadline = Date.now() + limits.queryTimeoutMs;
         await c.query(
-          `DECLARE rootset_page NO SCROLL CURSOR FOR SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length}`,
+          `DECLARE rootset_page NO SCROLL CURSOR FOR SELECT row_id,row_version,created_at,updated_at,${presence}${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length}`,
           params,
         );
         const data: Row[] = [];
@@ -2898,6 +2909,7 @@ export class TableStorage {
     sessionId: string;
     position: number;
     totalRows: number | null;
+    estimatedTotalRows: number | null;
     tableRowCount: number;
     countKind: "live" | "exact" | "unknown";
     anchorsReady: boolean;
@@ -3033,12 +3045,13 @@ export class TableStorage {
         const localOffset = Math.max(0, desired - rank);
         if (localOffset >= 10000)
           fail("QUERY_TIMEOUT", "Window anchors need refreshing");
+        const presence = commentPresence(t, params);
         params.push(compiled.limit + 1, localOffset);
         const needed = new Map(compiled.projection.map((f) => [f.id, f]));
         for (const sort of compiled.sorts)
           if (sort.fieldId) needed.set(sort.fieldId, fieldFor(t, sort.fieldId));
         const raw = await c.query<Raw>(
-          `SELECT row_id,row_version,created_at,updated_at${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+          `SELECT row_id,row_version,created_at,updated_at,${presence}${needed.size ? "," + [...needed.values()].map((f) => q(fieldColumn(f))).join(",") : ""} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT $${params.length - 1} OFFSET $${params.length}`,
           params,
         );
         const binding = {
@@ -3070,11 +3083,28 @@ export class TableStorage {
               ),
           },
         );
+        let estimatedTotalRows: number | null = null;
+        if (query.where && totalRows === null && page.page.hasMore) {
+          const plan = await c.query<{
+            "QUERY PLAN": { Plan: { "Plan Rows": number } }[];
+          }>(
+            `EXPLAIN (FORMAT JSON) SELECT 1 FROM ${tablePath(t)} WHERE ${compiled.where}`,
+            compiled.params,
+          );
+          estimatedTotalRows = Math.max(
+            raw.rows.length,
+            Math.min(
+              t.rowCount,
+              plan.rows[0]!["QUERY PLAN"][0]!.Plan["Plan Rows"],
+            ),
+          );
+        }
         return {
           result: page,
           sessionId,
           position: desired,
           totalRows,
+          estimatedTotalRows,
           tableRowCount: t.rowCount,
           countKind: query.where
             ? totalRows === null
