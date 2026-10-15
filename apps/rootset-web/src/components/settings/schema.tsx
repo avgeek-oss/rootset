@@ -24,7 +24,8 @@ import {
 import { Dialog } from "../dialog";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
-import { Check, ChevronDown, ChevronUp } from "../ui/icons";
+import { Check } from "../ui/icons";
+import { FieldTable } from "./field-table";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { fieldConstraints } from "./field-constraints";
 import {
@@ -259,15 +260,15 @@ export function FieldForm({
               { value: "choices", label: "Only these choices" },
             ]}
             onChange={(next) => patch("restrictValues", next === "choices")}
-            description="Choices match exactly, including case and spaces. Optional fields also allow NULL."
           />
           {value.restrictValues && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {value.allowedValues.map((choice, index) => (
                 <div key={index} className="flex items-end gap-2">
                   <div className="min-w-0 flex-1">
                     <Field
-                      label={`Choice ${index + 1}`}
+                      label={index === 0 ? "Choices" : `Choice ${index + 1}`}
+                      hideLabel={index > 0}
                       value={choice}
                       multiline
                       rows={Math.min(3, choice.split(/\r?\n/).length)}
@@ -283,7 +284,7 @@ export function FieldForm({
                     />
                   </div>
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     isDisabled={busy}
                     aria-label={`Remove choice ${index + 1}`}
                     onPress={() =>
@@ -305,6 +306,7 @@ export function FieldForm({
                 </p>
               )}
               <Button
+                className="mt-1"
                 variant="secondary"
                 isDisabled={
                   busy || value.allowedValues.length >= limits.maxAllowedValues
@@ -315,11 +317,6 @@ export function FieldForm({
               >
                 Add choice
               </Button>
-              <p className="settings-muted">
-                Up to {limits.maxAllowedValues} distinct, nonempty choices.
-                Removing or renaming a choice in use fails until those cells and
-                any default are updated.
-              </p>
             </div>
           )}
         </>
@@ -590,12 +587,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
       }
     }
   }
-  async function move(field: TableField, direction: number) {
-    const ids = schema.data.fields.map((item) => item.id);
-    const position = ids.indexOf(field.id);
-    const next = position + direction;
-    if (next < 0 || next >= ids.length) return;
-    [ids[position], ids[next]] = [ids[next]!, ids[position]!];
+  async function reorder(ids: string[]) {
     const result = await mutation.run(
       () =>
         write<TableSchemaResult | { jobId: string }>(
@@ -616,57 +608,26 @@ export function FieldsSettings(props: SettingsPanelProps) {
       <PageSelectionTitle label="Fields" actions={actions} />
       <Loading {...schema} retry={schema.reload} />
       {(!schema.loading || schema.data.fields.length > 0) && !schema.error && (
-        <ResourceTable
-          ariaLabel="Fields"
+        <FieldTable
           items={schema.data.fields}
-          getRowKey={(field) => field.id}
-          mobileLayout="stacked"
-          tableClassName="rootset-fields-table"
-          emptyTitle="No fields yet"
-          emptyDescription="Add a field to define the columns and values this table can store."
+          disabled={disabled}
+          onReorder={reorder}
           emptyAction={actions}
           columns={[
             {
               key: "name",
               header: "Column name",
-              cell: (field) => {
-                const position = schema.data.fields.indexOf(field);
-                return (
-                  <div className="field-name-cell">
-                    <div className="field-order-actions">
-                      <Button
-                        isIconOnly
-                        variant="ghost"
-                        aria-label={`Move ${field.name} up`}
-                        isDisabled={disabled || position === 0}
-                        onPress={() => move(field, -1)}
-                      >
-                        <ChevronUp />
-                      </Button>
-                      <Button
-                        isIconOnly
-                        variant="ghost"
-                        aria-label={`Move ${field.name} down`}
-                        isDisabled={
-                          disabled || position === schema.data.fields.length - 1
-                        }
-                        onPress={() => move(field, 1)}
-                      >
-                        <ChevronDown />
-                      </Button>
-                    </div>
-                    <ResourceName
-                      name={field.name}
-                      description={
-                        <span className="inline-flex items-center gap-1.5">
-                          <FieldTypeIcon type={field.type} size={14} />
-                          {field.type}
-                        </span>
-                      }
-                    />
-                  </div>
-                );
-              },
+              cell: (field) => (
+                <ResourceName
+                  name={field.name}
+                  description={
+                    <span className="inline-flex items-center gap-1.5">
+                      <FieldTypeIcon type={field.type} size={14} />
+                      {field.type}
+                    </span>
+                  }
+                />
+              ),
             },
             {
               key: "required",
@@ -695,6 +656,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
             {
               key: "constraints",
               header: "Constraints",
+              mobileFullWidth: true,
               className: "field-constraints",
               cell: (field) => {
                 const constraints = fieldConstraints(

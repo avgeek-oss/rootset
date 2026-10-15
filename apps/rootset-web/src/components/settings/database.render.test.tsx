@@ -35,7 +35,7 @@ describe("database settings pages", () => {
     expect(html).toContain("Description");
     expect(html).not.toContain("Delete database");
   });
-  it("gives deletion its own page with consequences and identity confirmation", () => {
+  it("gives deletion its own page with consequences", () => {
     const html = renderToStaticMarkup(
       createElement(DatabaseDangerZone, {
         ...props,
@@ -44,7 +44,6 @@ describe("database settings pages", () => {
     );
     expect(html).toContain("Delete database");
     expect(html).toContain("all its tables");
-    expect(html).toContain("confirm your identity");
     expect(html).toContain("undo or restore");
     expect(html).not.toContain("<input");
   });

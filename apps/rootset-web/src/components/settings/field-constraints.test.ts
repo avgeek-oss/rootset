@@ -2,6 +2,31 @@ import { describe, expect, it } from "vitest";
 import { fieldConstraints } from "./field-constraints";
 
 describe("field constraints summary", () => {
+  it("shows choices below ten and switches to a count at ten", () => {
+    const choices = [
+      "active",
+      "planned",
+      "NULL",
+      " unknown ",
+      "line\nbreak",
+      "ceased",
+      "merged",
+      "suspended",
+      "draft",
+    ];
+    const field = {
+      id: "state",
+      name: "STATE",
+      type: "text" as const,
+      allowedValues: choices,
+    };
+    expect(fieldConstraints(field)).toEqual([
+      'active, planned, "NULL", " unknown ", "line\\nbreak", ceased, merged, suspended, draft',
+    ]);
+    expect(
+      fieldConstraints({ ...field, allowedValues: [...choices, "archived"] }),
+    ).toEqual(["10 allowed values"]);
+  });
   it("keeps zero bounds and leaves defaults to their own column", () => {
     expect(
       fieldConstraints({

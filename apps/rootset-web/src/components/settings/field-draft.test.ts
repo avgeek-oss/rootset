@@ -269,7 +269,7 @@ describe("allowed-value field drafts", () => {
     );
     expect(html).toContain("Allowed values");
     expect(html).toContain("Only these choices");
-    expect(html).toContain("Choice 1");
+    expect(html).toContain("Choices");
     expect(html).toContain("Choice 2");
     expect(html).toContain("Add choice");
     expect(html).toContain('aria-label="Remove choice 1"');
