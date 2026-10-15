@@ -20,6 +20,7 @@ import {
   Refresh01Icon,
   DatabaseIcon,
   Comment01Icon,
+  ArrowUpRight01Icon,
 } from "@hugeicons/core-free-icons";
 import type { ComponentProps } from "react";
 
@@ -52,3 +53,4 @@ export const ChevronDown = makeIcon(ArrowDown01Icon);
 export const ChevronUp = makeIcon(ArrowUp01Icon);
 export const Check = makeIcon(Tick02Icon);
 export const MessageSquare = makeIcon(Comment01Icon);
+export const ArrowUpRight = makeIcon(ArrowUpRight01Icon);

@@ -25,6 +25,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
+import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
 import { Pagination } from "@avgeek-oss/design-system/navigation/pagination";
@@ -38,6 +39,7 @@ import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
   type FilterNode,
+  type ForeignKey,
   type FieldDefinition,
   type Row,
   type JsonValue,
@@ -61,6 +63,11 @@ import { DebouncedSave } from "../lib/debounced-save";
 import { CellUndoStack } from "../lib/cell-undo";
 import { CellEditor, formatCellValue } from "./cells";
 import { ImageCell } from "./cells/ImageCell";
+import { ForeignKeyLinks } from "./foreign-key-links";
+import {
+  foreignKeyLinks,
+  readLinkedTableFilter,
+} from "../lib/foreign-key-navigation";
 import { Dialog } from "./dialog";
 import { RowComments } from "./row-comments";
 import { useConfirmation } from "./settings/ui";
@@ -122,6 +129,7 @@ export function Spreadsheet({
   preferences,
   canEdit,
   canManage,
+  linkedFilter = null,
   onSettings,
   onChanged,
 }: {
@@ -131,6 +139,7 @@ export function Spreadsheet({
   preferences: Preferences;
   canEdit: boolean;
   canManage: boolean;
+  linkedFilter?: string | null;
   onSettings: (section: string) => void;
   onChanged: () => void;
 }) {
@@ -156,7 +165,14 @@ export function Spreadsheet({
   const mounted = useRef(true);
   const viewSaveToast = useRef<string | undefined>(undefined);
   const [rows, setRows] = useState<Row[]>([]);
-  const [query, setQuery] = useState<QuerySpec>({ limit: windowLimit });
+  const [initialFilter] = useState(() => readLinkedTableFilter(linkedFilter));
+  const [linkedFilterError, setLinkedFilterError] = useState(
+    initialFilter.error,
+  );
+  const [query, setQuery] = useState<QuerySpec>({
+    limit: windowLimit,
+    ...(initialFilter.where ? { where: initialFilter.where } : {}),
+  });
   const [windowStart, setWindowStart] = useState(0);
   const [windowInfo, setWindowInfo] = useState<WindowResult | null>(null);
   const [filteredCount, setFilteredCount] = useState<{
@@ -194,7 +210,7 @@ export function Spreadsheet({
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
-    [],
+    initialFilter.conditions,
   );
   const [filterCombination, setFilterCombination] =
     useState<FilterCombination>("and");
@@ -331,6 +347,21 @@ export function Spreadsheet({
     !error;
   const gridRows: GridRow[] = rows.length ? rows : placeholderRows;
   const fields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
+  const fieldNames = useMemo(
+    () => new Map(fields.map((field) => [field.id, field.name])),
+    [fields],
+  );
+  const foreignKeysByField = useMemo(() => {
+    const byField = new Map<string, ForeignKey[]>();
+    for (const rule of schema.data?.foreignKeys ?? []) {
+      for (const fieldId of rule.fieldIds) {
+        const rules = byField.get(fieldId) ?? [];
+        rules.push(rule);
+        byField.set(fieldId, rules);
+      }
+    }
+    return byField;
+  }, [schema.data]);
   const writable =
     canEdit &&
     !accessRevoked &&
@@ -433,6 +464,7 @@ export function Spreadsheet({
       cursor?: string | null,
       direction?: "next" | "previous",
     ) => {
+      if (linkedFilterError) return;
       if (direction && fetchingWindow.current) return;
       fetchingWindow.current = true;
       abort.current?.abort();
@@ -636,6 +668,7 @@ export function Spreadsheet({
       queryDigest,
       orgId,
       databaseId,
+      linkedFilterError,
     ],
   );
 
@@ -1280,6 +1313,8 @@ export function Spreadsheet({
     where: FilterNode | undefined,
   ) {
     leaveEditor(() => {
+      setLinkedFilterError(undefined);
+      setError(null);
       setQuery((current) => ({
         limit: windowLimit,
         ...(current.orderBy ? { orderBy: current.orderBy } : {}),
@@ -1425,10 +1460,25 @@ export function Spreadsheet({
         <Tooltip delay={250} closeDelay={0}>
           <Tooltip.Trigger
             tabIndex={-1}
-            className="inline-flex max-w-full items-center gap-1.5 align-middle"
+            className="inline-flex w-full min-w-0 max-w-full items-center gap-1.5 align-middle"
           >
             <FieldTypeIcon type={field.type} size={14} />
-            <span className="truncate">{field.name}</span>
+            <span className="min-w-0 flex-1 truncate text-left">
+              {field.name}
+            </span>
+            {foreignKeysByField.has(field.id) && (
+              <Chip
+                size="sm"
+                color="accent"
+                variant="primary"
+                className="shrink-0"
+                aria-label="Foreign key"
+              >
+                <Chip.Label className="text-xs font-medium italic">
+                  fk
+                </Chip.Label>
+              </Chip>
+            )}
           </Tooltip.Trigger>
           <Tooltip.Content placement="top">
             {field.type === "time" ? "UTC time" : field.type}
@@ -1471,7 +1521,7 @@ export function Spreadsheet({
           ? "range-selected"
           : undefined;
       },
-      renderCell: ({ row }) =>
+      renderCell: ({ row, tabIndex }) =>
         isPlaceholderRow(row) ? (
           filteredEmpty && index === 0 && row.placeholderIndex === 0 ? (
             <span className="empty-filter-message">
@@ -1482,29 +1532,48 @@ export function Spreadsheet({
           <span
             data-cell-loaded={Object.hasOwn(row.values, field.name)}
             className={
-              row.values[field.name] === null
-                ? "null-value"
-                : field.type === "boolean" &&
-                    typeof row.values[field.name] === "boolean"
-                  ? `cell-boolean-${row.values[field.name]}`
-                  : undefined
+              foreignKeysByField.has(field.id) ? "foreign-key-cell" : undefined
             }
           >
-            {!Object.hasOwn(row.values, field.name) ? null : field.type ===
-                "image" && typeof row.values[field.name] === "string" ? (
-              <ImageCell
-                key={String(row.values[field.name])}
-                src={String(row.values[field.name])}
-                name={field.name}
-              />
-            ) : (
-              formatCellValue(field, row.values[field.name] ?? null, {
-                timeZone: preferences.timezone,
-                locale: preferences.locale,
-                dateFormat: preferences.dateFormat,
-                timeFormat: preferences.timeFormat,
-              })
-            )}
+            <span
+              className={`${foreignKeysByField.has(field.id) ? "foreign-key-cell-value " : ""}${
+                row.values[field.name] === null
+                  ? "null-value"
+                  : field.type === "boolean" &&
+                      typeof row.values[field.name] === "boolean"
+                    ? `cell-boolean-${row.values[field.name]}`
+                    : ""
+              }`}
+            >
+              {!Object.hasOwn(row.values, field.name) ? null : field.type ===
+                  "image" && typeof row.values[field.name] === "string" ? (
+                <ImageCell
+                  key={String(row.values[field.name])}
+                  src={String(row.values[field.name])}
+                  name={field.name}
+                />
+              ) : (
+                formatCellValue(field, row.values[field.name] ?? null, {
+                  timeZone: preferences.timezone,
+                  locale: preferences.locale,
+                  dateFormat: preferences.dateFormat,
+                  timeFormat: preferences.timeFormat,
+                })
+              )}
+            </span>
+            {!accessRevoked &&
+              !staleResults &&
+              foreignKeysByField.has(field.id) && (
+                <ForeignKeyLinks
+                  links={foreignKeyLinks(
+                    databaseId,
+                    foreignKeysByField.get(field.id)!,
+                    row,
+                    fieldNames,
+                  )}
+                  tabIndex={tabIndex}
+                />
+              )}
           </span>
         ),
       renderEditCell: ({ onClose }) => (
@@ -1575,6 +1644,14 @@ export function Spreadsheet({
         <p className="error-banner" role="alert">
           {error}
           <button onClick={() => void loadWindow(windowStart)}>Retry</button>
+        </p>
+      )}
+      {linkedFilterError && (
+        <p className="error-banner" role="alert">
+          {linkedFilterError}
+          <button onClick={() => applyFilters([], "and", undefined)}>
+            Clear filter
+          </button>
         </p>
       )}
       {(schema.data?.table.state ?? table.state) !== "active" && canEdit && (
