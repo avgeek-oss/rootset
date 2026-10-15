@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
+import { TypographyCode } from "@avgeek-oss/design-system/typography/typography";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   createDateTimeFormatter,
@@ -185,11 +186,15 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
                 <span className="block max-w-md break-words">
                   {run.error ??
                     run.note ??
-                    (run.objectKey
-                      ? `s3://${run.bucket}/${run.objectKey}`
-                      : run.kind === "destination_test"
-                        ? "Destination test"
-                        : "—")}
+                    (run.objectKey ? (
+                      <TypographyCode className="block w-80 whitespace-normal break-all">
+                        {`${run.bucket}/${run.objectKey}`}
+                      </TypographyCode>
+                    ) : run.kind === "destination_test" ? (
+                      "Destination test"
+                    ) : (
+                      "—"
+                    ))}
                   {run.skippedUntil && (
                     <span className="block text-muted">
                       Through {format(run.skippedUntil).dateTime}
