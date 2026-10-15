@@ -7,7 +7,7 @@ import { TableIcon } from "@hugeicons/core-free-icons";
 import type { TableSummary } from "@rootset/contracts";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Widget } from "@avgeek-oss/design-system/data-display/widget";
-import { AppShell } from "@avgeek-oss/design-system";
+import { AppShell, ContentPage } from "@avgeek-oss/design-system";
 import { formatStorageBytes } from "../lib/format-storage";
 import { dataHref } from "./settings/navigation";
 
@@ -30,20 +30,29 @@ export function TablesPage({
 }) {
   return (
     <AppShell.Content className="pt-0 sm:pt-0" variant="broad">
-      <section className="grid min-w-0" aria-busy={pending}>
-        <div className="py-5">
-          <header className="flex flex-nowrap items-center justify-between gap-4">
-            <h1 className="inline-flex min-w-0 items-center gap-2 text-xl font-medium">
-              <HugeiconsIcon icon={TableIcon} size={20} aria-hidden />
-              Tables
-            </h1>
-            {canCreate && (
-              <Button className="shrink-0" onPress={onCreate}>
-                Create table
-              </Button>
-            )}
-          </header>
-        </div>
+      <ContentPage
+        title="Tables"
+        breadcrumbAncestors={[]}
+        aria-busy={pending}
+        titleContent={
+          <span className="inline-flex min-w-0 items-center gap-2">
+            <HugeiconsIcon
+              icon={TableIcon}
+              size={24}
+              className="shrink-0"
+              aria-hidden
+            />
+            Tables
+          </span>
+        }
+        actions={
+          canCreate ? (
+            <Button className="shrink-0" onPress={onCreate}>
+              Create table
+            </Button>
+          ) : undefined
+        }
+      >
         {error && (
           <div className="grid justify-items-start gap-2">
             <p className="error-message" role="alert">
@@ -105,7 +114,7 @@ export function TablesPage({
             )}
           </div>
         ) : null}
-      </section>
+      </ContentPage>
     </AppShell.Content>
   );
 }

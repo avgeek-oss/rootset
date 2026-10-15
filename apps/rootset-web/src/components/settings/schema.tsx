@@ -710,7 +710,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
             {
               key: "constraints",
               header: "Constraints",
-              mobileFullWidth: true,
               className: "field-constraints",
               cell: (field) => {
                 const constraints = fieldConstraints(
@@ -727,7 +726,6 @@ export function FieldsSettings(props: SettingsPanelProps) {
             {
               key: "actions",
               header: "Actions",
-              mobileFullWidth: true,
               headerClassName: "text-right",
               cell: (field) => (
                 <div className="field-edit-actions">
@@ -904,7 +902,7 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
             ariaLabel="Unique rules"
             items={schema.data.uniqueRules}
             getRowKey={(rule) => rule.id}
-            mobileLayout="stacked"
+            tableClassName="min-w-2xl"
             emptyTitle="No unique rules yet"
             emptyDescription="Create a rule to prevent duplicate values in a field or combination of fields."
             emptyAction={actions}
@@ -960,7 +958,6 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                 key: "actions",
                 header: "Actions",
                 headerClassName: "text-right",
-                mobileFullWidth: true,
                 cell: (rule) => (
                   <div className="field-edit-actions">
                     <Button

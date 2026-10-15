@@ -127,10 +127,9 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
           ariaLabel="Foreign keys"
           items={schema.data.foreignKeys}
           getRowKey={(rule) => rule.id}
-          mobileLayout="stacked"
+          tableClassName="min-w-2xl"
           emptyTitle="No foreign keys yet"
           emptyDescription="Link fields to a unique key in another table to validate their values."
-          emptyAction={actions}
           columns={[
             {
               key: "fields",
@@ -157,7 +156,6 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
               key: "actions",
               header: "Actions",
               headerClassName: "text-right",
-              mobileFullWidth: true,
               cell: (rule) => (
                 <div className="field-edit-actions">
                   <Button

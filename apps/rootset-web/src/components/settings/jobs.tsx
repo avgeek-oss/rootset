@@ -69,7 +69,7 @@ export function ExportRequestsTable({
       ariaLabel="Export Requests"
       items={requests}
       getRowKey={(request) => request.id}
-      mobileLayout="stacked"
+      tableClassName="min-w-3xl"
       emptyTitle="No export requests yet"
       emptyDescription="Create a request to download every row and field as CSV or JSONL."
       emptyAction={emptyAction}
@@ -117,7 +117,6 @@ export function ExportRequestsTable({
           key: "actions",
           header: "Actions",
           headerClassName: "text-right",
-          mobileFullWidth: true,
           cell: (request) => (
             <div className="field-edit-actions">
               {request.state === "succeeded" && request.result?.artifactId && (

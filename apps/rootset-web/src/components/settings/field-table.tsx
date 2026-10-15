@@ -62,7 +62,7 @@ export function FieldTable({
       <Table.ScrollContainer>
         <Table.Content
           aria-label="Fields"
-          className="rootset-fields-table resource-table--stacked"
+          className="rootset-fields-table min-w-4xl"
           dragAndDropHooks={dragAndDropHooks}
           keyboardNavigationBehavior="arrow"
         >
@@ -84,16 +84,8 @@ export function FieldTable({
                 {columns.map((column, index) => (
                   <Table.Cell
                     key={column.key}
-                    className={`align-middle ${column.className ?? ""} ${index === 0 || column.mobileFullWidth ? "resource-table-mobile-full" : ""}`}
+                    className={`align-middle ${column.className ?? ""}`}
                   >
-                    {index > 0 && (
-                      <span
-                        aria-hidden="true"
-                        className="resource-table-mobile-label"
-                      >
-                        {column.header}
-                      </span>
-                    )}
                     {index === 0 ? (
                       <div className="field-name-cell">
                         <Button
