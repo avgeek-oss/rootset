@@ -4580,6 +4580,126 @@ export type updateViewPreferencesOutput = {
       null | boolean | number | string | unknown[] | Record<string, unknown>;
   };
 };
+export type getBackupScheduleInput = { orgId: string; databaseId: string };
+export type getBackupScheduleOutput = {
+  schedule: {
+    bucket: string;
+    prefix: string;
+    cron: string;
+    timezone: string;
+    databaseId: string;
+    version: number;
+    enabled: boolean;
+    backendId: string;
+    nextRunAt: string | null;
+    testedAt: string | null;
+    updatedAt: string;
+  } | null;
+  worker: { available: boolean; backendId: unknown; matchesSchedule: boolean };
+  nextRuns: string[];
+};
+export type saveBackupScheduleInput = {
+  bucket: string;
+  prefix: string;
+  cron: string;
+  timezone: string;
+  enabled: boolean;
+  expectedVersion: number;
+  orgId: string;
+  databaseId: string;
+};
+export type saveBackupScheduleOutput = {
+  schedule: {
+    bucket: string;
+    prefix: string;
+    cron: string;
+    timezone: string;
+    databaseId: string;
+    version: number;
+    enabled: boolean;
+    backendId: string;
+    nextRunAt: string | null;
+    testedAt: string | null;
+    updatedAt: string;
+  } | null;
+  worker: { available: boolean; backendId: unknown; matchesSchedule: boolean };
+  nextRuns: string[];
+};
+export type previewBackupScheduleInput = {
+  cron: string;
+  timezone: string;
+  orgId: string;
+  databaseId: string;
+};
+export type previewBackupScheduleOutput = { nextRuns: string[] };
+export type listDatabaseBackupsInput = {
+  orgId: string;
+  databaseId: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listDatabaseBackupsOutput = {
+  data: {
+    id: string;
+    jobId: string | null;
+    kind: "backup" | "destination_test" | "skipped";
+    trigger: "manual" | "schedule";
+    state:
+      | "queued"
+      | "running"
+      | "succeeded"
+      | "failed"
+      | "cancelled"
+      | "skipped"
+      | "partially_completed";
+    stage: string;
+    scheduledAt: string;
+    skippedUntil: string | null;
+    snapshotAt: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    bucket: string;
+    objectKey: unknown;
+    sizeBytes: number | null;
+    checksum: unknown;
+    tableCount: number | null;
+    rowCount: number | null;
+    attempt: number;
+    error: unknown;
+    note: unknown;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type runDatabaseBackupInput = { orgId: string; databaseId: string };
+export type runDatabaseBackupOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type testBackupDestinationInput = {
+  bucket: string;
+  prefix: string;
+  orgId: string;
+  databaseId: string;
+};
+export type testBackupDestinationOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
 export interface CallOptions {
   signal?: AbortSignal;
   idempotencyKey?: string;
@@ -4973,6 +5093,36 @@ const routes = {
   updateViewPreferences: {
     path: "/v1/me/view-preferences/{tableId}",
     method: "PUT",
+    idempotencyRequired: true,
+  },
+  getBackupSchedule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  saveBackupSchedule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  previewBackupSchedule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule/preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  listDatabaseBackups: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  runDatabaseBackup: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backups",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  testBackupDestination: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule/test",
+    method: "POST",
     idempotencyRequired: true,
   },
 } as const;
@@ -5740,5 +5890,65 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<updateViewPreferencesOutput>;
+  }
+  getBackupSchedule(
+    input: getBackupScheduleInput,
+    options?: CallOptions,
+  ): Promise<getBackupScheduleOutput> {
+    return this.call(
+      "getBackupSchedule",
+      input,
+      options,
+    ) as Promise<getBackupScheduleOutput>;
+  }
+  saveBackupSchedule(
+    input: saveBackupScheduleInput,
+    options?: CallOptions,
+  ): Promise<saveBackupScheduleOutput> {
+    return this.call(
+      "saveBackupSchedule",
+      input,
+      options,
+    ) as Promise<saveBackupScheduleOutput>;
+  }
+  previewBackupSchedule(
+    input: previewBackupScheduleInput,
+    options?: CallOptions,
+  ): Promise<previewBackupScheduleOutput> {
+    return this.call(
+      "previewBackupSchedule",
+      input,
+      options,
+    ) as Promise<previewBackupScheduleOutput>;
+  }
+  listDatabaseBackups(
+    input: listDatabaseBackupsInput,
+    options?: CallOptions,
+  ): Promise<listDatabaseBackupsOutput> {
+    return this.call(
+      "listDatabaseBackups",
+      input,
+      options,
+    ) as Promise<listDatabaseBackupsOutput>;
+  }
+  runDatabaseBackup(
+    input: runDatabaseBackupInput,
+    options?: CallOptions,
+  ): Promise<runDatabaseBackupOutput> {
+    return this.call(
+      "runDatabaseBackup",
+      input,
+      options,
+    ) as Promise<runDatabaseBackupOutput>;
+  }
+  testBackupDestination(
+    input: testBackupDestinationInput,
+    options?: CallOptions,
+  ): Promise<testBackupDestinationOutput> {
+    return this.call(
+      "testBackupDestination",
+      input,
+      options,
+    ) as Promise<testBackupDestinationOutput>;
   }
 }

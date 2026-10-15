@@ -9,7 +9,7 @@ Use Admin access only for people and clients that need it. Member credentials ca
 
 ## Storage and recovery
 
-Use a private S3-compatible bucket with credentials limited to the bucket. Export artifacts are encrypted and downloads require authentication and current permissions. Keep PostgreSQL, private objects and the matching encryption key in your provider-level recovery plan. Database/table backup and restore are not Rootset features.
+Use a private S3-compatible bucket with credentials limited to the bucket. Export artifacts are encrypted and downloads require authentication and current permissions. Keep PostgreSQL, private objects and the matching encryption key in your provider-level recovery plan. [Database backups](/backups) use a separate optional worker destination and encryption key. Restore has no UI or public operation yet.
 
 The API, worker and UI run as an unprivileged user with read-only root filesystems, dropped capabilities and narrow writable mounts. They do not require a Docker socket. Keep databases and artifact storage on private networks where possible.
 

@@ -19,6 +19,7 @@ export type SettingsSection =
   | "mcp-connections"
   | "mcp"
   | "database"
+  | "backup-schedule"
   | "database-danger-zone"
   | "table-danger-zone"
   | "table"
@@ -207,6 +208,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "mcp-connections": "MCP Connections",
   mcp: "MCP Guide",
   database: "General",
+  "backup-schedule": "Backup Schedule",
   "database-danger-zone": "Danger Zone",
   table: "General",
   "table-danger-zone": "Danger Zone",
@@ -217,6 +219,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
+  "backup-schedule",
   "team-api-keys",
   "organisation",
   "members",

@@ -190,6 +190,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0004_field_constraints.sql",
         "0005_integer_auto_increment.sql",
         "0006_foreign_keys.sql",
+        "0007_database_backups.sql",
       ]);
     } else
       assert.deepEqual(await migrate(pool), [
@@ -198,6 +199,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0004_field_constraints.sql",
         "0005_integer_auto_increment.sql",
         "0006_foreign_keys.sql",
+        "0007_database_backups.sql",
       ]);
     const preservedTables = before.tables.filter(
       (name) => name !== "rootset_control.migrations",
@@ -215,7 +217,7 @@ for (const mode of ["SQL bridge", "migration runner"])
     );
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0006_foreign_keys.sql",
+      version: "0007_database_backups.sql",
     });
     assert.deepEqual(await migrate(pool), []);
     for (const row of rows) {
@@ -298,7 +300,7 @@ test("concurrent migration hooks apply the compatibility upgrade only once", asy
   const { pool, actor } = await fixture(t);
   const before = await snapshot(pool, actor.orgId);
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  assert.deepEqual(results.map((names) => names.length).sort(), [0, 5]);
+  assert.deepEqual(results.map((names) => names.length).sort(), [0, 6]);
   assert.equal(
     (await pool.query("SELECT count(*) FROM rootset_control.migration_repairs"))
       .rows[0].count,
@@ -354,6 +356,7 @@ test("a failure after schema creation rolls back all DDL, data and ledger change
     "0004_field_constraints.sql",
     "0005_integer_auto_increment.sql",
     "0006_foreign_keys.sql",
+    "0007_database_backups.sql",
   ]);
   assert.equal((await migrationStatus(pool)).complete, true);
 });

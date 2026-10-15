@@ -23,6 +23,7 @@ verificationCase(
         "0004_field_constraints.sql",
         "0005_integer_auto_increment.sql",
         "0006_foreign_keys.sql",
+        "0007_database_backups.sql",
       ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();

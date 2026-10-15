@@ -69,8 +69,19 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       webURL: baseURL,
       port: address.port,
       databaseURL: db.app.options.connectionString!,
+      backups: {
+        endpoint: process.env.ROOTSET_S3_ENDPOINT!,
+        region: process.env.ROOTSET_S3_REGION ?? "us-east-1",
+        accessKeyId: process.env.ROOTSET_S3_ACCESS_KEY!,
+        secretAccessKey: process.env.ROOTSET_S3_SECRET_KEY!,
+        encryptionKey: randomBytes(32),
+        tempDirectory: undefined,
+        maxBytes: 32 * 1024 ** 3,
+        forcePathStyle: true,
+      },
     };
     runtime = await createRuntime(config, {
+      worker: true,
       oauthClients: [
         {
           client_id: oauthClientId,
@@ -315,6 +326,76 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(created.row.values.SCORE, 1e20);
     assert.equal(created.row.values.UPDATED, "2026-10-02T12:34:56.000Z");
     const rowId = created.row.id;
+    await t.test(
+      "database backup REST and browser operations share Admin checks, destination tests and durable schedules",
+      async () => {
+        const backupWorkerId = newId();
+        await db.owner.query(
+          "INSERT INTO rootset_control.worker_heartbeats(id,state,backup_backend_id) VALUES($1,'ready',$2)",
+          [backupWorkerId, runtime!.jobs.backups.backendId],
+        );
+        const target = { orgId, databaseId };
+        for (const surface of ["browser", "rest"] as const) {
+          assert.equal(
+            (await call("getBackupSchedule", target, surface)).schedule,
+            null,
+          );
+          const preview = await call(
+            "previewBackupSchedule",
+            { ...target, cron: "0 2 * * *", timezone: "Asia/Kolkata" },
+            surface,
+          );
+          assert.equal(preview.nextRuns.length, 3);
+        }
+        await call(
+          "getBackupSchedule",
+          target,
+          "rest",
+          403,
+          newId(),
+          readKey.secret,
+        );
+        const destination = {
+          bucket: config.artifacts.bucket,
+          prefix: `runtime-backups/${newId()}`,
+        };
+        const probe = await call("testBackupDestination", {
+          ...target,
+          ...destination,
+        });
+        await runtime!.jobs.runOnce(orgId);
+        assert.equal(
+          (await call("getJob", { orgId, id: probe.jobId })).state,
+          "succeeded",
+        );
+        const saved = await call(
+          "saveBackupSchedule",
+          {
+            ...target,
+            ...destination,
+            cron: "0 2 * * *",
+            timezone: "UTC",
+            enabled: false,
+            expectedVersion: 0,
+          },
+          "rest",
+        );
+        assert.ok(saved.schedule.testedAt);
+        const backup = await call("runDatabaseBackup", target);
+        const history = await call(
+          "listDatabaseBackups",
+          { ...target, limit: 10 },
+          "rest",
+        );
+        assert.equal(history.data.length, 2);
+        assert.equal(history.data[0].jobId, backup.jobId);
+        await call("cancelJob", { orgId, id: backup.jobId });
+        await db.owner.query(
+          "DELETE FROM rootset_control.worker_heartbeats WHERE id=$1",
+          [backupWorkerId],
+        );
+      },
+    );
     await t.test(
       "API-08 default ten active HTTP reads retain independent admission capacity; exhausted reservations return redacted retryable503",
       async () => {
@@ -1324,6 +1405,8 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       "exports:read",
       "jobs:read",
       "schema:manage",
+      "backups:read",
+      "backups:manage",
     ]);
     await client.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
@@ -1357,7 +1440,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             "GET",
           )
         ).status,
-        404,
+        401,
       );
     await t.test(
       "API-08 MCP genuine issued OAuth returns typed retryable dependency when the bounded work pool is occupied; readiness and liveness survive",
@@ -1440,6 +1523,32 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         unknown
       >;
     };
+    await t.test(
+      "issued MCP OAuth uses the database backup contracts and current Admin authority",
+      async () => {
+        const schedule = await mcpOperation("getBackupSchedule", {
+          orgId,
+          databaseId,
+        });
+        assert.equal(
+          (schedule.schedule as { enabled: boolean }).enabled,
+          false,
+        );
+        const preview = await mcpOperation("previewBackupSchedule", {
+          orgId,
+          databaseId,
+          cron: "0 2 * * *",
+          timezone: "UTC",
+        });
+        assert.equal((preview.nextRuns as string[]).length, 3);
+        const history = await mcpOperation("listDatabaseBackups", {
+          orgId,
+          databaseId,
+          limit: 10,
+        });
+        assert.equal((history.data as unknown[]).length, 2);
+      },
+    );
     await t.test(
       "issued MCP OAuth uses the same row-comment operations and attribution as REST",
       async () => {

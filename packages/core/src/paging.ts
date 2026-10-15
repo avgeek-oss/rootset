@@ -14,6 +14,7 @@ export interface MetadataPageRequest {
   /** Include the collection and its parent IDs, for example databases:<orgId>. */
   resource: string;
   filter?: JsonValue;
+  order?: "asc" | "desc";
   limit?: number;
   cursor?: string | null;
 }
@@ -119,6 +120,7 @@ export class MetadataPaging {
       .update(
         canonicalJson({
           resource: request.resource,
+          ...(request.order ? { order: request.order } : {}),
           filter,
           limit,
           actor: {
@@ -204,7 +206,11 @@ export class MetadataPaging {
           );
         return { id: parsed.data, row };
       })
-      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      .sort(
+        (a, b) =>
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) *
+          (request.order === "desc" ? -1 : 1),
+      );
     for (let index = 1; index < sorted.length; index++) {
       if (sorted[index - 1]!.id === sorted[index]!.id)
         throw new RootsetError(
@@ -214,7 +220,11 @@ export class MetadataPaging {
         );
     }
     const available = position.afterId
-      ? sorted.filter((item) => item.id > position.afterId!)
+      ? sorted.filter((item) =>
+          request.order === "desc"
+            ? item.id < position.afterId!
+            : item.id > position.afterId!,
+        )
       : sorted;
     const selected = available.slice(0, position.limit);
     const hasMore = available.length > position.limit;

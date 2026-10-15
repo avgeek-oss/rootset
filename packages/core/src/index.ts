@@ -31,6 +31,7 @@ import type {
   FieldInput,
 } from "@rootset/table-storage";
 import type { JobsService } from "@rootset/jobs";
+import { backupOperations } from "@rootset/jobs/backups";
 import type { Config } from "./config.js";
 import { MetadataPaging } from "./paging.js";
 import { readUsage } from "./usage.js";
@@ -579,6 +580,13 @@ export class RootsetCore {
     const s = this.options.storage,
       tableId = typeof input.tableId === "string" ? input.tableId : "",
       databaseId = typeof input.databaseId === "string" ? input.databaseId : "";
+    if (backupOperations.has(id))
+      return this.options.jobs.backups.execute(id, a, input, {
+        idempotencyKey: ctx.idempotencyKey,
+        requestId: ctx.requestId,
+        source: ctx.surface,
+        client: ctx.client,
+      });
     if (jobOperations.has(id))
       return this.options.jobs.execute(id, a, input, {
         idempotencyKey: ctx.idempotencyKey,

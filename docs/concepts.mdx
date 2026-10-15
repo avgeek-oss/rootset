@@ -18,4 +18,4 @@ PostgreSQL stores the data and cell changes. The API validates every write. The 
 
 The UI and API are independently deployable images. Browsers connect directly to the public API origin. REST and MCP clients use that same API origin; the UI does not proxy those requests.
 
-Rootset does not provide database/table backup and restore, imports, search-index management or history archives. [Export Requests](/export-requests) downloads the full table as CSV or JSONL. Protect the installation with your PostgreSQL and object-storage provider's backup tools.
+[Database backups](/backups) capture a complete database on a schedule or on demand. Restore has no UI or public operation yet. [Export Requests](/export-requests) downloads a full table as CSV or JSONL. Imports, search-index management and separate history archives are not available. Keep installation-level PostgreSQL and object-storage recovery in your operator recovery plan.

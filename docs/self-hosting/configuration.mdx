@@ -38,3 +38,7 @@ The downloaded Compose file pins the image versions; no version setting is neede
 Rootset does not need proxy-trust variables, separate identity/DDL database URLs, a server timezone setting or per-table backup settings. Data is stored in UTC; each person chooses presentation preferences.
 
 Retain the application secret, encryption key, PostgreSQL data and private object artifacts together in your installation recovery plan. Losing the key prevents reading previously encrypted artifacts.
+
+## Automated database backups
+
+Backup credentials are optional and supplied only to the worker through `ROOTSET_BACKUP_S3_*` settings and a separate `ROOTSET_BACKUP_ENCRYPTION_KEY`. The bucket, path prefix, cron expression and timezone are configured for each database. See [Database backups](/backups) for configuration, permissions, size limits and recovery-key retention.

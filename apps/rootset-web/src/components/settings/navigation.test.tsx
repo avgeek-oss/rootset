@@ -121,10 +121,10 @@ describe("context settings navigation", () => {
       databaseId: "db",
       tableId: "table",
     });
-    expect(groups.map((group) => group.title)).toEqual(["Settings"]);
+    expect(groups.map((group) => group.title)).toEqual(["Backup", "Settings"]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.label)),
-    ).toEqual(["General", "Danger Zone"]);
+    ).toEqual(["Backup Schedule", "General", "Danger Zone"]);
     const danger = groups
       .flatMap((group) => group.items)
       .find((item) => item.id === "database-danger-zone");

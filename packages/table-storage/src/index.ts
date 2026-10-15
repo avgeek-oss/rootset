@@ -3330,6 +3330,7 @@ export class TableStorage {
     tableId: string,
     input: QuerySpec,
     c: PoolClient,
+    options: { preserveTimestampPrecision?: boolean } = {},
   ): Promise<{ table: TableRecord; rows: AsyncIterable<Row[]> }> {
     const t = await this.table(c, a, tableId);
     await c.query(
@@ -3337,6 +3338,9 @@ export class TableStorage {
       [t.databaseId],
     );
     const compiled = compileQuery(t.fields, { ...input, cursor: undefined });
+    const timestamps = options.preserveTimestampPrecision
+      ? `,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __backup_created_at,to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __backup_updated_at`
+      : "";
     async function* iterate(): AsyncGenerator<Row[]> {
       let tuple: JsonValue[] | null = null;
       for (;;) {
@@ -3352,12 +3356,21 @@ export class TableStorage {
           where = `(${where}) AND (${keyset.where})`;
         }
         const r = await c.query<Raw>(
-          `SELECT * FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT 1000`,
+          `SELECT *${timestamps} FROM ${tablePath(t)} WHERE ${where} ORDER BY ${compiled.orderBy} LIMIT 1000`,
           params,
         );
         if (!r.rows.length) return;
         const full = r.rows.map((raw) => rowFrom(raw, t.fields));
-        yield r.rows.map((raw) => rowFrom(raw, compiled.projection));
+        yield r.rows.map((raw) => {
+          const row = rowFrom(raw, compiled.projection);
+          return options.preserveTimestampPrecision
+            ? {
+                ...row,
+                createdAt: String(raw.__backup_created_at),
+                updatedAt: String(raw.__backup_updated_at),
+              }
+            : row;
+        });
         const tail = full.at(-1)!;
         tuple = compiled.sorts.map((s) =>
           s.fieldId ? (tail.values[s.name!] ?? null) : tail.id,

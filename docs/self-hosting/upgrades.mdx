@@ -43,6 +43,6 @@ For Towbar, stop the existing API and worker before deploying the new images. De
 
 Unreleased prelaunch schemas and unknown modified baselines remain unsupported. Startup refuses them without resetting the original installation. Preserve that database for inspection; do not clear the migration ledger or change its hashes to force startup. The released `0.1.2`–`0.1.4` upgrade path above is separate from these prelaunch schemas.
 
-Rootset does not provide in-app database/table backup or restore. Restore the complete installation with PostgreSQL and object-storage tools, with matching secrets and image versions. Do not assume an older application image can read a newer schema.
+[Database backups](/backups) protect logical databases through the worker. Rootset has no restore UI or public restore operation yet. Recover the complete installation with PostgreSQL and object-storage tools, with matching secrets and image versions. Do not assume an older application image can read a newer schema.
 
 Row discussions are stored in the shared `rootset_control.row_comments` table. Include the complete control schema and user-data schemas in the same consistent PostgreSQL backup and restore. A CSV/JSON row export does not contain comments, and copying only a logical database's physical tables cannot restore its discussions. Deleting a row, table or database removes its comments from the live installation. Older provider snapshots retain their point-in-time contents according to your backup retention policy.

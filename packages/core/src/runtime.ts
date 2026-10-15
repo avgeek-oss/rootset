@@ -1,3 +1,4 @@
+import release from "../../../package.json" with { type: "json" };
 import { createPool, withOrg } from "@rootset/database";
 import { scopeNames, JsonValueSchema, RootsetError } from "@rootset/contracts";
 import { assertAccess } from "@rootset/access";
@@ -13,7 +14,7 @@ import { ReadinessService } from "./readiness.js";
 
 export async function createRuntime(
   baseline: Config = loadConfig(),
-  options: { oauthClients?: OAuthConfig["clients"] } = {},
+  options: { oauthClients?: OAuthConfig["clients"]; worker?: boolean } = {},
 ) {
   const pool = createPool(baseline.databaseURL, 10, "api");
   const admissionPool = createPool(baseline.databaseURL, 2, "admission");
@@ -72,6 +73,8 @@ export async function createRuntime(
       storage,
       config: {
         metadataPaging: paging,
+        rootsetVersion: release.version,
+        backups: options.worker ? config.backups : undefined,
         idempotencySecret: config.keyHashSecret,
         authoriseHistoryPolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
@@ -144,6 +147,7 @@ export async function createRuntime(
       observer,
       getReadiness: () => readiness.status(),
       close: async () => {
+        jobs.backups.close();
         await Promise.all([
           pool.end(),
           admissionPool.end(),

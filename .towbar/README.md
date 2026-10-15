@@ -65,3 +65,7 @@ Version `0.1.5` upgrades released `0.1.2` and `0.1.3` databases in place. Its mi
 The worker has no HTTP listener. Its manifest port is required by Towbar's Service schema and is not an API endpoint; no public domain is configured. The command check uses `dist/worker-health.mjs` from the published image.
 
 These files prepare deployment; they do not provision external storage, send email, claim the installation, or deploy any workload by themselves.
+
+## Optional database backups
+
+When enabling database backups, add the optional `ROOTSET_BACKUP_S3_ENDPOINT`, `ROOTSET_BACKUP_S3_REGION`, `ROOTSET_BACKUP_S3_ACCESS_KEY`, `ROOTSET_BACKUP_S3_SECRET_KEY`, and `ROOTSET_BACKUP_ENCRYPTION_KEY` to the worker's runtime secret binding and provide them in the deployment environment. The pinned manifests do not enable backups by themselves. The worker uses the existing writable artifact spool; keep sufficient disk for a complete compressed encrypted backup plus the reserve. Configure each database's bucket, prefix and cron schedule under **Backup → Backup Schedule** after upgrading the API, web and worker together. Retain the separate backup key outside the installation. See `docs/backups.mdx` for size limits, permissions and retention.

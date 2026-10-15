@@ -7,3 +7,5 @@ export * from "./resources";
 export * from "./operations";
 export * from "./generation";
 export * from "./unique-rules";
+
+export * from "./backups";

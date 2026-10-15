@@ -43,9 +43,9 @@ recovery, installed browser or full-scale result.
 - [ ] `V1-23` Scan timeout/disconnect cancels owned work and preserves peer requests; native connection cleanup/restart tests cover idle and active pools without leaks.
 - [ ] `V1-24` Durable jobs fence stale leases, resume committed checkpoints, disclose partial cancellation and publish effects once under worker/process termination.
 - [ ] `V1-25` CSV/JSONL exports preserve types/UTC/leading-zero text and produce authenticated checksummed artifacts.
-- [ ] `V1-26` Database backup/restore operations, scopes and generated REST/MCP contracts are absent; API/MCP row creation remains available.
-- [ ] `V1-27` The browser provides filters and inline edits, automatically loads batches during scrolling, uses path-based resource URLs, and restores committed values with a toast on failed edits. There is no Add row button, row-creation modal, Go to row action or backup navigation.
-- [ ] `V1-28` The fresh baseline contains no backup, restore or backup-notification tables; exports and bounded cell history remain functional; archive/policy and separate row-log tables are absent.
+- [ ] `V1-26` Database backup operations are Admin-only across browser, REST and MCP; restore operations remain absent. API/MCP row creation remains available.
+- [ ] `V1-27` The browser provides filters and inline edits, automatically loads batches during scrolling, uses path-based resource URLs, and restores committed values with a toast on failed edits. There is no Add row button, row-creation modal or Go to row action. The database Backup Schedule page uses the shared page layout and history table.
+- [ ] `V1-28` The current migrations add database backup schedules and runs without restore or backup-notification tables. Exports and bounded cell history remain functional; separate history archive/policy tables are absent.
 - [ ] `V1-29` Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source.
 - [ ] `V1-30` Object/SMTP outage, corruption, missing keys, disk pressure and connection saturation produce truthful failures/retry behavior; retention preserves the last verified recovery point.
 

@@ -1,3 +1,4 @@
+import { DatabaseBackups, backupJobKinds } from "./backups/index.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { timingSafeEqual } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
@@ -119,6 +120,7 @@ function jobView(job: JobRecord): Record<string, unknown> {
 export class JobsService {
   readonly queue: DurableQueue;
   readonly artifacts: ArtifactStore;
+  readonly backups: DatabaseBackups;
   readonly config: JobsOptions["config"];
   readonly storage: JobsOptions["storage"];
   private readonly authoriseCallback: JobsOptions["authorise"];
@@ -168,6 +170,7 @@ export class JobsService {
       },
     );
     this.artifacts = new ArtifactStore(options.pool, options.config.artifacts);
+    this.backups = new DatabaseBackups(options, this.queue);
   }
 
   async authorise(
@@ -861,6 +864,8 @@ export class JobsService {
   private async reconciledResult(
     job: JobRecord,
   ): Promise<JsonValue | undefined> {
+    if (backupJobKinds.includes(job.kind))
+      return this.backups.committedResult(job);
     if (job.kind === "operation" && this.config.reconcileOperation) {
       const outcome = await this.config.reconcileOperation(job);
       if (outcome !== undefined) return outcome;
@@ -902,12 +907,18 @@ export class JobsService {
     return removed;
   }
 
-  async runOnce(orgId: string): Promise<boolean> {
+  async runOnce(
+    orgId: string,
+    options: { backups?: boolean } = {},
+  ): Promise<boolean> {
     const reconciled = await this.queue.reconcilePending(orgId, (job) =>
       this.reconciledResult(job),
     );
 
-    const job = await this.queue.claim(orgId);
+    const job = await this.queue.claim(
+      orgId,
+      options.backups === false ? null : this.backups.backendId,
+    );
 
     if (!job) return reconciled.length > 0;
     job.deadline =
@@ -941,10 +952,14 @@ export class JobsService {
           return true;
         }
       }
-      const actor = await this.jobActor(job);
+      const actor = backupJobKinds.includes(job.kind)
+        ? job.actor
+        : await this.jobActor(job);
       if (job.cancel_requested) throw new JobCancelled();
       let result: JsonValue;
-      if (job.kind === "export") result = await this.export(actor, job);
+      if (backupJobKinds.includes(job.kind))
+        result = await this.backups.run(job);
+      else if (job.kind === "export") result = await this.export(actor, job);
       else if (job.kind === "operation" && this.config.executeOperation)
         result = await this.config.executeOperation(
           actor,
@@ -1134,90 +1149,103 @@ export class JobsService {
       code: string | null = null,
     ) => {
       await this.queue.workerPool.query(
-        `INSERT INTO rootset_control.worker_heartbeats(id,state,last_error_code) VALUES($1,$2,$3)
-        ON CONFLICT(id) DO UPDATE SET heartbeat_at=now(),state=excluded.state,last_error_code=excluded.last_error_code`,
-        [workerId, state, code],
+        `INSERT INTO rootset_control.worker_heartbeats(id,state,last_error_code,backup_backend_id) VALUES($1,$2,$3,$4)
+        ON CONFLICT(id) DO UPDATE SET heartbeat_at=now(),state=excluded.state,last_error_code=excluded.last_error_code,backup_backend_id=excluded.backup_backend_id`,
+        [workerId, state, code, this.backups.backendId],
       );
     };
     await heartbeat("starting");
-    const workers = Array.from({ length: 2 }, async (_, index) => {
-      while (!options.signal?.aborted) {
-        try {
-          const orgId = (
-            await this.queue.workerPool.query<{ id: string }>(
-              "SELECT id FROM rootset_control.organisations",
-            )
-          ).rows[0]?.id;
-          let worked = false;
-          let pollError: unknown;
-          const activity = async (
-            name: string,
-            orgId: string | undefined,
-            run: () => Promise<boolean | void>,
-          ) => {
-            try {
-              worked = (await run()) === true || worked;
-            } catch (error) {
-              pollError = error;
-              console.error(
-                JSON.stringify({
-                  level: "error",
-                  event: "worker_activity_failed",
-                  activity: name,
-                  ...(orgId ? { orgId } : {}),
-                  code:
-                    error instanceof RootsetError
-                      ? error.code
-                      : "UPSTREAM_UNAVAILABLE",
-                }),
-              );
-            }
-          };
-          if (orgId && !options.signal?.aborted) {
-            if (index === 0)
-              await activity("artifact_cleanup", orgId, async () => {
-                await this.cleanupArtifacts(orgId);
-              });
-            await activity("job", orgId, () => this.runOnce(orgId));
-          }
-          if (index === 0 && this.config.outbox)
-            await activity("email_outbox", undefined, () =>
-              this.config.outbox!.deliverNext(),
-            );
-          await heartbeat(
-            pollError ? "degraded" : "ready",
-            pollError instanceof RootsetError
-              ? pollError.code
-              : pollError
-                ? "UPSTREAM_UNAVAILABLE"
-                : null,
-          );
-          if (!worked)
-            await delay(this.config.pollMilliseconds ?? 500, undefined, {
-              ...(options.signal ? { signal: options.signal } : {}),
-            });
-        } catch (error) {
-          if (options.signal?.aborted) break;
-          await heartbeat(
-            "degraded",
-            error instanceof RootsetError ? error.code : "UPSTREAM_UNAVAILABLE",
-          ).catch(() => undefined);
-          console.error(
-            JSON.stringify({
-              level: "error",
-              event: "worker_poll_failed",
-              code:
-                error instanceof RootsetError
-                  ? error.code
-                  : "UPSTREAM_UNAVAILABLE",
-            }),
-          );
-          await delay(Math.min(5000, this.config.pollMilliseconds ?? 1000));
-        }
+    const failures = new Map<string, string>();
+    const pause = async (milliseconds: number) => {
+      try {
+        await delay(milliseconds, undefined, { signal: options.signal });
+      } catch (error) {
+        if (!options.signal?.aborted) throw error;
       }
-    });
+    };
+    const activity = async (
+      name: string,
+      work: () => Promise<boolean | void>,
+    ) => {
+      try {
+        const worked = await work();
+        failures.delete(name);
+        return worked === true;
+      } catch (error) {
+        const code =
+          error instanceof RootsetError ? error.code : "UPSTREAM_UNAVAILABLE";
+        failures.set(name, code);
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "worker_activity_failed",
+            activity: name,
+            code,
+          }),
+        );
+        return false;
+      }
+    };
+    const loop = async (
+      name: string,
+      work: () => Promise<boolean | void>,
+      milliseconds: number,
+    ) => {
+      while (!options.signal?.aborted) {
+        const worked = await activity(name, work);
+        if (!worked) await pause(milliseconds);
+      }
+    };
+    const organisation = async () =>
+      (
+        await this.queue.workerPool.query<{ id: string }>(
+          "SELECT id FROM rootset_control.organisations",
+        )
+      ).rows[0]?.id;
+    await heartbeat("ready");
+    const workers = Array.from({ length: 2 }, (_, index) =>
+      loop(
+        `jobs:${index}`,
+        async () => {
+          const orgId = await organisation();
+          if (orgId && !options.signal?.aborted)
+            return this.runOnce(orgId, { backups: index === 1 });
+        },
+        this.config.pollMilliseconds ?? 500,
+      ),
+    );
+    const maintenance = loop(
+      "maintenance",
+      async () => {
+        const orgId = await organisation();
+        if (orgId && !options.signal?.aborted) {
+          await activity("backup_scheduler", () =>
+            this.backups.scheduleDue(orgId),
+          );
+          await activity("backup_spool_cleanup", () =>
+            this.backups.cleanupTemporaryFiles(),
+          );
+          await activity("artifact_cleanup", async () => {
+            await this.cleanupArtifacts(orgId);
+          });
+        }
+        if (this.config.outbox && !options.signal?.aborted)
+          await activity("email_outbox", () =>
+            this.config.outbox!.deliverNext(),
+          );
+      },
+      1000,
+    );
+    const heartbeats = loop(
+      "heartbeat",
+      async () => {
+        const code = failures.values().next().value ?? null;
+        await heartbeat(code ? "degraded" : "ready", code);
+      },
+      5000,
+    );
     try {
-      await Promise.all(workers);
+      await Promise.all([...workers, maintenance, heartbeats]);
     } finally {
       await heartbeat("stopped");
     }
