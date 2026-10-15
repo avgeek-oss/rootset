@@ -3,6 +3,12 @@
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { statusColor, statusIcon, statusLabel } from "./status";
 import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ArrowUpZeroOneIcon,
+  CheckListIcon,
+  MinusSignIcon,
+  TextFontIcon,
+} from "@hugeicons/core-free-icons";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Label, ListBox, Select } from "@heroui/react";
 import {
@@ -192,6 +198,12 @@ export function FieldForm({
   const [errors, setErrors] = useState<FieldDraftErrors>({});
   function patch<K extends keyof FieldDraft>(key: K, next: FieldDraft[K]) {
     const updated = { ...value, [key]: next };
+    if (
+      key === "type" &&
+      next !== "integer" &&
+      updated.defaultMode === "autoIncrement"
+    )
+      updated.defaultMode = "none";
     setValue(updated);
     if (Object.keys(errors).length)
       setErrors(parseFieldDraft(updated).errors ?? {});
@@ -256,8 +268,20 @@ export function FieldForm({
             value={value.restrictValues ? "choices" : "any"}
             disabled={busy}
             options={[
-              { value: "any", label: "Any text" },
-              { value: "choices", label: "Only these choices" },
+              {
+                value: "any",
+                label: "Any text",
+                icon: (
+                  <HugeiconsIcon icon={TextFontIcon} size={16} aria-hidden />
+                ),
+              },
+              {
+                value: "choices",
+                label: "Only these choices",
+                icon: (
+                  <HugeiconsIcon icon={CheckListIcon} size={16} aria-hidden />
+                ),
+              },
             ]}
             onChange={(next) => patch("restrictValues", next === "choices")}
           />
@@ -360,29 +384,51 @@ export function FieldForm({
           />
         </div>
       )}
-      {!value.required && (
-        <Choice
-          label="Default for new rows"
-          value={value.defaultMode}
-          onChange={(next) =>
-            patch("defaultMode", next as FieldDraft["defaultMode"])
-          }
-          options={[
-            { value: "null", label: "NULL" },
-            { value: "value", label: "A literal value" },
-          ]}
-        />
-      )}
+      <Choice
+        label="Default for new rows"
+        value={value.defaultMode}
+        onChange={(next) =>
+          patch("defaultMode", next as FieldDraft["defaultMode"])
+        }
+        options={[
+          {
+            value: "none",
+            label: "No default",
+            icon: <HugeiconsIcon icon={MinusSignIcon} size={16} aria-hidden />,
+          },
+          {
+            value: "value",
+            label: "A literal value",
+            icon: <FieldTypeIcon type={value.type} />,
+          },
+          ...(value.type === "integer"
+            ? [
+                {
+                  value: "autoIncrement",
+                  label: "Auto-increment",
+                  icon: (
+                    <HugeiconsIcon
+                      icon={ArrowUpZeroOneIcon}
+                      size={16}
+                      aria-hidden
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ]}
+        error={errors.defaultMode}
+      />
       {value.defaultMode === "value" &&
         (value.type === "boolean" ? (
           <Toggle
-            label={value.required ? "Default for new rows" : "Default value"}
+            label="Default value"
             selected={value.defaultBoolean}
             onChange={(next) => patch("defaultBoolean", next)}
           />
         ) : value.type === "text" && value.restrictValues ? (
           <Choice
-            label={value.required ? "Default for new rows" : "Default value"}
+            label="Default value"
             value={value.defaultValue}
             disabled={busy}
             error={errors.defaultValue}
@@ -391,12 +437,13 @@ export function FieldForm({
             ].map((choice) => ({
               value: choice,
               label: allowedValueLabel(choice),
+              icon: <FieldTypeIcon type="text" />,
             }))}
             onChange={(next) => patch("defaultValue", next)}
           />
         ) : (
           <Field
-            label={value.required ? "Default for new rows" : "Default value"}
+            label="Default value"
             value={value.defaultValue}
             onChange={(next) => patch("defaultValue", next)}
             type={
@@ -423,13 +470,7 @@ export function FieldForm({
       <Toggle
         label="Required"
         selected={value.required}
-        onChange={(required) =>
-          setValue((previous) => ({
-            ...previous,
-            required,
-            defaultMode: required ? "value" : previous.defaultMode,
-          }))
-        }
+        onChange={(required) => patch("required", required)}
       />
     </Form>
   );
@@ -534,7 +575,12 @@ export function FieldsSettings(props: SettingsPanelProps) {
       }
       return;
     }
-    const changes = { ...input };
+    const clearDefault =
+      Object.hasOwn(editing, "default") && !Object.hasOwn(input, "default");
+    const changes = {
+      ...input,
+      ...(clearDefault ? { clearDefault: true } : {}),
+    };
     const change = {
       kind: "update_field",
       fieldId: editing.id,
@@ -550,13 +596,15 @@ export function FieldsSettings(props: SettingsPanelProps) {
     if (!check.ok) return;
     if (check.value.valid === false || check.value.conflicts?.length) {
       toast.danger("The field change cannot be applied.", {
-        description: check.value.conflicts
-          ?.map(
-            (conflict) =>
-              conflict.message ??
-              "Existing data violates the field definition.",
-          )
-          .join(" "),
+        description: [
+          ...new Set(
+            check.value.conflicts?.map(
+              (conflict) =>
+                conflict.message ??
+                "Existing data violates the field definition.",
+            ),
+          ),
+        ].join(" "),
       });
       return;
     }
@@ -574,6 +622,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
             "PATCH",
             {
               field: input,
+              ...(clearDefault ? { clearDefault: true } : {}),
               conversion: "explicit",
               expectedSchemaVersion: schema.data.table.schemaVersion,
             },
@@ -638,9 +687,13 @@ export function FieldsSettings(props: SettingsPanelProps) {
               key: "default",
               header: "Default value",
               cell: (field) => {
-                const missing = field.default === undefined && field.required;
-                const value =
-                  field.default == null
+                const generated =
+                  field.type === "integer" && field.autoIncrement;
+                const missing =
+                  !generated && field.default === undefined && field.required;
+                const value = generated
+                  ? "Auto-increment"
+                  : field.default == null
                     ? "NULL"
                     : JSON.stringify(field.default);
                 return (

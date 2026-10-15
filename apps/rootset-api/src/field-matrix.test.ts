@@ -250,7 +250,7 @@ test("FLD-15 actual REST/MCP eleven-type create/patch boundary matrix with nativ
       code_challenge_method: "S256",
       resource: `${baseURL}/mcp`,
       scope:
-        "rows:read rows:write history:read tables:read databases:read exports:read jobs:read",
+        "rows:read rows:write history:read tables:read databases:read exports:read jobs:read schema:manage",
       state: "field-matrix",
     }).toString();
     const authorization = await fetch(authorize, {
@@ -292,6 +292,134 @@ test("FLD-15 actual REST/MCP eleven-type create/patch boundary matrix with nativ
         requestInit: { headers: { Authorization: `Bearer ${oauthToken}` } },
       }),
     );
+
+    for (const surface of ["rest", "mcp"] as const)
+      await t.test(`${surface}/integer/auto-increment`, async () => {
+        const created = await invoke(surface, "createTable", {
+          orgId,
+          databaseId,
+          name: `Generated ${surface}`,
+          fields: [
+            {
+              name: "RECORD_ID",
+              type: "integer",
+              required: true,
+              autoIncrement: true,
+              min: 10,
+              max: 601,
+            },
+          ],
+        });
+        assert.ok(created.ok, JSON.stringify(created.value));
+        const schema = created.value as {
+          table: { id: string; schemaVersion: number };
+          fields: FieldDefinition[];
+        };
+        assert.equal(schema.fields[0]?.autoIncrement, true);
+        const target = {
+          orgId,
+          databaseId,
+          tableId: schema.table.id,
+          expectedSchemaVersion: schema.table.schemaVersion,
+        };
+        for (const [values, expected] of [
+          [{}, 10],
+          [{ RECORD_ID: 500 }, 500],
+          [{}, 501],
+        ] as const) {
+          const result = await invoke(surface, "createRow", {
+            ...target,
+            values,
+          });
+          assert.ok(result.ok, JSON.stringify(result.value));
+          assert.equal(
+            (result.value as { row: Row }).row.values.RECORD_ID,
+            expected,
+          );
+        }
+        const batch = await invoke(surface, "mutateRows", {
+          ...target,
+          mutations: [
+            { type: "create", values: {} },
+            { type: "create", values: { RECORD_ID: 600 } },
+          ],
+        });
+        assert.ok(batch.ok, JSON.stringify(batch.value));
+        assert.deepEqual(
+          (batch.value as { results: { row: Row }[] }).results.map(
+            (result) => result.row.values.RECORD_ID,
+          ),
+          [601, 600],
+        );
+        const exhausted = await invoke(surface, "createRow", {
+          ...target,
+          values: {},
+        });
+        assert.equal(exhausted.ok, false);
+        assert.equal(exhausted.error?.code, "AUTO_INCREMENT_EXHAUSTED");
+        for (const configuration of [
+          {
+            field: {
+              name: "RECORD_ID",
+              type: "integer",
+              required: true,
+              autoIncrement: false,
+              default: 50,
+              max: 700,
+            },
+            clearDefault: false,
+          },
+          {
+            field: {
+              name: "RECORD_ID",
+              type: "integer",
+              required: true,
+              autoIncrement: true,
+              max: 700,
+            },
+            clearDefault: true,
+          },
+        ]) {
+          const updated = await invoke(surface, "updateField", {
+            ...target,
+            fieldId: schema.fields[0]!.id,
+            ...configuration,
+          });
+          assert.ok(updated.ok, JSON.stringify(updated.value));
+          const jobId = (updated.value as { jobId: string }).jobId;
+          let state: Record<string, unknown> = {};
+          for (let attempt = 0; attempt < 10; attempt++) {
+            await runtime!.jobs.runOnce(orgId);
+            const job = await invoke("mcp", "getJob", { orgId, id: jobId });
+            assert.ok(job.ok, JSON.stringify(job.value));
+            state = job.value as Record<string, unknown>;
+            if (["succeeded", "failed"].includes(String(state.state))) break;
+          }
+          assert.equal(state.state, "succeeded", JSON.stringify(state.error));
+          target.expectedSchemaVersion++;
+        }
+        const resumed = await invoke(surface, "createRow", {
+          ...target,
+          values: {},
+        });
+        assert.ok(resumed.ok, JSON.stringify(resumed.value));
+        assert.equal((resumed.value as { row: Row }).row.values.RECORD_ID, 602);
+        const invalid = await invoke(surface, "createTable", {
+          orgId,
+          databaseId,
+          name: "Conflicting default",
+          fields: [
+            {
+              name: "RECORD_ID",
+              type: "integer",
+              autoIncrement: true,
+              default: 1,
+            },
+          ],
+        });
+        assert.equal(invalid.ok, false);
+        assert.equal(invalid.error?.code, "VALIDATION_FAILED");
+      });
 
     for (const fixture of fieldCases) {
       const fields = [

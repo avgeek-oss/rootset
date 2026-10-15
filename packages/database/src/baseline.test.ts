@@ -74,6 +74,7 @@ test(
       "0002_mcp_role_revocation.sql",
       "0003_comment_deletion_log.sql",
       "0004_field_constraints.sql",
+      "0005_integer_auto_increment.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       assert.deepEqual(
@@ -122,7 +123,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0004_field_constraints.sql",
+      version: "0005_integer_auto_increment.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -254,6 +255,7 @@ test(
       "0002_mcp_role_revocation.sql",
       "0003_comment_deletion_log.sql",
       "0004_field_constraints.sql",
+      "0005_integer_auto_increment.sql",
     ])
       await writeFile(
         join(directory, name),

@@ -117,6 +117,30 @@ h1 {
   flex-shrink: 0;
   object-fit: contain;
 }
+.resource-card .widget,
+.resource-card .widget__content {
+  transition: background-color 150ms ease-out;
+}
+.resource-card:focus-visible .widget {
+  background: var(--surface-tertiary);
+}
+.resource-card:focus-visible .widget__content {
+  background: var(--surface-secondary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .resource-card:hover .widget {
+    background: var(--surface-tertiary);
+  }
+  .resource-card:hover .widget__content {
+    background: var(--surface-secondary);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .resource-card .widget,
+  .resource-card .widget__content {
+    transition: none;
+  }
+}
 .rootset-application {
   height: 100dvh;
   min-height: 0;

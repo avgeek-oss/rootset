@@ -23,6 +23,7 @@ const fieldKeys = [
   "default",
   "charLimit",
   "allowedValues",
+  "autoIncrement",
   "min",
   "max",
   "order",
@@ -119,7 +120,14 @@ function request(
       result = {
         kind,
         ...(fieldId ? { fieldId } : {}),
-        changes: publicField(suppliedField),
+        changes: {
+          ...publicField(suppliedField),
+          ...((original.clearDefault ??
+            stored.clearDefault ??
+            object(changes.changes).clearDefault) === true
+            ? { clearDefault: true }
+            : {}),
+        },
         ...(kind === "field.convert" && conversion ? { conversion } : {}),
       };
       break;

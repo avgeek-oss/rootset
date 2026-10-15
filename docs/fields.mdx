@@ -5,7 +5,7 @@ description: "Define columns, defaults and constraints with Rootset\u2019s field
 
 import { Screenshot } from "/snippets/oss/screenshot.jsx";
 
-Open a table's **Settings → Fields**. The table lists each column's name and type, required setting, default and constraints. Use the arrows before the name to change its position. Select **Add field** or **Edit** to open the form.
+Open a table's **Settings → Fields**. The table lists each column's name and type, required setting, default and constraints. Drag the six-dot handle before a name to change its position. Keyboard users can focus the handle, press Enter, select a position with the arrow keys, and press Enter to drop or Escape to cancel. Select **Add field** or **Edit** to open the form.
 
 ## Supported types
 
@@ -27,9 +27,35 @@ Date, time and date-time fields support inclusive minimum and maximum bounds. Da
 
 ## Required and default values
 
-Optional fields allow `NULL` and use `NULL` as their default unless you supply a literal value. Required fields cannot contain `NULL`; the editor requires a valid non-NULL literal default. New rows must supply a valid value or use that default. There is no separate nullable setting.
+Optional fields allow `NULL`. Required fields cannot contain `NULL`, but they do not need a constant default. Select **No default** when callers will supply a value, **A literal value** to use a constant when a value is omitted, or **Auto-increment** for an integer generator. There is no separate nullable setting.
+
+Changing an existing column's default or generator only affects new rows. Making a populated field required checks its existing cells; fill any NULL cells explicitly before applying that change. Selecting a default or enabling auto-increment on an existing column does not rewrite its stored values. Adding a new field with a literal default backfills that new column; auto-increment does not backfill existing rows.
 
 Column names use 1–64 letters or underscores. They are the keys used in API row values. Rootset rejects reserved system names.
+
+## Auto-increment integers
+
+For an integer field, select **Default for new rows → Auto-increment**. REST and MCP use the same field definition:
+
+```json
+{
+  "name": "RECORD_ID",
+  "type": "integer",
+  "required": true,
+  "autoIncrement": true,
+  "min": 1
+}
+```
+
+Omit the property from a new row to generate its value. Supplying an explicit integer preserves it and advances the counter when needed. Supplying NULL preserves NULL for an optional field and fails for a required field. Updates do not regenerate values when the property is absent.
+
+The first generated value is the configured minimum, or 1 when no minimum is set. Enabling generation on a populated column starts above its highest existing integer and preserves every row ID, stored cell value, and row revision. Counters are durable, serialize with table writes, and never move backwards when values are lowered, rows are deleted, or generation is disabled and enabled again. There is no counter-reset operation.
+
+Generated values respect the inclusive maximum and the safe-integer limit of 9,007,199,254,740,991. When no value remains, creation fails with `AUTO_INCREMENT_EXHAUSTED`; the transaction does not publish partial rows. Raising a configured maximum can make more values available. Failed transactions roll back their allocations, and replaying a successful idempotent request returns its original result without allocating again.
+
+Auto-increment cannot be combined with a constant default, including an explicit NULL default. To enable it through `updateField` on a column that already has a default, send `clearDefault: true` beside `field` in the request. The editor does this when switching from a literal default. Schema previews use `clearDefault: true` inside the change's `changes` object. Send `autoIncrement: false` to disable generation; this preserves the counter. Field and schema reads return the flag.
+
+Within each mutation batch, explicit integer values are reserved before any omitted IDs are generated, regardless of row order. Import clients can therefore mix supplied IDs and omitted properties in the same batch. Across separate batches, allocations follow commit order; an explicit ID that conflicts with a previously committed row still fails its unique rule. Declare a [unique rule](/unique-rules) when explicit IDs must also be unique. Auto-increment does not change the built-in Rootset row identifier.
 
 ## Allowed values
 

@@ -14,6 +14,7 @@ export type ErrorCode =
   | "ROW_VERSION_CONFLICT"
   | "SCHEMA_VERSION_CONFLICT"
   | "UNIQUE_CONFLICT"
+  | "AUTO_INCREMENT_EXHAUSTED"
   | "ROW_SIZE_LIMIT"
   | "ROW_LIMIT_REACHED"
   | "PAYLOAD_TOO_LARGE"
@@ -584,6 +585,7 @@ export type createTableInput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -756,6 +758,7 @@ export type createTableOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -1014,6 +1017,7 @@ export type getTableSchemaOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -1203,6 +1207,7 @@ export type listFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -1375,6 +1380,7 @@ export type createFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -1552,6 +1558,7 @@ export type createFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "integer";
+            autoIncrement?: boolean;
             min?: number;
             max?: number;
           }
@@ -1750,6 +1757,7 @@ export type updateFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -1876,6 +1884,7 @@ export type updateFieldInput = {
         order?: number;
         type: "json";
       };
+  clearDefault?: boolean;
   conversion?: "explicit" | "lossless";
 };
 export type updateFieldOutput =
@@ -1928,6 +1937,7 @@ export type updateFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "integer";
+            autoIncrement?: boolean;
             min?: number;
             max?: number;
           }
@@ -2150,6 +2160,7 @@ export type deleteFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "integer";
+            autoIncrement?: boolean;
             min?: number;
             max?: number;
           }
@@ -2365,6 +2376,7 @@ export type reorderFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "integer";
+        autoIncrement?: boolean;
         min?: number;
         max?: number;
       }
@@ -2642,6 +2654,7 @@ export type getSchemaOperationOutput = {
                 | Record<string, unknown>;
               order?: number;
               type: "integer";
+              autoIncrement?: boolean;
               min?: number;
               max?: number;
             }
@@ -2802,6 +2815,7 @@ export type getSchemaOperationOutput = {
                 | Record<string, unknown>;
               order?: number;
               type: "integer";
+              autoIncrement?: boolean;
               min?: number;
               max?: number;
             }
@@ -2933,6 +2947,8 @@ export type getSchemaOperationOutput = {
         kind: "field.update";
         fieldId?: string;
         changes: {
+          autoIncrement?: boolean;
+          clearDefault?: boolean;
           allowedValues?: string[] | null;
           name?: string;
           type?:
@@ -2965,6 +2981,8 @@ export type getSchemaOperationOutput = {
         kind: "field.convert";
         fieldId?: string;
         changes: {
+          autoIncrement?: boolean;
+          clearDefault?: boolean;
           allowedValues?: string[] | null;
           name?: string;
           type?:
@@ -3055,6 +3073,7 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "integer";
+          autoIncrement?: boolean;
           min?: number;
           max?: number;
         }
@@ -3244,6 +3263,7 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "integer";
+          autoIncrement?: boolean;
           min?: number;
           max?: number;
         }
@@ -3864,6 +3884,7 @@ export type getCellHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "integer";
+          autoIncrement?: boolean;
           min?: number;
           max?: number;
         }
@@ -4070,6 +4091,7 @@ export type queryHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "integer";
+          autoIncrement?: boolean;
           min?: number;
           max?: number;
         }

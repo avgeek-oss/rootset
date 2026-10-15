@@ -124,11 +124,11 @@ describe("field definition form", () => {
       }).errors?.defaultValue,
     ).toBe("Enter a valid JSON value.");
     expect(
-      parseFieldDraft({ ...text, required: true, defaultMode: "null" }).errors
+      parseFieldDraft({ ...text, required: true, defaultMode: "none" }).errors
         ?.defaultMode,
-    ).toBeTruthy();
+    ).toBeUndefined();
   });
-  it("keeps false, zero and empty text as literal defaults and starts optional fields at null", () => {
+  it("keeps false, zero and empty text as literal defaults and starts without a default", () => {
     expect(
       parseFieldDraft({
         ...text,
@@ -157,10 +157,10 @@ describe("field definition form", () => {
         defaultValue: "null",
       }).input?.default,
     ).toBeNull();
-    expect(fieldDraft().defaultMode).toBe("null");
-    expect(parseFieldDraft(text).input?.default).toBeNull();
+    expect(fieldDraft().defaultMode).toBe("none");
+    expect(parseFieldDraft(text).input).not.toHaveProperty("default");
   });
-  it("requires a valid literal default when a required field is configured in the UI", () => {
+  it("allows required fields without a default, while validating chosen literal defaults", () => {
     expect(
       fieldDraft({
         id: "01J00000000000000000000000",
@@ -168,10 +168,27 @@ describe("field definition form", () => {
         type: "integer",
         required: true,
       }).defaultMode,
-    ).toBe("value");
+    ).toBe("none");
     expect(
       parseFieldDraft({
         ...text,
+        type: "integer",
+        required: true,
+        defaultMode: "none",
+      }).input,
+    ).not.toHaveProperty("default");
+    expect(
+      parseFieldDraft({
+        ...text,
+        type: "integer",
+        required: true,
+        defaultMode: "autoIncrement",
+      }).input,
+    ).toMatchObject({ required: true, autoIncrement: true });
+    expect(
+      parseFieldDraft({
+        ...text,
+        type: "integer",
         required: true,
         defaultMode: "value",
         defaultValue: "",

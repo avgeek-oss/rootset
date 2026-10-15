@@ -210,6 +210,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -348,6 +349,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -496,6 +498,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -632,6 +635,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -792,6 +796,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -934,6 +939,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1093,6 +1099,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1244,6 +1251,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1365,6 +1373,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1533,6 +1542,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1654,6 +1664,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1787,6 +1798,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -1925,6 +1937,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -2099,6 +2112,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -2256,6 +2270,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -2386,6 +2401,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -2566,6 +2582,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -2732,6 +2749,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -2858,6 +2876,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -3059,6 +3078,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -3287,6 +3307,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -3507,6 +3528,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -3629,6 +3651,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -3844,6 +3867,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -4072,6 +4096,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -4296,6 +4321,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -4422,6 +4448,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -4574,6 +4601,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -4769,6 +4797,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -4938,6 +4967,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -5102,6 +5132,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -5275,6 +5306,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -5414,6 +5446,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -5625,6 +5658,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -5786,6 +5820,10 @@
                   },
                   "order": { "type": "integer", "minimum": 0, "maximum": 199 },
                   "type": { "type": "string", "const": "integer" },
+                  "autoIncrement": {
+                    "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                    "type": "boolean"
+                  },
                   "min": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -6256,6 +6294,10 @@
                         "maximum": 199
                       },
                       "type": { "type": "string", "const": "integer" },
+                      "autoIncrement": {
+                        "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                        "type": "boolean"
+                      },
                       "min": {
                         "type": "integer",
                         "minimum": -9007199254740991,
@@ -6746,6 +6788,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -6927,6 +6970,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -7129,6 +7173,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -7283,6 +7328,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -7543,6 +7589,10 @@
                         "maximum": 199
                       },
                       "type": { "type": "string", "const": "integer" },
+                      "autoIncrement": {
+                        "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                        "type": "boolean"
+                      },
                       "min": {
                         "type": "integer",
                         "minimum": -9007199254740991,
@@ -8033,6 +8083,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -8220,6 +8271,10 @@
                         "maximum": 199
                       },
                       "type": { "type": "string", "const": "integer" },
+                      "autoIncrement": {
+                        "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                        "type": "boolean"
+                      },
                       "min": {
                         "type": "integer",
                         "minimum": -9007199254740991,
@@ -8608,6 +8663,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -8771,6 +8827,10 @@
                 },
                 "order": { "type": "integer", "minimum": 0, "maximum": 199 },
                 "type": { "type": "string", "const": "integer" },
+                "autoIncrement": {
+                  "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                  "type": "boolean"
+                },
                 "min": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -9253,6 +9313,10 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "integer" },
+                          "autoIncrement": {
+                            "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                            "type": "boolean"
+                          },
                           "min": {
                             "type": "integer",
                             "minimum": -9007199254740991,
@@ -9774,6 +9838,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -9942,6 +10007,10 @@
                 },
                 "order": { "type": "integer", "minimum": 0, "maximum": 199 },
                 "type": { "type": "string", "const": "integer" },
+                "autoIncrement": {
+                  "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                  "type": "boolean"
+                },
                 "min": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -10228,6 +10297,10 @@
               "additionalProperties": false
             }
           ]
+        },
+        "clearDefault": {
+          "description": "Remove the previous constant default. Do not also supply field.default.",
+          "type": "boolean"
         },
         "conversion": { "type": "string", "enum": ["explicit", "lossless"] },
         "idempotencyKey": {
@@ -10426,6 +10499,10 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "integer" },
+                          "autoIncrement": {
+                            "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                            "type": "boolean"
+                          },
                           "min": {
                             "type": "integer",
                             "minimum": -9007199254740991,
@@ -10947,6 +11024,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -11236,6 +11314,10 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "integer" },
+                          "autoIncrement": {
+                            "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                            "type": "boolean"
+                          },
                           "min": {
                             "type": "integer",
                             "minimum": -9007199254740991,
@@ -11757,6 +11839,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -12043,6 +12126,10 @@
                         "maximum": 199
                       },
                       "type": { "type": "string", "const": "integer" },
+                      "autoIncrement": {
+                        "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                        "type": "boolean"
+                      },
                       "min": {
                         "type": "integer",
                         "minimum": -9007199254740991,
@@ -12533,6 +12620,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -12784,6 +12872,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -13025,6 +13114,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -13312,6 +13402,10 @@
                                 "maximum": 199
                               },
                               "type": { "type": "string", "const": "integer" },
+                              "autoIncrement": {
+                                "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                                "type": "boolean"
+                              },
                               "min": {
                                 "type": "integer",
                                 "minimum": -9007199254740991,
@@ -13784,6 +13878,10 @@
                               "maximum": 199
                             },
                             "type": { "type": "string", "const": "integer" },
+                            "autoIncrement": {
+                              "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                              "type": "boolean"
+                            },
                             "min": {
                               "type": "integer",
                               "minimum": -9007199254740991,
@@ -14122,6 +14220,8 @@
                     "changes": {
                       "type": "object",
                       "properties": {
+                        "autoIncrement": { "type": "boolean" },
+                        "clearDefault": { "type": "boolean" },
                         "allowedValues": {
                           "anyOf": [
                             {
@@ -14204,6 +14304,8 @@
                     "changes": {
                       "type": "object",
                       "properties": {
+                        "autoIncrement": { "type": "boolean" },
+                        "clearDefault": { "type": "boolean" },
                         "allowedValues": {
                           "anyOf": [
                             {
@@ -14570,6 +14672,10 @@
                                 "maximum": 199
                               },
                               "type": { "type": "string", "const": "integer" },
+                              "autoIncrement": {
+                                "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                                "type": "boolean"
+                              },
                               "min": {
                                 "type": "integer",
                                 "minimum": -9007199254740991,
@@ -15153,6 +15259,10 @@
                           "maximum": 199
                         },
                         "type": { "type": "string", "const": "integer" },
+                        "autoIncrement": {
+                          "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                          "type": "boolean"
+                        },
                         "min": {
                           "type": "integer",
                           "minimum": -9007199254740991,
@@ -15587,6 +15697,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -15795,6 +15906,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -16080,6 +16192,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -16225,6 +16338,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -16464,6 +16578,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -16795,6 +16910,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -16956,6 +17072,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -17165,6 +17282,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -17354,6 +17472,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -17502,6 +17621,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -17644,6 +17764,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -17791,6 +17912,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -18011,6 +18133,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -18164,6 +18287,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -18516,6 +18640,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -18668,6 +18793,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -18950,6 +19076,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -19232,6 +19359,10 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "integer" },
+                          "autoIncrement": {
+                            "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                            "type": "boolean"
+                          },
                           "min": {
                             "type": "integer",
                             "minimum": -9007199254740991,
@@ -19659,6 +19790,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -19959,6 +20091,10 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "integer" },
+                          "autoIncrement": {
+                            "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                            "type": "boolean"
+                          },
                           "min": {
                             "type": "integer",
                             "minimum": -9007199254740991,
@@ -20386,6 +20522,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -20515,6 +20652,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -20664,6 +20802,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -20816,6 +20955,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21013,6 +21153,7 @@
                           "ROW_VERSION_CONFLICT",
                           "SCHEMA_VERSION_CONFLICT",
                           "UNIQUE_CONFLICT",
+                          "AUTO_INCREMENT_EXHAUSTED",
                           "ROW_SIZE_LIMIT",
                           "ROW_LIMIT_REACHED",
                           "PAYLOAD_TOO_LARGE",
@@ -21106,6 +21247,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21272,6 +21414,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21358,6 +21501,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21530,6 +21674,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21616,6 +21761,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21752,6 +21898,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -21892,6 +22039,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -22061,6 +22209,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",
@@ -22290,6 +22439,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
                     "PAYLOAD_TOO_LARGE",

@@ -131,6 +131,29 @@ test("field update/delete identity is reconstructed from the bound job input ins
   });
 });
 
+test("schema journals preserve generator configuration and explicit default removal", () => {
+  const mapped = mapSchemaJournal(
+    journal("field.update", { autoIncrement: true, clearDefault: true }),
+    {
+      request: {
+        fieldId: id(4),
+        field: { name: "RECORD_ID", type: "integer", autoIncrement: true },
+        clearDefault: true,
+      },
+    },
+  );
+  assert.deepEqual(mapped.change, {
+    kind: "update_field",
+    fieldId: id(4),
+    changes: {
+      name: "RECORD_ID",
+      type: "integer",
+      autoIncrement: true,
+      clearDefault: true,
+    },
+  });
+});
+
 test("conversion recovery phases retain raw state and safe verification metadata", () => {
   for (const state of [
     "planned",
