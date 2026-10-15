@@ -47,14 +47,12 @@ export const BackupTimingSchema = z.strictObject({
 });
 export const BackupScheduleInputSchema = BackupDestinationSchema.extend({
   ...BackupTimingSchema.shape,
-  enabled: z.boolean(),
   expectedVersion: z.number().int().min(0).max(2147483646),
 });
 export const BackupScheduleSchema = BackupDestinationSchema.extend({
   ...BackupTimingSchema.shape,
   databaseId: IdSchema,
   version: z.number().int().positive(),
-  enabled: z.boolean(),
   backendId: z.string(),
   nextRunAt: CanonicalUtcDateTimeSchema.nullable(),
   testedAt: CanonicalUtcDateTimeSchema.nullable(),
@@ -62,6 +60,8 @@ export const BackupScheduleSchema = BackupDestinationSchema.extend({
 });
 export const BackupScheduleResultSchema = z.strictObject({
   schedule: BackupScheduleSchema.nullable(),
+  version: z.number().int().nonnegative(),
+  pendingSaveJobId: IdSchema.nullable(),
   worker: z.strictObject({
     available: z.boolean(),
     backendId: z.string().nullable(),
@@ -100,6 +100,7 @@ export const DatabaseBackupSchema = z.strictObject({
   note: z.string().nullable(),
 });
 export type BackupSchedule = z.infer<typeof BackupScheduleSchema>;
+export type BackupScheduleInput = z.infer<typeof BackupScheduleInputSchema>;
 export type BackupScheduleResult = z.infer<typeof BackupScheduleResultSchema>;
 export type BackupDestination = z.infer<typeof BackupDestinationSchema>;
 export type BackupTiming = z.infer<typeof BackupTimingSchema>;

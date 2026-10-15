@@ -24,6 +24,7 @@ import {
   type Actor,
   type BackupDestination,
   type BackupSchedule,
+  type BackupScheduleInput,
   type BackupScheduleResult,
   type JsonValue,
 } from "@rootset/contracts";
@@ -57,7 +58,6 @@ interface ScheduleRow {
   database_id: string;
   org_id: string;
   version: number;
-  enabled: boolean;
   bucket: string;
   prefix: string;
   cron: string;
@@ -87,7 +87,6 @@ const iso = (value: Date | null | undefined) =>
 const scheduleView = (row: ScheduleRow): BackupSchedule => ({
   databaseId: row.database_id,
   version: row.version,
-  enabled: row.enabled,
   bucket: row.bucket,
   prefix: row.prefix,
   cron: row.cron,
@@ -101,6 +100,7 @@ export const backupJobKinds = ["database_backup", "backup_destination_test"];
 export const backupOperations = new Set([
   "getBackupSchedule",
   "saveBackupSchedule",
+  "deleteBackupSchedule",
   "previewBackupSchedule",
   "listDatabaseBackups",
   "runDatabaseBackup",
@@ -173,7 +173,7 @@ export class DatabaseBackups {
     if (expected && backend !== expected)
       throw new RootsetError(
         "VALIDATION_FAILED",
-        "The worker backup destination or encryption key changed. Test the destination and save the schedule again",
+        "The worker backup destination or encryption key changed. Save the schedule again to verify its destination",
         409,
       );
     return backend;
@@ -186,20 +186,75 @@ export class DatabaseBackups {
       )
     ).rows[0];
   }
+  private async revision(client: PoolClient, databaseId: string) {
+    return (
+      (
+        await client.query<{ version: number }>(
+          "SELECT version FROM rootset_control.backup_schedule_versions WHERE database_id=$1",
+          [databaseId],
+        )
+      ).rows[0]?.version ?? 0
+    );
+  }
+  private async advanceRevision(
+    client: PoolClient,
+    databaseId: string,
+    orgId: string,
+  ) {
+    return (
+      await client.query<{ version: number }>(
+        `INSERT INTO rootset_control.backup_schedule_versions(database_id,org_id,version) VALUES($1,$2,1)
+      ON CONFLICT(database_id) DO UPDATE SET version=backup_schedule_versions.version+1 RETURNING version`,
+        [databaseId, orgId],
+      )
+    ).rows[0]!.version;
+  }
+  private async cancelScheduled(
+    client: PoolClient,
+    databaseId: string,
+    version: number | null,
+    cancelSaves = false,
+  ) {
+    await client.query(
+      `WITH pending AS (
+        SELECT j.id FROM rootset_control.jobs j JOIN rootset_control.database_backups b ON b.job_id=j.id
+        WHERE b.database_id=$1 AND NOT b.published AND j.state IN ('queued','running')
+        AND ((b.trigger='schedule' AND ($2::integer IS NULL OR b.schedule_version<>$2))
+          OR ($3::boolean AND j.operation_id='saveBackupSchedule'))
+        FOR UPDATE OF j SKIP LOCKED
+      ) UPDATE rootset_control.jobs j SET cancel_requested=true,
+        state=CASE WHEN j.state='queued' THEN 'cancelled' ELSE j.state END,
+        stage=CASE WHEN j.state='queued' THEN 'cancelled' ELSE j.stage END,
+        completed_at=CASE WHEN j.state='queued' THEN now() ELSE j.completed_at END,updated_at=now()
+        FROM pending WHERE j.id=pending.id`,
+      [databaseId, version, cancelSaves],
+    );
+  }
   private async result(
     client: PoolClient,
     databaseId: string,
+    completedSaveJobId?: string,
   ): Promise<BackupScheduleResult> {
     const row = await this.getSchedule(client, databaseId);
     const backendId = await this.backend(client);
     return BackupScheduleResultSchema.parse({
       schedule: row ? scheduleView(row) : null,
+      version: await this.revision(client, databaseId),
+      pendingSaveJobId:
+        (
+          await client.query<{ id: string }>(
+            `SELECT j.id FROM rootset_control.jobs j JOIN rootset_control.database_backups b ON b.job_id=j.id
+        WHERE b.database_id=$1 AND j.operation_id='saveBackupSchedule' AND j.state IN ('queued','running')
+        AND NOT j.cancel_requested AND NOT b.published AND ($2::text IS NULL OR j.id<>$2) ORDER BY j.id LIMIT 1`,
+            [databaseId, completedSaveJobId ?? null],
+          )
+        ).rows[0]?.id ?? null,
       worker: {
         available: backendId !== null,
         backendId,
         matchesSchedule: !row || row.backend_id === backendId,
       },
-      nextRuns: row?.enabled ? nextBackupRuns(row) : [],
+      nextRuns: row ? nextBackupRuns(row) : [],
     });
   }
   async execute(
@@ -272,7 +327,36 @@ export class DatabaseBackups {
       return this.list(actor, input, client);
     await this.lock(client, databaseId);
     const existing = await this.getSchedule(client, databaseId);
-    if (operationId === "saveBackupSchedule") {
+    if (
+      operationId === "saveBackupSchedule" ||
+      operationId === "deleteBackupSchedule"
+    ) {
+      const version = await this.revision(client, databaseId);
+      if (input.expectedVersion !== version)
+        throw new RootsetError(
+          "ROW_VERSION_CONFLICT",
+          "The backup schedule changed. Reload before saving",
+          409,
+        );
+      if (operationId === "deleteBackupSchedule") {
+        await this.advanceRevision(client, databaseId, actor.orgId);
+        await client.query(
+          "DELETE FROM rootset_control.backup_schedules WHERE database_id=$1",
+          [databaseId],
+        );
+        await this.cancelScheduled(client, databaseId, null, true);
+        await client.query(
+          "INSERT INTO rootset_control.resource_history(org_id,database_id,resource_id,operation,before_value,after_value,actor,context) VALUES($1,$2,$2,'database.backup_schedule.delete',$3,NULL,$4,$5)",
+          [
+            actor.orgId,
+            databaseId,
+            existing ? scheduleView(existing) : null,
+            actor,
+            { source: context.source ?? "rest", requestId: context.requestId },
+          ],
+        );
+        return this.result(client, databaseId);
+      }
       const value = BackupScheduleInputSchema.parse(
         Object.fromEntries(
           Object.entries(input).filter(
@@ -280,71 +364,26 @@ export class DatabaseBackups {
           ),
         ),
       );
-      if (value.expectedVersion !== (existing?.version ?? 0))
-        throw new RootsetError(
-          "ROW_VERSION_CONFLICT",
-          "The backup schedule changed. Reload before saving",
-          409,
-        );
-      const next = nextBackupRuns(value, new Date(), 1)[0]!;
-      const backend =
-        (await this.backend(client)) ??
-        (!value.enabled && existing
-          ? existing.backend_id
-          : await this.requireBackend(client));
-      const tested = (
-        await client.query<{ completed_at: Date }>(
-          "SELECT completed_at FROM rootset_control.database_backups WHERE database_id=$1 AND kind='destination_test' AND bucket=$2 AND prefix=$3 AND backend_id=$4 AND published ORDER BY completed_at DESC LIMIT 1",
-          [databaseId, value.bucket, value.prefix, backend],
-        )
-      ).rows[0];
-      if (value.enabled && !tested)
-        throw new RootsetError(
-          "VALIDATION_FAILED",
-          "Test this destination successfully before enabling automatic backups",
-          400,
-        );
-      await client.query(
-        `INSERT INTO rootset_control.backup_schedules(database_id,org_id,bucket,prefix,cron,timezone,enabled,backend_id,next_run_at,tested_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        ON CONFLICT(database_id) DO UPDATE SET bucket=excluded.bucket,prefix=excluded.prefix,cron=excluded.cron,timezone=excluded.timezone,enabled=excluded.enabled,backend_id=excluded.backend_id,next_run_at=excluded.next_run_at,tested_at=excluded.tested_at,version=rootset_control.backup_schedules.version+1,updated_at=now()`,
-        [
-          databaseId,
-          actor.orgId,
-          value.bucket,
-          value.prefix,
-          value.cron,
-          value.timezone,
-          value.enabled,
-          backend,
-          value.enabled ? next : null,
-          tested?.completed_at ?? null,
-        ],
+      nextBackupRuns(value, new Date(), 1);
+      const backend = await this.requireBackend(client);
+      const job = await this.enqueue(
+        client,
+        actor,
+        databaseId,
+        value,
+        backend,
+        "destination_test",
+        "manual",
+        new Date(),
+        context.idempotencyKey!,
+        version,
+        value,
       );
-      await client.query(
-        `WITH pending AS (
-        SELECT j.id FROM rootset_control.jobs j JOIN rootset_control.database_backups b ON b.job_id=j.id
-        WHERE b.database_id=$1 AND b.trigger='schedule' AND b.schedule_version<>$2 AND NOT b.published AND j.state IN ('queued','running')
-        FOR UPDATE OF j SKIP LOCKED
-      ) UPDATE rootset_control.jobs j SET cancel_requested=true,
-        state=CASE WHEN j.state='queued' THEN 'cancelled' ELSE j.state END,
-        stage=CASE WHEN j.state='queued' THEN 'cancelled' ELSE j.stage END,
-        completed_at=CASE WHEN j.state='queued' THEN now() ELSE j.completed_at END,updated_at=now()
-        FROM pending WHERE j.id=pending.id`,
-        [databaseId, (existing?.version ?? 0) + 1],
-      );
-      await client.query(
-        "INSERT INTO rootset_control.resource_history(org_id,database_id,resource_id,operation,before_value,after_value,actor,context) VALUES($1,$2,$2,'database.backup_schedule.update',$3,$4,$5,$6)",
-        [
-          actor.orgId,
-          databaseId,
-          existing ? scheduleView(existing) : null,
-          value,
-          actor,
-          { source: context.source ?? "rest", requestId: context.requestId },
-        ],
-      );
-      return this.result(client, databaseId);
+      return {
+        jobId: job.id,
+        state: job.state,
+        statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}`,
+      };
     }
     const destination =
       operationId === "testBackupDestination"
@@ -397,6 +436,7 @@ export class DatabaseBackups {
     scheduledAt: Date,
     key: string,
     scheduleVersion?: number,
+    schedule?: BackupScheduleInput,
   ) {
     if (kind === "backup") {
       const active = await client.query(
@@ -412,7 +452,11 @@ export class DatabaseBackups {
     }
     const job = await this.queue.enqueue(
       actor,
-      kind === "backup" ? "runDatabaseBackup" : "testBackupDestination",
+      kind === "backup"
+        ? "runDatabaseBackup"
+        : schedule
+          ? "saveBackupSchedule"
+          : "testBackupDestination",
       kind === "backup" ? "database_backup" : "backup_destination_test",
       { type: "database", id: databaseId },
       {
@@ -422,6 +466,7 @@ export class DatabaseBackups {
         prefix: destination.prefix,
         trigger,
         scheduleVersion: scheduleVersion ?? null,
+        ...(schedule ? { schedule } : {}),
         scheduledAt: scheduledAt.toISOString(),
         maxRuntimeSeconds: 3600,
       },
@@ -508,7 +553,7 @@ export class DatabaseBackups {
       const schedules = (
         await client.query<ScheduleRow>(
           `SELECT s.* FROM rootset_control.backup_schedules s JOIN rootset_control.databases d ON d.id=s.database_id
-        WHERE s.enabled AND s.next_run_at<=$1 AND s.backend_id=$2 AND d.state='active' ORDER BY s.next_run_at LIMIT 10`,
+        WHERE s.next_run_at<=$1 AND s.backend_id=$2 AND d.state='active' ORDER BY s.next_run_at LIMIT 10`,
           [now, this.backendId],
         )
       ).rows;
@@ -516,7 +561,7 @@ export class DatabaseBackups {
         await this.lock(client, candidate.database_id);
         const schedule = (
           await client.query<ScheduleRow>(
-            "SELECT * FROM rootset_control.backup_schedules WHERE database_id=$1 AND enabled AND next_run_at<=$2 AND backend_id=$3 FOR UPDATE",
+            "SELECT * FROM rootset_control.backup_schedules WHERE database_id=$1 AND next_run_at<=$2 AND backend_id=$3 FOR UPDATE",
             [candidate.database_id, now, this.backendId],
           )
         ).rows[0];
@@ -605,10 +650,19 @@ export class DatabaseBackups {
         )
       ).rows[0];
       if (!database || database.state !== "active") throw new JobCancelled();
+      if (
+        job.operation_id === "saveBackupSchedule" &&
+        (await this.revision(client, run.database_id)) !== run.schedule_version
+      )
+        throw new RootsetError(
+          "ROW_VERSION_CONFLICT",
+          "The backup schedule changed during verification. Reload before saving",
+          409,
+        );
       if (run.trigger === "schedule") {
         const schedule = await this.getSchedule(client, run.database_id);
         if (
-          !schedule?.enabled ||
+          !schedule ||
           schedule.version !== run.schedule_version ||
           schedule.backend_id !== this.backendId
         )
@@ -649,7 +703,9 @@ export class DatabaseBackups {
         ? job.kind !== "database_backup" ||
           job.operation_id !== "runDatabaseBackup"
         : job.kind !== "backup_destination_test" ||
-          job.operation_id !== "testBackupDestination") ||
+          !["testBackupDestination", "saveBackupSchedule"].includes(
+            job.operation_id,
+          )) ||
       run.database_id !== job.target_id ||
       run.org_id !== job.actor.orgId ||
       run.backend_id !== this.backendId ||
@@ -760,19 +816,92 @@ export class DatabaseBackups {
       );
     }
     await this.check(job, run);
-    const result: JsonValue = {
+    let result: JsonValue = {
       destinationVerified: true,
       bucket: run.bucket,
       prefix: run.prefix,
     };
+    await this.options.config.failpoint?.(
+      "backup.afterDestinationVerified",
+      job.id,
+    );
+    await this.check(job, run);
     await this.queue.fenced(job, async (client) => {
+      await this.lock(client, run.database_id);
+      await client.query(
+        "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+        [run.database_id],
+      );
+      if (
+        !(
+          await client.query(
+            "SELECT 1 FROM rootset_control.databases WHERE id=$1 AND state='active'",
+            [run.database_id],
+          )
+        ).rowCount
+      )
+        throw new JobCancelled();
+      if (job.operation_id === "saveBackupSchedule") {
+        const value = BackupScheduleInputSchema.parse(job.input.schedule);
+        if (
+          value.expectedVersion !== run.schedule_version ||
+          value.bucket !== run.bucket ||
+          value.prefix !== run.prefix
+        )
+          throw new RootsetError(
+            "ACCESS_DENIED",
+            "Backup schedule provenance does not match the verified destination",
+            403,
+          );
+        if (
+          (await this.revision(client, run.database_id)) !==
+          value.expectedVersion
+        )
+          throw new RootsetError(
+            "ROW_VERSION_CONFLICT",
+            "The backup schedule changed during verification. Reload before saving",
+            409,
+          );
+        const existing = await this.getSchedule(client, run.database_id);
+        const version = await this.advanceRevision(
+          client,
+          run.database_id,
+          job.org_id,
+        );
+        const next = nextBackupRuns(value, new Date(), 1)[0]!;
+        await client.query(
+          `INSERT INTO rootset_control.backup_schedules(database_id,org_id,version,bucket,prefix,cron,timezone,backend_id,next_run_at,tested_at)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+          ON CONFLICT(database_id) DO UPDATE SET version=excluded.version,bucket=excluded.bucket,prefix=excluded.prefix,cron=excluded.cron,timezone=excluded.timezone,backend_id=excluded.backend_id,next_run_at=excluded.next_run_at,tested_at=excluded.tested_at,updated_at=now()`,
+          [
+            run.database_id,
+            job.org_id,
+            version,
+            value.bucket,
+            value.prefix,
+            value.cron,
+            value.timezone,
+            run.backend_id,
+            next,
+          ],
+        );
+        await this.cancelScheduled(client, run.database_id, version);
+        await client.query(
+          "INSERT INTO rootset_control.resource_history(org_id,database_id,resource_id,operation,before_value,after_value,actor,context) VALUES($1,$2,$2,'database.backup_schedule.update',$3,$4,$5,$6)",
+          [
+            job.org_id,
+            run.database_id,
+            existing ? scheduleView(existing) : null,
+            scheduleView((await this.getSchedule(client, run.database_id))!),
+            job.actor,
+            { source: "worker", jobId: job.id },
+          ],
+        );
+        result = { ...(await this.result(client, run.database_id, job.id)) };
+      }
       await client.query(
         "UPDATE rootset_control.database_backups SET published=true,result=$2,completed_at=now() WHERE id=$1",
         [run.id, result],
-      );
-      await client.query(
-        "UPDATE rootset_control.backup_schedules SET tested_at=now() WHERE database_id=$1 AND bucket=$2 AND prefix=$3 AND backend_id=$4",
-        [run.database_id, run.bucket, run.prefix, run.backend_id],
       );
     });
     return result;
@@ -932,7 +1061,7 @@ export class DatabaseBackups {
               [run.database_id],
             )
           ).rows[0];
-          if (!current?.enabled || current.version !== run.schedule_version)
+          if (!current || current.version !== run.schedule_version)
             throw new JobCancelled();
         }
         await client.query(

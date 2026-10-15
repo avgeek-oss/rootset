@@ -25,6 +25,8 @@ vi.mock("./api", () => ({
         ? null
         : {
             schedule: null,
+            version: 0,
+            pendingSaveJobId: null,
             worker: { available: fixture.available, matchesSchedule: true },
             nextRuns: [],
           }
@@ -78,12 +80,12 @@ describe("database backup schedule page", () => {
       "Path prefix",
       "Cron schedule",
       "Time zone",
-      "Enable scheduled backups",
-      "Test destination",
       "Save schedule",
     ])
       expect(html).toContain(label);
     expect(html).toContain("<form");
+    expect(html).not.toContain("Enable scheduled backups");
+    expect(html).not.toContain("Test destination");
     expect(html).not.toContain("<table");
     expect(html).not.toContain("Database backups");
     expect(html).not.toContain("Secret key");

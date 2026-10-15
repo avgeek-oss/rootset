@@ -375,19 +375,25 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             ...destination,
             cron: "0 2 * * *",
             timezone: "UTC",
-            enabled: false,
             expectedVersion: 0,
           },
           "rest",
         );
-        assert.ok(saved.schedule.testedAt);
+        await runtime!.jobs.runOnce(orgId);
+        const savedJob = await call("getJob", { orgId, id: saved.jobId });
+        assert.equal(
+          savedJob.state,
+          "succeeded",
+          JSON.stringify(savedJob.error),
+        );
+        assert.ok((await call("getBackupSchedule", target)).schedule.testedAt);
         const backup = await call("runDatabaseBackup", target);
         const history = await call(
           "listDatabaseBackups",
           { ...target, limit: 10 },
           "rest",
         );
-        assert.equal(history.data.length, 2);
+        assert.equal(history.data.length, 3);
         assert.equal(history.data[0].jobId, backup.jobId);
         await call("cancelJob", { orgId, id: backup.jobId });
         await db.owner.query(
@@ -1530,10 +1536,8 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           orgId,
           databaseId,
         });
-        assert.equal(
-          (schedule.schedule as { enabled: boolean }).enabled,
-          false,
-        );
+        assert.ok(schedule.schedule);
+        assert.equal(schedule.version, 1);
         const preview = await mcpOperation("previewBackupSchedule", {
           orgId,
           databaseId,
@@ -1546,7 +1550,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           databaseId,
           limit: 10,
         });
-        assert.equal((history.data as unknown[]).length, 2);
+        assert.equal((history.data as unknown[]).length, 3);
       },
     );
     await t.test(

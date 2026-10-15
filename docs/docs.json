@@ -152,6 +152,7 @@
               "api-reference/deleteDatabase",
               "api-reference/getBackupSchedule",
               "api-reference/saveBackupSchedule",
+              "api-reference/deleteBackupSchedule",
               "api-reference/previewBackupSchedule",
               "api-reference/listDatabaseBackups",
               "api-reference/runDatabaseBackup",

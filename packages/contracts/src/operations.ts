@@ -1359,8 +1359,19 @@ operation(
   `${D}/backup-schedule`,
   ["backups:manage"],
   BackupScheduleInputSchema.extend(database),
+  JobAcceptedSchema,
+  "Verify the destination on the worker, then save and enable the schedule only if verification succeeds.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+operation(
+  "deleteBackupSchedule",
+  "delete_backup_schedule",
+  "DELETE",
+  `${D}/backup-schedule`,
+  ["backups:manage"],
+  z.strictObject({ ...database, expectedVersion: z.number().int().min(0) }),
   BackupScheduleResultSchema,
-  "Save or pause a database backup schedule. Credentials are configured on the worker.",
+  "Delete the schedule and cancel pending scheduled runs and schedule saves. Existing backup packages and history are retained.",
   { minimumRole: "admin" },
 );
 operation(

@@ -4589,12 +4589,13 @@ export type getBackupScheduleOutput = {
     timezone: string;
     databaseId: string;
     version: number;
-    enabled: boolean;
     backendId: string;
     nextRunAt: string | null;
     testedAt: string | null;
     updatedAt: string;
   } | null;
+  version: number;
+  pendingSaveJobId: string | null;
   worker: { available: boolean; backendId: unknown; matchesSchedule: boolean };
   nextRuns: string[];
 };
@@ -4603,12 +4604,27 @@ export type saveBackupScheduleInput = {
   prefix: string;
   cron: string;
   timezone: string;
-  enabled: boolean;
   expectedVersion: number;
   orgId: string;
   databaseId: string;
 };
 export type saveBackupScheduleOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type deleteBackupScheduleInput = {
+  orgId: string;
+  databaseId: string;
+  expectedVersion: number;
+};
+export type deleteBackupScheduleOutput = {
   schedule: {
     bucket: string;
     prefix: string;
@@ -4616,12 +4632,13 @@ export type saveBackupScheduleOutput = {
     timezone: string;
     databaseId: string;
     version: number;
-    enabled: boolean;
     backendId: string;
     nextRunAt: string | null;
     testedAt: string | null;
     updatedAt: string;
   } | null;
+  version: number;
+  pendingSaveJobId: string | null;
   worker: { available: boolean; backendId: unknown; matchesSchedule: boolean };
   nextRuns: string[];
 };
@@ -5103,6 +5120,11 @@ const routes = {
   saveBackupSchedule: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",
     method: "PUT",
+    idempotencyRequired: true,
+  },
+  deleteBackupSchedule: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",
+    method: "DELETE",
     idempotencyRequired: true,
   },
   previewBackupSchedule: {
@@ -5910,6 +5932,16 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<saveBackupScheduleOutput>;
+  }
+  deleteBackupSchedule(
+    input: deleteBackupScheduleInput,
+    options?: CallOptions,
+  ): Promise<deleteBackupScheduleOutput> {
+    return this.call(
+      "deleteBackupSchedule",
+      input,
+      options,
+    ) as Promise<deleteBackupScheduleOutput>;
   }
   previewBackupSchedule(
     input: previewBackupScheduleInput,

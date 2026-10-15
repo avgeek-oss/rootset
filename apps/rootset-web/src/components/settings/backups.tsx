@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import {
-  BackupDestinationSchema,
   BackupScheduleInputSchema,
+  BackupScheduleResultSchema,
   BackupTimingSchema,
   createDateTimeFormatter,
   isTimeZone,
@@ -22,7 +22,7 @@ import {
 } from "./api";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { TimeZoneSelect } from "./time-zone-select";
-import { Empty, Field, Form, Loading, Section, Toggle } from "./ui";
+import { Empty, Field, Form, Loading, Section } from "./ui";
 import type { Job, SettingsPanelProps } from "./types";
 
 interface BackupPage {
@@ -57,7 +57,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
   const [timezone, setTimezone] = useState(
     props.preferences?.timezone ?? "UTC",
   );
-  const [enabled, setEnabled] = useState(false);
   const [version, setVersion] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string>();
@@ -66,9 +65,10 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
   const [previewError, setPreviewError] = useState<string>();
   const [pending, setPending] = useState<{
     id: string;
-    kind: "test" | "backup";
+    kind: "save" | "backup";
   }>();
   const initialized = useRef(false);
+  const completed = useRef(new Set<string>());
   const mutation = useMutation();
   const job = useResource<Job | null>(
     pending ? `${organisationPath(props.orgId)}/jobs/${pending.id}` : undefined,
@@ -80,7 +80,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     history.data.data.some(
       (run) => run.kind === "backup" && isActive(run.state),
     ) || pending?.kind === "backup";
-  const testing = pending?.kind === "test";
+  const saving = pending?.kind === "save";
   useEffect(() => {
     if (!resource.data || initialized.current) return;
     initialized.current = true;
@@ -90,11 +90,15 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       setPrefix(saved.prefix);
       setCron(saved.cron);
       setTimezone(saved.timezone);
-      setEnabled(saved.enabled);
-      setVersion(saved.version);
     }
+    setVersion(resource.data.version);
     setPreview(resource.data.nextRuns);
   }, [resource.data]);
+  useEffect(() => {
+    const id = resource.data?.pendingSaveJobId;
+    if (id && !pending && !completed.current.has(id))
+      setPending({ id, kind: "save" });
+  }, [resource.data?.pendingSaveJobId, pending]);
   useEffect(() => {
     if (!path) return;
     const timer = setInterval(resource.reload, 10000);
@@ -104,7 +108,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     if (
       !pending &&
       !history.data.data.some((run) => isActive(run.state)) &&
-      !resource.data?.schedule?.enabled
+      !resource.data?.schedule
     )
       return;
     const timer = setInterval(
@@ -122,28 +126,39 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     history.data.data,
     history.reload,
     job.reload,
-    resource.data?.schedule?.enabled,
+    resource.data?.schedule,
   ]);
   useEffect(() => {
     if (!pending || job.data?.id !== pending.id || isActive(job.data.state))
       return;
+    completed.current.add(pending.id);
     setPending(undefined);
     history.reload();
     resource.reload();
     if (job.data.state === "succeeded") {
+      if (pending.kind === "save") {
+        const saved = BackupScheduleResultSchema.parse(job.data.result);
+        resource.replace(saved);
+        setVersion(saved.version);
+        setBucket(saved.schedule!.bucket);
+        setPrefix(saved.schedule!.prefix);
+        setPreview(saved.nextRuns);
+      }
       toast.success(
-        pending.kind === "test"
-          ? "Backup destination verified."
+        pending.kind === "save"
+          ? "Backup schedule saved."
           : "Database backup completed.",
       );
       setFormError(undefined);
-    } else
-      setFormError(
+    } else {
+      const message =
         typeof job.data.error === "string"
           ? job.data.error
           : (job.data.error?.message ??
-              "The backup operation did not complete."),
-      );
+            "The backup operation did not complete.");
+      setFormError(message);
+      toast.danger(message);
+    }
   }, [pending, job.data, history.reload, resource.reload]);
   useEffect(() => {
     if (!previewRequested || !props.databaseId) return;
@@ -199,6 +214,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
           !matches ||
           !resource.data?.schedule?.testedAt ||
           mutation.busy ||
+          saving ||
           hasActiveBackup
         }
         onPress={async () => {
@@ -219,6 +235,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       matches,
       resource.data?.schedule?.testedAt,
       mutation.busy,
+      saving,
       hasActiveBackup,
       input,
     ],
@@ -243,15 +260,53 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
           ) : (
             !matches && (
               <p role="status" className="settings-section-description">
-                The worker’s backup configuration changed. Test the destination
-                and save this schedule again.
+                The worker’s backup configuration changed. Save this schedule
+                again to verify the destination.
               </p>
             )
           )}
           <Section title="Destination and schedule">
             <Form
-              busy={mutation.busy || testing}
+              busy={mutation.busy || saving}
               submit="Save schedule"
+              actions={
+                resource.data.schedule && (
+                  <Button
+                    type="button"
+                    variant="danger-soft"
+                    isDisabled={mutation.busy}
+                    onPress={async () => {
+                      const result = await mutation.run(
+                        () =>
+                          performAction<BackupScheduleResult>(
+                            "deleteBackupSchedule",
+                            { ...input, expectedVersion: version },
+                          ),
+                        "Backup schedule deleted.",
+                      );
+                      if (result.ok) {
+                        if (pending?.kind === "save") {
+                          completed.current.add(pending.id);
+                          setPending(undefined);
+                        }
+                        resource.replace(result.value);
+                        setVersion(result.value.version);
+                        setBucket("");
+                        setPrefix("");
+                        setCron("0 2 * * *");
+                        setTimezone(props.preferences?.timezone ?? "UTC");
+                        setPreview([]);
+                        setPreviewRequested(false);
+                        setFieldErrors({});
+                        setFormError(undefined);
+                        history.reload();
+                      }
+                    }}
+                  >
+                    Delete schedule
+                  </Button>
+                )
+              }
               noValidate
               onSubmit={async () => {
                 setFormError(undefined);
@@ -260,7 +315,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                   prefix,
                   cron,
                   timezone,
-                  enabled,
                   expectedVersion: version,
                 });
                 if (!checked.success) {
@@ -275,20 +329,15 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                   return;
                 }
                 setFieldErrors({});
-                const result = await mutation.run(
-                  () =>
-                    performAction<BackupScheduleResult>("saveBackupSchedule", {
-                      ...input,
-                      ...checked.data,
-                    }),
-                  "Backup schedule saved.",
+                const result = await mutation.run(() =>
+                  performAction<{ jobId: string }>("saveBackupSchedule", {
+                    ...input,
+                    ...checked.data,
+                  }),
                 );
                 if (result.ok) {
-                  resource.replace(result.value);
-                  setVersion(result.value.schedule!.version);
-                  setBucket(result.value.schedule!.bucket);
-                  setPrefix(result.value.schedule!.prefix);
-                  setPreview(result.value.nextRuns);
+                  setPending({ id: result.value.jobId, kind: "save" });
+                  history.reload();
                 } else setFormError(result.error.message);
               }}
             >
@@ -312,49 +361,11 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                 }}
                 maxLength={512}
                 error={fieldErrors.prefix}
-                description="Rootset adds the database ID, date, and a unique backup filename."
+                description="Leading and trailing slashes are removed automatically. Rootset adds the database ID, date, and a unique backup filename."
               />
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-fit"
-                isDisabled={!available || mutation.busy || Boolean(pending)}
-                isPending={testing}
-                onPress={async () => {
-                  const checked = BackupDestinationSchema.safeParse({
-                    bucket,
-                    prefix,
-                  });
-                  if (!checked.success) {
-                    setFieldErrors(
-                      Object.fromEntries(
-                        checked.error.issues.map((issue) => [
-                          String(issue.path[0]),
-                          issue.message,
-                        ]),
-                      ),
-                    );
-                    return;
-                  }
-                  setFieldErrors({});
-                  setFormError(undefined);
-                  const result = await mutation.run(() =>
-                    performAction<{ jobId: string }>("testBackupDestination", {
-                      ...input,
-                      ...checked.data,
-                    }),
-                  );
-                  if (result.ok) {
-                    setPending({ id: result.value.jobId, kind: "test" });
-                    history.reload();
-                  }
-                }}
-              >
-                {testing ? "Testing destination…" : "Test destination"}
-              </Button>
-              {testing && (
+              {saving && (
                 <p role="status" className="settings-section-description">
-                  Checking write, read, and cleanup access…
+                  Verifying the destination before saving the schedule…
                 </p>
               )}
               <Field
@@ -406,12 +417,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                   </div>
                 )
               )}
-              <Toggle
-                label="Enable scheduled backups"
-                selected={enabled}
-                onChange={setEnabled}
-                description="Save with this enabled to run backups at the cron times above. Turn off and save to pause; Back up now remains available."
-              />
               {formError && (
                 <p role="alert" className="settings-section-description">
                   {formError}

@@ -33,17 +33,16 @@ test("backup destinations normalize only outer slashes and reject unsafe or over
     true,
   );
 });
-test("schedules require explicit timezone, enablement and optimistic version", () => {
+test("schedules require explicit timezone and optimistic version", () => {
   const input = {
     bucket: "rootset-backups",
     prefix: "production",
     cron: "0 2 * * *",
     timezone: "UTC",
-    enabled: false,
     expectedVersion: 0,
   };
   assert.equal(BackupScheduleInputSchema.safeParse(input).success, true);
-  for (const field of ["timezone", "enabled", "expectedVersion"]) {
+  for (const field of ["timezone", "expectedVersion"]) {
     const missing: Record<string, unknown> = { ...input };
     delete missing[field];
     assert.equal(BackupScheduleInputSchema.safeParse(missing).success, false);
@@ -60,6 +59,7 @@ test("backup administration remains Admin-only and previews stay read-only acros
   for (const id of [
     "getBackupSchedule",
     "saveBackupSchedule",
+    "deleteBackupSchedule",
     "previewBackupSchedule",
     "listDatabaseBackups",
     "runDatabaseBackup",

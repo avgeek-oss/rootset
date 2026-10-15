@@ -29,13 +29,13 @@ The Compose files pass backup variables only to the worker and use its existing 
 
 ## Save a schedule
 
-Enter a bucket and optional path prefix, then choose **Test destination**. The worker writes a random probe, reads it back, verifies it and removes it. After a successful test, enter a cron expression, choose a timezone from the searchable **Time zone** dropdown, turn on **Enable scheduled backups**, and save. Turn it off and save to pause scheduled runs; **Back up now** remains available.
+Enter a bucket and optional path prefix, a cron expression, and a timezone from the searchable **Time zone** dropdown, then choose **Save schedule**. The worker writes a random probe, reads it back, verifies it and removes it before saving. A failed verification leaves any existing schedule unchanged and shows an error toast. Leading and trailing slashes in the path prefix are removed automatically.
 
 Cron has five numeric fields: minute, hour, day of month, month, weekday. Lists, ranges and steps are supported. Seconds and aliases such as `@daily` are not accepted. For example, `0 2 * * *` means daily at 02:00 in the saved timezone. If both day-of-month and weekday are restricted, either may match. The page previews the next three runs. On spring-forward days a missing local time advances by the daylight-saving gap; the repeated fall-back hour runs once. All occurrence timestamps are stored in UTC.
 
-The initial timezone is copied from the Admin's preferences. Later preference changes do not alter a saved schedule. Schedules belong to the database and continue if the configuring Admin leaves. Admins can pause them at any time, including while the backup worker is offline. Changes cancel pending scheduled runs from an older schedule version. Cancellation is checked between extraction batches and before publication; an in-flight storage request may finish before cancellation is observed. Manual runs remain tied to their saved destination and recheck their requester's authority before publication.
+The initial timezone is copied from the Admin's preferences. Later preference changes do not alter a saved schedule. Every saved schedule is active and belongs to the database, so it continues if the configuring Admin leaves. **Delete schedule**, beside **Save schedule**, stops scheduled backups and removes the configuration, including while the worker is offline. It also cancels pending scheduled runs and schedule saves; a verification already in progress cannot recreate a deleted schedule. Existing backup packages and history are retained. Changes cancel pending scheduled runs from an older schedule version. Cancellation is checked between extraction batches and before publication; an in-flight storage request may finish before cancellation is observed.
 
-Use **Back up now** to queue a full backup to a verified saved destination, even while its automatic schedule is paused. Changes to the worker endpoint or encryption key require a new destination test and schedule save.
+Use **Back up now** to queue a full backup to a verified saved destination. Manual runs recheck their requester's authority before publication. Changes to the worker endpoint or encryption key require saving the schedule again, which verifies the destination before applying the changes.
 
 ## Run history and failures
 
@@ -51,6 +51,6 @@ Each `.rootset-backup` is an independent full backup: a versioned authenticated 
 
 Authentication secrets, accounts, sessions, API keys, OAuth grants, job queues, temporary exports and installation credentials are outside the database backup. Historical authors are preserved as attribution, not login authority. A database backup is separate from a complete installation recovery plan.
 
-There is **no restore UI or public restore operation** in this version. The package format is designed for a later restore into a new database, with schema and relationship validation before publication. Its internal recovery rehearsal verifies reconstruction without exposing restore to users. Restored schedules must start paused.
+There is **no restore UI or public restore operation** in this version. The package format is designed for a later restore into a new database, with schema and relationship validation before publication. Its internal recovery rehearsal verifies reconstruction without exposing restore to users. A future restore must leave backup scheduling unconfigured until an Admin saves and verifies a schedule.
 
 Rootset retains successful packages indefinitely. Pausing a schedule or deleting a database does not remove existing S3 objects. Set your bucket lifecycle policy for retention, and retain every encryption key needed by retained packages.

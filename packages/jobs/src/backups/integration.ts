@@ -119,15 +119,23 @@ const execute = (
 async function schedule() {
   return (await execute("getBackupSchedule")) as BackupScheduleResult;
 }
-async function save(enabled: boolean) {
+async function save() {
   const current = await schedule();
-  return (await execute("saveBackupSchedule", {
+  const accepted = (await execute("saveBackupSchedule", {
     bucket,
     prefix,
     cron: "* * * * *",
     timezone: "UTC",
-    enabled,
-    expectedVersion: current.schedule?.version ?? 0,
+    expectedVersion: current.version,
+  })) as { jobId: string };
+  const result = await terminal(accepted.jobId);
+  assert.equal(result.state, "succeeded", JSON.stringify(result.error));
+  return schedule();
+}
+async function removeSchedule() {
+  const current = await schedule();
+  return (await execute("deleteBackupSchedule", {
+    expectedVersion: current.version,
   })) as BackupScheduleResult;
 }
 async function terminal(id: string) {
@@ -314,19 +322,28 @@ after(async () => {
   }
 });
 
-test("schedule mutations require Admin authority, current versions, and a verified worker destination", async () => {
+test("saving verifies the destination atomically, normalizes prefixes, and requires current Admin authority and versions", async () => {
   assert.equal((await schedule()).schedule, null);
   await assert.rejects(
     execute("getBackupSchedule", {}, newId(), { ...actor, role: "member" }),
     /role/,
   );
-  await assert.rejects(save(true), /Test this destination/);
-  const testJob = (await execute("testBackupDestination", {
-    bucket,
+  const missing = (await execute("saveBackupSchedule", {
+    bucket: `missing-${newId().toLowerCase()}`,
     prefix,
+    cron: "0 2 * * *",
+    timezone: "UTC",
+    expectedVersion: 0,
   })) as { jobId: string };
-  assert.equal((await terminal(testJob.jobId)).state, "succeeded");
-  const saved = await save(true);
+  assert.equal(
+    (await schedule()).schedule,
+    null,
+    "a queued verification must not create a schedule",
+  );
+  assert.equal((await terminal(missing.jobId)).state, "failed");
+  assert.equal((await schedule()).schedule, null);
+  assert.equal((await schedule()).version, 0);
+  const saved = await save();
   assert.equal(saved.schedule!.version, 1);
   assert.ok(saved.schedule!.testedAt);
   await assert.rejects(
@@ -335,7 +352,6 @@ test("schedule mutations require Admin authority, current versions, and a verifi
       prefix,
       cron: "* * * * *",
       timezone: "UTC",
-      enabled: true,
       expectedVersion: 0,
     }),
     /changed/,
@@ -343,24 +359,86 @@ test("schedule mutations require Admin authority, current versions, and a verifi
   const replayKey = newId();
   const value = {
     bucket,
-    prefix,
+    prefix: `/${prefix}/`,
     cron: "0 2 * * *",
     timezone: "Asia/Kolkata",
-    enabled: false,
     expectedVersion: 1,
   };
+  const queued = (await execute("saveBackupSchedule", value, replayKey)) as {
+    jobId: string;
+  };
   assert.deepEqual(
+    queued,
     await execute("saveBackupSchedule", value, replayKey),
-    await execute("saveBackupSchedule", value, replayKey),
+  );
+  assert.equal(
+    (await schedule()).version,
+    1,
+    "existing schedule is retained while verification is queued",
   );
   await assert.rejects(
     execute("saveBackupSchedule", { ...value, prefix: "different" }, replayKey),
     /different|match/,
   );
+  assert.equal((await terminal(queued.jobId)).state, "succeeded");
+  assert.equal((await schedule()).schedule!.prefix, prefix);
+  const beforeFailure = await schedule();
+  const failedUpdate = (await execute("saveBackupSchedule", {
+    ...value,
+    bucket: `missing-${newId().toLowerCase()}`,
+    expectedVersion: beforeFailure.version,
+  })) as { jobId: string };
+  assert.equal((await terminal(failedUpdate.jobId)).state, "failed");
+  assert.deepEqual(
+    (await schedule()).schedule,
+    beforeFailure.schedule,
+    "failed verification must preserve the existing schedule",
+  );
+});
+
+test("deleting during verification prevents a pending save from recreating the schedule and preserves backups", async () => {
+  const current = await schedule();
+  const pending = (await execute("saveBackupSchedule", {
+    bucket,
+    prefix,
+    cron: "0 2 * * *",
+    timezone: "UTC",
+    expectedVersion: current.version,
+  })) as { jobId: string };
+  hook = async (point) => {
+    if (point === "backup.afterDestinationVerified") await removeSchedule();
+  };
+  const outcome = await terminal(pending.jobId);
+  hook = undefined;
+  assert.equal(outcome.state, "cancelled");
+  const removed = await schedule();
+  assert.equal(removed.schedule, null);
+  assert.equal(removed.version, current.version + 1);
+  assert.equal(removed.pendingSaveJobId, null);
+  assert.ok(
+    (
+      await owner.query(
+        "SELECT 1 FROM rootset_control.database_backups WHERE database_id=$1",
+        [databaseId],
+      )
+    ).rowCount,
+  );
+  await assert.rejects(
+    execute("saveBackupSchedule", {
+      bucket,
+      prefix,
+      cron: "0 2 * * *",
+      timezone: "UTC",
+      expectedVersion: current.version,
+    }),
+    /changed/,
+  );
+  const recreated = await save();
+  assert.equal(recreated.version, removed.version + 1);
 });
 
 test("consistent full packages reconstruct rows, rules, counters, comments and history in a new database", async () => {
-  await save(false);
+  await save();
   let changed = false;
   hook = async (point) => {
     if (point !== "backup.afterTable" || changed) return;
@@ -730,7 +808,7 @@ test("manual concurrency and durable replay do not create duplicate backups", as
 });
 
 test("scheduler coalesces outage ranges, prevents overlapping runs, and survives multiple schedulers", async () => {
-  await save(true);
+  await save();
   const now = new Date();
   now.setUTCSeconds(0, 0);
   await owner.query(
@@ -786,7 +864,7 @@ test("scheduler coalesces outage ranges, prevents overlapping runs, and survives
   assert.ok(next.data.every((entry) => entry.id < paged.data.at(-1)!.id));
 });
 
-test("pausing offline cancels old scheduled jobs; database removal and lost manual authority prevent publication", async () => {
+test("deleting schedules offline cancels old scheduled jobs; database removal and lost manual authority prevent publication", async () => {
   const now = new Date();
   now.setUTCSeconds(0, 0);
   now.setUTCMinutes(now.getUTCMinutes() + 1);
@@ -804,12 +882,13 @@ test("pausing offline cancels old scheduled jobs; database removal and lost manu
     "UPDATE rootset_control.worker_heartbeats SET heartbeat_at=now()-interval '1 hour' WHERE id=$1",
     [workerId],
   );
-  assert.equal((await save(false)).schedule!.enabled, false);
+  assert.equal((await removeSchedule()).schedule, null);
   await owner.query(
     "UPDATE rootset_control.worker_heartbeats SET heartbeat_at=now() WHERE id=$1",
     [workerId],
   );
   assert.equal((await terminal(scheduled.id)).state, "cancelled");
+  await save();
   const manual = await queueBackup();
   authorized = false;
   assert.equal((await terminal(manual.jobId)).state, "failed");
@@ -927,7 +1006,7 @@ test("database deletion immediately before publication prevents a readable backu
       prefix,
     })) as { jobId: string };
     assert.equal((await terminal(probe.jobId)).state, "succeeded");
-    await save(false);
+    await save();
     const { jobId } = await queueBackup();
     hook = async (point) => {
       if (point === "backup.beforePublish")

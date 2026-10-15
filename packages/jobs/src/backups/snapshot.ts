@@ -62,7 +62,7 @@ export async function databaseSnapshot(options: {
     ],
     [
       "schedule.json",
-      "SELECT bucket,prefix,cron,timezone,enabled FROM rootset_control.backup_schedules WHERE database_id=$1",
+      "SELECT bucket,prefix,cron,timezone FROM rootset_control.backup_schedules WHERE database_id=$1",
     ],
     [
       "catalog.json",

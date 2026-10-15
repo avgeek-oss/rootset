@@ -43,6 +43,7 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
 ]);
 export const backupMutationSet: ReadonlySet<string> = new Set([
   "saveBackupSchedule",
+  "deleteBackupSchedule",
   "runDatabaseBackup",
   "testBackupDestination",
 ]);

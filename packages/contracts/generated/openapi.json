@@ -16741,7 +16741,7 @@
       "put": {
         "operationId": "saveBackupSchedule",
         "tags": ["databases"],
-        "summary": "Save or pause a database backup schedule. Credentials are configured on the worker.",
+        "summary": "Verify the destination on the worker, then save and enable the schedule only if verification succeeds.",
         "parameters": [
           {
             "name": "orgId",
@@ -16792,7 +16792,6 @@
                     "pattern": "^[\\d*/,\\-]+(?:\\s+[\\d*/,\\-]+){4}$"
                   },
                   "timezone": { "type": "string", "maxLength": 100 },
-                  "enabled": { "type": "boolean" },
                   "expectedVersion": {
                     "type": "integer",
                     "minimum": 0,
@@ -16804,7 +16803,6 @@
                   "prefix",
                   "cron",
                   "timezone",
-                  "enabled",
                   "expectedVersion"
                 ],
                 "additionalProperties": false
@@ -16814,15 +16812,14 @@
                 "prefix": "example",
                 "cron": "* * * * *",
                 "timezone": "UTC",
-                "enabled": false,
                 "expectedVersion": 0
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Authorised operation result.",
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16935,7 +16932,7 @@
         "x-rootset-scopes": ["backups:manage"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
-        "x-rootset-job": false,
+        "x-rootset-job": true,
         "x-rootset-minimum-role": "admin",
         "x-rootset-personal": false,
         "x-rootset-mcp-tool": "rootset_save_backup_schedule",
@@ -16957,10 +16954,201 @@
           "prefix": "example",
           "cron": "* * * * *",
           "timezone": "UTC",
-          "enabled": false,
           "expectedVersion": 0,
           "orgId": "01K6J7B8000000000000000000",
           "databaseId": "01K6J7B8000000000000000000"
+        }
+      },
+      "delete": {
+        "operationId": "deleteBackupSchedule",
+        "tags": ["databases"],
+        "summary": "Delete the schedule and cancel pending scheduled runs and schedule saves. Existing backup packages and history are retained.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["backups:manage"] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["expectedVersion"],
+                "additionalProperties": false
+              },
+              "example": { "expectedVersion": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/deleteBackupScheduleOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "admin",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_delete_backup_schedule",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "expectedVersion": 0
         }
       }
     },
@@ -33567,7 +33755,6 @@
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
                   },
-                  "enabled": { "type": "boolean" },
                   "backendId": { "type": "string" },
                   "nextRunAt": {
                     "anyOf": [
@@ -33599,7 +33786,6 @@
                   "timezone",
                   "databaseId",
                   "version",
-                  "enabled",
                   "backendId",
                   "nextRunAt",
                   "testedAt",
@@ -33607,6 +33793,17 @@
                 ],
                 "additionalProperties": false
               },
+              { "type": "null" }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "pendingSaveJobId": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
               { "type": "null" }
             ]
           },
@@ -33628,7 +33825,13 @@
             }
           }
         },
-        "required": ["schedule", "worker", "nextRuns"],
+        "required": [
+          "schedule",
+          "version",
+          "pendingSaveJobId",
+          "worker",
+          "nextRuns"
+        ],
         "additionalProperties": false
       },
       "saveBackupScheduleInput": {
@@ -33647,7 +33850,6 @@
             "pattern": "^[\\d*/,\\-]+(?:\\s+[\\d*/,\\-]+){4}$"
           },
           "timezone": { "type": "string", "maxLength": 100 },
-          "enabled": { "type": "boolean" },
           "expectedVersion": {
             "type": "integer",
             "minimum": 0,
@@ -33667,7 +33869,6 @@
           "prefix",
           "cron",
           "timezone",
-          "enabled",
           "expectedVersion",
           "orgId",
           "databaseId"
@@ -33675,6 +33876,49 @@
         "additionalProperties": false
       },
       "saveBackupScheduleOutput": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "partially_completed"
+            ]
+          },
+          "statusUrl": { "type": "string" }
+        },
+        "required": ["jobId", "state", "statusUrl"],
+        "additionalProperties": false
+      },
+      "deleteBackupScheduleInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["orgId", "databaseId", "expectedVersion"],
+        "additionalProperties": false
+      },
+      "deleteBackupScheduleOutput": {
         "type": "object",
         "properties": {
           "schedule": {
@@ -33704,7 +33948,6 @@
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
                   },
-                  "enabled": { "type": "boolean" },
                   "backendId": { "type": "string" },
                   "nextRunAt": {
                     "anyOf": [
@@ -33736,7 +33979,6 @@
                   "timezone",
                   "databaseId",
                   "version",
-                  "enabled",
                   "backendId",
                   "nextRunAt",
                   "testedAt",
@@ -33744,6 +33986,17 @@
                 ],
                 "additionalProperties": false
               },
+              { "type": "null" }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "pendingSaveJobId": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
               { "type": "null" }
             ]
           },
@@ -33765,7 +34018,13 @@
             }
           }
         },
-        "required": ["schedule", "worker", "nextRuns"],
+        "required": [
+          "schedule",
+          "version",
+          "pendingSaveJobId",
+          "worker",
+          "nextRuns"
+        ],
         "additionalProperties": false
       },
       "previewBackupScheduleInput": {

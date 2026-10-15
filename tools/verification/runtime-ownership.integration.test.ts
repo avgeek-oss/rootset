@@ -41,6 +41,7 @@ verificationCase(
       "0005_integer_auto_increment.sql",
       "0006_foreign_keys.sql",
       "0007_database_backups.sql",
+      "0008_backup_schedule_lifecycle.sql",
     ]);
     const role = (
       await db.app.query(
