@@ -708,6 +708,10 @@ h1 {
   font-style: italic;
   opacity: 1;
 }
+.rootset-grid .null-value,
+.rootset-grid .null-value::placeholder {
+  color: color-mix(in oklab, var(--rs-muted) 70%, transparent);
+}
 .inline-cell-editor:has(.inline-cell-form--expand-up) {
   top: auto;
   bottom: -1px;
