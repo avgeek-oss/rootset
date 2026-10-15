@@ -3033,3 +3033,1005 @@ test(
     );
   },
 );
+
+for (const charLimit of [20, 4000]) {
+  const strategy = charLimit === 20 ? "native" : "registry";
+  const conditionalTable = () =>
+    storage!.createTable(actor, databaseId, {
+      name: `Conditional ${strategy}`,
+      fields: [
+        { name: "code", type: "text", charLimit },
+        { name: "region", type: "text", charLimit: 20 },
+        { name: "status", type: "text", charLimit: 40 },
+        { name: "unrelated", type: "integer" },
+      ],
+    });
+  test(
+    `Conditional ${strategy}: backfill, subset transitions, composites, nulls, batches and concurrent writes`,
+    { skip: !configured },
+    async () => {
+      const table = await conditionalTable();
+      const where = {
+        field: table.fields[2]!.id,
+        op: "eq" as const,
+        value: "active",
+      };
+      const values = { code: "shared", region: "west", status: "ceased" };
+      await storage!.mutateRows(actor, table.id, {
+        operations: [
+          { kind: "create", values },
+          { kind: "create", values },
+        ],
+      });
+      const input = {
+        fieldIds: table.fields.slice(0, 2).map((f) => f.id),
+        where,
+        expectedSchemaVersion: 1,
+        idempotencyKey: `conditional-${table.id}`,
+      };
+      const rule = await storage!.createUniqueRule(actor, table.id, input);
+      assert.equal(rule.strategy, strategy);
+      assert.deepEqual(rule.where, where);
+      assert.deepEqual(
+        await storage!.createUniqueRule(actor, table.id, input),
+        rule,
+      );
+      assert.deepEqual(
+        (await storage!.listUniqueRules(actor, table.id))[0],
+        rule,
+      );
+      let first = await storage!.createRow(actor, table.id, {
+        ...values,
+        status: "active",
+      });
+      const second = await storage!.createRow(actor, table.id, values);
+      const conflict = {
+        code: "UNIQUE_CONFLICT",
+        details: { ruleId: rule.id },
+      };
+      await assert.rejects(
+        storage!.updateRow(
+          actor,
+          table.id,
+          second.id,
+          { status: "active" },
+          { expectedVersion: second.version },
+        ),
+        conflict,
+      );
+      assert.equal(
+        (await storage!.getRow(actor, table.id, second.id)).version,
+        second.version,
+      );
+      first = await storage!.updateRow(
+        actor,
+        table.id,
+        first.id,
+        { status: "ceased" },
+        { expectedVersion: first.version },
+      );
+      const entered = await storage!.updateRow(
+        actor,
+        table.id,
+        second.id,
+        { status: "active" },
+        { expectedVersion: second.version },
+      );
+      await assert.rejects(
+        storage!.updateRow(
+          actor,
+          table.id,
+          first.id,
+          { status: "active" },
+          { expectedVersion: first.version },
+        ),
+        conflict,
+      );
+      // A different composite tuple, null key parts and nonmatching/null predicates are all allowed.
+      for (const extra of [
+        { code: "shared", region: "east", status: "active" },
+        ...Array.from({ length: 2 }, () => ({
+          code: null,
+          region: "west",
+          status: "active",
+        })),
+        ...Array.from({ length: 2 }, () => ({
+          code: "shared",
+          region: null,
+          status: "active",
+        })),
+        ...Array.from({ length: 2 }, () => ({ ...values, status: null })),
+      ])
+        await storage!.createRow(actor, table.id, extra);
+      const before = await storage!.getTable(actor, table.id);
+      await assert.rejects(
+        storage!.mutateRows(actor, table.id, {
+          operations: [
+            {
+              kind: "create",
+              values: { ...values, code: "batch", status: "active" },
+            },
+            {
+              kind: "create",
+              values: { ...values, code: "batch", status: "active" },
+            },
+          ],
+        }),
+        conflict,
+      );
+      assert.equal(
+        (await storage!.getTable(actor, table.id)).rowCount,
+        before.rowCount,
+      );
+      await assert.rejects(
+        storage!.mutateRows(actor, table.id, {
+          context: { source: "import" },
+          operations: [
+            {
+              kind: "create",
+              values: { ...values, code: "imported", status: "active" },
+            },
+            { kind: "create", values: { ...values, status: "active" } },
+          ],
+        }),
+        conflict,
+      );
+      assert.equal(
+        (await storage!.getTable(actor, table.id)).rowCount,
+        before.rowCount,
+      );
+      const changes: RowOperation[] = [
+        {
+          kind: "update",
+          rowId: first.id,
+          expectedVersion: first.version,
+          values: { status: "active" },
+        },
+      ];
+      await assert.rejects(
+        storage!.mutateRows(suppliedRepairActor, table.id, {
+          ...(await repairOptions(table.id, changes)),
+          operations: changes,
+        }),
+        conflict,
+      );
+      const results = await Promise.allSettled(
+        Array.from({ length: 6 }, () =>
+          storage!.createRow(actor, table.id, {
+            ...values,
+            code: "race",
+            status: "active",
+          }),
+        ),
+      );
+      assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+      assert(
+        results
+          .filter((r) => r.status === "rejected")
+          .every((r) => r.reason.code === "UNIQUE_CONFLICT"),
+      );
+      await storage!.deleteRow(actor, table.id, entered.id, {
+        expectedVersion: entered.version,
+      });
+      await storage!.updateRow(
+        actor,
+        table.id,
+        first.id,
+        { status: "active" },
+        { expectedVersion: first.version },
+      );
+      if (strategy === "registry") {
+        const entries = await withOrg(owner!, actor.orgId, (c) =>
+          c.query(
+            "SELECT count(*)::int AS count FROM rootset_control.unique_entries WHERE rule_id=$1",
+            [rule.id],
+          ),
+        );
+        assert.equal(entries.rows[0].count, 3);
+      }
+    },
+  );
+
+  test(
+    `Conditional ${strategy}: conflicting activation and publication cancellation roll back completely`,
+    { skip: !configured },
+    async () => {
+      const table = await conditionalTable();
+      const matching = { code: "duplicate", status: "active" };
+      const excluded = await storage!.createRow(actor, table.id, {
+        ...matching,
+        status: "ceased",
+      });
+      const a = await storage!.createRow(actor, table.id, matching);
+      const b = await storage!.createRow(actor, table.id, matching);
+      const where = {
+        field: table.fields[2]!.id,
+        op: "eq" as const,
+        value: "active",
+      };
+      const input = {
+        fieldIds: [table.fields[0]!.id],
+        where,
+        expectedSchemaVersion: 1,
+      };
+      await assert.rejects(
+        storage!.createUniqueRule(actor, table.id, input),
+        (error: unknown) => {
+          assert(error instanceof RootsetError);
+          assert.equal(error.code, "UNIQUE_CONFLICT");
+          const details = error.details as {
+            where: unknown;
+            conflicts: { rowIds: string[] }[];
+          };
+          assert.deepEqual(details.where, where);
+          assert.deepEqual(
+            details.conflicts[0]!.rowIds.sort(),
+            [a.id, b.id].sort(),
+          );
+          assert(!details.conflicts[0]!.rowIds.includes(excluded.id));
+          return true;
+        },
+      );
+      assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 1);
+      assert.equal((await storage!.listUniqueRules(actor, table.id)).length, 0);
+      await storage!.deleteRow(actor, table.id, b.id, {
+        expectedVersion: b.version,
+      });
+      const jobFence = await runningJob(table.id, "createUniqueRule");
+      let calls = 0;
+      await assert.rejects(
+        storage!.createUniqueRule(actor, table.id, {
+          ...input,
+          context: {
+            jobFence,
+            beforePublish: async () => {
+              if (++calls === 2)
+                await owner!.query(
+                  "UPDATE rootset_control.jobs SET cancel_requested=true WHERE id=$1",
+                  [jobFence.jobId],
+                );
+            },
+          },
+        }),
+        { code: "JOB_LEASE_LOST" },
+      );
+      assert.equal((await storage!.listUniqueRules(actor, table.id)).length, 0);
+      assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 1);
+      await storage!.createUniqueRule(actor, table.id, input);
+      await assert.rejects(storage!.createRow(actor, table.id, matching), {
+        code: "UNIQUE_CONFLICT",
+      });
+    },
+  );
+
+  test(
+    `Conditional ${strategy}: field dependencies and unrelated conversion preserve membership`,
+    { skip: !configured },
+    async () => {
+      const table = await conditionalTable();
+      const where = {
+        field: table.fields[2]!.id,
+        op: "eq" as const,
+        value: "active",
+      };
+      const rule = await storage!.createUniqueRule(actor, table.id, {
+        fieldIds: [table.fields[0]!.id],
+        where,
+        expectedSchemaVersion: 1,
+      });
+      for (const status of ["active", "ceased", "ceased"])
+        await storage!.createRow(actor, table.id, {
+          code: "same",
+          status,
+          unrelated: 1,
+        });
+      let current = await storage!.updateField(actor, table.id, where.field, {
+        name: "state",
+        expectedSchemaVersion: 2,
+      });
+      assert.deepEqual(
+        (await storage!.listUniqueRules(actor, table.id))[0]!.where,
+        where,
+      );
+      await assert.rejects(
+        storage!.updateField(actor, table.id, where.field, {
+          type: "boolean",
+          conversion: { strategy: "strict" },
+          expectedSchemaVersion: current.schemaVersion,
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      await assert.rejects(
+        storage!.deleteField(actor, table.id, where.field, {
+          expectedSchemaVersion: current.schemaVersion,
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      await assert.rejects(
+        storage!.previewSchemaChange(actor, table.id, {
+          expectedSchemaVersion: current.schemaVersion,
+          change: { kind: "delete_field", fieldId: where.field },
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      current = await storage!.updateField(
+        actor,
+        table.id,
+        table.fields[3]!.id,
+        {
+          type: "text",
+          conversion: { strategy: "stringify" },
+          expectedSchemaVersion: current.schemaVersion,
+        },
+      );
+      await assert.rejects(
+        storage!.createRow(actor, table.id, { code: "same", state: "active" }),
+        { code: "UNIQUE_CONFLICT", details: { ruleId: rule.id } },
+      );
+      await storage!.createRow(actor, table.id, {
+        code: "same",
+        state: "ceased",
+      });
+      current = await storage!.deleteField(actor, table.id, where.field, {
+        removeDependencies: true,
+        expectedSchemaVersion: current.schemaVersion,
+      });
+      assert.equal((await storage!.listUniqueRules(actor, table.id)).length, 0);
+      await storage!.createRow(actor, table.id, { code: "same" });
+    },
+  );
+
+  test(
+    `Conditional ${strategy}: activation holds writes until enforcement is visible`,
+    { skip: !configured },
+    async () => {
+      const table = await conditionalTable();
+      await storage!.createRow(actor, table.id, {
+        code: "held",
+        status: "active",
+      });
+      let reachedResolve!: () => void;
+      let releaseResolve!: () => void;
+      const reached = new Promise<void>((resolve) => {
+        reachedResolve = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        releaseResolve = resolve;
+      });
+      let calls = 0;
+      const building = storage!.createUniqueRule(actor, table.id, {
+        fieldIds: [table.fields[0]!.id],
+        where: { field: table.fields[2]!.id, op: "eq", value: "active" },
+        expectedSchemaVersion: 1,
+        context: {
+          beforePublish: async () => {
+            if (++calls === 2) {
+              reachedResolve();
+              await release;
+            }
+          },
+        },
+      });
+      await reached;
+      let completed = false;
+      const writing = storage!
+        .createRow(actor, table.id, { code: "held", status: "active" })
+        .finally(() => {
+          completed = true;
+        });
+      const rejected = assert.rejects(writing, { code: "UNIQUE_CONFLICT" });
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        assert.equal(completed, false);
+      } finally {
+        releaseResolve();
+      }
+      await building;
+      await rejected;
+    },
+  );
+}
+
+for (const charLimit of [20, 4000]) {
+  test(
+    `Conditional scalar/null predicate parity with query filters (${charLimit === 20 ? "native" : "registry"})`,
+    { skip: !configured },
+    async () => {
+      const cases: {
+        type: import("@rootset/contracts").FieldDefinition["type"];
+        values: import("@rootset/contracts").JsonValue[];
+        target: import("@rootset/contracts").JsonValue;
+      }[] = [
+        {
+          type: "text",
+          values: ["a'\\quoted", "A'\\quoted", "", null],
+          target: "a'\\quoted",
+        },
+        {
+          type: "uri",
+          values: ["opaque:One", "opaque:one", null],
+          target: "opaque:One",
+        },
+        { type: "url", values: ["One", "one", null], target: "One" },
+        { type: "image", values: ["One", "one", null], target: "One" },
+        { type: "integer", values: [1, 2, 9007199254740991, null], target: 1 },
+        {
+          type: "float",
+          values: [1e23, -1e23, Number.MIN_VALUE, 0, null],
+          target: 1e23,
+        },
+        {
+          type: "float",
+          values: [Number.MIN_VALUE, 0, -0, null],
+          target: Number.MIN_VALUE,
+        },
+        { type: "boolean", values: [true, false, null], target: false },
+        {
+          type: "date",
+          values: ["2026-01-01", "2026-01-02", null],
+          target: "2026-01-01",
+        },
+        {
+          type: "time",
+          values: ["09:30:00Z", "09:30:01Z", null],
+          target: "09:30:00Z",
+        },
+        {
+          type: "date-time",
+          values: ["2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z", null],
+          target: "2026-01-01T00:00:00Z",
+        },
+      ];
+      for (const item of cases)
+        for (const op of ["eq", "ne", "isNull", "isNotNull"] as const) {
+          const table = await storage!.createTable(actor, databaseId, {
+            name: `Condition ${item.type} ${op}`,
+            fields: [
+              { name: "code", type: "text", charLimit },
+              { name: "value", type: item.type },
+            ],
+          });
+          for (const [i, value] of item.values.entries())
+            await storage!.createRow(actor, table.id, {
+              code: String(i),
+              value,
+            });
+          const where =
+            op === "eq" || op === "ne"
+              ? {
+                  field: table.fields[1]!.id,
+                  op,
+                  value: item.target as string | number | boolean,
+                }
+              : { field: table.fields[1]!.id, op };
+          const matched = new Set(
+            (await storage!.queryRows(actor, table.id, { where })).data.map(
+              (row) => row.values.code,
+            ),
+          );
+          await storage!.createUniqueRule(actor, table.id, {
+            fieldIds: [table.fields[0]!.id],
+            where,
+            expectedSchemaVersion: 1,
+          });
+          for (const [i, value] of item.values.entries()) {
+            const write = () =>
+              storage!.createRow(actor, table.id, { code: String(i), value });
+            if (matched.has(String(i)))
+              await assert.rejects(write(), { code: "UNIQUE_CONFLICT" });
+            else {
+              await write();
+              await write();
+            }
+          }
+        }
+    },
+  );
+
+  test(
+    `Conditional rule identity, atomic handoff and concurrent updates (${charLimit})`,
+    { skip: !configured },
+    async () => {
+      const table = await storage!.createTable(actor, databaseId, {
+        name: "Multiple subsets",
+        fields: [
+          { name: "code", type: "text", charLimit },
+          { name: "status", type: "text" },
+        ],
+      });
+      const where = {
+        field: table.fields[1]!.id,
+        op: "eq" as const,
+        value: "active",
+      };
+      const input = {
+        fieldIds: [table.fields[0]!.id],
+        where,
+        expectedSchemaVersion: 1,
+      };
+      const firstRule = await storage!.createUniqueRule(actor, table.id, input);
+      await assert.rejects(
+        storage!.createUniqueRule(actor, table.id, {
+          ...input,
+          expectedSchemaVersion: 2,
+        }),
+        { code: "UNIQUE_CONFLICT" },
+      );
+      await storage!.createUniqueRule(actor, table.id, {
+        ...input,
+        where: { ...where, value: "reserved" },
+        expectedSchemaVersion: 2,
+      });
+      const rows = await Promise.all(
+        ["active", "ceased", "ceased"].map((status) =>
+          storage!.createRow(actor, table.id, { code: "same", status }),
+        ),
+      );
+      const handed = await storage!.mutateRows(actor, table.id, {
+        operations: [
+          {
+            kind: "update",
+            rowId: rows[0]!.id,
+            expectedVersion: rows[0]!.version,
+            values: { status: "ceased" },
+          },
+          {
+            kind: "update",
+            rowId: rows[1]!.id,
+            expectedVersion: rows[1]!.version,
+            values: { status: "active" },
+          },
+        ],
+      });
+      await storage!.updateRow(
+        actor,
+        table.id,
+        rows[1]!.id,
+        { status: "ceased" },
+        { expectedVersion: handed.rows[1]!.version },
+      );
+      const race = await Promise.allSettled(
+        [handed.rows[0]!, rows[2]!].map((row) =>
+          storage!.updateRow(
+            actor,
+            table.id,
+            row.id,
+            { status: "active" },
+            { expectedVersion: row.version },
+          ),
+        ),
+      );
+      assert.equal(race.filter((r) => r.status === "fulfilled").length, 1);
+      const rejected = race.find((r) => r.status === "rejected");
+      assert(rejected?.status === "rejected");
+      assert.equal(rejected.reason.code, "UNIQUE_CONFLICT");
+      assert.deepEqual(rejected.reason.details, { ruleId: firstRule.id });
+      // An unconditional rule is distinct from conditional rules and still rejects
+      // historical duplicates during activation.
+      await assert.rejects(
+        storage!.createUniqueRule(actor, table.id, {
+          fieldIds: input.fieldIds,
+          expectedSchemaVersion: 3,
+        }),
+        { code: "UNIQUE_CONFLICT" },
+      );
+    },
+  );
+}
+
+for (const charLimit of [20, 4000]) {
+  test(
+    `Allowed values and conditional uniqueness share every write boundary (${charLimit})`,
+    { skip: !configured },
+    async () => {
+      const table = await storage!.createTable(actor, databaseId, {
+        name: "Choice writes",
+        fields: [
+          { name: "code", type: "text", charLimit },
+          {
+            name: "status",
+            type: "text",
+            allowedValues: ["active", "ceased", "NULL", " Active "],
+            default: "ceased",
+          },
+          {
+            name: "required_status",
+            type: "text",
+            allowedValues: ["active", "ceased"],
+            required: true,
+            default: "active",
+          },
+        ],
+      });
+      const field = table.fields[1]!;
+      const rule = await storage!.createUniqueRule(actor, table.id, {
+        fieldIds: [table.fields[0]!.id],
+        where: { field: field.id, op: "eq", value: "active" },
+        expectedSchemaVersion: 1,
+      });
+      const row = await storage!.createRow(actor, table.id, { code: "same" });
+      assert.equal(row.values.status, "ceased");
+      assert.equal(row.values.required_status, "active");
+      await storage!.createRow(actor, table.id, {
+        code: "same",
+        status: "active",
+      });
+      for (const status of [null, "NULL", " Active ", "ceased"])
+        await storage!.createRow(actor, table.id, { code: "same", status });
+      for (const invalid of ["Active", "active ", "other", ""]) {
+        await assert.rejects(
+          storage!.createRow(actor, table.id, { code: "new", status: invalid }),
+          {
+            code: "VALIDATION_FAILED",
+            details: { fieldId: field.id, field: field.name },
+          },
+        );
+        await assert.rejects(
+          storage!.updateRow(
+            actor,
+            table.id,
+            row.id,
+            { status: invalid },
+            { expectedVersion: row.version },
+          ),
+          { code: "VALIDATION_FAILED" },
+        );
+      }
+      await assert.rejects(
+        storage!.createRow(actor, table.id, {
+          code: "new",
+          required_status: null,
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      const before = await repairState(table);
+      for (const source of ["rest", "mcp", "ui", "import"] as const) {
+        await assert.rejects(
+          storage!.mutateRows(actor, table.id, {
+            context: { source },
+            operations: [
+              {
+                kind: "create",
+                values: { code: "rolled-back", status: "ceased" },
+              },
+              {
+                kind: "update",
+                rowId: row.id,
+                expectedVersion: row.version,
+                values: { status: "not-listed" },
+              },
+            ],
+          }),
+          { code: "VALIDATION_FAILED" },
+        );
+        assert.deepEqual(await repairState(table), before);
+      }
+      const repair: RowOperation[] = [
+        {
+          kind: "update",
+          rowId: row.id,
+          expectedVersion: row.version,
+          values: { status: "not-listed" },
+        },
+      ];
+      await assert.rejects(
+        storage!.mutateRows(suppliedRepairActor, table.id, {
+          ...(await repairOptions(table.id, repair)),
+          operations: repair,
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      assert.equal(
+        (await storage!.getRow(actor, table.id, row.id)).version,
+        row.version,
+      );
+      await assert.rejects(
+        storage!.updateRow(
+          actor,
+          table.id,
+          row.id,
+          { status: "active" },
+          { expectedVersion: row.version },
+        ),
+        { code: "UNIQUE_CONFLICT", details: { ruleId: rule.id } },
+      );
+      // Exercise the authoritative trigger directly, without validateValues.
+      await assert.rejects(
+        withOrg(app!, actor.orgId, async (c) => {
+          const mutationId = newId();
+          await c.query(
+            "INSERT INTO rootset_control.mutations(id,org_id,table_id,input_hash,actor,context,schema_version) VALUES($1,$2,$3,'raw-fixture','{}','{}',2)",
+            [mutationId, actor.orgId, table.id],
+          );
+          await c.query("SELECT set_config('rootset.mutation_id',$1,true)", [
+            mutationId,
+          ]);
+          await c.query(
+            `UPDATE "${table.schemaName}"."${table.physicalName}" SET "f_${field.id.toLowerCase()}"='not-listed' WHERE row_id=$1`,
+            [row.id],
+          );
+        }),
+        { code: "23514", detail: field.id },
+      );
+      assert.equal(
+        (await storage!.getRow(actor, table.id, row.id)).values.status,
+        "ceased",
+      );
+    },
+  );
+}
+
+test(
+  "Allowed-value changes validate existing rows, defaults, add-field backfill and conversion without rewriting values",
+  { skip: !configured },
+  async () => {
+    let table = await storage!.createTable(actor, databaseId, {
+      name: "Choice schema",
+      fields: [
+        { name: "status", type: "text" },
+        { name: "number", type: "integer" },
+      ],
+    });
+    const row = await storage!.createRow(actor, table.id, {
+      status: "in-use",
+      number: 1,
+    });
+    const fieldId = table.fields[0]!.id;
+    const patch = { allowedValues: ["new"], expectedSchemaVersion: 1 };
+    await assert.rejects(
+      storage!.updateField(actor, table.id, fieldId, patch),
+      {
+        code: "VALIDATION_FAILED",
+        details: { rowId: row.id, fieldId, field: "status" },
+      },
+    );
+    const preview = await storage!.previewSchemaChange(actor, table.id, {
+      expectedSchemaVersion: 1,
+      change: {
+        kind: "update_field",
+        fieldId,
+        changes: { allowedValues: ["new"] },
+      },
+    });
+    assert.equal(preview.valid, false);
+    assert.equal(preview.conflicts[0]!.rowId, row.id);
+    assert.equal((await storage!.getTable(actor, table.id)).schemaVersion, 1);
+    assert.equal(
+      (await storage!.getRow(actor, table.id, row.id)).values.status,
+      "in-use",
+    );
+    table = await storage!.updateField(actor, table.id, fieldId, {
+      allowedValues: ["in-use", "new"],
+      expectedSchemaVersion: 1,
+    });
+    await assert.rejects(
+      storage!.updateField(actor, table.id, fieldId, {
+        allowedValues: ["new"],
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    await assert.rejects(
+      storage!.updateField(actor, table.id, fieldId, {
+        allowedValues: ["in-use", "new"],
+        default: "invalid",
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    await assert.rejects(
+      storage!.createField(actor, table.id, {
+        name: "required_choice",
+        type: "text",
+        allowedValues: ["ok"],
+        required: true,
+        default: "wrong",
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    table = await storage!.createField(actor, table.id, {
+      name: "required_choice",
+      type: "text",
+      allowedValues: ["ok"],
+      required: true,
+      default: "ok",
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(
+      (await storage!.getRow(actor, table.id, row.id)).values.required_choice,
+      "ok",
+    );
+    const optional = await storage!.createField(actor, table.id, {
+      name: "optional_choice",
+      type: "text",
+      allowedValues: ["ok"],
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    table = optional;
+    assert.equal(
+      (await storage!.getRow(actor, table.id, row.id)).values.optional_choice,
+      null,
+    );
+    const numberId = table.fields.find((f) => f.name === "number")!.id;
+    await assert.rejects(
+      storage!.updateField(actor, table.id, numberId, {
+        type: "text",
+        allowedValues: ["2"],
+        conversion: { strategy: "stringify" },
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    table = await storage!.getTable(actor, table.id);
+    assert.equal(table.fields.find((f) => f.id === numberId)!.type, "integer");
+    table = await storage!.updateField(actor, table.id, numberId, {
+      type: "text",
+      allowedValues: ["1"],
+      conversion: { strategy: "stringify" },
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(
+      (await storage!.getRow(actor, table.id, row.id)).values.number,
+      "1",
+    );
+    const updated = await storage!.updateRow(
+      actor,
+      table.id,
+      row.id,
+      { status: "new" },
+      {
+        expectedVersion: (await storage!.getRow(actor, table.id, row.id))
+          .version,
+      },
+    );
+    table = await storage!.updateField(actor, table.id, fieldId, {
+      allowedValues: ["new"],
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(
+      (await storage!.getRow(actor, table.id, row.id)).version,
+      updated.version,
+    );
+    table = await storage!.updateField(actor, table.id, fieldId, {
+      allowedValues: null,
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    await storage!.createRow(actor, table.id, {
+      status: "arbitrary",
+      number: "1",
+    });
+    assert.equal(
+      table.fields.find((f) => f.id === fieldId)!.allowedValues,
+      null,
+    );
+  },
+);
+
+test(
+  "Allowed-value activation serializes with writers and checks the final existing-row set",
+  { skip: !configured },
+  async () => {
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Choice race",
+      fields: [{ name: "status", type: "text" }],
+    });
+    await storage!.createRow(actor, table.id, { status: "active" });
+    let reached!: () => void, release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    const changing = storage!.updateField(
+      actor,
+      table.id,
+      table.fields[0]!.id,
+      {
+        allowedValues: ["active"],
+        expectedSchemaVersion: 1,
+        context: {
+          beforePublish: async () => {
+            if (++calls === 2) {
+              reached();
+              await held;
+            }
+          },
+        },
+      },
+    );
+    await started;
+    let written = false;
+    const rejected = assert.rejects(
+      storage!.createRow(actor, table.id, { status: "ceased" }).finally(() => {
+        written = true;
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.equal(written, false);
+    } finally {
+      release();
+    }
+    await changing;
+    await rejected;
+    const next = await storage!.createTable(actor, databaseId, {
+      name: "Choice writer wins",
+      fields: [{ name: "status", type: "text" }],
+    });
+    await storage!.createRow(actor, next.id, { status: "ceased" });
+    await assert.rejects(
+      storage!.updateField(actor, next.id, next.fields[0]!.id, {
+        allowedValues: ["active"],
+        expectedSchemaVersion: 1,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    assert.equal((await storage!.getTable(actor, next.id)).schemaVersion, 1);
+  },
+);
+
+test(
+  "Table choice budgets reject creation, field addition and tightening before metadata or DDL commit",
+  { skip: !configured },
+  async () => {
+    const allowedValues = Array.from(
+      { length: 20 },
+      (_, index) => `${index}${"x".repeat(3000)}`,
+    );
+    const fields = Array.from({ length: 9 }, (_, index) => ({
+      name: `FIELD_${String.fromCharCode(65 + index)}`,
+      type: "text" as const,
+      charLimit: 4000,
+      allowedValues,
+    }));
+    const before = await storage!.listTables(actor, databaseId);
+    const rejected = {
+      code: "VALIDATION_FAILED",
+      message: "Table allowed values exceed the 512 KiB definition budget",
+    };
+    await assert.rejects(
+      storage!.createTable(actor, databaseId, {
+        name: "Oversized choices",
+        fields,
+      }),
+      rejected,
+    );
+    assert.equal(
+      (await storage!.listTables(actor, databaseId)).length,
+      before.length,
+    );
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Bounded choice metadata",
+      fields: [
+        ...fields.slice(0, 8),
+        { name: "SMALL", type: "text", allowedValues: ["small"] },
+      ],
+    });
+    await assert.rejects(
+      storage!.createField(actor, table.id, {
+        ...fields[8]!,
+        expectedSchemaVersion: 1,
+      }),
+      rejected,
+    );
+    await assert.rejects(
+      storage!.updateField(actor, table.id, table.fields[8]!.id, {
+        allowedValues,
+        expectedSchemaVersion: 1,
+      }),
+      rejected,
+    );
+    const current = await storage!.getTable(actor, table.id);
+    assert.equal(current.schemaVersion, 1);
+    assert.deepEqual(current.fields, table.fields);
+    const physical = await owner!.query(
+      "SELECT count(*)::int AS count FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name LIKE 'f_%'",
+      [table.schemaName, table.physicalName],
+    );
+    assert.equal(physical.rows[0].count, table.fields.length);
+  },
+);

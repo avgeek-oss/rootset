@@ -114,3 +114,38 @@ describe("cell editor save boundaries", () => {
     expect(html).toContain("local year 0000 represents 0001 BCE");
   });
 });
+
+describe("constrained text editor", () => {
+  const choices = {
+    ...definition,
+    allowedValues: ["active", "ceased", "NULL"],
+  };
+  function render(required: boolean, value: string | null) {
+    return renderToStaticMarkup(
+      createElement(CellEditor, {
+        field: { ...choices, required },
+        value,
+        initialInput: "x",
+        onCommit: () => true,
+        onCancel() {},
+      }),
+    );
+  }
+  it("uses a labelled native dropdown and encodes choices separately from null", () => {
+    const html = render(false, null);
+    expect(html).toMatch(/<select[^>]+aria-label="VALUE"/);
+    expect(html).toContain('<option value="null" selected="">NULL</option>');
+    expect(html).toContain(
+      '<option value="choice:2">&quot;NULL&quot;</option>',
+    );
+    expect(html).not.toContain("textarea");
+    expect(html).toContain("Tab saves and moves");
+  });
+  it("omits null for required fields and preserves the committed selection", () => {
+    const html = render(true, "ceased");
+    expect(html).not.toContain('value="null"');
+    expect(html).toContain(
+      '<option value="choice:1" selected="">ceased</option>',
+    );
+  });
+});

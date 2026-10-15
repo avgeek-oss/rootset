@@ -22,6 +22,7 @@ const fieldKeys = [
   "required",
   "default",
   "charLimit",
+  "allowedValues",
   "min",
   "max",
   "order",
@@ -140,7 +141,7 @@ function request(
       };
       break;
     case "rule.create":
-      result = { kind, ...pick(stored, ["fieldIds", "name"]) };
+      result = { kind, ...pick(stored, ["fieldIds", "name", "where"]) };
       break;
     case "rule.delete": {
       const id = identifier(original.id ?? stored.id);

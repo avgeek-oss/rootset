@@ -44,7 +44,9 @@ export function CellEditor({
 }: CellEditorProps) {
   const [draft, setDraft] = useState<CellDraft>(() => {
     const initial = createCellDraft(field, value, timeZone);
-    return initialInput === undefined || field.type === "boolean"
+    return initialInput === undefined ||
+      field.type === "boolean" ||
+      Boolean(field.allowedValues)
       ? initial
       : { text: initialInput, isNull: false };
   });

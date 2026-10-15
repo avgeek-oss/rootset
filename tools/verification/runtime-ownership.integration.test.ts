@@ -37,6 +37,7 @@ verificationCase(
       "0001_baseline.sql",
       "0002_mcp_role_revocation.sql",
       "0003_comment_deletion_log.sql",
+      "0004_field_constraints.sql",
     ]);
     const role = (
       await db.app.query(

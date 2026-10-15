@@ -1,5 +1,6 @@
 import type {
   ConnectionSchema,
+  UniqueRuleCondition,
   Preferences as AccountPreferences,
 } from "@rootset/contracts";
 import type { z } from "zod";
@@ -115,6 +116,7 @@ export interface TableField {
     | "json";
   required?: boolean;
   charLimit?: number;
+  allowedValues?: string[] | null;
   min?: number | string;
   max?: number | string;
   default?: unknown;
@@ -137,6 +139,7 @@ export interface UniqueRule {
   id: string;
   name?: string;
   fieldIds?: string[];
+  where?: UniqueRuleCondition;
   fields?: string[];
   state?: string;
   status?: string;

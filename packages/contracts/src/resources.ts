@@ -1,3 +1,4 @@
+import { UniqueRuleConditionSchema } from "./unique-rules";
 import { z } from "zod";
 import {
   AccountNameSchema,
@@ -14,6 +15,7 @@ import {
   preservingRecordSchema,
 } from "./models";
 import {
+  AllowedValuesSchema,
   DateTimeSchema,
   FieldDefinitionSchema,
   FieldInputSchema,
@@ -75,6 +77,7 @@ export const UniqueRuleSchema = z.strictObject({
   id: IdSchema,
   tableId: IdSchema,
   fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+  where: UniqueRuleConditionSchema.optional(),
   nullPolicy: z.literal("distinct"),
   state: z.enum(["building", "active", "failed", "deleting"]),
   strategy: z.enum(["native", "registry"]),
@@ -250,6 +253,7 @@ export const SchemaChangeSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export const FieldChangesSchema = z.strictObject({
+  allowedValues: AllowedValuesSchema.nullable().optional(),
   name: FieldNameSchema.optional(),
   type: FieldTypeSchema.optional(),
   required: z.boolean().optional(),
@@ -310,6 +314,7 @@ export const SchemaJournalRequestSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("rule.create"),
     fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+    where: UniqueRuleConditionSchema.optional(),
     name: journalNames.name.optional(),
   }),
   z.strictObject({ kind: z.literal("rule.delete"), id: IdSchema.optional() }),

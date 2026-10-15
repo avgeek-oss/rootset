@@ -32,6 +32,8 @@ export function fieldConstraints(
     return value;
   }
   const constraints: string[] = [];
+  if (field.allowedValues)
+    constraints.push(`${field.allowedValues.length} allowed values`);
   if (field.charLimit !== undefined)
     constraints.push(`Max ${field.charLimit.toLocaleString()} characters`);
   if (field.min !== undefined)

@@ -569,6 +569,7 @@ export type createTableInput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -739,6 +740,7 @@ export type createTableOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -894,6 +896,9 @@ export type createTableOutput = {
     id: string;
     tableId: string;
     fieldIds: string[];
+    where?:
+      | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+      | { field: string; op: "isNull" | "isNotNull" };
     nullPolicy: "distinct";
     state: "building" | "active" | "failed" | "deleting";
     strategy: "native" | "registry";
@@ -993,6 +998,7 @@ export type getTableSchemaOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -1148,6 +1154,9 @@ export type getTableSchemaOutput = {
     id: string;
     tableId: string;
     fieldIds: string[];
+    where?:
+      | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+      | { field: string; op: "isNull" | "isNotNull" };
     nullPolicy: "distinct";
     state: "building" | "active" | "failed" | "deleting";
     strategy: "native" | "registry";
@@ -1178,6 +1187,7 @@ export type listFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -1350,6 +1360,7 @@ export type createFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -1525,6 +1536,7 @@ export type createFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "text";
+            allowedValues?: string[] | null;
             charLimit?: number;
           }
         | {
@@ -1680,6 +1692,9 @@ export type createFieldOutput =
         id: string;
         tableId: string;
         fieldIds: string[];
+        where?:
+          | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+          | { field: string; op: "isNull" | "isNotNull" };
         nullPolicy: "distinct";
         state: "building" | "active" | "failed" | "deleting";
         strategy: "native" | "registry";
@@ -1720,6 +1735,7 @@ export type updateFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -1896,6 +1912,7 @@ export type updateFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "text";
+            allowedValues?: string[] | null;
             charLimit?: number;
           }
         | {
@@ -2051,6 +2068,9 @@ export type updateFieldOutput =
         id: string;
         tableId: string;
         fieldIds: string[];
+        where?:
+          | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+          | { field: string; op: "isNull" | "isNotNull" };
         nullPolicy: "distinct";
         state: "building" | "active" | "failed" | "deleting";
         strategy: "native" | "registry";
@@ -2114,6 +2134,7 @@ export type deleteFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "text";
+            allowedValues?: string[] | null;
             charLimit?: number;
           }
         | {
@@ -2269,6 +2290,9 @@ export type deleteFieldOutput =
         id: string;
         tableId: string;
         fieldIds: string[];
+        where?:
+          | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+          | { field: string; op: "isNull" | "isNotNull" };
         nullPolicy: "distinct";
         state: "building" | "active" | "failed" | "deleting";
         strategy: "native" | "registry";
@@ -2325,6 +2349,7 @@ export type reorderFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "text";
+        allowedValues?: string[] | null;
         charLimit?: number;
       }
     | {
@@ -2480,6 +2505,9 @@ export type reorderFieldsOutput = {
     id: string;
     tableId: string;
     fieldIds: string[];
+    where?:
+      | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+      | { field: string; op: "isNull" | "isNotNull" };
     nullPolicy: "distinct";
     state: "building" | "active" | "failed" | "deleting";
     strategy: "native" | "registry";
@@ -2599,6 +2627,7 @@ export type getSchemaOperationOutput = {
                 | Record<string, unknown>;
               order?: number;
               type: "text";
+              allowedValues?: string[] | null;
               charLimit?: number;
             }
           | {
@@ -2758,6 +2787,7 @@ export type getSchemaOperationOutput = {
                 | Record<string, unknown>;
               order?: number;
               type: "text";
+              allowedValues?: string[] | null;
               charLimit?: number;
             }
           | {
@@ -2903,6 +2933,7 @@ export type getSchemaOperationOutput = {
         kind: "field.update";
         fieldId?: string;
         changes: {
+          allowedValues?: string[] | null;
           name?: string;
           type?:
             | "text"
@@ -2934,6 +2965,7 @@ export type getSchemaOperationOutput = {
         kind: "field.convert";
         fieldId?: string;
         changes: {
+          allowedValues?: string[] | null;
           name?: string;
           type?:
             | "text"
@@ -2964,7 +2996,14 @@ export type getSchemaOperationOutput = {
       }
     | { kind: "field.delete"; fieldId?: string; removeDependencies: boolean }
     | { kind: "fields.reorder"; fieldIds: string[] }
-    | { kind: "rule.create"; fieldIds: string[]; name?: string }
+    | {
+        kind: "rule.create";
+        fieldIds: string[];
+        where?:
+          | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+          | { field: string; op: "isNull" | "isNotNull" };
+        name?: string;
+      }
     | { kind: "rule.delete"; id?: string }
     | { kind: "unknown" };
   before: {
@@ -3000,6 +3039,7 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "text";
+          allowedValues?: string[] | null;
           charLimit?: number;
         }
       | {
@@ -3188,6 +3228,7 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "text";
+          allowedValues?: string[] | null;
           charLimit?: number;
         }
       | {
@@ -3354,6 +3395,9 @@ export type listUniqueRulesOutput = {
     id: string;
     tableId: string;
     fieldIds: string[];
+    where?:
+      | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+      | { field: string; op: "isNull" | "isNotNull" };
     nullPolicy: "distinct";
     state: "building" | "active" | "failed" | "deleting";
     strategy: "native" | "registry";
@@ -3369,12 +3413,18 @@ export type createUniqueRuleInput = {
   tableId: string;
   expectedSchemaVersion: number;
   fieldIds: string[];
+  where?:
+    | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+    | { field: string; op: "isNull" | "isNotNull" };
 };
 export type createUniqueRuleOutput =
   | {
       id: string;
       tableId: string;
       fieldIds: string[];
+      where?:
+        | { field: string; op: "eq" | "ne"; value: string | number | boolean }
+        | { field: string; op: "isNull" | "isNotNull" };
       nullPolicy: "distinct";
       state: "building" | "active" | "failed" | "deleting";
       strategy: "native" | "registry";
@@ -3798,6 +3848,7 @@ export type getCellHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "text";
+          allowedValues?: string[] | null;
           charLimit?: number;
         }
       | {
@@ -4003,6 +4054,7 @@ export type queryHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "text";
+          allowedValues?: string[] | null;
           charLimit?: number;
         }
       | {

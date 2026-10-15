@@ -62,9 +62,18 @@ test(
         "INSERT INTO rootset_control.row_comments(id,org_id,table_id,row_id,author_name_snapshot,actor,body) VALUES('00000000000000000000000012','00000000000000000000000001','00000000000000000000000011','00000000000000000000000013','Existing author','{}','Existing comment')",
       );
     });
+    await withOrg(pool, "00000000000000000000000001", async (client) => {
+      await client.query(
+        "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,state) VALUES('00000000000000000000000021','00000000000000000000000011','00000000000000000000000001','Existing rule',ARRAY['00000000000000000000000022'],'registry','active')",
+      );
+      await client.query(
+        "INSERT INTO rootset_control.unique_entries(rule_id,row_id,digest,tuple) VALUES('00000000000000000000000021','00000000000000000000000013','original-digest','original-tuple')",
+      );
+    });
     assert.deepEqual(await migrate(pool), [
       "0002_mcp_role_revocation.sql",
       "0003_comment_deletion_log.sql",
+      "0004_field_constraints.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       assert.deepEqual(
@@ -74,6 +83,31 @@ test(
           )
         ).rows,
         [{ body: "Existing comment", deleted_at: null }],
+      );
+    });
+    await withOrg(pool, "00000000000000000000000001", async (client) => {
+      assert.deepEqual(
+        (
+          await client.query(
+            "SELECT name,state,strategy,condition FROM rootset_control.unique_rules",
+          )
+        ).rows,
+        [
+          {
+            name: "Existing rule",
+            state: "active",
+            strategy: "registry",
+            condition: null,
+          },
+        ],
+      );
+      assert.deepEqual(
+        (
+          await client.query(
+            "SELECT digest,tuple FROM rootset_control.unique_entries",
+          )
+        ).rows,
+        [{ digest: "original-digest", tuple: "original-tuple" }],
       );
     });
     for (const relation of ["indexes", "import_batches", "import_rejections"])
@@ -88,7 +122,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0003_comment_deletion_log.sql",
+      version: "0004_field_constraints.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -219,6 +253,7 @@ test(
     for (const name of [
       "0002_mcp_role_revocation.sql",
       "0003_comment_deletion_log.sql",
+      "0004_field_constraints.sql",
     ])
       await writeFile(
         join(directory, name),

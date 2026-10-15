@@ -34,17 +34,13 @@ Record what ran, its result and any remaining limitation. Keep secrets and priva
 fixture evidence outside Git. The [short V1 checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md)
 starts unchecked for the revised scope; do not carry old pass marks forward.
 
-## Schema changes before V1
+## Schema migrations
 
-Maintain exactly one fresh-install migration,
-`packages/database/migrations/0001_baseline.sql`. Edit/regenerate that baseline
-as the pre-release schema changes and verify a new empty installation. The normal
-migration runner must verify its digest and refuse incompatible prelaunch ledgers
-without altering their data. Preserve old installations and recovery copies.
-
-There is no supported upgrade from the retired migration sequence. An upgrade
-or data conversion procedure needs its own implementation and evidence before it
-can be documented as supported.
+Keep released migrations unchanged and add the next numbered SQL migration in
+`packages/database/migrations`. Verify both an empty installation and upgrades
+from the supported released ledgers, preserving existing data and enforcement.
+The runner verifies migration digests and refuses unknown prelaunch ledgers.
+Preserve those installations rather than clearing their ledger or volumes.
 
 Review real desktop/mobile routes in light and dark themes after UI changes.
 Include keyboard use, drafts, conflicts, loading and failure states. Report

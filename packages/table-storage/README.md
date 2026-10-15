@@ -41,6 +41,14 @@ A native write commits values, revisions, row count, uniqueness participation, m
 
 Worker-only `MutationContext.jobFence` and `beforePublish` are checked immediately before schema or row publication. These private fields never enter hashes, audit context or retained definitions.
 
+## Conditional uniqueness
+
+Unique rules may include one validated scalar `where` predicate, stored with a stable field ID. Native rules compile it to a partial unique index; wide-key registry rules filter backfill and trigger participation with the same equality/null semantics. The condition is immutable for the rule's lifetime. NULL key parts remain excluded. A field set may have different conditions, but duplicate definitions are rejected.
+
+Rule creation holds the database schema barrier and table metadata lock through conflict scanning, registry/index build, worker publication fencing and commit. The existing transaction protects every writer and rolls failed activation back. Registry writes acquire digest buckets for participating old/new tuples, remove prior participation, and check exact tuples before insertion. Renames retain IDs; deletion and conversion check both key and condition dependencies. Unrelated conversions preserve partial index predicates when rebuilding native tables.
+
+Migration `0004_field_constraints.sql` adds nullable condition metadata and replaces the row trigger function. The same trigger checks text allowed-value membership for every audited native write. Field changes validate defaults and scan existing rows under the table lock before replacing the definition; failed changes retain values, history and schema version. Existing unconditional indexes, registry entries and NULL semantics are preserved. Only the ordinary service owner may perform storage writes with audited mutation context; this is not a public SQL execution interface.
+
 ## Queries and spreadsheet windows
 
 The query compiler accepts the shared typed AST, parameterises values and JSON paths, and supplies stable keyset ordering with a row-ID tie-breaker and nulls last. Signed cursors bind organisation, actor, live authority, table, schema, query and projection. Server cursors fetch bounded chunks; response budgets include continuation metadata and keep complete rows.

@@ -3,6 +3,7 @@
 import { useId } from "react";
 import type { FieldDefinition } from "@rootset/contracts";
 import type { CellDraft } from "./drafts";
+import { allowedValueLabel } from "../../lib/field-choices";
 import { ChevronDown } from "../ui/icons";
 import { getLocalDateTimeCandidates } from "./temporal";
 
@@ -68,7 +69,42 @@ export function CellInput({
           {field.required ? " *" : ""}
         </label>
       )}
-      {field.type === "boolean" ? (
+      {field.type === "text" && field.allowedValues ? (
+        <div className="cell-select">
+          <select
+            {...common}
+            value={
+              draft.isNull
+                ? "null"
+                : `choice:${field.allowedValues.indexOf(draft.text)}`
+            }
+            onChange={(event) => {
+              const selected = event.target.value;
+              onChange(
+                selected === "null"
+                  ? { text: "", isNull: true }
+                  : {
+                      text: field.allowedValues![Number(selected.slice(7))]!,
+                      isNull: false,
+                    },
+              );
+            }}
+          >
+            {!field.required && <option value="null">NULL</option>}
+            {!draft.isNull && !field.allowedValues.includes(draft.text) && (
+              <option value="choice:-1" disabled>
+                Choose a value
+              </option>
+            )}
+            {field.allowedValues.map((value, index) => (
+              <option key={value} value={`choice:${index}`}>
+                {allowedValueLabel(value)}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} />
+        </div>
+      ) : field.type === "boolean" ? (
         <div className="cell-select">
           <select
             {...common}

@@ -218,3 +218,61 @@ describe("field definition form", () => {
     expect(html).toMatch(/<fieldset[^>]*disabled/);
   });
 });
+
+describe("allowed-value field drafts", () => {
+  const definition = {
+    id: "01J00000000000000000000000",
+    name: "STATUS",
+    type: "text" as const,
+    allowedValues: ["active", "ceased"],
+    default: "active",
+  };
+  it("preserves exact choices and explicitly clears a removed constraint", () => {
+    const draft = fieldDraft(definition);
+    expect(parseFieldDraft(draft).input).toMatchObject({
+      allowedValues: definition.allowedValues,
+      default: "active",
+    });
+    expect(
+      parseFieldDraft({ ...draft, restrictValues: false }).input,
+    ).toMatchObject({ allowedValues: null });
+    expect(
+      parseFieldDraft({ ...fieldDraft(), name: "STATUS" }).input,
+    ).not.toHaveProperty("allowedValues");
+    expect(
+      parseFieldDraft({
+        ...draft,
+        allowedValues: [" Active ", "active"],
+        defaultValue: " Active ",
+      }).input,
+    ).toMatchObject({ allowedValues: [" Active ", "active"] });
+  });
+  it("reports duplicate, empty, overlong choices and incompatible defaults", () => {
+    const draft = fieldDraft(definition);
+    for (const choices of [[], [""], ["active", "active"], ["x".repeat(4097)]])
+      expect(
+        parseFieldDraft({ ...draft, allowedValues: choices }).errors
+          ?.allowedValues,
+      ).toBeTruthy();
+    expect(
+      parseFieldDraft({ ...draft, defaultValue: "removed" }).errors
+        ?.defaultValue,
+    ).toBeTruthy();
+  });
+  it("exposes labelled option controls and a constrained default selector", () => {
+    const html = renderToStaticMarkup(
+      createElement(FieldForm, {
+        field: definition,
+        busy: false,
+        submit: async () => {},
+      }),
+    );
+    expect(html).toContain("Allowed values");
+    expect(html).toContain("Only these choices");
+    expect(html).toContain("Choice 1");
+    expect(html).toContain("Choice 2");
+    expect(html).toContain("Add choice");
+    expect(html).toContain('aria-label="Remove choice 1"');
+    expect(html).toMatch(/<label[^>]+for=/);
+  });
+});
