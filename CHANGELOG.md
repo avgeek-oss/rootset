@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8 (2026-10-15)
+
+- Add automated database backups using S3-compatible storage configured on the worker, with encrypted, versioned packages and verified uploads.
+- Configure a bucket, path prefix, cron schedule and time zone under Backup Schedule. Saving verifies the destination before activating the schedule; deleting it stops future scheduled runs.
+- Add manual backups and a separate Backup History page with status, relative timestamps and Manual or Scheduled chips.
+- Include schema, records, constraints, counters, comments and history in consistent database snapshots, with an internal reconstruction check to prepare for future restore support.
+- Keep backup credentials and the separate backup encryption key on the worker. Restore controls and automatic retention are not included in this release.
+- Reduce button heights on mobile and align backup destination details with the shared code typography.
+
 ## 0.1.7 (2026-10-15)
 
 - Add foreign keys between tables in the same database, with matching scalar fields and an unconditional unique key on the referenced table.
