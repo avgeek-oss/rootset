@@ -26,7 +26,7 @@ services:
       - source: postgres-init
         target: /docker-entrypoint-initdb.d/10-rootset.sh
   migrate:
-    image: ghcr.io/avgeek-oss/rootset-api:0.1.7
+    image: ghcr.io/avgeek-oss/rootset-api:0.1.8
     init: true
     restart: no
     read_only: true
@@ -48,7 +48,7 @@ services:
         condition: service_healthy
         required: false
   worker:
-    image: ghcr.io/avgeek-oss/rootset-worker:0.1.7
+    image: ghcr.io/avgeek-oss/rootset-worker:0.1.8
     init: true
     restart: unless-stopped
     read_only: true
@@ -110,7 +110,7 @@ services:
     memswap_limit: 2g
     cpus: 2
   api:
-    image: ghcr.io/avgeek-oss/rootset-api:0.1.7
+    image: ghcr.io/avgeek-oss/rootset-api:0.1.8
     init: true
     restart: unless-stopped
     read_only: true
@@ -168,7 +168,7 @@ services:
     memswap_limit: 1g
     cpus: 2
   web:
-    image: ghcr.io/avgeek-oss/rootset-web:0.1.7
+    image: ghcr.io/avgeek-oss/rootset-web:0.1.8
     init: true
     restart: unless-stopped
     read_only: true
