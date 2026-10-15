@@ -693,6 +693,21 @@ h1 {
 .rootset-grid .cell-input.cell-boolean-false {
   color: var(--rs-boolean-false);
 }
+.null-value,
+.cell-input.null-value,
+.cell-input option[value="null"] {
+  color: var(--rs-muted);
+  font-style: italic;
+}
+.cell-input option:not([value="null"]) {
+  color: var(--rs-text);
+  font-style: normal;
+}
+.cell-input.null-value::placeholder {
+  color: var(--rs-muted);
+  font-style: italic;
+  opacity: 1;
+}
 .inline-cell-editor:has(.inline-cell-form--expand-up) {
   top: auto;
   bottom: -1px;

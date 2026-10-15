@@ -2,7 +2,7 @@
   "openapi": "3.1.2",
   "info": {
     "title": "Rootset public API",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "description": "Typed MDM storage. Temporal values are UTC only; IDs are opaque ULIDs. Runtime table definitions are discovered through the schema endpoint."
   },
   "servers": [{ "url": "http://localhost:4310" }],

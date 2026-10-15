@@ -1482,10 +1482,12 @@ export function Spreadsheet({
           <span
             data-cell-loaded={Object.hasOwn(row.values, field.name)}
             className={
-              field.type === "boolean" &&
-              typeof row.values[field.name] === "boolean"
-                ? `cell-boolean-${row.values[field.name]}`
-                : undefined
+              row.values[field.name] === null
+                ? "null-value"
+                : field.type === "boolean" &&
+                    typeof row.values[field.name] === "boolean"
+                  ? `cell-boolean-${row.values[field.name]}`
+                  : undefined
             }
           >
             {!Object.hasOwn(row.values, field.name) ? null : field.type ===
@@ -2108,7 +2110,7 @@ function HistoryValue({ value }: { value: JsonValue }) {
   return (
     <TooltipText
       tooltip={text}
-      className="block max-w-56 truncate font-mono tabular-nums"
+      className={`block max-w-56 truncate font-mono tabular-nums${value === null ? " null-value" : ""}`}
     >
       {text}
     </TooltipText>

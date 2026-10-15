@@ -65,7 +65,11 @@ export default function RepairValueReview({
         </div>
       )}
       <pre tabIndex={0} aria-label={`Requested JSON value for ${field}`}>
-        {current.text}
+        {value === null ? (
+          <span className="null-value">{current.text}</span>
+        ) : (
+          current.text
+        )}
       </pre>
     </div>
   );
