@@ -16,7 +16,7 @@ Exports recheck the original requester's current authority and the job's lease a
 
 Validation spools ciphertext in `ArtifactConfig.tempDirectory` (the operating-system temporary directory if absent), with a one-GiB free-space reserve in addition to the object size. Production containers mount a writable disk-backed spool; the small `/tmp` mount is insufficient. The worker removes abandoned ciphertext validation directories after 48 hours, checking the directory name and operating-system ownership.
 
-Keep `ROOTSET_ENCRYPTION_KEY` with the installation recovery configuration. Replacing it makes existing encrypted artifacts unreadable. Rootset has no database backup or restore operations; operators use PostgreSQL/provider tools.
+Keep `ROOTSET_ENCRYPTION_KEY` with the installation recovery configuration. Replacing it makes existing encrypted artifacts unreadable. Database backups use a separate optional worker destination and a self-contained encrypted package, without export expiry. See `docs/backups.mdx` and `development/operations/database-backup-format.md`. Restore is not exposed as a public operation.
 
 The queue exposes `queued`, `running`, `succeeded`, `failed`, `cancelled` and `partially_completed`, with a separate stage and committed progress. Locked reconciliation checks immutable committed outcomes before expiring the final attempt or cancelling queued work. A crash after committed success therefore reports that success without executing again with revoked authority. A queued response is an acknowledgement. Inspect the terminal job state before treating work as complete.
 

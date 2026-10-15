@@ -1,0 +1,56 @@
+---
+title: "Database backups"
+description: "Schedule full encrypted database backups to your own S3-compatible bucket."
+---
+
+An Admin can open a database and choose **Backup → Backup Schedule**. Each backup captures every table in that database, field definitions, unique rules, foreign keys, auto-increment counters, comments and retained history at one consistent point in time.
+
+## Configure the worker
+
+Supply the following optional variables to the **worker only**, using its environment or secret manager:
+
+```dotenv
+ROOTSET_BACKUP_S3_ENDPOINT=https://your-backup-endpoint.example.com
+ROOTSET_BACKUP_S3_REGION=us-east-1
+ROOTSET_BACKUP_S3_ACCESS_KEY=your-access-key
+ROOTSET_BACKUP_S3_SECRET_KEY=your-secret-key
+ROOTSET_BACKUP_ENCRYPTION_KEY=your-64-hex-digit-backup-key
+```
+
+Generate the backup key with `openssl rand -hex 32`. Keep it outside Rootset with your recovery configuration. Existing packages require the key that encrypted them. Packages contain the encryption metadata needed to read them without the original installation database; they never contain the key itself.
+
+The backup destination is independent of the S3 storage used for temporary exports. All backup-enabled workers must use the same endpoint, region, addressing mode and encryption key. Workers without these settings continue processing ordinary jobs. Partial configuration prevents the worker from starting. Use HTTPS for remote object storage.
+
+The bucket must already exist. Credentials need write and read access to the selected prefix, multipart upload/abort permissions, and delete access under `<prefix>/.rootset-tests/` for test probes. Rootset does not delete successful backup packages. No public bucket access is needed.
+
+The Compose files pass backup variables only to the worker and use its existing writable disk-backed artifact spool. Other installations should set `ROOTSET_BACKUP_TEMP_DIR` to a private writable disk directory. The default compressed encrypted package limit is 32 GiB, with a one-GiB free-space reserve. `ROOTSET_BACKUP_MAX_BYTES` can increase this to at most 63 GiB. Oversized backups fail explicitly. RAM use is bounded; the worker needs disk space for a complete compressed encrypted package before upload.
+
+`ROOTSET_BACKUP_S3_FORCE_PATH_STYLE` defaults to `true`; use `false` for providers that require virtual-host addressing. Region defaults to `us-east-1`.
+
+## Save a schedule
+
+Enter a bucket and optional path prefix, a cron expression, and a timezone from the searchable **Time zone** dropdown, then choose **Save schedule**. The worker writes a random probe, reads it back, verifies it and removes it before saving. A failed verification leaves any existing schedule unchanged and shows an error toast. Leading and trailing slashes in the path prefix are removed automatically.
+
+Cron has five numeric fields: minute, hour, day of month, month, weekday. Lists, ranges and steps are supported. Seconds and aliases such as `@daily` are not accepted. For example, `0 2 * * *` means daily at 02:00 in the saved timezone. If both day-of-month and weekday are restricted, either may match. The page previews the next three runs. On spring-forward days a missing local time advances by the daylight-saving gap; the repeated fall-back hour runs once. All occurrence timestamps are stored in UTC.
+
+The initial timezone is copied from the Admin's preferences. Later preference changes do not alter a saved schedule. Every saved schedule is active and belongs to the database, so it continues if the configuring Admin leaves. **Delete schedule**, beside **Save schedule**, stops scheduled backups and removes the configuration, including while the worker is offline. It also cancels pending scheduled runs and schedule saves; a verification already in progress cannot recreate a deleted schedule. Existing backup packages and history are retained. Changes cancel pending scheduled runs from an older schedule version. Cancellation is checked between extraction batches and before publication; an in-flight storage request may finish before cancellation is observed.
+
+Use **Back up now** to queue a full backup to a verified saved destination. Manual runs recheck their requester's authority before publication. Changes to the worker endpoint or encryption key require saving the schedule again, which verifies the destination before applying the changes.
+
+## Run history and failures
+
+Open **Backup → Backup History** for destination tests, manual and scheduled backups, and missed schedule ranges. The Type chips show **Manual** or **Scheduled**. Scheduled and snapshot timestamps use relative dates alongside the exact time in your account preferences. A successful backup shows its snapshot timestamp, size, table and row counts, and S3 object path. Queued work is not a completed backup. Use **Cancel** on queued or running work when needed; cancelling a run does not delete completed packages.
+
+Only one backup per database can be queued or running. Temporary failures retry with backoff, at most three attempts. Every attempt starts a complete snapshot with a unique object key. A worker outage results in one current catch-up backup; missed occurrences are recorded, not recreated. Snapshot time can differ from the planned time.
+
+The worker releases its database snapshot before uploading. Record writes continue during extraction; schema changes and deletion coordinate with the snapshot lock. A backup is successful only after a complete upload and a full read-back SHA-256 verification. This adds read traffic to your bucket. Incomplete multipart uploads are aborted when possible; configure the bucket to expire abandoned multipart uploads after crashes. Completed objects from interrupted or cancelled attempts can remain unlisted in history and can be managed through your bucket lifecycle policy.
+
+## Backup contents and recovery
+
+Each `.rootset-backup` is an independent full backup: a versioned authenticated AES-256-GCM envelope around a compressed ZIP64 archive. The archive holds a manifest, JSON schema and rule definitions, typed NDJSON rows, generator state, comments and retained history. NULL, empty strings, leading-zero text, JSON values, record identifiers, versions and timestamps are preserved. URLs and image fields retain their values; remote content is not downloaded into the backup.
+
+Authentication secrets, accounts, sessions, API keys, OAuth grants, job queues, temporary exports and installation credentials are outside the database backup. Historical authors are preserved as attribution, not login authority. A database backup is separate from a complete installation recovery plan.
+
+There is **no restore UI or public restore operation** in this version. The package format is designed for a later restore into a new database, with schema and relationship validation before publication. Its internal recovery rehearsal verifies reconstruction without exposing restore to users. A future restore must leave backup scheduling unconfigured until an Admin saves and verifies a schedule.
+
+Rootset retains successful packages indefinitely. Pausing a schedule or deleting a database does not remove existing S3 objects. Set your bucket lifecycle policy for retention, and retain every encryption key needed by retained packages.

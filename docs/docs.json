@@ -81,7 +81,8 @@
               "cell-history",
               "unique-rules",
               "foreign-keys",
-              "export-requests"
+              "export-requests",
+              "backups"
             ]
           },
           {
@@ -148,7 +149,14 @@
               "api-reference/createDatabase",
               "api-reference/getDatabase",
               "api-reference/updateDatabase",
-              "api-reference/deleteDatabase"
+              "api-reference/deleteDatabase",
+              "api-reference/getBackupSchedule",
+              "api-reference/saveBackupSchedule",
+              "api-reference/deleteBackupSchedule",
+              "api-reference/previewBackupSchedule",
+              "api-reference/listDatabaseBackups",
+              "api-reference/runDatabaseBackup",
+              "api-reference/testBackupDestination"
             ]
           },
           {

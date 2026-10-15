@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./backups": "./src/backups/index.ts",
+    "./backup-format": "./src/backups/format.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -12,20 +14,26 @@
     "test:integration": "tsx --test src/integration.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/lib-storage": "catalog:",
+    "@js-temporal/polyfill": "catalog:",
     "@rootset/access": "workspace:*",
     "@rootset/contracts": "workspace:*",
     "@rootset/database": "workspace:*",
     "@rootset/idempotency": "workspace:*",
     "@rootset/table-storage": "workspace:*",
-    "@aws-sdk/client-s3": "catalog:",
-    "@aws-sdk/lib-storage": "catalog:",
+    "cron-parser": "5.10.2",
     "csv-stringify": "catalog:",
-    "ulid": "catalog:"
+    "ulid": "catalog:",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vitest": "catalog:",
     "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

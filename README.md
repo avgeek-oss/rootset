@@ -8,7 +8,7 @@ through REST or MCP using API keys or OAuth. PostgreSQL stores values, revisions
 the latest 200 changes per existing cell. Deleting a row, field, table, or database removes its cell changelogs. The project domain is [www.rootset.app](https://www.rootset.app).
 
 V1 uses Admin, Member and Viewer roles. Admins manage people and can delete databases and tables. Members can create and edit databases, tables and fields. Viewers can read data. Browser database deletion requires password/passkey confirmation; authorised API/MCP credentials execute directly.
-SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
+SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Admins can schedule encrypted database backups to their own S3-compatible buckets through the worker. Restore has no UI or public operation yet.
 There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
 Unique rules can apply to all rows or rows matching one scalar condition. Each table can have only one rule for a given field set and condition; selecting the same fields in a different order does not create another rule. See [conditional uniqueness](docs/unique-rules.mdx) for the contract and NULL behavior.
 Personal API keys have Read-only, Edit or Administrative permissions, capped by

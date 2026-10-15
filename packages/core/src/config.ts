@@ -58,6 +58,50 @@ export function loadConfig(
   env: Record<string, string | undefined> = process.env,
 ) {
   const v = schema.parse(env);
+  const backupNames = [
+    "ROOTSET_BACKUP_S3_ENDPOINT",
+    "ROOTSET_BACKUP_S3_ACCESS_KEY",
+    "ROOTSET_BACKUP_S3_SECRET_KEY",
+    "ROOTSET_BACKUP_ENCRYPTION_KEY",
+    "ROOTSET_BACKUP_S3_REGION",
+    "ROOTSET_BACKUP_TEMP_DIR",
+    "ROOTSET_BACKUP_MAX_BYTES",
+    "ROOTSET_BACKUP_S3_FORCE_PATH_STYLE",
+  ];
+  const backup = backupNames.some((name) => Boolean(env[name]?.trim()))
+    ? z
+        .object({
+          ROOTSET_BACKUP_S3_ENDPOINT: objectStorageUrl.refine((value) => {
+            try {
+              const url = new URL(value);
+              return !url.username && !url.password && !url.search && !url.hash;
+            } catch {
+              return false;
+            }
+          }, "The backup endpoint must not contain credentials, query parameters or a fragment"),
+          ROOTSET_BACKUP_S3_REGION: z.string().min(1).default("us-east-1"),
+          ROOTSET_BACKUP_S3_ACCESS_KEY: z.string().min(1),
+          ROOTSET_BACKUP_S3_SECRET_KEY: z.string().min(1),
+          ROOTSET_BACKUP_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
+          ROOTSET_BACKUP_TEMP_DIR: z.string().min(1).optional(),
+          ROOTSET_BACKUP_MAX_BYTES: z.coerce
+            .number()
+            .int()
+            .min(1024)
+            .max(63 * 1024 ** 3)
+            .default(32 * 1024 ** 3),
+          ROOTSET_BACKUP_S3_FORCE_PATH_STYLE: z
+            .enum(["true", "false"])
+            .default("true"),
+        })
+        .parse(
+          Object.fromEntries(
+            backupNames
+              .filter((name) => env[name]?.trim())
+              .map((name) => [name, env[name]]),
+          ),
+        )
+    : undefined;
   const signingKey = (purpose: string) =>
     Buffer.from(
       hkdfSync("sha256", v.ROOTSET_SECRET, "rootset:v1", purpose, 32),
@@ -82,6 +126,22 @@ export function loadConfig(
       secretAccessKey: v.ROOTSET_S3_SECRET_KEY,
       tempDirectory: v.ROOTSET_ARTIFACT_TEMP_DIR,
     },
+    backups: backup
+      ? {
+          endpoint: backup.ROOTSET_BACKUP_S3_ENDPOINT,
+          region: backup.ROOTSET_BACKUP_S3_REGION,
+          accessKeyId: backup.ROOTSET_BACKUP_S3_ACCESS_KEY,
+          secretAccessKey: backup.ROOTSET_BACKUP_S3_SECRET_KEY,
+          encryptionKey: Buffer.from(
+            backup.ROOTSET_BACKUP_ENCRYPTION_KEY,
+            "hex",
+          ),
+          tempDirectory:
+            backup.ROOTSET_BACKUP_TEMP_DIR ?? v.ROOTSET_ARTIFACT_TEMP_DIR,
+          maxBytes: backup.ROOTSET_BACKUP_MAX_BYTES,
+          forcePathStyle: backup.ROOTSET_BACKUP_S3_FORCE_PATH_STYLE === "true",
+        }
+      : undefined,
     smtp: {
       host: v.ROOTSET_SMTP_HOST,
       port: v.ROOTSET_SMTP_PORT,

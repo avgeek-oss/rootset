@@ -24,6 +24,7 @@ const personalScopes = new Set([
 export function roleAllows(role: Role, scope: string): boolean {
   if (!ALL_SCOPES.includes(scope as (typeof ALL_SCOPES)[number])) return false;
   if (role === "admin") return true;
+  if (scope.startsWith("backups:")) return false;
   if (personalScopes.has(scope) || scope === "org:read") return true;
   if (scope === "members:read" || scope.startsWith("installation:"))
     return false;

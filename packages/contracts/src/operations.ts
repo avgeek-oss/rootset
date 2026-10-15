@@ -1,7 +1,15 @@
+import {
+  BackupDestinationSchema,
+  BackupTimingSchema,
+  BackupScheduleInputSchema,
+  BackupScheduleResultSchema,
+  DatabaseBackupSchema,
+} from "./backups";
 import { UniqueRuleConditionSchema } from "./unique-rules";
 import { z } from "zod";
 import {
   AccountNameSchema,
+  CanonicalUtcDateTimeSchema,
   ActorSchema,
   IdSchema,
   JobAcceptedSchema,
@@ -1333,6 +1341,84 @@ operation(
   "Save table view preferences without changing data/schema.",
   { personal: true, resource: "table", minimumRole: "viewer" },
 );
+operation(
+  "getBackupSchedule",
+  "get_backup_schedule",
+  "GET",
+  `${D}/backup-schedule`,
+  ["backups:read"],
+  z.strictObject(database),
+  BackupScheduleResultSchema,
+  "Read the database backup schedule and worker availability.",
+  { minimumRole: "admin" },
+);
+operation(
+  "saveBackupSchedule",
+  "save_backup_schedule",
+  "PUT",
+  `${D}/backup-schedule`,
+  ["backups:manage"],
+  BackupScheduleInputSchema.extend(database),
+  JobAcceptedSchema,
+  "Verify the destination on the worker, then save and enable the schedule only if verification succeeds.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+operation(
+  "deleteBackupSchedule",
+  "delete_backup_schedule",
+  "DELETE",
+  `${D}/backup-schedule`,
+  ["backups:manage"],
+  z.strictObject({ ...database, expectedVersion: z.number().int().min(0) }),
+  BackupScheduleResultSchema,
+  "Delete the schedule and cancel pending scheduled runs and schedule saves. Existing backup packages and history are retained.",
+  { minimumRole: "admin" },
+);
+operation(
+  "previewBackupSchedule",
+  "preview_backup_schedule",
+  "POST",
+  `${D}/backup-schedule/preview`,
+  ["backups:read"],
+  BackupTimingSchema.extend(database),
+  z.strictObject({ nextRuns: z.array(CanonicalUtcDateTimeSchema) }),
+  "Preview the next three occurrences of a five-field cron schedule in an explicit timezone.",
+  { readOnly: true, minimumRole: "admin", successStatus: 200 },
+);
+operation(
+  "listDatabaseBackups",
+  "list_database_backups",
+  "GET",
+  `${D}/backups`,
+  ["backups:read"],
+  z.strictObject({ ...database, ...jobPaging }),
+  list(DatabaseBackupSchema),
+  "List database backup runs, destination tests and missed schedule ranges.",
+  { minimumRole: "admin" },
+);
+operation(
+  "runDatabaseBackup",
+  "run_database_backup",
+  "POST",
+  `${D}/backups`,
+  ["backups:manage"],
+  z.strictObject(database),
+  JobAcceptedSchema,
+  "Queue a full encrypted database backup to the saved destination.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+operation(
+  "testBackupDestination",
+  "test_backup_destination",
+  "POST",
+  `${D}/backup-schedule/test`,
+  ["backups:manage"],
+  BackupDestinationSchema.extend(database),
+  JobAcceptedSchema,
+  "Ask a backup-enabled worker to write, read, verify and remove a probe at the destination.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+
 export const operations: readonly OperationDefinition[] =
   Object.freeze(definitions);
 export const operationMap: Readonly<Record<string, OperationDefinition>> =

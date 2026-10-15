@@ -72,6 +72,23 @@ button {
 button:disabled {
   cursor: default;
 }
+@media (width < 48rem) {
+  .button.button--md:not(.button--icon-only) {
+    height: 2.25rem;
+  }
+  .button.button--sm {
+    height: 2rem;
+  }
+  .button.button--lg {
+    height: 2.5rem;
+  }
+  .button.button--sm.button--icon-only {
+    width: 2rem;
+  }
+  .button.button--lg.button--icon-only {
+    width: 2.5rem;
+  }
+}
 input,
 select,
 textarea {

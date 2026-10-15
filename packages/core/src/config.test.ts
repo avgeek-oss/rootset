@@ -91,3 +91,64 @@ test("database and S3 URLs reject mismatched protocols before dependency access"
       }),
     );
 });
+
+test("backup storage is optional, complete, isolated from artifacts and rejects credential-bearing endpoints", () => {
+  assert.equal(loadConfig(env).backups, undefined);
+  assert.equal(
+    loadConfig({ ...env, ROOTSET_BACKUP_S3_ENDPOINT: "" }).backups,
+    undefined,
+  );
+  const backup = {
+    ROOTSET_BACKUP_S3_ENDPOINT: "https://backups.example.test",
+    ROOTSET_BACKUP_S3_ACCESS_KEY: "backup-access",
+    ROOTSET_BACKUP_S3_SECRET_KEY: "backup-secret",
+    ROOTSET_BACKUP_ENCRYPTION_KEY: "e".repeat(64),
+  };
+  for (const name of Object.keys(backup))
+    assert.throws(() => loadConfig({ ...env, ...backup, [name]: undefined }));
+  const config = loadConfig({
+    ...env,
+    ...backup,
+    ROOTSET_ARTIFACT_TEMP_DIR: "/tmp/spool",
+  });
+  assert.equal(config.backups!.endpoint, backup.ROOTSET_BACKUP_S3_ENDPOINT);
+  assert.equal(config.backups!.region, "us-east-1");
+  assert.equal(config.backups!.tempDirectory, "/tmp/spool");
+  assert.equal(config.backups!.encryptionKey.length, 32);
+  assert.equal(config.artifacts.endpoint, env.ROOTSET_S3_ENDPOINT);
+  for (const endpoint of [
+    "ftp://backup.example",
+    "https://user:password@backup.example",
+    "https://backup.example?token=secret",
+  ])
+    assert.throws(() =>
+      loadConfig({ ...env, ...backup, ROOTSET_BACKUP_S3_ENDPOINT: endpoint }),
+    );
+  assert.throws(() =>
+    loadConfig({
+      ...env,
+      ...backup,
+      ROOTSET_BACKUP_MAX_BYTES: String(64 * 1024 ** 3),
+    }),
+  );
+});
+
+test("invalid backup endpoints do not expose configuration values in parser errors", () => {
+  const sentinel = "PRIVATE_BACKUP_ENDPOINT_SENTINEL";
+  assert.throws(
+    () =>
+      loadConfig({
+        ...env,
+        ROOTSET_BACKUP_S3_ENDPOINT: sentinel,
+        ROOTSET_BACKUP_S3_ACCESS_KEY: "backup-access",
+        ROOTSET_BACKUP_S3_SECRET_KEY: "backup-secret",
+        ROOTSET_BACKUP_ENCRYPTION_KEY: "e".repeat(64),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal(inspect(error).includes(sentinel), false);
+      assert.equal(Object.hasOwn(error, "input"), false);
+      return true;
+    },
+  );
+});

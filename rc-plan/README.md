@@ -65,3 +65,5 @@ data and use a separate empty installation for the revised baseline.
 The local Towbar and Mill repositories inform the shared shell, authentication,
 public dependency and practical runbook conventions. Rootset's role and storage
 contracts are its own. Their deployed state is not Rootset evidence.
+
+The automated database-backup follow-up adds Admin-only schedules and encrypted full database packages after v0.1.7. Current verification clauses V1-26 through V1-28 include this addition. Restore operations and UI row creation remain outside this work.

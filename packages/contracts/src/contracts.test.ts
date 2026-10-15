@@ -167,7 +167,6 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     "markAllNotificationsRead",
     "getBackupPolicy",
     "setBackupPolicy",
-    "previewBackupSchedule",
     "getInstallationConfiguration",
     "updateInstallationConfiguration",
     "testEmail",
@@ -179,13 +178,12 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 78);
+  assert.equal(operations.length, 85);
   assert.equal(getOperation("createRow").readOnly, false);
-  assert(
-    operations.every((operation) =>
-      operation.scopes.every((scope) => !scope.startsWith("backups:")),
-    ),
-  );
+  for (const operation of operations.filter((op) =>
+    op.scopes.some((scope) => scope.startsWith("backups:")),
+  ))
+    assert.equal(operation.minimumRole, "admin");
   assert.equal(tools.length, operations.length);
   for (const operation of operations)
     assert.equal(getOperation(operation.id), operation);
@@ -1163,7 +1161,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.equal(operation.errors.includes("STEP_UP_REQUIRED"), false);
-  assert.equal(operations.length, 78);
+  assert.equal(operations.length, 85);
   const api = generateOpenApi() as {
     paths: Record<
       string,

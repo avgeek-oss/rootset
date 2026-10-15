@@ -241,6 +241,7 @@ export function Toggle({
 
 export function Form({
   children,
+  actions,
   busy,
   onSubmit,
   submit = "Save changes",
@@ -248,6 +249,7 @@ export function Form({
   noValidate = false,
 }: {
   children: ReactNode;
+  actions?: ReactNode;
   busy: boolean;
   onSubmit: () => void | Promise<void>;
   submit?: string;
@@ -275,6 +277,7 @@ export function Form({
         <Button type="submit" isPending={busy} isDisabled={busy}>
           {busy ? "Working…" : submit}
         </Button>
+        {actions}
       </div>
     </form>
   );

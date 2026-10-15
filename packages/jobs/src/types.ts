@@ -30,6 +30,8 @@ export interface ArtifactConfig {
   tempDirectory?: string;
 }
 export interface JobsConfig {
+  backups?: import("./backups/index.js").BackupConfig;
+  rootsetVersion?: string;
   idempotencySecret?: string;
   authoriseHistoryPolicy?: (
     actor: Actor,
@@ -42,6 +44,7 @@ export interface JobsConfig {
       request: {
         resource: string;
         filter?: JsonValue;
+        order?: "asc" | "desc";
         limit?: number;
         cursor?: string | null;
       },
@@ -52,6 +55,7 @@ export interface JobsConfig {
       request: {
         resource: string;
         filter?: JsonValue;
+        order?: "asc" | "desc";
         limit?: number;
         cursor?: string | null;
       },

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { type Actor, RootsetError } from "@rootset/contracts";
+import { type Actor, RootsetError, newId } from "@rootset/contracts";
 import { MetadataPaging } from "./paging.js";
 
 const id = (index: number) =>
@@ -191,4 +191,39 @@ test("metadata paging validates collection identifiers and limits", () => {
     nextCursor: null,
   });
   assert.equal(paging.read(actor, { resource: "databases" }).limit, 200);
+});
+
+test("descending metadata pages remain newest-first and bind their cursor order", () => {
+  const paging = new MetadataPaging(
+    "backup-paging-secret-01234567890123456789",
+  );
+  const principal: Actor = {
+    kind: "session",
+    id: "backup-admin",
+    orgId: newId(),
+    role: "admin",
+    scopes: [],
+  };
+  const rows = Array.from({ length: 5 }, () => ({ id: newId() })).sort((a, b) =>
+    a.id.localeCompare(b.id),
+  );
+  const request = {
+    resource: "database:backups",
+    limit: 2,
+    order: "desc" as const,
+  };
+  const first = paging.paginate(rows, principal, request);
+  assert.deepEqual(first.data, rows.slice().reverse().slice(0, 2));
+  const next = paging.paginate(rows, principal, {
+    ...request,
+    cursor: first.nextCursor,
+  });
+  assert.deepEqual(next.data, rows.slice().reverse().slice(2, 4));
+  assert.throws(() =>
+    paging.read(principal, {
+      ...request,
+      order: "asc",
+      cursor: first.nextCursor,
+    }),
+  );
 });
