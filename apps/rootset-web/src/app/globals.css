@@ -481,6 +481,40 @@ h1 {
 .rootset-grid .cell-boolean-false {
   color: var(--rs-boolean-false);
 }
+.foreign-key-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+.foreign-key-cell-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.foreign-key-link {
+  display: inline-flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 100%;
+  margin-inline-end: -8px;
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.foreign-key-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .foreign-key-link:hover {
+    background: var(--surface-secondary);
+    color: var(--foreground);
+  }
+}
 .cell-image {
   display: inline-flex;
   width: 48px;

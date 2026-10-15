@@ -705,13 +705,14 @@ export function RootsetApp() {
                 />
               ) : table && selectedDatabaseId ? (
                 <Spreadsheet
-                  key={table.id}
+                  key={JSON.stringify([table.id, parameters.get("filter")])}
                   orgId={orgId!}
                   databaseId={selectedDatabaseId}
                   table={table}
                   preferences={preferences}
                   canEdit={canEdit}
                   canManage={canEdit}
+                  linkedFilter={parameters.get("filter")}
                   onSettings={(section) =>
                     openSettings(section as SettingsSection)
                   }
