@@ -253,6 +253,8 @@ export const SchemaChangeSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export const FieldChangesSchema = z.strictObject({
+  autoIncrement: z.boolean().optional(),
+  clearDefault: z.boolean().optional(),
   allowedValues: AllowedValuesSchema.nullable().optional(),
   name: FieldNameSchema.optional(),
   type: FieldTypeSchema.optional(),

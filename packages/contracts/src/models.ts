@@ -246,6 +246,7 @@ export const ErrorCodeSchema = z.enum([
   "ROW_VERSION_CONFLICT",
   "SCHEMA_VERSION_CONFLICT",
   "UNIQUE_CONFLICT",
+  "AUTO_INCREMENT_EXHAUSTED",
   "ROW_SIZE_LIMIT",
   "ROW_LIMIT_REACHED",
   "PAYLOAD_TOO_LARGE",
@@ -326,6 +327,7 @@ export interface FieldDefinition {
   default?: JsonValue;
   charLimit?: number;
   allowedValues?: string[] | null;
+  autoIncrement?: boolean;
   min?: number | string;
   max?: number | string;
   order?: number;

@@ -9,9 +9,10 @@ export interface FieldDraft {
   restrictValues: boolean;
   allowedValues: string[];
   hadAllowedValues: boolean;
+  hadAutoIncrement: boolean;
   min: string;
   max: string;
-  defaultMode: "null" | "value";
+  defaultMode: "none" | "value" | "autoIncrement";
   defaultValue: string;
   defaultBoolean: boolean;
 }
@@ -27,16 +28,14 @@ export function fieldDraft(field?: TableField): FieldDraft {
     restrictValues: Boolean(field?.allowedValues),
     allowedValues: field?.allowedValues ? [...field.allowedValues] : [""],
     hadAllowedValues: Boolean(field?.allowedValues),
+    hadAutoIncrement: Boolean(field?.autoIncrement),
     min: String(field?.min ?? ""),
     max: String(field?.max ?? ""),
-    defaultMode:
-      field && Object.hasOwn(field, "default")
-        ? field.default === null
-          ? "null"
-          : "value"
-        : field?.required
-          ? "value"
-          : "null",
+    defaultMode: field?.autoIncrement
+      ? "autoIncrement"
+      : field?.default != null
+        ? "value"
+        : "none",
     defaultValue:
       field && field.default !== undefined && field.default !== null
         ? field.type === "json"
@@ -73,19 +72,12 @@ export function parseFieldDraft(
               /^\d{4}-\d{2}-\d{2}$/.test(value[bound])
             ? `${value[bound]}T00:00:00.000Z`
             : value[bound];
-  if (value.defaultMode === "null") result.default = null;
+  if (value.type === "integer") {
+    if (value.defaultMode === "autoIncrement") result.autoIncrement = true;
+    else if (value.hadAutoIncrement) result.autoIncrement = false;
+  } else if (value.defaultMode === "autoIncrement")
+    errors.defaultMode = "Auto-increment is available for integer fields.";
   if (value.defaultMode === "value") {
-    if (
-      value.required &&
-      value.type !== "boolean" &&
-      !value.defaultValue.trim() &&
-      !(
-        value.type === "text" &&
-        value.restrictValues &&
-        value.allowedValues.includes(value.defaultValue)
-      )
-    )
-      errors.defaultValue = "Enter a default value for this required field.";
     if (["integer", "float"].includes(value.type) && !value.defaultValue.trim())
       errors.defaultValue = "Enter a default value.";
     try {

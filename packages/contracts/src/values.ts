@@ -250,6 +250,10 @@ const rawFields = z.discriminatedUnion("type", [
   z.strictObject({
     ...common,
     type: z.literal("integer"),
+    autoIncrement: z.boolean().optional().meta({
+      description:
+        "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+    }),
     min: z.number().int().safe().optional(),
     max: z.number().int().safe().optional(),
   }),
@@ -279,6 +283,16 @@ const rawFields = z.discriminatedUnion("type", [
   z.strictObject({ ...common, type: z.literal("json") }),
 ]);
 export const FieldDefinitionSchema = rawFields.superRefine((field, context) => {
+  if (
+    field.type === "integer" &&
+    field.autoIncrement &&
+    Object.hasOwn(field, "default")
+  )
+    context.addIssue({
+      code: "custom",
+      path: ["default"],
+      message: "Auto-increment cannot be combined with a constant default",
+    });
   if (field.type === "text" && field.allowedValues)
     for (const [index, value] of field.allowedValues.entries()) {
       if ([...value].length > (field.charLimit ?? limits.textCharLimit))
@@ -468,7 +482,10 @@ export function validateValues(
   }
   if (mode === "create")
     for (const field of fields)
-      if (!Object.hasOwn(result, field.name))
+      if (
+        !Object.hasOwn(result, field.name) &&
+        !(field.type === "integer" && field.autoIncrement)
+      )
         result[field.name] = validateCell(
           field,
           Object.hasOwn(field, "default") ? field.default : null,

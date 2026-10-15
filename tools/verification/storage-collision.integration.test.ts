@@ -21,6 +21,7 @@ verificationCase(
         "0002_mcp_role_revocation.sql",
         "0003_comment_deletion_log.sql",
         "0004_field_constraints.sql",
+        "0005_integer_auto_increment.sql",
       ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();

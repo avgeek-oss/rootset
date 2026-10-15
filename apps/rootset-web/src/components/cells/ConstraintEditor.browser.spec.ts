@@ -355,6 +355,10 @@ test("field and rule forms publish constraints through the existing UI", async (
     dialog.getByRole("switch", { name: "Required", exact: true }),
   ).toBeChecked();
   await dialog.getByRole("button", { name: /Default for new rows/ }).click();
+  await page
+    .getByRole("option", { name: "A literal value", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: /Default value/ }).click();
   await page.getByRole("option", { name: "draft", exact: true }).click();
   await dialog.getByRole("button", { name: "Add field", exact: true }).click();
   await expect(dialog).not.toBeVisible();

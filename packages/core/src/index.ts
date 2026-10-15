@@ -686,6 +686,7 @@ export class RootsetCore {
         const field = record(input.field);
         await s.updateField(a, tableId, str(input.fieldId), {
           ...field,
+          ...(input.clearDefault === true ? { clearDefault: true } : {}),
           ...schemaOptions(input, ctx),
           ...(input.conversion
             ? {
@@ -735,18 +736,21 @@ export class RootsetCore {
               { ...common, field: c.field },
               ctx,
             );
-          case "update_field":
+          case "update_field": {
+            const { clearDefault, ...field } = record(c.changes);
             return this.dispatch(
               "updateField",
               a,
               {
                 ...common,
                 fieldId: c.fieldId,
-                field: c.changes,
+                field,
+                ...(clearDefault === true ? { clearDefault: true } : {}),
                 conversion: c.conversion,
               },
               ctx,
             );
+          }
           case "delete_field":
             return this.dispatch(
               "deleteField",

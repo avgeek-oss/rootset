@@ -13,6 +13,10 @@ The selected cell uses the green theme highlight. If a value is invalid or savin
 
 Right-click an optional cell and select **Set to NULL**. `NULL` is distinct from an empty string, zero, `false` or the string `"NULL"`. Required fields cannot be set to NULL.
 
+## Generate integer IDs on creation
+
+An integer field can use [auto-increment](/fields#auto-increment-integers). When creating rows through the API, MCP, or a batch/import client, omit that property to generate its value on the server. Explicit IDs remain unchanged and advance the counter. A supplied NULL is an explicit cell value, so it does not request generation. Editing an existing row never regenerates an omitted ID.
+
 ## Undo
 
 Press **Cmd+Z** on macOS or **Ctrl+Z** on Windows/Linux to revert saved cell edits one at a time in the current table session. Rootset confirms an undo with a toast. While an editor is active, the shortcut follows the editor's normal text undo. There is no redo. Undo does not restore deleted rows or resources.

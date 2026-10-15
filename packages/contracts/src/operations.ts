@@ -751,6 +751,10 @@ operation(
     ...expected,
     fieldId: IdSchema,
     field: FieldInputSchema,
+    clearDefault: z.boolean().optional().meta({
+      description:
+        "Remove the previous constant default. Do not also supply field.default.",
+    }),
     conversion: z.enum(["explicit", "lossless"]).optional(),
   }),
   jobOr(TableSchemaResultSchema),

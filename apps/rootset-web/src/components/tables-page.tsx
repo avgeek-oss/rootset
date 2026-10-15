@@ -64,7 +64,7 @@ export function TablesPage({
                 <Link
                   href={dataHref(databaseId, table.id)}
                   aria-label={table.name}
-                  className="block h-full w-full min-w-0 rounded-2xl no-underline outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="resource-card block h-full w-full min-w-0 rounded-2xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <Widget className="h-full">
                     <Widget.Content className="flex flex-col gap-5">

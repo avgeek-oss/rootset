@@ -117,6 +117,7 @@ export interface TableField {
   required?: boolean;
   charLimit?: number;
   allowedValues?: string[] | null;
+  autoIncrement?: boolean;
   min?: number | string;
   max?: number | string;
   default?: unknown;

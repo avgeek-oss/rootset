@@ -63,7 +63,7 @@ export function DatabasesPage({
               <li key={database.id} className="min-w-0">
                 <Link
                   href={dataHref(database.id)}
-                  className="block h-full min-w-0 rounded-2xl no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  className="resource-card block h-full min-w-0 rounded-2xl no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 >
                   <Widget className="h-full">
                     <Widget.Content className="flex flex-col gap-5">

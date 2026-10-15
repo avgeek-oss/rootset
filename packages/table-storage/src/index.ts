@@ -53,6 +53,7 @@ function renamedValues(
 }
 
 export type FieldInput = Omit<FieldDefinition, "id">;
+type FieldChanges = Partial<FieldInput> & { clearDefault?: boolean };
 export interface DatabaseRecord {
   id: string;
   orgId: string;
@@ -164,9 +165,8 @@ function schemaPayload(value: unknown): unknown {
   );
 }
 function fieldPatch(
-  input: Partial<FieldInput> &
-    Partial<SchemaOptions> & { conversion?: unknown },
-): Partial<FieldInput> {
+  input: FieldChanges & Partial<SchemaOptions> & { conversion?: unknown },
+): FieldChanges {
   const patch = { ...input };
   delete patch.expectedSchemaVersion;
   delete patch.idempotencyKey;
@@ -356,16 +356,24 @@ function fieldFor(table: TableRecord, key: string): FieldDefinition {
 }
 function changedField(
   before: FieldDefinition,
-  patch: Partial<FieldInput>,
+  patch: FieldChanges,
 ): FieldDefinition {
+  const { clearDefault, ...changes } = patch;
+  if (clearDefault && Object.hasOwn(changes, "default"))
+    fail(
+      "VALIDATION_FAILED",
+      "Choose either clearing the default or supplying a constant default",
+    );
   const base = { ...before };
+  if (clearDefault) delete base.default;
   if (patch.type && patch.type !== before.type) {
     delete base.charLimit;
     delete base.allowedValues;
     delete base.min;
     delete base.max;
+    delete base.autoIncrement;
   }
-  return field({ ...base, ...patch }, before.id);
+  return field({ ...base, ...changes }, before.id);
 }
 function convertedCell(
   before: FieldDefinition,
@@ -1018,6 +1026,7 @@ export class TableStorage {
         );
         for (const f of fields) await this.insertField(c, t, f);
         await this.createPhysical(c, t);
+        for (const f of fields) await this.syncIntegerCounter(c, t, f);
         await c.query(
           "UPDATE rootset_control.schema_operations SET table_id=$2 WHERE id=$1",
           [j.operationId, t.id],
@@ -1057,6 +1066,22 @@ export class TableStorage {
         f.order ?? t.fields.length,
         state,
       ],
+    );
+  }
+  private async syncIntegerCounter(
+    c: PoolClient,
+    table: TableRecord,
+    field: FieldDefinition,
+  ): Promise<void> {
+    if (field.type !== "integer" || !field.autoIncrement) return;
+    const hasExistingValues =
+      table.rowCount > 0 &&
+      table.fields.some((existing) => existing.id === field.id);
+    await c.query(
+      `INSERT INTO rootset_control.integer_counters AS counter(field_id,table_id,org_id,next_value)
+       ${hasExistingValues ? `SELECT $1,$2,$3,GREATEST($4::bigint,COALESCE(max(${q(fieldColumn(field))})+1,$4::bigint)) FROM ${tablePath(table)}` : "VALUES($1,$2,$3,$4::bigint)"}
+       ON CONFLICT(field_id) DO UPDATE SET next_value=GREATEST(counter.next_value,EXCLUDED.next_value)`,
+      [field.id, table.id, table.orgId, field.min ?? 1],
     );
   }
   async listTables(
@@ -1220,6 +1245,7 @@ export class TableStorage {
           `ALTER TABLE ${tablePath(t)} ADD COLUMN ${q(fieldColumn(f))} ${physicalType(f)}`,
         );
         await this.insertField(c, t, f);
+        await this.syncIntegerCounter(c, t, f);
         if (value !== null) {
           const m = await this.newMutation(
             c,
@@ -1273,7 +1299,7 @@ export class TableStorage {
     a: Actor,
     tableId: string,
     fieldId: string,
-    input: Partial<FieldInput> &
+    input: FieldChanges &
       SchemaOptions & {
         conversion?: { strategy: "strict" | "stringify" | "parse" };
       },
@@ -1320,7 +1346,7 @@ export class TableStorage {
       async (c, t) => {
         const before = fieldFor(t, fieldId);
         const patch = fieldPatch(input);
-        const f = field({ ...before, ...patch }, before.id);
+        const f = changedField(before, patch);
         const fields = t.fields.map((x) => (x.id === f.id ? f : x));
         assertFieldNames(fields);
         assertAllowedValuesBudget(fields);
@@ -1331,6 +1357,8 @@ export class TableStorage {
           "UPDATE rootset_control.fields SET name=$2,definition=$3::jsonb,position=$4 WHERE id=$1",
           [f.id, f.name, JSON.stringify(f), f.order ?? before.order ?? 0],
         );
+        if (f.autoIncrement && (!before.autoIncrement || before.min !== f.min))
+          await this.syncIntegerCounter(c, t, f);
       },
     );
   }
@@ -1458,6 +1486,31 @@ export class TableStorage {
       mutationId,
     ]);
     return { id: mutationId, replay: null };
+  }
+  private async reserveExplicitIntegerValues(
+    c: PoolClient,
+    table: TableRecord,
+    operations: RowOperation[],
+  ): Promise<void> {
+    const generatedFields = table.fields.filter(
+      (field) => field.type === "integer" && field.autoIncrement,
+    );
+    if (!generatedFields.length) return;
+    const maxima = new Map<string, number>();
+    for (const operation of operations) {
+      if (operation.kind === "delete") continue;
+      const values = validateValues(table.fields, operation.values, "patch");
+      for (const field of generatedFields) {
+        const value = values[field.name];
+        if (typeof value === "number")
+          maxima.set(field.id, Math.max(maxima.get(field.id) ?? value, value));
+      }
+    }
+    for (const [fieldId, maximum] of maxima)
+      await c.query(
+        "UPDATE rootset_control.integer_counters SET next_value=GREATEST(next_value,$4::bigint+1) WHERE field_id=$1 AND table_id=$2 AND org_id=$3",
+        [fieldId, table.id, table.orgId, maximum],
+      );
   }
   async mutateRows(
     a: Actor,
@@ -1627,12 +1680,47 @@ export class TableStorage {
         }
         return m.replay;
       }
+      await this.reserveExplicitIntegerValues(c, t, input.operations);
       const rows: Row[] = [];
       const deletedIds: string[] = [];
       const returnRows = input.context?.source !== "import";
       for (const op of input.operations) {
         if (op.kind === "create") {
           const values = validateValues(t.fields, op.values);
+          for (const field of t.fields) {
+            if (
+              field.type !== "integer" ||
+              !field.autoIncrement ||
+              Object.hasOwn(values, field.name)
+            )
+              continue;
+            const generated = await c.query<{ value: string }>(
+              "UPDATE rootset_control.integer_counters SET next_value=next_value+1 WHERE field_id=$1 AND table_id=$2 AND org_id=$3 AND next_value<=$4::bigint RETURNING (next_value-1)::text AS value",
+              [field.id, t.id, t.orgId, field.max ?? Number.MAX_SAFE_INTEGER],
+            );
+            if (!generated.rows[0]) {
+              const counter = await c.query(
+                "SELECT 1 FROM rootset_control.integer_counters WHERE field_id=$1 AND table_id=$2 AND org_id=$3",
+                [field.id, t.id, t.orgId],
+              );
+              if (!counter.rowCount)
+                fail(
+                  "INTERNAL_ERROR",
+                  "Auto-increment counter is missing",
+                  500,
+                );
+              fail(
+                "AUTO_INCREMENT_EXHAUSTED",
+                `Auto-increment for ${field.name} has reached its maximum`,
+                422,
+                { fieldId: field.id, field: field.name },
+              );
+            }
+            values[field.name] = validateCell(
+              field,
+              Number(generated.rows[0].value),
+            );
+          }
           assertRowBytes(t.fields, values);
           const keys = t.fields.map((f) => q(fieldColumn(f)));
           const params = t.fields.map((f) => parameter(f, values[f.name]!));
@@ -2488,7 +2576,7 @@ export class TableStorage {
     a: Actor,
     tableId: string,
     fieldId: string,
-    input: Partial<FieldInput> &
+    input: FieldChanges &
       SchemaOptions & {
         conversion?: { strategy: "strict" | "stringify" | "parse" };
       },
@@ -2661,6 +2749,8 @@ export class TableStorage {
             [after.id, JSON.stringify(after), after.name],
           );
           await this.installTrigger(c, fresh);
+          for (const field of fresh.fields)
+            await this.syncIntegerCounter(c, fresh, field);
           await this.assertPublication(c, a, input.context);
           await c.query(
             "UPDATE rootset_control.tables SET physical_name=$2,generation=$3,state='active' WHERE id=$1",
@@ -2762,7 +2852,7 @@ export class TableStorage {
         });
       } else if (change.kind === "update_field") {
         const before = fieldFor(t, String(change.fieldId));
-        const patch = change.changes as Partial<FieldInput>;
+        const patch = change.changes as FieldChanges;
         const after = changedField(before, patch);
         fields = fields.map((f) => (f.id === before.id ? after : f));
         transform = (r) => renamedValues(r.values, before, after);
@@ -2836,9 +2926,14 @@ export class TableStorage {
       }[] = [];
       for await (const batch of this.iterateRows(c, t))
         for (const r of batch) {
+          let values: Record<string, JsonValue> | undefined;
           try {
-            assertRowBytes(fields, validateValues(fields, transform(r)));
+            values = transform(r);
+            assertRowBytes(fields, validateValues(fields, values));
           } catch (error) {
+            const target = fields.find((field) => field.id === fieldId);
+            const requiresBackfill =
+              target?.required && values?.[target.name] === null;
             if (conflicts.length < 1000)
               conflicts.push({
                 rowId: r.id,
@@ -2847,8 +2942,9 @@ export class TableStorage {
                   error instanceof RootsetError
                     ? error.code
                     : "VALIDATION_FAILED",
-                message:
-                  error instanceof RootsetError
+                message: requiresBackfill
+                  ? `Fill existing NULL cells in ${target.name} before making the field required. Defaults and auto-increment only apply to new rows.`
+                  : error instanceof RootsetError
                     ? error.message
                     : "Existing value is incompatible",
               });
