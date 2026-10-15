@@ -28,6 +28,7 @@ import {
   TableDangerZone,
 } from "./schema";
 import { ExportsSettings } from "./jobs";
+import { ForeignKeysSettings } from "./foreign-keys";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
   canOpenSettings,
@@ -80,6 +81,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone": TableDangerZone,
     fields: FieldsSettings,
     rules: UniqueRulesSettings,
+    "foreign-keys": ForeignKeysSettings,
     exports: ExportsSettings,
   };
   const Component = components[activeSection];
@@ -88,6 +90,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone",
     "fields",
     "rules",
+    "foreign-keys",
     "exports",
   ];
   const databaseSections = ["database", "database-danger-zone"];

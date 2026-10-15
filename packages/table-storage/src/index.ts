@@ -13,6 +13,7 @@ import {
   type JsonValue,
   type QuerySpec,
   type UniqueRuleCondition,
+  type ForeignKey,
   validateUniqueRuleCondition,
   type Row,
   type QueryResult,
@@ -206,6 +207,20 @@ function storageError(error: unknown): never {
     detail?: string;
     constraint?: string;
   };
+  if (
+    e.code === "23503" ||
+    (e.code === "23001" && e.constraint === "rootset_foreign_key_reference")
+  )
+    fail(
+      "FOREIGN_KEY_CONFLICT",
+      e.message === "foreign key target missing"
+        ? "This value has no matching record in the referenced table."
+        : "This value is referenced by another record. Update or remove those references first.",
+      409,
+      e.message === "foreign key target missing" && e.detail
+        ? { ruleId: e.detail }
+        : undefined,
+    );
   if (e.code === "23505") {
     const ruleId =
       e.constraint
@@ -753,6 +768,30 @@ export class TableStorage {
       `CREATE TRIGGER rootset_enforce BEFORE INSERT OR UPDATE OR DELETE ON ${tablePath(t)} FOR EACH ROW EXECUTE FUNCTION rootset_control.enforce_row(${literal(t.id)})`,
     );
   }
+  private async installReferenceTrigger(
+    c: PoolClient,
+    t: TableRecord,
+  ): Promise<void> {
+    await c.query(
+      `CREATE OR REPLACE TRIGGER rootset_references AFTER INSERT OR UPDATE OR DELETE ON ${tablePath(t)} FOR EACH ROW EXECUTE FUNCTION rootset_control.enforce_references(${literal(t.id)})`,
+    );
+  }
+  private async assertNoForeignKeys(
+    c: PoolClient,
+    tableId: string,
+    fieldId?: string,
+  ): Promise<void> {
+    const dependencies = await c.query(
+      "SELECT id FROM rootset_control.foreign_keys WHERE state='active' AND ((table_id=$1 AND ($2::varchar IS NULL OR $2=ANY(field_ids))) OR (referenced_table_id=$1 AND ($2::varchar IS NULL OR $2=ANY(referenced_field_ids)))) LIMIT 1",
+      [tableId, fieldId ?? null],
+    );
+    if (dependencies.rowCount)
+      fail(
+        "FOREIGN_KEY_CONFLICT",
+        "Remove dependent foreign keys before deleting this table or changing linked fields",
+        409,
+      );
+  }
   async createDatabase(
     a: Actor,
     input: { name: string; description?: string | null } & MutationOptions,
@@ -921,6 +960,18 @@ export class TableStorage {
           await this.finish(c, j.operationId);
           return { id: d.id, state: "deleted" };
         }
+        await c.query(
+          "DELETE FROM rootset_control.foreign_key_entries WHERE rule_id IN (SELECT k.id FROM rootset_control.foreign_keys k JOIN rootset_control.tables t ON t.id=k.table_id WHERE t.database_id=$1)",
+          [d.id],
+        );
+        await c.query(
+          "UPDATE rootset_control.foreign_keys SET state='deleted' WHERE table_id IN (SELECT id FROM rootset_control.tables WHERE database_id=$1)",
+          [d.id],
+        );
+        await c.query(
+          "DELETE FROM rootset_control.foreign_key_targets WHERE unique_rule_id IN (SELECT u.id FROM rootset_control.unique_rules u JOIN rootset_control.tables t ON t.id=u.table_id WHERE t.database_id=$1)",
+          [d.id],
+        );
         await c.query(
           "UPDATE rootset_control.databases SET state='deleted',deleted_at=now(),updated_at=now() WHERE id=$1",
           [d.id],
@@ -1143,6 +1194,7 @@ export class TableStorage {
       "table.delete",
       options,
       async (c, t) => {
+        await this.assertNoForeignKeys(c, t.id);
         await c.query(
           "DELETE FROM rootset_control.row_comments WHERE org_id=$1 AND table_id=$2",
           [a.orgId, t.id],
@@ -1175,8 +1227,7 @@ export class TableStorage {
       a,
       async (c) => {
         let t = await this.table(c, a, tableId, false, true);
-        if (kind === "field.create" || kind === "rule.create")
-          await this.barrier(c, t.databaseId);
+        await this.barrier(c, t.databaseId);
         t = await this.table(c, a, tableId, true, true);
         const j = await this.journal(c, a, t, t.databaseId, kind, input, input);
         if (j.replay) {
@@ -1188,7 +1239,10 @@ export class TableStorage {
         if (t.state !== "active")
           fail("SCHEMA_MAINTENANCE", "Table is in maintenance", 409);
         await this.assertPublication(c, a, input.context, false);
-        if (kind === "rule.create" && input.context?.jobFence) {
+        if (
+          (kind === "rule.create" || kind === "foreign-key.create") &&
+          input.context?.jobFence
+        ) {
           await c.query("SET LOCAL statement_timeout='0'");
           await c.query("SET LOCAL lock_timeout='10s'");
         }
@@ -1407,6 +1461,7 @@ export class TableStorage {
       { ...input, fieldId: id(fieldId) },
       async (c, t) => {
         const f = fieldFor(t, fieldId);
+        await this.assertNoForeignKeys(c, t.id, f.id);
         const rules = await c.query<Raw>(
           "SELECT * FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
           [t.id, f.id],
@@ -2340,6 +2395,219 @@ export class TableStorage {
       this.rules(c, await this.table(c, a, tableId)),
     );
   }
+  private async foreignKeys(
+    c: PoolClient,
+    tableId: string,
+  ): Promise<ForeignKey[]> {
+    const result = await c.query<Raw>(
+      "SELECT k.*,t.name AS referenced_table_name,ARRAY(SELECT f.name FROM unnest(k.referenced_field_ids) WITH ORDINALITY ids(id,position) JOIN rootset_control.fields f ON f.id=ids.id ORDER BY ids.position) AS referenced_field_names FROM rootset_control.foreign_keys k JOIN rootset_control.tables t ON t.id=k.referenced_table_id WHERE k.table_id=$1 AND k.state='active' ORDER BY k.id",
+      [tableId],
+    );
+    return result.rows.map((r) => ({
+      id: String(r.id),
+      tableId: String(r.table_id),
+      fieldIds: r.field_ids as string[],
+      referencedTableId: String(r.referenced_table_id),
+      referencedTableName: String(r.referenced_table_name),
+      referencedRuleId: String(r.referenced_rule_id),
+      referencedFieldIds: r.referenced_field_ids as string[],
+      referencedFieldNames: r.referenced_field_names as string[],
+      state: "active",
+    }));
+  }
+  async listForeignKeys(a: Actor, tableId: string): Promise<ForeignKey[]> {
+    return this.run(a, async (c) =>
+      this.foreignKeys(c, (await this.table(c, a, tableId)).id),
+    );
+  }
+  async createForeignKey(
+    a: Actor,
+    tableId: string,
+    input: SchemaOptions & {
+      fieldIds: string[];
+      referencedTableId: string;
+      referencedRuleId: string;
+      expectedReferencedSchemaVersion: number;
+    },
+  ): Promise<ForeignKey> {
+    let outcome: ForeignKey | undefined;
+    await this.schemaChange(
+      a,
+      tableId,
+      "foreign-key.create",
+      input,
+      async (c, t, operationId) => {
+        const target = await this.table(c, a, input.referencedTableId);
+        if (target.databaseId !== t.databaseId)
+          fail(
+            "VALIDATION_FAILED",
+            "Foreign keys must link tables in the same database",
+          );
+        if (target.state !== "active")
+          fail(
+            "SCHEMA_MAINTENANCE",
+            "The referenced table is in maintenance",
+            409,
+          );
+        this.expected(target, input.expectedReferencedSchemaVersion);
+        const rule = (await this.rules(c, target)).find(
+          (r) =>
+            r.id === input.referencedRuleId && r.state === "active" && !r.where,
+        );
+        if (!rule)
+          fail(
+            "VALIDATION_FAILED",
+            "Choose an active unconditional unique rule in the referenced table",
+          );
+        if (
+          !input.fieldIds.length ||
+          input.fieldIds.length !== rule.fieldIds.length ||
+          new Set(input.fieldIds).size !== input.fieldIds.length
+        )
+          fail(
+            "VALIDATION_FAILED",
+            "Map each referenced field to a distinct local field",
+          );
+        const fields = input.fieldIds.map((fid) => fieldFor(t, fid));
+        const targetFields = rule.fieldIds.map((fid) => fieldFor(target, fid));
+        if (
+          fields.some(
+            (f, i) => f.type === "json" || f.type !== targetFields[i]!.type,
+          )
+        )
+          fail(
+            "VALIDATION_FAILED",
+            "Linked fields must have matching scalar types",
+          );
+        const existing = await this.foreignKeys(c, t.id);
+        if (existing.length >= limits.maxForeignKeys)
+          fail("VALIDATION_FAILED", "Foreign key budget exceeded");
+        if (
+          existing.some(
+            (r) =>
+              r.referencedRuleId === rule.id &&
+              canonicalJson(r.fieldIds) === canonicalJson(input.fieldIds),
+          )
+        )
+          fail("FOREIGN_KEY_CONFLICT", "This foreign key already exists", 409);
+        outcome = {
+          id: newId(),
+          tableId: t.id,
+          fieldIds: fields.map((f) => f.id),
+          referencedTableId: target.id,
+          referencedTableName: target.name,
+          referencedRuleId: rule.id,
+          referencedFieldIds: rule.fieldIds,
+          referencedFieldNames: targetFields.map((f) => f.name),
+          state: "active",
+        };
+        await c.query(
+          "INSERT INTO rootset_control.foreign_keys(id,org_id,table_id,field_ids,referenced_table_id,referenced_rule_id,referenced_field_ids) VALUES($1,$2,$3,$4,$5,$6,$7)",
+          [
+            outcome.id,
+            a.orgId,
+            t.id,
+            outcome.fieldIds,
+            target.id,
+            rule.id,
+            rule.fieldIds,
+          ],
+        );
+        const targetTuple = this.tupleSql(targetFields);
+        const targetNotNull = targetFields
+          .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
+          .join(" AND ");
+        await c.query(
+          `INSERT INTO rootset_control.foreign_key_targets(unique_rule_id,row_id,org_id,digest,tuple) SELECT $1,row_id,org_id,rootset_control.unique_digest(${targetTuple}),${targetTuple} FROM ${tablePath(target)} source_row WHERE ${targetNotNull} ON CONFLICT(unique_rule_id,row_id) DO NOTHING`,
+          [rule.id],
+        );
+        const sourceTuple = this.tupleSql(fields);
+        const sourceNotNull = fields
+          .map((f) => `source_row.${q(fieldColumn(f))} IS NOT NULL`)
+          .join(" AND ");
+        const joined = `FROM ${tablePath(t)} source_row LEFT JOIN rootset_control.foreign_key_targets target ON target.unique_rule_id=$1 AND target.digest=rootset_control.unique_digest(${sourceTuple}) AND target.tuple=${sourceTuple} COLLATE "C" WHERE ${sourceNotNull}`;
+        const missing = await c.query<{ row_id: string }>(
+          `SELECT source_row.row_id ${joined} AND target.row_id IS NULL ORDER BY source_row.row_id LIMIT 20`,
+          [rule.id],
+        );
+        if (missing.rowCount)
+          fail(
+            "FOREIGN_KEY_CONFLICT",
+            "Existing rows have no matching value in the referenced table",
+            409,
+            {
+              fieldIds: outcome.fieldIds,
+              rowIds: missing.rows.map((r) => r.row_id),
+              reportTruncated: missing.rowCount === 20,
+            },
+          );
+        await c.query(
+          `INSERT INTO rootset_control.foreign_key_entries(rule_id,row_id,org_id,target_rule_id,target_row_id) SELECT $2,source_row.row_id,source_row.org_id,$1,target.row_id ${joined}`,
+          [rule.id, outcome.id],
+        );
+        await this.installReferenceTrigger(c, t);
+        if (target.id !== t.id) await this.installReferenceTrigger(c, target);
+        await c.query(
+          "UPDATE rootset_control.schema_operations SET plan=plan||jsonb_build_object('outcome',$2::jsonb) WHERE id=$1",
+          [operationId, JSON.stringify(outcome)],
+        );
+      },
+      async (c, operationId) => {
+        const saved = (
+          await c.query<{ plan: { outcome?: ForeignKey } }>(
+            "SELECT plan FROM rootset_control.schema_operations WHERE id=$1 AND org_id=$2",
+            [operationId, a.orgId],
+          )
+        ).rows[0]?.plan.outcome;
+        if (!saved || saved.tableId !== id(tableId))
+          fail(
+            "INTERNAL_ERROR",
+            "The committed foreign key outcome is unavailable",
+            500,
+          );
+        outcome = saved;
+      },
+    );
+    return (
+      outcome ??
+      fail(
+        "INTERNAL_ERROR",
+        "Foreign key creation did not persist its outcome",
+        500,
+      )
+    );
+  }
+  async deleteForeignKey(
+    a: Actor,
+    tableId: string,
+    ruleId: string,
+    input: SchemaOptions,
+  ): Promise<TableRecord> {
+    return this.schemaChange(
+      a,
+      tableId,
+      "foreign-key.delete",
+      { ...input, ruleId: id(ruleId) },
+      async (c, t) => {
+        const rule = (await this.foreignKeys(c, t.id)).find(
+          (r) => r.id === ruleId,
+        );
+        if (!rule) fail("RESOURCE_NOT_FOUND", "Foreign key was not found", 404);
+        await c.query(
+          "DELETE FROM rootset_control.foreign_key_entries WHERE rule_id=$1",
+          [rule.id],
+        );
+        await c.query(
+          "UPDATE rootset_control.foreign_keys SET state='deleted' WHERE id=$1",
+          [rule.id],
+        );
+        await c.query(
+          "DELETE FROM rootset_control.foreign_key_targets WHERE unique_rule_id=$1 AND NOT EXISTS(SELECT 1 FROM rootset_control.foreign_keys WHERE referenced_rule_id=$1 AND state='active')",
+          [rule.referencedRuleId],
+        );
+      },
+    );
+  }
   private nativeFits(fields: FieldDefinition[]): boolean {
     return (
       fields.reduce(
@@ -2534,6 +2802,20 @@ export class TableStorage {
     t: TableRecord,
     r: Raw,
   ): Promise<void> {
+    const linked = await c.query(
+      "SELECT id FROM rootset_control.foreign_keys WHERE referenced_rule_id=$1 AND state='active' LIMIT 1",
+      [r.id],
+    );
+    if (linked.rowCount)
+      fail(
+        "FOREIGN_KEY_CONFLICT",
+        "Remove foreign keys referencing this unique rule first",
+        409,
+      );
+    await c.query(
+      "DELETE FROM rootset_control.foreign_key_targets WHERE unique_rule_id=$1",
+      [r.id],
+    );
     if (r.physical_name)
       await c.query(
         `DROP INDEX IF EXISTS ${q(t.schemaName)}.${q(String(r.physical_name))}`,
@@ -2600,6 +2882,7 @@ export class TableStorage {
         old = await this.table(c, a, tableId, true);
         this.expected(old, input.expectedSchemaVersion);
         const previous = fieldFor(old, fieldId);
+        await this.assertNoForeignKeys(c, old.id, previous.id);
         const dependencies = await c.query<Raw>(
           "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
           [old.id, previous.id],
@@ -2749,6 +3032,11 @@ export class TableStorage {
             [after.id, JSON.stringify(after), after.name],
           );
           await this.installTrigger(c, fresh);
+          const references = await c.query(
+            "SELECT id FROM rootset_control.foreign_keys WHERE state='active' AND (table_id=$1 OR referenced_table_id=$1) LIMIT 1",
+            [fresh.id],
+          );
+          if (references.rowCount) await this.installReferenceTrigger(c, fresh);
           for (const field of fresh.fields)
             await this.syncIntegerCounter(c, fresh, field);
           await this.assertPublication(c, a, input.context);
@@ -2859,6 +3147,7 @@ export class TableStorage {
         fieldId = before.id;
         converts = after.type !== before.type;
         if (converts) {
+          await this.assertNoForeignKeys(c, t.id, before.id);
           const dependencies = await c.query(
             "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
             [t.id, before.id],
@@ -2891,6 +3180,7 @@ export class TableStorage {
         }
       } else if (change.kind === "delete_field") {
         const before = fieldFor(t, String(change.fieldId));
+        await this.assertNoForeignKeys(c, t.id, before.id);
         fieldId = before.id;
         const deps = await c.query<Raw>(
           "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",

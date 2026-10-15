@@ -1,0 +1,42 @@
+---
+title: "Foreign keys"
+description: "Validate values against a unique key in another table in the same database."
+---
+
+Open **Settings → Foreign keys** in the table that stores the reference, then select **Create foreign key**.
+
+1. Choose the referenced table in the same database.
+2. Choose one of its active unique rules that applies to **All rows**.
+3. Map each referenced field to a local field with the same type.
+
+For example, make `Airlines.ALLIANCE_CODE` reference the unique `Alliances.CODE` key. Every non-NULL alliance code in Airlines must then exist in Alliances. You can also map a combination of up to eight scalar fields. Text matching preserves case and whitespace, including for wide keys. JSON fields and conditional unique rules cannot be reference targets.
+
+## Validation and changes
+
+Rootset validates existing rows before activating the foreign key. A missing reference fails the operation without changing rows, activating a rule, or incrementing the schema version. Correct the reported rows and submit a new request.
+
+After activation, PostgreSQL enforces references for UI, REST, MCP, batch, import and repair writes. If any local field in a composite reference is NULL, that row does not require a match. Required fields still reject NULL through their field definition.
+
+Referenced values cannot be changed or deleted while rows use them. Update or remove those references first. Rootset never automatically cascades changes or deletes. Batch mutations run in order and roll back together on a violation.
+
+Renaming a field or table preserves the link. Remove dependent foreign keys before changing linked field types, deleting linked fields or tables, or removing the referenced unique rule. Deleting the whole database removes its internal links with its data. A table can reference itself.
+
+Removing a foreign key leaves existing records in place and stops validation for future writes. A table supports up to sixteen foreign keys.
+
+## REST and MCP
+
+Use [Create foreign key](/api-reference/createForeignKey) or `rootset_create_foreign_key` with stable field IDs from the table schemas:
+
+```json
+{
+  "fieldIds": ["01ARZ3NDEKTSV4RRFFQ69G5FAV"],
+  "referencedTableId": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "referencedRuleId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "expectedSchemaVersion": 3,
+  "expectedReferencedSchemaVersion": 2
+}
+```
+
+Supply both schema versions so a concurrent schema change requires a reload. Order local `fieldIds` to match the referenced unique rule's field order. REST requests require an `Idempotency-Key` header; MCP calls also include the organisation, database and local table IDs, plus `idempotencyKey`.
+
+Creation returns an accepted job. Follow `getJob` or `rootset_get_job` until it succeeds. [List foreign keys](/api-reference/listForeignKeys) and the table schema return the active mappings. Invalid references return `FOREIGN_KEY_CONFLICT`; activation failures include a bounded list of affected row IDs.

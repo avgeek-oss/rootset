@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.6 (unreleased)
+## 0.1.7 (unreleased)
+
+- Add foreign keys between tables in the same database, with matching scalar fields and an unconditional unique key on the referenced table.
+- Validate existing rows before enabling a foreign key, reject invalid writes, and protect referenced values and schema dependencies.
+- Add a Foreign keys section alongside Unique rules in table settings, with REST and MCP support.
+
+## 0.1.6 (2026-10-15)
 
 - Add conditional unique rules and allowed choices for text fields.
 - Add integer auto-increment across the editor, REST, MCP and batch mutations, preserving existing IDs and durable counters.

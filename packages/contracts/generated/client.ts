@@ -14,6 +14,7 @@ export type ErrorCode =
   | "ROW_VERSION_CONFLICT"
   | "SCHEMA_VERSION_CONFLICT"
   | "UNIQUE_CONFLICT"
+  | "FOREIGN_KEY_CONFLICT"
   | "AUTO_INCREMENT_EXHAUSTED"
   | "ROW_SIZE_LIMIT"
   | "ROW_LIMIT_REACHED"
@@ -908,6 +909,17 @@ export type createTableOutput = {
     jobId?: string;
     error?: string;
   }[];
+  foreignKeys: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    referencedTableId: string;
+    referencedTableName: string;
+    referencedRuleId: string;
+    referencedFieldIds: string[];
+    referencedFieldNames: string[];
+    state: "active";
+  }[];
   operators: Record<string, string[]>;
   limits: Record<string, number>;
   schemaOperationId?: string;
@@ -1166,6 +1178,17 @@ export type getTableSchemaOutput = {
     strategy: "native" | "registry";
     jobId?: string;
     error?: string;
+  }[];
+  foreignKeys: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    referencedTableId: string;
+    referencedTableName: string;
+    referencedRuleId: string;
+    referencedFieldIds: string[];
+    referencedFieldNames: string[];
+    state: "active";
   }[];
   operators: Record<string, string[]>;
   limits: Record<string, number>;
@@ -1708,6 +1731,17 @@ export type createFieldOutput =
         jobId?: string;
         error?: string;
       }[];
+      foreignKeys: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        referencedTableId: string;
+        referencedTableName: string;
+        referencedRuleId: string;
+        referencedFieldIds: string[];
+        referencedFieldNames: string[];
+        state: "active";
+      }[];
       operators: Record<string, string[]>;
       limits: Record<string, number>;
       schemaOperationId?: string;
@@ -2087,6 +2121,17 @@ export type updateFieldOutput =
         jobId?: string;
         error?: string;
       }[];
+      foreignKeys: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        referencedTableId: string;
+        referencedTableName: string;
+        referencedRuleId: string;
+        referencedFieldIds: string[];
+        referencedFieldNames: string[];
+        state: "active";
+      }[];
       operators: Record<string, string[]>;
       limits: Record<string, number>;
       schemaOperationId?: string;
@@ -2310,6 +2355,17 @@ export type deleteFieldOutput =
         jobId?: string;
         error?: string;
       }[];
+      foreignKeys: {
+        id: string;
+        tableId: string;
+        fieldIds: string[];
+        referencedTableId: string;
+        referencedTableName: string;
+        referencedRuleId: string;
+        referencedFieldIds: string[];
+        referencedFieldNames: string[];
+        state: "active";
+      }[];
       operators: Record<string, string[]>;
       limits: Record<string, number>;
       schemaOperationId?: string;
@@ -2525,6 +2581,17 @@ export type reorderFieldsOutput = {
     strategy: "native" | "registry";
     jobId?: string;
     error?: string;
+  }[];
+  foreignKeys: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    referencedTableId: string;
+    referencedTableName: string;
+    referencedRuleId: string;
+    referencedFieldIds: string[];
+    referencedFieldNames: string[];
+    state: "active";
   }[];
   operators: Record<string, string[]>;
   limits: Record<string, number>;
@@ -3023,6 +3090,14 @@ export type getSchemaOperationOutput = {
         name?: string;
       }
     | { kind: "rule.delete"; id?: string }
+    | {
+        kind: "foreign-key.create";
+        fieldIds: string[];
+        referencedTableId: string;
+        referencedRuleId: string;
+        expectedReferencedSchemaVersion: number;
+      }
+    | { kind: "foreign-key.delete"; id?: string }
     | { kind: "unknown" };
   before: {
     table: {
@@ -3470,6 +3545,67 @@ export type deleteUniqueRuleInput = {
   id: string;
 };
 export type deleteUniqueRuleOutput = { deleted: boolean; mutationId?: string };
+export type listForeignKeysInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type listForeignKeysOutput = {
+  data: {
+    id: string;
+    tableId: string;
+    fieldIds: string[];
+    referencedTableId: string;
+    referencedTableName: string;
+    referencedRuleId: string;
+    referencedFieldIds: string[];
+    referencedFieldNames: string[];
+    state: "active";
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createForeignKeyInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  fieldIds: string[];
+  referencedTableId: string;
+  referencedRuleId: string;
+  expectedReferencedSchemaVersion: number;
+};
+export type createForeignKeyOutput =
+  | {
+      id: string;
+      tableId: string;
+      fieldIds: string[];
+      referencedTableId: string;
+      referencedTableName: string;
+      referencedRuleId: string;
+      referencedFieldIds: string[];
+      referencedFieldNames: string[];
+      state: "active";
+    }
+  | {
+      jobId: string;
+      state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "cancelled"
+        | "partially_completed";
+      statusUrl: string;
+    };
+export type deleteForeignKeyInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  id: string;
+};
+export type deleteForeignKeyOutput = { deleted: boolean; mutationId?: string };
 export type listRowsInput = {
   orgId: string;
   databaseId: string;
@@ -4699,6 +4835,21 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
+  listForeignKeys: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createForeignKey: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  deleteForeignKey: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys/{id}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
   listRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows",
     method: "GET",
@@ -5371,6 +5522,36 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<deleteUniqueRuleOutput>;
+  }
+  listForeignKeys(
+    input: listForeignKeysInput,
+    options?: CallOptions,
+  ): Promise<listForeignKeysOutput> {
+    return this.call(
+      "listForeignKeys",
+      input,
+      options,
+    ) as Promise<listForeignKeysOutput>;
+  }
+  createForeignKey(
+    input: createForeignKeyInput,
+    options?: CallOptions,
+  ): Promise<createForeignKeyOutput> {
+    return this.call(
+      "createForeignKey",
+      input,
+      options,
+    ) as Promise<createForeignKeyOutput>;
+  }
+  deleteForeignKey(
+    input: deleteForeignKeyInput,
+    options?: CallOptions,
+  ): Promise<deleteForeignKeyOutput> {
+    return this.call(
+      "deleteForeignKey",
+      input,
+      options,
+    ) as Promise<deleteForeignKeyOutput>;
   }
   listRows(
     input: listRowsInput,

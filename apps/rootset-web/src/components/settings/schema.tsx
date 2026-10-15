@@ -71,6 +71,7 @@ const EMPTY_SCHEMA: TableSchemaResult = {
   table: { name: "", schemaVersion: 1 },
   fields: [],
   uniqueRules: [],
+  foreignKeys: [],
 };
 
 function useSchema(props: SettingsPanelProps) {

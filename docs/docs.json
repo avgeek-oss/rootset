@@ -80,6 +80,7 @@
               "filters",
               "cell-history",
               "unique-rules",
+              "foreign-keys",
               "export-requests"
             ]
           },
@@ -169,7 +170,10 @@
               "api-reference/getSchemaOperation",
               "api-reference/listUniqueRules",
               "api-reference/createUniqueRule",
-              "api-reference/deleteUniqueRule"
+              "api-reference/deleteUniqueRule",
+              "api-reference/listForeignKeys",
+              "api-reference/createForeignKey",
+              "api-reference/deleteForeignKey"
             ]
           },
           {

@@ -151,6 +151,22 @@ function request(
     case "rule.create":
       result = { kind, ...pick(stored, ["fieldIds", "name", "where"]) };
       break;
+    case "foreign-key.create":
+      result = {
+        kind,
+        ...pick(stored, [
+          "fieldIds",
+          "referencedTableId",
+          "referencedRuleId",
+          "expectedReferencedSchemaVersion",
+        ]),
+      };
+      break;
+    case "foreign-key.delete": {
+      const id = identifier(original.id ?? stored.ruleId);
+      result = { kind, ...(id ? { id } : {}) };
+      break;
+    }
     case "rule.delete": {
       const id = identifier(original.id ?? stored.id);
       result = { kind, ...(id ? { id } : {}) };

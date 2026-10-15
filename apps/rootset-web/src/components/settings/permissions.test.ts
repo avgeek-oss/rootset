@@ -20,7 +20,7 @@ const personalAndRead = [
   "exports",
 ] as const;
 describe("settings role boundaries", () => {
-  it.each(["database", "table", "fields", "rules"] as const)(
+  it.each(["database", "table", "fields", "rules", "foreign-keys"] as const)(
     "allows editors and administrators to %s",
     (section) => {
       expect(canOpenSettings(section, "member")).toBe(true);
