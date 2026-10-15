@@ -83,7 +83,7 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
       <Loading {...resource} retry={resource.reload} />
       <Section
         title="Delete database"
-        description="Deleting this database removes it and all its tables from Rootset. Its rows will no longer be accessible in the app or through the API and MCP, and its cell changelogs will be deleted. You will need to confirm your identity before deletion. Rootset does not provide an undo or restore option."
+        description="Deleting this database removes it and all its tables from Rootset. Its rows will no longer be accessible in the app or through the API and MCP, and its cell changelogs will be deleted. Rootset does not provide an undo or restore option."
       >
         <Button
           variant="danger-soft"

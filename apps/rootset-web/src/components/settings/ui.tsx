@@ -49,6 +49,7 @@ export function Section({
 
 export function Field({
   label,
+  hideLabel,
   value,
   onChange,
   onBlur,
@@ -68,6 +69,7 @@ export function Field({
   rows,
 }: {
   label: string;
+  hideLabel?: boolean;
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
@@ -89,6 +91,7 @@ export function Field({
   return (
     <TextField
       className="settings-field"
+      aria-label={hideLabel ? label : undefined}
       type={type}
       value={value}
       onChange={onChange}
@@ -97,7 +100,7 @@ export function Field({
       isInvalid={Boolean(error)}
       isReadOnly={readOnly}
     >
-      <Label>{label}</Label>
+      {!hideLabel && <Label>{label}</Label>}
       {multiline ? (
         <TextArea
           variant="secondary"

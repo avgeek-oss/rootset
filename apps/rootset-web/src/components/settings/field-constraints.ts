@@ -6,6 +6,7 @@ import {
   type Preferences,
 } from "@rootset/contracts";
 import type { TableField } from "./types";
+import { allowedValueLabel } from "../../lib/field-choices";
 
 export function fieldConstraints(
   field: TableField,
@@ -33,7 +34,11 @@ export function fieldConstraints(
   }
   const constraints: string[] = [];
   if (field.allowedValues)
-    constraints.push(`${field.allowedValues.length} allowed values`);
+    constraints.push(
+      field.allowedValues.length < 10
+        ? field.allowedValues.map(allowedValueLabel).join(", ")
+        : `${field.allowedValues.length} allowed values`,
+    );
   if (field.charLimit !== undefined)
     constraints.push(`Max ${field.charLimit.toLocaleString()} characters`);
   if (field.min !== undefined)

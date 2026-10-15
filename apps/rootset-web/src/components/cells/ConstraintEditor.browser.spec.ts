@@ -299,7 +299,7 @@ test("field choices and condition configuration render at desktop and mobile siz
         exact: true,
       });
       await expect(
-        fieldDialog.getByLabel("Choice 1", { exact: true }),
+        fieldDialog.getByLabel("Choices", { exact: true }),
       ).toHaveValue("active");
       await expect(
         fieldDialog.getByLabel("Choice 2", { exact: true }),
@@ -347,7 +347,7 @@ test("field and rule forms publish constraints through the existing UI", async (
   await page
     .getByRole("option", { name: "Only these choices", exact: true })
     .click();
-  await dialog.getByLabel("Choice 1", { exact: true }).fill("draft");
+  await dialog.getByLabel("Choices", { exact: true }).fill("draft");
   await dialog.getByRole("button", { name: "Add choice", exact: true }).click();
   await dialog.getByLabel("Choice 2", { exact: true }).fill("published");
   await dialog.getByText("Required", { exact: true }).click();
@@ -400,4 +400,41 @@ test("field and rule forms publish constraints through the existing UI", async (
   await expect(
     page.getByText('STATUS is "ceased"', { exact: true }),
   ).toBeVisible();
+});
+
+test("field drag handles support keyboard reordering and cancellation", async ({
+  page,
+  context,
+}) => {
+  schema = await call(context, "GET", `${path()}/schema`);
+  const original = schema.fields.map((field) => field.id);
+  const moved = schema.fields[0]!;
+  await page.goto(
+    `/databases/${databaseId}/tables/${schema.table.id}/settings/fields`,
+  );
+  const handle = page.getByRole("button", {
+    name: `Reorder ${moved.name}`,
+    exact: true,
+  });
+  await handle.press("Enter");
+  await page.keyboard.press("Escape");
+  expect(
+    (await call(context, "GET", `${path()}/schema`)).fields.map(
+      (field: { id: string }) => field.id,
+    ),
+  ).toEqual(original);
+  await handle.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(async () =>
+      (await call(context, "GET", `${path()}/schema`)).fields.map(
+        (field: { id: string }) => field.id,
+      ),
+    )
+    .toEqual([original[1], original[0], ...original.slice(2)]);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /^Reorder / }).first(),
+  ).toHaveAccessibleName(`Reorder ${schema.fields[1]!.name}`);
 });

@@ -94,6 +94,9 @@
 .settings-inline .settings-field {
   min-width: 170px;
 }
+.settings-form > .settings-actions {
+  padding-top: 0.5rem;
+}
 .settings-toggle {
   max-width: 100%;
 }
@@ -222,7 +225,6 @@
 }
 
 .field-name-cell,
-.field-order-actions,
 .field-edit-actions {
   display: flex;
   align-items: center;
@@ -236,9 +238,21 @@
   overflow-wrap: anywhere;
   font-weight: 500;
 }
-.field-order-actions {
+.field-drag-handle {
   flex-shrink: 0;
-  gap: 0;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: grab;
+  touch-action: none;
+}
+.field-drag-handle:active {
+  cursor: grabbing;
+}
+.rootset-fields-table [data-dragging] {
+  opacity: 0.5;
+}
+.rootset-fields-table .react-aria-DropIndicator[data-drop-target] {
+  outline: 2px solid var(--accent);
 }
 .field-edit-actions {
   justify-content: flex-end;

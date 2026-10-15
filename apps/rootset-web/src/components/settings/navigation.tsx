@@ -21,7 +21,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { ComponentProps } from "react";
 import type { AppShellBreadcrumb } from "@avgeek-oss/design-system/layouts/app-shell-breadcrumb";
-import type { Database, Table } from "@rootset/contracts";
+import type { DatabaseSummary, Table } from "@rootset/contracts";
 import {
   SecondaryItems,
   SecondaryEntityHeader,
@@ -281,7 +281,7 @@ export function PageNavigation({
 }: {
   section: SettingsSection | null;
   role: string;
-  database?: Database;
+  database?: DatabaseSummary;
   table?: Table;
   databaseId: string | null;
   tableId: string | null;
@@ -316,10 +316,10 @@ export function PageNavigation({
             label: tableScope ? "Rows" : "Tables",
             href: dataHref(databaseId, tableScope ? tableId : null),
             icon: <HugeiconsIcon icon={TableIcon} />,
-            badge:
-              tableScope && table
-                ? table.rowCount.toLocaleString(locale)
-                : undefined,
+            badge: (tableScope
+              ? table?.rowCount
+              : database?.tableCount
+            )?.toLocaleString(locale),
           },
         ]}
       />
