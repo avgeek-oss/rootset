@@ -169,6 +169,7 @@
             "group": "Artifacts",
             "pages": [
               "api-reference/exportRows",
+              "api-reference/exportDatabase",
               "api-reference/getArtifact",
               "api-reference/downloadArtifactBytes"
             ]

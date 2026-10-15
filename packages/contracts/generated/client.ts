@@ -4394,18 +4394,35 @@ export type exportRowsOutput = {
     | "partially_completed";
   statusUrl: string;
 };
+export type exportDatabaseInput = {
+  orgId: string;
+  databaseId: string;
+  format: "csv" | "jsonl";
+};
+export type exportDatabaseOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
 export type getArtifactInput = { orgId: string; id: string };
 export type getArtifactOutput = {
   id: string;
   orgId: string;
   kind: "export";
-  format: "csv" | "jsonl" | "json";
+  format: "csv" | "jsonl" | "json" | "zip";
   sizeBytes: number;
   checksum: string;
   expiresAt: string;
   downloadUrl?: string;
   resourceUri?: string;
   rowCount?: number;
+  tableCount?: number;
 };
 export type listJobsInput = {
   orgId: string;
@@ -5069,6 +5086,11 @@ const routes = {
   },
   exportRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/exports",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  exportDatabase: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/exports",
     method: "POST",
     idempotencyRequired: true,
   },
@@ -5855,6 +5877,16 @@ export class RootsetClient {
     options?: CallOptions,
   ): Promise<exportRowsOutput> {
     return this.call("exportRows", input, options) as Promise<exportRowsOutput>;
+  }
+  exportDatabase(
+    input: exportDatabaseInput,
+    options?: CallOptions,
+  ): Promise<exportDatabaseOutput> {
+    return this.call(
+      "exportDatabase",
+      input,
+      options,
+    ) as Promise<exportDatabaseOutput>;
   }
   getArtifact(
     input: getArtifactInput,

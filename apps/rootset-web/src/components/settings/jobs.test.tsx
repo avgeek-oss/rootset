@@ -8,10 +8,11 @@ vi.mock("./account/last-synced-time", () => ({
   RelativeTime: ({ value }: { value: string }) =>
     createElement("time", null, value),
 }));
-const render = (requests: Job[]) =>
+const render = (requests: Job[], databaseLevel = false) =>
   renderToStaticMarkup(
     createElement(ExportRequestsTable, {
       requests,
+      databaseLevel,
       busy: false,
       onDownload() {},
       onCancel() {},
@@ -46,6 +47,25 @@ describe("export request history", () => {
     const failed = render([request("failed")]);
     expect(failed).toContain(">Retry<");
     expect(failed).not.toContain(">Download<");
+  });
+  it("shows database ZIP format and table counts in the shared table", () => {
+    const html = render(
+      [
+        request("succeeded", {
+          format: "jsonl",
+          result: { artifactId: "artifact-1", rowCount: 30, tableCount: 3 },
+        }),
+      ],
+      true,
+    );
+    for (const text of ["ZIP · JSONL", "Tables", "Rows", "30", "Download"])
+      expect(html).toContain(text);
+    expect(html).toContain("<table");
+    expect(html).toContain(">3<");
+    expect(render([], true)).toContain(
+      "every table’s schema and CSV or JSONL data",
+    );
+    expect(render([request("succeeded")])).not.toContain(">Tables<");
   });
   it("explains that requests include every row and field", () => {
     expect(render([])).toContain("every row and field as CSV or JSONL");

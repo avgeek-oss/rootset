@@ -21,6 +21,7 @@ export type SettingsSection =
   | "database"
   | "backup-schedule"
   | "backup-history"
+  | "database-exports"
   | "database-danger-zone"
   | "table-danger-zone"
   | "table"
@@ -167,6 +168,7 @@ export interface Job {
   result?: {
     artifactId?: string;
     rowCount?: number;
+    tableCount?: number;
     rejected?: number;
     inserted?: number;
     updated?: number;
@@ -211,6 +213,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   database: "General",
   "backup-schedule": "Backup Schedule",
   "backup-history": "Backup History",
+  "database-exports": "Export Requests",
   "database-danger-zone": "Danger Zone",
   table: "General",
   "table-danger-zone": "Danger Zone",
