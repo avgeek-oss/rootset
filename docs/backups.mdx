@@ -39,7 +39,7 @@ Use **Back up now** to queue a full backup to a verified saved destination, even
 
 ## Run history and failures
 
-The history table includes destination tests, manual and scheduled backups, and missed schedule ranges. A successful backup shows its snapshot timestamp, size, table and row counts, and S3 object path. Queued work is not a completed backup. Use **Cancel** on queued or running work when needed; cancelling a run does not delete completed packages.
+Open **Backup → Backup History** for destination tests, manual and scheduled backups, and missed schedule ranges. The Type chips show **Manual** or **Scheduled**. Scheduled and snapshot timestamps use relative dates alongside the exact time in your account preferences. A successful backup shows its snapshot timestamp, size, table and row counts, and S3 object path. Queued work is not a completed backup. Use **Cancel** on queued or running work when needed; cancelling a run does not delete completed packages.
 
 Only one backup per database can be queued or running. Temporary failures retry with backoff, at most three attempts. Every attempt starts a complete snapshot with a unique object key. A worker outage results in one current catch-up backup; missed occurrences are recorded, not recreated. Snapshot time can differ from the planned time.
 

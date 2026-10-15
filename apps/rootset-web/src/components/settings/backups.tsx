@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { Chip } from "@avgeek-oss/design-system/data-display/chip";
-import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
   BackupDestinationSchema,
   BackupScheduleInputSchema,
@@ -15,7 +12,6 @@ import {
   type BackupScheduleResult,
   type DatabaseBackup,
 } from "@rootset/contracts";
-import { formatStorageBytes } from "../../lib/format-storage";
 import {
   databasePath,
   organisationPath,
@@ -25,7 +21,6 @@ import {
   useResource,
 } from "./api";
 import { PageSelectionTitle } from "./account/page-selection-title";
-import { statusColor, statusIcon, statusLabel } from "./status";
 import { Empty, Field, Form, Loading, Section, Toggle } from "./ui";
 import type { Job, SettingsPanelProps } from "./types";
 
@@ -50,12 +45,8 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     path ? `${path}/backup-schedule` : undefined,
     null,
   );
-  const [cursors, setCursors] = useState<string[]>([""]);
-  const [page, setPage] = useState(0);
   const history = useResource<BackupPage>(
-    path
-      ? `${path}/backups?limit=25${cursors[page] ? `&cursor=${encodeURIComponent(cursors[page]!)}` : ""}`
-      : undefined,
+    path ? `${path}/backups?limit=25` : undefined,
     EMPTY_PAGE,
     loadHistory,
   );
@@ -81,15 +72,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
   const job = useResource<Job | null>(
     pending ? `${organisationPath(props.orgId)}/jobs/${pending.id}` : undefined,
     null,
-  );
-  const format = useMemo(
-    () =>
-      createDateTimeFormatter({
-        dateFormat: props.preferences?.dateFormat ?? "year-month-day",
-        timeFormat: props.preferences?.timeFormat ?? "24-hour",
-        timeZone: props.preferences?.timezone ?? "UTC",
-      }),
-    [props.preferences],
   );
   const available = resource.data?.worker.available ?? false;
   const matches = resource.data?.worker.matchesSchedule ?? false;
@@ -121,12 +103,12 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     if (
       !pending &&
       !history.data.data.some((run) => isActive(run.state)) &&
-      (!resource.data?.schedule?.enabled || page !== 0)
+      !resource.data?.schedule?.enabled
     )
       return;
     const timer = setInterval(
       () => {
-        if (page === 0) history.reload();
+        history.reload();
         if (pending) job.reload();
       },
       pending || history.data.data.some((run) => isActive(run.state))
@@ -140,7 +122,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     history.reload,
     job.reload,
     resource.data?.schedule?.enabled,
-    page,
   ]);
   useEffect(() => {
     if (!pending || job.data?.id !== pending.id || isActive(job.data.state))
@@ -209,15 +190,9 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       clearTimeout(timer);
     };
   }, [cron, timezone, input, previewRequested, props.databaseId]);
-  const reloadHistory = () => {
-    setPage(0);
-    setCursors([""]);
-    history.reload();
-  };
   const actions = useMemo(
     () => (
       <Button
-        className="max-sm:min-h-11"
         isDisabled={
           !available ||
           !matches ||
@@ -231,7 +206,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
           );
           if (result.ok) {
             setPending({ id: result.value.jobId, kind: "backup" });
-            reloadHistory();
+            history.reload();
           }
         }}
       >
@@ -257,7 +232,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       <Loading {...history} retry={history.reload} />
       <Loading {...job} retry={job.reload} />
       {resource.data && (
-        <div className="grid min-w-0 gap-6 max-sm:[&_button]:min-h-11">
+        <div className="grid min-w-0 gap-6">
           {!available ? (
             <p role="status" className="settings-section-description">
               Backup storage is not configured, or no backup-enabled worker is
@@ -341,7 +316,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
               <Button
                 type="button"
                 variant="secondary"
-                className="w-fit max-sm:min-h-11"
+                className="w-fit"
                 isDisabled={!available || mutation.busy || Boolean(pending)}
                 isPending={testing}
                 onPress={async () => {
@@ -370,7 +345,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                   );
                   if (result.ok) {
                     setPending({ id: result.value.jobId, kind: "test" });
-                    reloadHistory();
+                    history.reload();
                   }
                 }}
               >
@@ -450,201 +425,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
               </p>
             </Form>
           </Section>
-          <div className="grid min-w-0 gap-4">
-            <h2 className="text-lg font-medium">Backup history</h2>
-            <ResourceTable
-              ariaLabel="Database backups"
-              items={history.data.data}
-              getRowKey={(run) => run.id}
-              tableClassName="min-w-5xl"
-              emptyTitle="No backups yet"
-              emptyDescription="Test a destination, then save a schedule or start a backup."
-              columns={[
-                {
-                  key: "scheduled",
-                  header: "Scheduled",
-                  cell: (run) => (
-                    <time
-                      className="whitespace-nowrap tabular-nums"
-                      dateTime={run.scheduledAt}
-                    >
-                      {format(run.scheduledAt).dateTime}
-                    </time>
-                  ),
-                },
-                {
-                  key: "kind",
-                  header: "Type",
-                  cell: (run) =>
-                    run.kind === "destination_test"
-                      ? "Destination test"
-                      : run.kind === "skipped"
-                        ? "Missed schedule"
-                        : run.trigger === "manual"
-                          ? "Manual backup"
-                          : "Scheduled backup",
-                },
-                {
-                  key: "state",
-                  header: "Status",
-                  cell: (run) => (
-                    <div className="grid gap-1">
-                      <Chip color={statusColor(run.state)}>
-                        <HugeiconsIcon
-                          aria-hidden="true"
-                          size={14}
-                          icon={statusIcon(run.state)}
-                        />
-                        <Chip.Label>
-                          {run.stage === "retry_wait"
-                            ? "Retrying"
-                            : statusLabel(run.state)}
-                        </Chip.Label>
-                      </Chip>
-                      {run.state === "running" && (
-                        <span className="text-xs text-muted">
-                          {statusLabel(run.stage)}
-                        </span>
-                      )}
-                    </div>
-                  ),
-                },
-                {
-                  key: "snapshot",
-                  header: "Snapshot",
-                  cell: (run) =>
-                    run.snapshotAt ? (
-                      <time
-                        className="whitespace-nowrap tabular-nums"
-                        dateTime={run.snapshotAt}
-                      >
-                        {format(run.snapshotAt).dateTime}
-                      </time>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    ),
-                },
-                {
-                  key: "duration",
-                  header: "Duration",
-                  cell: (run) =>
-                    run.startedAt && run.completedAt ? (
-                      <span className="tabular-nums">
-                        {Math.max(
-                          1,
-                          Math.round(
-                            (Date.parse(run.completedAt) -
-                              Date.parse(run.startedAt)) /
-                              1000,
-                          ),
-                        ).toLocaleString()}{" "}
-                        s
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    ),
-                },
-                {
-                  key: "size",
-                  header: "Size",
-                  cell: (run) =>
-                    run.sizeBytes === null ? (
-                      <span className="text-muted">—</span>
-                    ) : (
-                      <span className="whitespace-nowrap tabular-nums">
-                        {formatStorageBytes(run.sizeBytes)}
-                      </span>
-                    ),
-                },
-                {
-                  key: "tables",
-                  header: "Tables",
-                  cell: (run) => (
-                    <span className="tabular-nums">
-                      {run.tableCount?.toLocaleString() ?? "—"}
-                    </span>
-                  ),
-                },
-                {
-                  key: "rows",
-                  header: "Rows",
-                  cell: (run) => (
-                    <span className="tabular-nums">
-                      {run.rowCount?.toLocaleString() ?? "—"}
-                    </span>
-                  ),
-                },
-                {
-                  key: "details",
-                  header: "Details",
-                  cell: (run) => (
-                    <span className="block max-w-md break-words">
-                      {run.error ??
-                        run.note ??
-                        (run.objectKey
-                          ? `s3://${run.bucket}/${run.objectKey}`
-                          : "—")}
-                      {run.skippedUntil && (
-                        <span className="block text-muted">
-                          Through {format(run.skippedUntil).dateTime}
-                        </span>
-                      )}
-                    </span>
-                  ),
-                },
-                {
-                  key: "actions",
-                  header: "Actions",
-                  headerClassName: "text-right",
-                  cell: (run) =>
-                    run.jobId && isActive(run.state) ? (
-                      <Button
-                        variant="secondary"
-                        className="max-sm:min-h-11"
-                        isDisabled={mutation.busy}
-                        onPress={async () => {
-                          const result = await mutation.run(
-                            () =>
-                              performAction("cancelJob", {
-                                orgId: props.orgId,
-                                id: run.jobId,
-                              }),
-                            "Cancellation requested.",
-                          );
-                          if (result.ok) history.reload();
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    ),
-                },
-              ]}
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="secondary"
-                isDisabled={page === 0 || history.loading}
-                onPress={() => setPage((value) => value - 1)}
-              >
-                Newer
-              </Button>
-              <Button
-                variant="secondary"
-                isDisabled={!history.data.nextCursor || history.loading}
-                onPress={() => {
-                  setCursors((values) => [
-                    ...values.slice(0, page + 1),
-                    history.data.nextCursor!,
-                  ]);
-                  setPage((value) => value + 1);
-                }}
-              >
-                Older
-              </Button>
-            </div>
-          </div>
         </div>
       )}
     </>

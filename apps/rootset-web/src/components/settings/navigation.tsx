@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   McpServerIcon,
   Clock01Icon,
+  TransactionHistoryIcon,
   DatabaseIcon,
   DatabaseSettingIcon,
   Delete02Icon,
@@ -43,7 +44,7 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["team-api-keys"] },
   ],
   database: [
-    { title: "Backup", sections: ["backup-schedule"] },
+    { title: "Backup", sections: ["backup-schedule", "backup-history"] },
     { title: "Settings", sections: ["database", "database-danger-zone"] },
   ],
   table: [
@@ -192,6 +193,7 @@ export const settingsIcons = {
   "mcp-connections": McpServerIcon,
   database: DatabaseSettingIcon,
   "backup-schedule": Clock01Icon,
+  "backup-history": TransactionHistoryIcon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
   "table-danger-zone": Delete02Icon,

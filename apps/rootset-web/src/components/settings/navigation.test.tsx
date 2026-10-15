@@ -88,6 +88,8 @@ describe("context settings navigation", () => {
     for (const section of [
       "database",
       "database-danger-zone",
+      "backup-schedule",
+      "backup-history",
       "table",
       "table-danger-zone",
       "fields",
@@ -99,7 +101,7 @@ describe("context settings navigation", () => {
       expect(route.section).toBe(section);
       expect(route.databaseId).toBe("db");
       expect(route.tableId).toBe(
-        section.startsWith("database") ? null : "table",
+        settingsScope(section) === "database" ? null : "table",
       );
     }
     expect(resourceRoute("/")).toEqual({
@@ -124,7 +126,7 @@ describe("context settings navigation", () => {
     expect(groups.map((group) => group.title)).toEqual(["Backup", "Settings"]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.label)),
-    ).toEqual(["Backup Schedule", "General", "Danger Zone"]);
+    ).toEqual(["Backup Schedule", "Backup History", "General", "Danger Zone"]);
     const danger = groups
       .flatMap((group) => group.items)
       .find((item) => item.id === "database-danger-zone");

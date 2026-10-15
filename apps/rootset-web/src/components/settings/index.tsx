@@ -30,6 +30,7 @@ import {
 } from "./schema";
 import { ExportsSettings } from "./jobs";
 import { BackupScheduleSettings } from "./backups";
+import { BackupHistorySettings } from "./backup-history";
 import { ForeignKeysSettings } from "./foreign-keys";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
@@ -79,6 +80,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     mcp: McpGuideSettings,
     database: DatabaseSettings,
     "backup-schedule": BackupScheduleSettings,
+    "backup-history": BackupHistorySettings,
     "database-danger-zone": DatabaseDangerZone,
     table: TableSettings,
     "table-danger-zone": TableDangerZone,
@@ -100,6 +102,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "database",
     "database-danger-zone",
     "backup-schedule",
+    "backup-history",
   ];
   const content =
     context.loading || context.error ? (

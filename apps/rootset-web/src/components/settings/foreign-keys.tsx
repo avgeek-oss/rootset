@@ -74,7 +74,6 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
   const actions = useMemo(
     () => (
       <Button
-        className="max-sm:min-h-11"
         isDisabled={disabled || !schema.data.fields.length}
         onPress={() => {
           setTargetId("");
@@ -159,7 +158,6 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
               cell: (rule) => (
                 <div className="field-edit-actions">
                   <Button
-                    className="max-sm:min-h-11"
                     variant="danger-soft"
                     isDisabled={disabled}
                     onPress={async () => {
@@ -195,7 +193,6 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
       )}
       {formOpen && (
         <Dialog
-          className="max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11"
           title="Create foreign key"
           onClose={() => setFormOpen(false)}
           closeDisabled={busy}
