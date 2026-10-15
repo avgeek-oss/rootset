@@ -35,7 +35,7 @@ Column names use 1–64 letters or underscores. They are the keys used in API ro
 
 For a text field, select **Allowed values → Only these choices** in the field editor. Add one or more choices and choose a default when needed. Constrained text cells use a dropdown; optional fields also offer NULL. Enter saves, Tab saves and moves, Escape cancels, and leaving a cell saves through the normal revision checks.
 
-Allowed values are supported only on `text` fields. Supply 1–100 distinct, nonempty strings. Each choice may contain up to 4,096 Unicode characters within the field's character limit; the complete JSON choice list is capped at 65,536 UTF-8 bytes. Matching is exact, including case, spaces and Unicode spelling. Rootset does not trim or rewrite choices. The string `"NULL"` is a value separate from a NULL cell. Duplicate and empty choices are rejected. Optional fields may be NULL; `required: true` prohibits NULL. Any literal default must be an allowed value.
+Allowed values are supported only on `text` fields. Supply 1–100 distinct, nonempty strings. Each choice may contain up to 4,096 Unicode characters within the field's character limit; the complete JSON choice list is capped at 65,536 UTF-8 bytes. Choice lists across one table share a 512 KiB budget, leaving space for schema metadata in bounded MCP responses. Matching is exact, including case, spaces and Unicode spelling. Rootset does not trim or rewrite choices. The string `"NULL"` is a value separate from a NULL cell. Duplicate and empty choices are rejected. Optional fields may be NULL; `required: true` prohibits NULL. Any literal default must be an allowed value.
 
 REST/MCP field creation and editing use the same field definition:
 

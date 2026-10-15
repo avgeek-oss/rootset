@@ -214,6 +214,25 @@ export const AllowedValuesSchema = z
     "x-rootset-max-utf8-bytes": limits.rowBytes,
   });
 
+/** Leave space for the rest of table metadata inside the MCP response budget. */
+export function assertAllowedValuesBudget(
+  fields: readonly FieldDefinition[],
+): void {
+  const bytes = fields.reduce(
+    (total, field) =>
+      total +
+      (field.allowedValues
+        ? encoder.encode(JSON.stringify(field.allowedValues)).length
+        : 0),
+    0,
+  );
+  if (bytes > limits.maxTableAllowedValuesBytes)
+    invalid("Table allowed values exceed the 512 KiB definition budget", {
+      bytes,
+      limit: limits.maxTableAllowedValuesBytes,
+    });
+}
+
 const common = {
   id: IdSchema,
   name: FieldNameSchema,

@@ -16,6 +16,7 @@ export const limits = Object.freeze({
   maxUniqueFields: 8,
   maxUniqueRules: 16,
   maxAllowedValues: 100,
+  maxTableAllowedValuesBytes: 512 * 1024,
   mutationBatch: 1_000,
   queryRows: 25_000,
   restDefaultRows: 5_000,

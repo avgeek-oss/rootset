@@ -3973,3 +3973,65 @@ test(
     assert.equal((await storage!.getTable(actor, next.id)).schemaVersion, 1);
   },
 );
+
+test(
+  "Table choice budgets reject creation, field addition and tightening before metadata or DDL commit",
+  { skip: !configured },
+  async () => {
+    const allowedValues = Array.from(
+      { length: 20 },
+      (_, index) => `${index}${"x".repeat(3000)}`,
+    );
+    const fields = Array.from({ length: 9 }, (_, index) => ({
+      name: `FIELD_${String.fromCharCode(65 + index)}`,
+      type: "text" as const,
+      charLimit: 4000,
+      allowedValues,
+    }));
+    const before = await storage!.listTables(actor, databaseId);
+    const rejected = {
+      code: "VALIDATION_FAILED",
+      message: "Table allowed values exceed the 512 KiB definition budget",
+    };
+    await assert.rejects(
+      storage!.createTable(actor, databaseId, {
+        name: "Oversized choices",
+        fields,
+      }),
+      rejected,
+    );
+    assert.equal(
+      (await storage!.listTables(actor, databaseId)).length,
+      before.length,
+    );
+    const table = await storage!.createTable(actor, databaseId, {
+      name: "Bounded choice metadata",
+      fields: [
+        ...fields.slice(0, 8),
+        { name: "SMALL", type: "text", allowedValues: ["small"] },
+      ],
+    });
+    await assert.rejects(
+      storage!.createField(actor, table.id, {
+        ...fields[8]!,
+        expectedSchemaVersion: 1,
+      }),
+      rejected,
+    );
+    await assert.rejects(
+      storage!.updateField(actor, table.id, table.fields[8]!.id, {
+        allowedValues,
+        expectedSchemaVersion: 1,
+      }),
+      rejected,
+    );
+    const current = await storage!.getTable(actor, table.id);
+    assert.equal(current.schemaVersion, 1);
+    assert.deepEqual(current.fields, table.fields);
+    const physical = await owner!.query(
+      "SELECT count(*)::int AS count FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name LIKE 'f_%'",
+      [table.schemaName, table.physicalName],
+    );
+    assert.equal(physical.rows[0].count, table.fields.length);
+  },
+);

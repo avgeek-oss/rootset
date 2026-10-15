@@ -4,6 +4,7 @@ import {
   FieldDefinitionSchema,
   FieldInputSchema,
   validateCell,
+  assertAllowedValuesBudget,
   validateValues,
   validateQuery,
   newId,
@@ -112,5 +113,27 @@ test("choice definitions are bounded, nonempty, distinct and text-only", () => {
   assert.equal(
     FieldDefinitionSchema.safeParse({ ...field, allowedValues: null }).success,
     true,
+  );
+});
+
+test("table choice metadata has an aggregate budget independent of unconstrained fields", () => {
+  const allowedValues = Array.from(
+    { length: 20 },
+    (_, index) => `${index}${"x".repeat(3000)}`,
+  );
+  const fields = Array.from({ length: 9 }, (_, index) => ({
+    id: newId(),
+    name: `FIELD_${String.fromCharCode(65 + index)}`,
+    type: "text" as const,
+    allowedValues,
+  }));
+  assert.doesNotThrow(() => assertAllowedValuesBudget(fields.slice(0, 8)));
+  assert.throws(() => assertAllowedValuesBudget(fields), {
+    code: "VALIDATION_FAILED",
+  });
+  assert.doesNotThrow(() =>
+    assertAllowedValuesBudget(
+      fields.map((field) => ({ ...field, allowedValues: null })),
+    ),
   );
 });

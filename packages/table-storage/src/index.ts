@@ -29,6 +29,7 @@ import {
   validateValues,
   assertRowBytes,
   assertFieldNames,
+  assertAllowedValuesBudget,
 } from "@rootset/contracts";
 import {
   compileQuery,
@@ -966,6 +967,7 @@ export class TableStorage {
         if (fields.length > limits.maxFields)
           fail("VALIDATION_FAILED", "Field limit exceeded");
         assertFieldNames(fields);
+        assertAllowedValuesBudget(fields);
         assertRowBytes(
           fields,
           Object.fromEntries(fields.map((f) => [f.name, null])),
@@ -1206,6 +1208,7 @@ export class TableStorage {
         });
         const future = [...t.fields, f];
         assertFieldNames(future);
+        assertAllowedValuesBudget(future);
         const value = Object.hasOwn(f, "default") ? f.default! : null;
         if (t.rowCount > 0 || value !== null || Object.hasOwn(f, "default"))
           validateCell(f, value);
@@ -1320,6 +1323,7 @@ export class TableStorage {
         const f = field({ ...before, ...patch }, before.id);
         const fields = t.fields.map((x) => (x.id === f.id ? f : x));
         assertFieldNames(fields);
+        assertAllowedValuesBudget(fields);
         await this.validateRows(c, t, fields, (r) =>
           renamedValues(r.values, before, f),
         );
@@ -2526,6 +2530,7 @@ export class TableStorage {
           fields: old.fields.map((f) => (f.id === next.id ? next : f)),
         };
         assertFieldNames(fresh.fields);
+        assertAllowedValuesBudget(fresh.fields);
         const j = await this.journal(
           c,
           a,
@@ -2822,6 +2827,7 @@ export class TableStorage {
           fail("VALIDATION_FAILED", "Every active field must be provided once");
       } else fail("VALIDATION_FAILED", "Unsupported schema change");
       assertFieldNames(fields);
+      assertAllowedValuesBudget(fields);
       const conflicts: {
         rowId: string;
         fieldId?: string;
