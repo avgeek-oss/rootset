@@ -56,10 +56,7 @@ export function CellInput({
     spellCheck: false,
     "data-1p-ignore": true,
     "data-lpignore": "true",
-    className:
-      field.type === "boolean" && !draft.isNull
-        ? `cell-input cell-boolean-${draft.text}`
-        : "cell-input",
+    className: `cell-input${draft.isNull ? " null-value" : field.type === "boolean" ? ` cell-boolean-${draft.text}` : ""}`,
   };
   return (
     <>

@@ -699,7 +699,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                 return (
                   <TooltipText
                     tooltip={missing ? "No default value" : value}
-                    className={`block max-w-64 truncate${missing ? " field-empty" : ""}`}
+                    className={`block max-w-64 truncate${missing ? " field-empty" : !generated && field.default == null ? " null-value" : ""}`}
                   >
                     {missing ? "—" : value}
                   </TooltipText>

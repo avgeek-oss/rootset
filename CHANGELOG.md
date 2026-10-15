@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 (unreleased)
+
+- Add conditional unique rules and allowed choices for text fields.
+- Add integer auto-increment across the editor, REST, MCP and batch mutations, preserving existing IDs and durable counters.
+- Improve choice editing, column drag handles, sidebar table counts, card hover feedback and dropdown icons.
+- Display NULL values in muted italics in the spreadsheet, editors, field defaults and history.
+
 ## 0.1.4 (2026-10-14)
 
 - Add row discussions across the spreadsheet, REST and MCP. Row pages include `hasComments`, and comment contents load on demand in a right-side drawer.
