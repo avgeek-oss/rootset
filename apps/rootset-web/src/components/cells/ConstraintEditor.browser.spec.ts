@@ -416,14 +416,23 @@ test("field drag handles support keyboard reordering and cancellation", async ({
     name: `Reorder ${moved.name}`,
     exact: true,
   });
-  await handle.press("Enter");
+  const row = page.getByRole("row").filter({ has: handle });
+  await row.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("button", {
+      name: `Insert between ${moved.name} and ${schema.fields[1]!.name}`,
+      exact: true,
+    }),
+  ).toBeFocused();
   await page.keyboard.press("Escape");
   expect(
     (await call(context, "GET", `${path()}/schema`)).fields.map(
       (field: { id: string }) => field.id,
     ),
   ).toEqual(original);
-  await handle.press("Enter");
+  await row.press("ArrowRight");
+  await page.keyboard.press("Enter");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect
