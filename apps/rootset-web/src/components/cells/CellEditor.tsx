@@ -51,12 +51,18 @@ export function CellEditor({
       : { text: initialInput, isNull: false };
   });
   const [submitting, setSubmitting] = useState(false);
+  const expandableText = field.type === "text" && !field.allowedValues;
+  const [expanded, setExpanded] = useState(
+    () =>
+      field.type === "json" ||
+      (expandableText && Array.from(draft.text).length > 80),
+  );
   const submitted = useRef<Promise<boolean> | null>(null);
   const cancelled = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   const [expandUp, setExpandUp] = useState(false);
   useLayoutEffect(() => {
-    if (field.type !== "json") return;
+    if (!expanded) return;
     const cell = formRef.current?.closest('[role="gridcell"]');
     const grid = cell?.closest('[role="grid"]');
     if (!cell || !grid) return;
@@ -66,7 +72,7 @@ export function CellEditor({
       gridBounds.bottom - cellBounds.top < 240 &&
         cellBounds.top - gridBounds.top > 240,
     );
-  }, [field.type]);
+  }, [expanded]);
   const busy = pending || submitting;
   const extendedCalendar =
     field.type === "date-time" && /^(?:0000|10000)-/.test(draft.text);
@@ -76,6 +82,8 @@ export function CellEditor({
 
   function change(next: CellDraft) {
     setDraft(next);
+    if (!expanded && expandableText && Array.from(next.text).length > 80)
+      setExpanded(true);
   }
 
   function reject(message: string) {
@@ -121,7 +129,7 @@ export function CellEditor({
   return (
     <form
       ref={formRef}
-      className={`inline-cell-form${field.type === "json" ? " inline-cell-form--json" : ""}${expandUp ? " inline-cell-form--expand-up" : ""}`}
+      className={`inline-cell-form${expanded ? " inline-cell-form--expanded" : ""}${field.type === "json" ? " inline-cell-form--json" : ""}${expandUp ? " inline-cell-form--expand-up" : ""}`}
       aria-label={`Edit ${field.name}`}
       lang={locale}
       noValidate
@@ -155,7 +163,7 @@ export function CellEditor({
           event.preventDefault();
           void submit();
         }
-        if (event.key === "Tab" && field.type !== "json") {
+        if (event.key === "Tab" && !expanded) {
           const inputs = event.currentTarget.querySelectorAll(
             "input, textarea, select",
           );
@@ -174,9 +182,7 @@ export function CellEditor({
           !event.ctrlKey &&
           !event.metaKey &&
           !(event.target instanceof HTMLButtonElement) &&
-          !(
-            field.type === "json" && event.target instanceof HTMLTextAreaElement
-          )
+          !(expanded && event.target instanceof HTMLTextAreaElement)
         ) {
           event.preventDefault();
           void submit();
@@ -191,25 +197,31 @@ export function CellEditor({
         disabled={busy}
         autoFocus={canFocus}
         inline
+        expanded={expanded}
       />
-      {field.type === "json" && (
-        <div className="inline-json-actions">
-          <Button
-            size="sm"
-            variant="ghost"
-            isDisabled={busy || draft.isNull}
-            onPress={() => {
-              try {
-                change({ ...draft, text: formatJsonDraft(draft.text) });
-              } catch (cause) {
-                reject(
-                  cause instanceof Error ? cause.message : "Enter valid JSON.",
-                );
-              }
-            }}
-          >
-            Format
-          </Button>
+      {expanded && (
+        <div className="inline-cell-actions">
+          {field.type === "json" && (
+            <Button
+              className="mr-auto"
+              size="sm"
+              variant="ghost"
+              isDisabled={busy || draft.isNull}
+              onPress={() => {
+                try {
+                  change({ ...draft, text: formatJsonDraft(draft.text) });
+                } catch (cause) {
+                  reject(
+                    cause instanceof Error
+                      ? cause.message
+                      : "Enter valid JSON.",
+                  );
+                }
+              }}
+            >
+              Format
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -235,7 +247,7 @@ export function CellEditor({
       <span className="sr-only" role="status">
         {busy
           ? "Saving this value…"
-          : field.type === "json"
+          : expanded
             ? "Enter adds a line; Cmd or Ctrl+Enter saves; leaving the cell saves; Escape cancels."
             : "Enter saves; Tab saves and moves; leaving the cell saves; Shift+Enter adds a line; Escape cancels."}
       </span>
