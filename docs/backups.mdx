@@ -29,7 +29,7 @@ The Compose files pass backup variables only to the worker and use its existing 
 
 ## Save a schedule
 
-Enter a bucket and optional path prefix, then choose **Test destination**. The worker writes a random probe, reads it back, verifies it and removes it. After a successful test, enter a cron expression and timezone, turn on **Automatic backups**, and save.
+Enter a bucket and optional path prefix, then choose **Test destination**. The worker writes a random probe, reads it back, verifies it and removes it. After a successful test, enter a cron expression, choose a timezone from the searchable **Time zone** dropdown, turn on **Enable scheduled backups**, and save. Turn it off and save to pause scheduled runs; **Back up now** remains available.
 
 Cron has five numeric fields: minute, hour, day of month, month, weekday. Lists, ranges and steps are supported. Seconds and aliases such as `@daily` are not accepted. For example, `0 2 * * *` means daily at 02:00 in the saved timezone. If both day-of-month and weekday are restricted, either may match. The page previews the next three runs. On spring-forward days a missing local time advances by the daylight-saving gap; the repeated fall-back hour runs once. All occurrence timestamps are stored in UTC.
 

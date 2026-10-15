@@ -21,6 +21,7 @@ import {
   useResource,
 } from "./api";
 import { PageSelectionTitle } from "./account/page-selection-title";
+import { TimeZoneSelect } from "./time-zone-select";
 import { Empty, Field, Form, Loading, Section, Toggle } from "./ui";
 import type { Job, SettingsPanelProps } from "./types";
 
@@ -368,17 +369,14 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                 error={fieldErrors.cron}
                 description="Five fields: minute, hour, day, month, weekday. For example, 0 2 * * * runs daily at 02:00."
               />
-              <Field
-                label="Timezone"
+              <TimeZoneSelect
                 value={timezone}
                 onChange={(value) => {
                   setTimezone(value);
                   clearError("timezone");
+                  setPreviewRequested(true);
                 }}
-                onBlur={() => setPreviewRequested(true)}
-                required
                 error={fieldErrors.timezone}
-                description="An IANA timezone, such as Asia/Kolkata or Europe/London."
               />
               {previewError ? (
                 <p role="alert" className="settings-section-description">
@@ -409,10 +407,10 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                 )
               )}
               <Toggle
-                label="Automatic backups"
+                label="Enable scheduled backups"
                 selected={enabled}
                 onChange={setEnabled}
-                description="Verify the destination before enabling this schedule."
+                description="Save with this enabled to run backups at the cron times above. Turn off and save to pause; Back up now remains available."
               />
               {formError && (
                 <p role="alert" className="settings-section-description">

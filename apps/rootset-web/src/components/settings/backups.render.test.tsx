@@ -77,8 +77,8 @@ describe("database backup schedule page", () => {
       "Bucket",
       "Path prefix",
       "Cron schedule",
-      "Timezone",
-      "Automatic backups",
+      "Time zone",
+      "Enable scheduled backups",
       "Test destination",
       "Save schedule",
     ])
