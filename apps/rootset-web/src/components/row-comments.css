@@ -96,11 +96,105 @@
   font-size: 12px;
 }
 .row-comment-body {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 14px;
   line-height: 1.5;
   margin: 4px 0 0;
+}
+.row-comment-body :where(p, ul, ol, blockquote, pre, .row-comment-table) {
+  margin: 0;
+}
+.row-comment-body > * + * {
+  margin-top: 8px;
+}
+.row-comment-body :where(h1, h2, h3, h4, h5, h6) {
+  margin-block: 12px 4px;
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.row-comment-body > :first-child {
+  margin-top: 0;
+}
+.row-comment-body :where(strong, th) {
+  font-weight: 600;
+}
+.row-comment-body :where(ul, ol) {
+  padding-inline-start: 20px;
+}
+.row-comment-body ul {
+  list-style-type: disc;
+}
+.row-comment-body ol {
+  list-style-type: decimal;
+}
+.row-comment-body li + li,
+.row-comment-body li > :where(p, ul, ol) + * {
+  margin-top: 4px;
+}
+.row-comment-body .contains-task-list {
+  list-style: none;
+  padding-inline-start: 0;
+}
+.row-comment-body .task-list-item input {
+  margin-inline-end: 6px;
+  accent-color: var(--accent);
+}
+.row-comment-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.row-comment-body :where(a, pre, .row-comment-table):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.row-comment-body blockquote {
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--separator);
+  color: var(--muted);
+}
+.row-comment-body code {
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: var(--surface-secondary);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+}
+.row-comment-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-secondary);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.row-comment-body pre code {
+  padding: 0;
+  background: transparent;
+}
+.row-comment-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.row-comment-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.row-comment-table :where(th, td) {
+  min-width: 96px;
+  border: 1px solid var(--separator);
+  padding: 6px 8px;
+}
+.row-comment-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.row-comment-body hr {
+  border: 0;
+  border-top: 1px solid var(--separator);
 }
 .row-comment-deleted {
   color: var(--muted);

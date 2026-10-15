@@ -12,6 +12,7 @@ import type { RowComment } from "@rootset/contracts";
 import { Trash2 } from "./ui/icons";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { useConfirmation } from "./settings/ui";
+import { CommentMarkdown } from "./comment-markdown";
 import "./row-comments.css";
 
 interface Target {
@@ -239,11 +240,13 @@ function RowDiscussion({
                     {relativeTime(comment.createdAt, displayTime, locale)}
                   </time>
                 </div>
-                <p
-                  className={`row-comment-body${comment.deletedAt ? " row-comment-deleted" : ""}`}
-                >
-                  {comment.deletedAt ? "comment deleted" : comment.body}
-                </p>
+                {comment.deletedAt ? (
+                  <p className="row-comment-body row-comment-deleted">
+                    comment deleted
+                  </p>
+                ) : (
+                  <CommentMarkdown>{comment.body}</CommentMarkdown>
+                )}
               </div>
               {comment.canDelete && !comment.deletedAt && (
                 <Button
