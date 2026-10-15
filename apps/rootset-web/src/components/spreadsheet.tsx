@@ -2037,7 +2037,7 @@ function CellHistory({
               ariaLabel={`${field.name} cell history`}
               items={history.data.data}
               getRowKey={(change) => change.id}
-              mobileLayout="stacked"
+              tableClassName="min-w-2xl"
               emptyTitle="No retained changes for this cell"
               emptyDescription=""
               columns={[

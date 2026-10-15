@@ -47,6 +47,7 @@ import {
   TableSummarySchema,
   TableSchemaResultSchema,
   UniqueRuleSchema,
+  ForeignKeySchema,
   ViewPreferencesResultSchema,
 } from "./resources";
 
@@ -875,6 +876,44 @@ operation(
   z.strictObject({ ...table, ...expected, id: IdSchema }),
   deleted,
   "Remove uniqueness enforcement and update the schema version.",
+);
+operation(
+  "listForeignKeys",
+  "list_foreign_keys",
+  "GET",
+  `${T}/foreign-keys`,
+  ["tables:read"],
+  z.strictObject(table),
+  list(ForeignKeySchema),
+  "List foreign keys linking fields to an unconditional unique key in the same database.",
+);
+operation(
+  "createForeignKey",
+  "create_foreign_key",
+  "POST",
+  `${T}/foreign-keys`,
+  ["schema:manage"],
+  z.strictObject({
+    ...table,
+    ...expected,
+    fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+    referencedTableId: IdSchema,
+    referencedRuleId: IdSchema,
+    expectedReferencedSchemaVersion: SchemaVersionSchema,
+  }),
+  jobOr(ForeignKeySchema),
+  "Validate existing rows and create a foreign key to matching scalar fields in the same database. The target requires an active unconditional unique rule. Any NULL in the local tuple skips validation. Referenced values cannot be changed or deleted while in use.",
+  { job: true },
+);
+operation(
+  "deleteForeignKey",
+  "delete_foreign_key",
+  "DELETE",
+  `${T}/foreign-keys/{id}`,
+  ["schema:manage"],
+  z.strictObject({ ...table, ...expected, id: IdSchema }),
+  deleted,
+  "Remove foreign-key validation without changing existing rows.",
 );
 operation(
   "listRows",

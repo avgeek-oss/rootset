@@ -708,22 +708,28 @@ h1 {
   font-style: italic;
   opacity: 1;
 }
+.rootset-grid .null-value,
+.rootset-grid .null-value::placeholder {
+  color: color-mix(in oklab, var(--rs-muted) 70%, transparent);
+}
 .inline-cell-editor:has(.inline-cell-form--expand-up) {
   top: auto;
   bottom: -1px;
 }
-.inline-cell-form--json .cell-input {
+.inline-cell-form--expanded .cell-input {
   height: 192px;
   max-height: min(320px, 45vh);
   min-height: 96px;
   padding: 8px;
-  font-family: var(--font-mono), monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overflow-y: auto;
   resize: vertical;
 }
-.inline-json-actions {
+.inline-cell-form--json .cell-input {
+  font-family: var(--font-mono), monospace;
+}
+.inline-cell-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -732,11 +738,8 @@ h1 {
   padding: 6px;
   border-top: 1px solid var(--rdg-border-color);
 }
-.inline-json-actions .button {
+.inline-cell-actions .button {
   flex-shrink: 0;
-}
-.inline-json-actions > :first-child {
-  margin-right: auto;
 }
 .inline-cell-feedback {
   font-size: 0.8125rem;

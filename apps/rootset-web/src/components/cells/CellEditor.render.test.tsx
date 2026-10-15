@@ -98,6 +98,36 @@ describe("cell editor save boundaries", () => {
     expect(html).toContain("\n  &quot;sample&quot;: true");
   });
 
+  it.each([
+    ["x", 80],
+    ["x", 81],
+    ["😀", 80],
+    ["😀", 81],
+  ] as const)(
+    "expands text only when its value exceeds 80 characters (%s × %i)",
+    (character, length) => {
+      const html = renderToStaticMarkup(
+        createElement(CellEditor, {
+          field: definition,
+          value: character.repeat(length),
+          onCommit: () => true,
+          onCancel() {},
+        }),
+      );
+      if (length > 80) {
+        expect(html).toContain('rows="8"');
+        expect(html).toContain(">Cancel</button>");
+        expect(html).toContain(">Save</button>");
+        expect(html).toContain("Enter adds a line");
+      } else {
+        expect(html).toContain('rows="1"');
+        expect(html).not.toContain("<button");
+        expect(html).toContain("Enter saves");
+      }
+      expect(html).not.toContain("Format");
+    },
+  );
+
   it("keeps a boundary UTC instant editable in the preferred timezone", () => {
     const html = renderToStaticMarkup(
       createElement(CellEditor, {
@@ -147,5 +177,19 @@ describe("constrained text editor", () => {
     expect(html).toContain(
       '<option value="choice:1" selected="">ceased</option>',
     );
+  });
+  it("keeps long choices in the dropdown", () => {
+    const value = "x".repeat(81);
+    const html = renderToStaticMarkup(
+      createElement(CellEditor, {
+        field: { ...definition, allowedValues: [value] },
+        value,
+        onCommit: () => true,
+        onCancel() {},
+      }),
+    );
+    expect(html).toContain("<select");
+    expect(html).not.toContain("<textarea");
+    expect(html).not.toContain("<button");
   });
 });

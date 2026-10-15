@@ -1,6 +1,7 @@
 import type {
   ConnectionSchema,
   UniqueRuleCondition,
+  ForeignKey,
   Preferences as AccountPreferences,
 } from "@rootset/contracts";
 import type { z } from "zod";
@@ -23,6 +24,7 @@ export type SettingsSection =
   | "table"
   | "fields"
   | "rules"
+  | "foreign-keys"
   | "exports";
 
 export interface SettingsPanelProps {
@@ -135,6 +137,7 @@ export interface TableSchemaResult {
   table: Omit<TableSchema, "fields">;
   fields: TableField[];
   uniqueRules: UniqueRule[];
+  foreignKeys: ForeignKey[];
 }
 export interface UniqueRule {
   id: string;
@@ -209,6 +212,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "table-danger-zone": "Danger Zone",
   fields: "Fields",
   rules: "Unique rules",
+  "foreign-keys": "Foreign keys",
   exports: "Export Requests",
 };
 
@@ -226,7 +230,9 @@ export function canOpenSettings(
 ): boolean {
   if (!["admin", "member", "viewer"].includes(role ?? "")) return false;
   if (ADMIN_SETTINGS.includes(section)) return role === "admin";
-  if (["database", "table", "fields", "rules"].includes(section))
+  if (
+    ["database", "table", "fields", "rules", "foreign-keys"].includes(section)
+  )
     return role !== "viewer";
   return true;
 }

@@ -17,6 +17,7 @@ export function CellInput({
   autoFocus = false,
   describedBy,
   inline = false,
+  expanded = false,
 }: {
   field: FieldDefinition;
   draft: CellDraft;
@@ -27,6 +28,7 @@ export function CellInput({
   autoFocus?: boolean;
   describedBy?: string;
   inline?: boolean;
+  expanded?: boolean;
 }) {
   const id = useId();
   let candidates: ReturnType<typeof getLocalDateTimeCandidates> = [];
@@ -123,7 +125,7 @@ export function CellInput({
       ) : ["text", "uri", "url", "image", "json"].includes(field.type) ? (
         <textarea
           {...common}
-          rows={field.type === "json" ? 8 : inline ? 1 : 2}
+          rows={field.type === "json" || expanded ? 8 : inline ? 1 : 2}
           value={draft.isNull ? "" : draft.text}
           placeholder={draft.isNull ? "NULL" : undefined}
           onChange={(event) => changeText(event.target.value)}

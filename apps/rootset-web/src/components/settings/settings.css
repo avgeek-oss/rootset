@@ -1,24 +1,3 @@
-.rootset-settings {
-  min-width: 0;
-  max-width: 1200px;
-  margin-inline: auto;
-  padding: 0 24px 40px;
-  color: var(--foreground);
-}
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 20px 0;
-}
-.settings-header h1 {
-  font-size: 20px;
-  line-height: 1.4;
-  font-weight: 500;
-  margin: 0;
-}
 .settings-content {
   display: grid;
   align-items: start;
@@ -58,11 +37,6 @@
     grid-column: 1 / -1;
   }
 }
-@media (max-width: 640px) {
-  .rootset-settings {
-    padding: 0 16px 32px;
-  }
-}
 .settings-form,
 .settings-form > fieldset {
   display: flex;
@@ -83,6 +57,13 @@
 .settings-field input,
 .settings-field textarea {
   width: 100%;
+}
+.settings-field .select__trigger {
+  align-items: center;
+}
+.settings-field .select__value {
+  display: flex;
+  align-items: center;
 }
 .settings-inline,
 .settings-actions {
@@ -200,12 +181,6 @@
   user-select: all;
 }
 @media (max-width: 640px) {
-  .settings-header {
-    padding: 1rem;
-  }
-  .settings-content {
-    padding: 1rem 1rem 3rem;
-  }
   .settings-record {
     flex-direction: column;
     gap: 0.75rem;
@@ -216,11 +191,6 @@
   }
   .settings-inline > .settings-field {
     flex-basis: 100%;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rootset-settings * {
-    scroll-behavior: auto;
   }
 }
 
@@ -274,16 +244,4 @@
   max-width: 360px;
   overflow-wrap: anywhere;
   white-space: normal;
-}
-@media (max-width: 640px) {
-  .field-name-cell {
-    min-width: 0;
-  }
-  .field-edit-actions {
-    justify-content: flex-start;
-  }
-  .field-constraints {
-    min-width: 0;
-    max-width: none;
-  }
 }

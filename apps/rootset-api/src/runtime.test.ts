@@ -2326,6 +2326,129 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       0,
     );
     await t.test(
+      "foreign keys validate REST and MCP writes through durable schema jobs",
+      async () => {
+        for (const mode of ["rest", "mcp"] as const) {
+          const parent = await call(
+            "createTable",
+            {
+              orgId,
+              databaseId,
+              name: `FK parent ${mode}`,
+              fields: [{ name: "CODE", type: "text" }],
+            },
+            "rest",
+          );
+          const child = await call(
+            "createTable",
+            {
+              orgId,
+              databaseId,
+              name: `FK child ${mode}`,
+              fields: [{ name: "PARENT", type: "text" }],
+            },
+            "rest",
+          );
+          const parentIds = { orgId, databaseId, tableId: parent.table.id };
+          const childIds = { orgId, databaseId, tableId: child.table.id };
+          const unique = await call(
+            "createUniqueRule",
+            {
+              ...parentIds,
+              fieldIds: [parent.fields[0].id],
+              expectedSchemaVersion: 1,
+            },
+            "rest",
+          );
+          await terminalJob(unique.jobId);
+          const parentSchema = await call("getTableSchema", parentIds, "rest");
+          const createInput = {
+            ...childIds,
+            fieldIds: [child.fields[0].id],
+            referencedTableId: parent.table.id,
+            referencedRuleId: parentSchema.uniqueRules[0].id,
+            expectedSchemaVersion: 1,
+            expectedReferencedSchemaVersion: 2,
+          };
+          const accepted =
+            mode === "rest"
+              ? await call("createForeignKey", createInput, "rest")
+              : await mcpOperation("createForeignKey", createInput);
+          await terminalJob(accepted.jobId as string);
+          const schema = await call("getTableSchema", childIds, "rest");
+          assert.equal(schema.foreignKeys.length, 1);
+          const rules = await mcpOperation("listForeignKeys", childIds);
+          assert.deepEqual(rules.data, schema.foreignKeys);
+          await call(
+            "createRow",
+            {
+              ...parentIds,
+              expectedSchemaVersion: 2,
+              values: { CODE: "linked" },
+            },
+            "rest",
+          );
+          await call(
+            "createRow",
+            {
+              ...childIds,
+              expectedSchemaVersion: 2,
+              values: { PARENT: "linked" },
+            },
+            "rest",
+          );
+          const invalid = await call(
+            "createRow",
+            {
+              ...childIds,
+              expectedSchemaVersion: 2,
+              values: { PARENT: "missing" },
+            },
+            "rest",
+            409,
+          );
+          assert.equal(invalid.error.code, "FOREIGN_KEY_CONFLICT");
+          const denied = await client.callTool({
+            name: "rootset_create_row",
+            arguments: {
+              ...childIds,
+              expectedSchemaVersion: 2,
+              values: { PARENT: "missing" },
+              idempotencyKey: newId(),
+            },
+          });
+          assert.equal(denied.isError, true);
+          assert.equal(
+            (denied.structuredContent as { error: { code: string } }).error
+              .code,
+            "FOREIGN_KEY_CONFLICT",
+          );
+          const removed = await mcpOperation("deleteForeignKey", {
+            ...childIds,
+            id: schema.foreignKeys[0].id,
+            expectedSchemaVersion: 2,
+          });
+          assert.equal(removed.deleted, true);
+          assert.deepEqual(
+            (await call("listForeignKeys", childIds, "rest")).data,
+            [],
+          );
+          const childDeletion = await call(
+            "deleteTable",
+            { ...childIds, expectedSchemaVersion: 3 },
+            "rest",
+          );
+          await terminalJob(childDeletion.jobId);
+          const parentDeletion = await call(
+            "deleteTable",
+            { ...parentIds, expectedSchemaVersion: 2 },
+            "rest",
+          );
+          await terminalJob(parentDeletion.jobId);
+        }
+      },
+    );
+    await t.test(
       "conditional unique rules round-trip through REST, MCP and durable jobs",
       async () => {
         for (const mode of ["rest", "mcp"] as const) {

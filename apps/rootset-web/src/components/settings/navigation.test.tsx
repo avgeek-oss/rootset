@@ -60,7 +60,7 @@ describe("context settings navigation", () => {
       settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["table", "fields", "rules", "exports"]);
+    ).toEqual(["table", "fields", "rules", "foreign-keys", "exports"]);
     expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });
   it("includes only identifiers belonging to the settings scope", () => {

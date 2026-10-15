@@ -37,7 +37,12 @@ export function DatabasesPage({
         title="Databases"
         titleContent={
           <span className="inline-flex items-center gap-2">
-            <HugeiconsIcon icon={DatabaseIcon} size={24} aria-hidden />
+            <HugeiconsIcon
+              icon={DatabaseIcon}
+              size={24}
+              className="shrink-0"
+              aria-hidden
+            />
             Databases
           </span>
         }

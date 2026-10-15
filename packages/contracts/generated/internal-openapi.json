@@ -2,7 +2,7 @@
   "openapi": "3.1.2",
   "info": {
     "title": "Rootset browser API",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Typed MDM storage. Temporal values are UTC only; IDs are opaque ULIDs. Runtime table definitions are discovered through the schema endpoint."
   },
   "servers": [{ "url": "http://localhost:4310" }],
@@ -10552,6 +10552,649 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys": {
+      "get": {
+        "operationId": "listForeignKeys",
+        "tags": ["schema"],
+        "summary": "List foreign keys linking fields to an unconditional unique key in the same database.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/listForeignKeysOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_list_foreign_keys",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000"
+        }
+      },
+      "post": {
+        "operationId": "createForeignKey",
+        "tags": ["schema"],
+        "summary": "Validate existing rows and create a foreign key to matching scalar fields in the same database. The target requires an active unconditional unique rule. Any NULL in the local tuple skips validation. Referenced values cannot be changed or deleted while in use.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "fieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedTableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedRuleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "expectedReferencedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  }
+                },
+                "required": [
+                  "expectedSchemaVersion",
+                  "fieldIds",
+                  "referencedTableId",
+                  "referencedRuleId",
+                  "expectedReferencedSchemaVersion"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "fieldIds": ["01K6J7B8000000000000000000"],
+                "referencedTableId": "01K6J7B8000000000000000000",
+                "referencedRuleId": "01K6J7B8000000000000000000",
+                "expectedReferencedSchemaVersion": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/createForeignKeyOutput"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/createForeignKeyOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": true,
+        "x-rootset-minimum-role": "member",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_create_foreign_key",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "expectedSchemaVersion": 1,
+          "fieldIds": ["01K6J7B8000000000000000000"],
+          "referencedTableId": "01K6J7B8000000000000000000",
+          "referencedRuleId": "01K6J7B8000000000000000000",
+          "expectedReferencedSchemaVersion": 1
+        }
+      }
+    },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys/{id}": {
+      "delete": {
+        "operationId": "deleteForeignKey",
+        "tags": ["schema"],
+        "summary": "Remove foreign-key validation without changing existing rows.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  }
+                },
+                "required": ["expectedSchemaVersion"],
+                "additionalProperties": false
+              },
+              "example": { "expectedSchemaVersion": 1 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/deleteForeignKeyOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "member",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_delete_foreign_key",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "expectedSchemaVersion": 1,
+          "id": "01K6J7B8000000000000000000"
+        }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows": {
       "get": {
         "operationId": "listRows",
@@ -19535,6 +20178,69 @@
               "additionalProperties": false
             }
           },
+          "foreignKeys": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "tableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "fieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedTableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedTableName": { "type": "string" },
+                "referencedRuleId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedFieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedFieldNames": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "state": { "type": "string", "const": "active" }
+              },
+              "required": [
+                "id",
+                "tableId",
+                "fieldIds",
+                "referencedTableId",
+                "referencedTableName",
+                "referencedRuleId",
+                "referencedFieldIds",
+                "referencedFieldNames",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
           "operators": {
             "type": "object",
             "propertyNames": { "type": "string" },
@@ -19553,7 +20259,14 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": ["table", "fields", "uniqueRules", "operators", "limits"],
+        "required": [
+          "table",
+          "fields",
+          "uniqueRules",
+          "foreignKeys",
+          "operators",
+          "limits"
+        ],
         "additionalProperties": false
       },
       "getTableInput": {
@@ -20431,6 +21144,69 @@
               "additionalProperties": false
             }
           },
+          "foreignKeys": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "tableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "fieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedTableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedTableName": { "type": "string" },
+                "referencedRuleId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedFieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedFieldNames": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "state": { "type": "string", "const": "active" }
+              },
+              "required": [
+                "id",
+                "tableId",
+                "fieldIds",
+                "referencedTableId",
+                "referencedTableName",
+                "referencedRuleId",
+                "referencedFieldIds",
+                "referencedFieldNames",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
           "operators": {
             "type": "object",
             "propertyNames": { "type": "string" },
@@ -20449,7 +21225,14 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": ["table", "fields", "uniqueRules", "operators", "limits"],
+        "required": [
+          "table",
+          "fields",
+          "uniqueRules",
+          "foreignKeys",
+          "operators",
+          "limits"
+        ],
         "additionalProperties": false
       },
       "listFieldsInput": {
@@ -21958,6 +22741,69 @@
                   "additionalProperties": false
                 }
               },
+              "foreignKeys": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "tableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "fieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedTableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedTableName": { "type": "string" },
+                    "referencedRuleId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedFieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedFieldNames": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "state": { "type": "string", "const": "active" }
+                  },
+                  "required": [
+                    "id",
+                    "tableId",
+                    "fieldIds",
+                    "referencedTableId",
+                    "referencedTableName",
+                    "referencedRuleId",
+                    "referencedFieldIds",
+                    "referencedFieldNames",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "operators": {
                 "type": "object",
                 "propertyNames": { "type": "string" },
@@ -21980,6 +22826,7 @@
               "table",
               "fields",
               "uniqueRules",
+              "foreignKeys",
               "operators",
               "limits"
             ],
@@ -23041,6 +23888,69 @@
                   "additionalProperties": false
                 }
               },
+              "foreignKeys": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "tableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "fieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedTableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedTableName": { "type": "string" },
+                    "referencedRuleId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedFieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedFieldNames": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "state": { "type": "string", "const": "active" }
+                  },
+                  "required": [
+                    "id",
+                    "tableId",
+                    "fieldIds",
+                    "referencedTableId",
+                    "referencedTableName",
+                    "referencedRuleId",
+                    "referencedFieldIds",
+                    "referencedFieldNames",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "operators": {
                 "type": "object",
                 "propertyNames": { "type": "string" },
@@ -23063,6 +23973,7 @@
               "table",
               "fields",
               "uniqueRules",
+              "foreignKeys",
               "operators",
               "limits"
             ],
@@ -23753,6 +24664,69 @@
                   "additionalProperties": false
                 }
               },
+              "foreignKeys": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "tableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "fieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedTableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedTableName": { "type": "string" },
+                    "referencedRuleId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedFieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedFieldNames": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "state": { "type": "string", "const": "active" }
+                  },
+                  "required": [
+                    "id",
+                    "tableId",
+                    "fieldIds",
+                    "referencedTableId",
+                    "referencedTableName",
+                    "referencedRuleId",
+                    "referencedFieldIds",
+                    "referencedFieldNames",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "operators": {
                 "type": "object",
                 "propertyNames": { "type": "string" },
@@ -23775,6 +24749,7 @@
               "table",
               "fields",
               "uniqueRules",
+              "foreignKeys",
               "operators",
               "limits"
             ],
@@ -24462,6 +25437,69 @@
               "additionalProperties": false
             }
           },
+          "foreignKeys": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "tableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "fieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedTableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedTableName": { "type": "string" },
+                "referencedRuleId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedFieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedFieldNames": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "state": { "type": "string", "const": "active" }
+              },
+              "required": [
+                "id",
+                "tableId",
+                "fieldIds",
+                "referencedTableId",
+                "referencedTableName",
+                "referencedRuleId",
+                "referencedFieldIds",
+                "referencedFieldNames",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
           "operators": {
             "type": "object",
             "propertyNames": { "type": "string" },
@@ -24480,7 +25518,14 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           }
         },
-        "required": ["table", "fields", "uniqueRules", "operators", "limits"],
+        "required": [
+          "table",
+          "fields",
+          "uniqueRules",
+          "foreignKeys",
+          "operators",
+          "limits"
+        ],
         "additionalProperties": false
       },
       "previewSchemaChangeInput": {
@@ -26033,6 +27078,54 @@
               {
                 "type": "object",
                 "properties": {
+                  "kind": { "type": "string", "const": "foreign-key.create" },
+                  "fieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedTableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedRuleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "expectedReferencedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  }
+                },
+                "required": [
+                  "kind",
+                  "fieldIds",
+                  "referencedTableId",
+                  "referencedRuleId",
+                  "expectedReferencedSchemaVersion"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string", "const": "foreign-key.delete" },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
                   "kind": { "type": "string", "const": "unknown" }
                 },
                 "required": ["kind"],
@@ -27514,6 +28607,280 @@
         "additionalProperties": false
       },
       "deleteUniqueRuleOutput": {
+        "type": "object",
+        "properties": {
+          "deleted": { "type": "boolean" },
+          "mutationId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": ["deleted"],
+        "additionalProperties": false
+      },
+      "listForeignKeysInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": ["orgId", "databaseId", "tableId"],
+        "additionalProperties": false
+      },
+      "listForeignKeysOutput": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "tableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "fieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedTableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedTableName": { "type": "string" },
+                "referencedRuleId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedFieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedFieldNames": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "state": { "type": "string", "const": "active" }
+              },
+              "required": [
+                "id",
+                "tableId",
+                "fieldIds",
+                "referencedTableId",
+                "referencedTableName",
+                "referencedRuleId",
+                "referencedFieldIds",
+                "referencedFieldNames",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": { "type": ["string", "null"] },
+          "hasMore": { "type": "boolean" }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "createForeignKeyInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "fieldIds": {
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "referencedTableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "referencedRuleId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedReferencedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "fieldIds",
+          "referencedTableId",
+          "referencedRuleId",
+          "expectedReferencedSchemaVersion"
+        ],
+        "additionalProperties": false
+      },
+      "createForeignKeyOutput": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "tableId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "fieldIds": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "referencedTableId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "referencedTableName": { "type": "string" },
+              "referencedRuleId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "referencedFieldIds": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "referencedFieldNames": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "state": { "type": "string", "const": "active" }
+            },
+            "required": [
+              "id",
+              "tableId",
+              "fieldIds",
+              "referencedTableId",
+              "referencedTableName",
+              "referencedRuleId",
+              "referencedFieldIds",
+              "referencedFieldNames",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "partially_completed"
+                ]
+              },
+              "statusUrl": { "type": "string" }
+            },
+            "required": ["jobId", "state", "statusUrl"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "deleteForeignKeyInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "deleteForeignKeyOutput": {
         "type": "object",
         "properties": {
           "deleted": { "type": "boolean" },
@@ -30472,6 +31839,7 @@
                         "ROW_VERSION_CONFLICT",
                         "SCHEMA_VERSION_CONFLICT",
                         "UNIQUE_CONFLICT",
+                        "FOREIGN_KEY_CONFLICT",
                         "AUTO_INCREMENT_EXHAUSTED",
                         "ROW_SIZE_LIMIT",
                         "ROW_LIMIT_REACHED",
@@ -30638,6 +32006,7 @@
                   "ROW_VERSION_CONFLICT",
                   "SCHEMA_VERSION_CONFLICT",
                   "UNIQUE_CONFLICT",
+                  "FOREIGN_KEY_CONFLICT",
                   "AUTO_INCREMENT_EXHAUSTED",
                   "ROW_SIZE_LIMIT",
                   "ROW_LIMIT_REACHED",
@@ -30797,6 +32166,7 @@
                   "ROW_VERSION_CONFLICT",
                   "SCHEMA_VERSION_CONFLICT",
                   "UNIQUE_CONFLICT",
+                  "FOREIGN_KEY_CONFLICT",
                   "AUTO_INCREMENT_EXHAUSTED",
                   "ROW_SIZE_LIMIT",
                   "ROW_LIMIT_REACHED",
@@ -31160,6 +32530,7 @@
           "ROW_VERSION_CONFLICT",
           "SCHEMA_VERSION_CONFLICT",
           "UNIQUE_CONFLICT",
+          "FOREIGN_KEY_CONFLICT",
           "AUTO_INCREMENT_EXHAUSTED",
           "ROW_SIZE_LIMIT",
           "ROW_LIMIT_REACHED",
@@ -31206,6 +32577,7 @@
                   "ROW_VERSION_CONFLICT",
                   "SCHEMA_VERSION_CONFLICT",
                   "UNIQUE_CONFLICT",
+                  "FOREIGN_KEY_CONFLICT",
                   "AUTO_INCREMENT_EXHAUSTED",
                   "ROW_SIZE_LIMIT",
                   "ROW_LIMIT_REACHED",

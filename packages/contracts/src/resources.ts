@@ -84,10 +84,23 @@ export const UniqueRuleSchema = z.strictObject({
   jobId: IdSchema.optional(),
   error: z.string().optional(),
 });
+export const ForeignKeySchema = z.strictObject({
+  id: IdSchema,
+  tableId: IdSchema,
+  fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+  referencedTableId: IdSchema,
+  referencedTableName: z.string(),
+  referencedRuleId: IdSchema,
+  referencedFieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+  referencedFieldNames: z.array(z.string()).min(1).max(limits.maxUniqueFields),
+  state: z.literal("active"),
+});
+export type ForeignKey = z.infer<typeof ForeignKeySchema>;
 export const TableSchemaResultSchema = z.strictObject({
   table: TableSchema,
   fields: z.array(FieldDefinitionSchema).max(limits.maxFields),
   uniqueRules: z.array(UniqueRuleSchema).max(limits.maxUniqueRules),
+  foreignKeys: z.array(ForeignKeySchema).max(limits.maxForeignKeys),
   operators: z.record(z.string(), z.array(z.string())),
   limits: z.record(z.string(), z.number()),
   schemaOperationId: IdSchema.optional(),
@@ -320,6 +333,17 @@ export const SchemaJournalRequestSchema = z.discriminatedUnion("kind", [
     name: journalNames.name.optional(),
   }),
   z.strictObject({ kind: z.literal("rule.delete"), id: IdSchema.optional() }),
+  z.strictObject({
+    kind: z.literal("foreign-key.create"),
+    fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+    referencedTableId: IdSchema,
+    referencedRuleId: IdSchema,
+    expectedReferencedSchemaVersion: SchemaVersionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("foreign-key.delete"),
+    id: IdSchema.optional(),
+  }),
   z.strictObject({ kind: z.literal("unknown") }),
 ]);
 export const SchemaOperationReportSchema = z.strictObject({

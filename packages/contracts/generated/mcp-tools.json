@@ -210,6 +210,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -349,6 +350,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -498,6 +500,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -635,6 +638,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -796,6 +800,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -939,6 +944,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1099,6 +1105,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1251,6 +1258,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1373,6 +1381,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1542,6 +1551,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1664,6 +1674,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1798,6 +1809,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -1937,6 +1949,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -2112,6 +2125,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -2270,6 +2284,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -2401,6 +2416,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -2582,6 +2598,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -2749,6 +2766,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -2876,6 +2894,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -3078,6 +3097,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -3307,6 +3327,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -3528,6 +3549,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -3651,6 +3673,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -3867,6 +3890,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -4096,6 +4120,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -4321,6 +4346,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -4448,6 +4474,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -4601,6 +4628,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -4797,6 +4825,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -4967,6 +4996,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -5132,6 +5162,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -5306,6 +5337,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -5446,6 +5478,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -5658,6 +5691,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -6745,6 +6779,69 @@
                 "additionalProperties": false
               }
             },
+            "foreignKeys": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "tableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "fieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedTableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedTableName": { "type": "string" },
+                  "referencedRuleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedFieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedFieldNames": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "state": { "type": "string", "const": "active" }
+                },
+                "required": [
+                  "id",
+                  "tableId",
+                  "fieldIds",
+                  "referencedTableId",
+                  "referencedTableName",
+                  "referencedRuleId",
+                  "referencedFieldIds",
+                  "referencedFieldNames",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
             "operators": {
               "type": "object",
               "propertyNames": { "type": "string" },
@@ -6763,7 +6860,14 @@
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
           },
-          "required": ["table", "fields", "uniqueRules", "operators", "limits"],
+          "required": [
+            "table",
+            "fields",
+            "uniqueRules",
+            "foreignKeys",
+            "operators",
+            "limits"
+          ],
           "additionalProperties": false
         },
         {
@@ -6788,6 +6892,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -6970,6 +7075,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -7173,6 +7279,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -7328,6 +7435,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -8040,6 +8148,69 @@
                 "additionalProperties": false
               }
             },
+            "foreignKeys": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "tableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "fieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedTableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedTableName": { "type": "string" },
+                  "referencedRuleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedFieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedFieldNames": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "state": { "type": "string", "const": "active" }
+                },
+                "required": [
+                  "id",
+                  "tableId",
+                  "fieldIds",
+                  "referencedTableId",
+                  "referencedTableName",
+                  "referencedRuleId",
+                  "referencedFieldIds",
+                  "referencedFieldNames",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
             "operators": {
               "type": "object",
               "propertyNames": { "type": "string" },
@@ -8058,7 +8229,14 @@
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
           },
-          "required": ["table", "fields", "uniqueRules", "operators", "limits"],
+          "required": [
+            "table",
+            "fields",
+            "uniqueRules",
+            "foreignKeys",
+            "operators",
+            "limits"
+          ],
           "additionalProperties": false
         },
         {
@@ -8083,6 +8261,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -8663,6 +8842,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -9764,6 +9944,69 @@
                     "additionalProperties": false
                   }
                 },
+                "foreignKeys": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "tableId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "fieldIds": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "referencedTableId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "referencedTableName": { "type": "string" },
+                      "referencedRuleId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "referencedFieldIds": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "referencedFieldNames": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "state": { "type": "string", "const": "active" }
+                    },
+                    "required": [
+                      "id",
+                      "tableId",
+                      "fieldIds",
+                      "referencedTableId",
+                      "referencedTableName",
+                      "referencedRuleId",
+                      "referencedFieldIds",
+                      "referencedFieldNames",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
                 "operators": {
                   "type": "object",
                   "propertyNames": { "type": "string" },
@@ -9786,6 +10029,7 @@
                 "table",
                 "fields",
                 "uniqueRules",
+                "foreignKeys",
                 "operators",
                 "limits"
               ],
@@ -9838,6 +10082,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -10950,6 +11195,69 @@
                     "additionalProperties": false
                   }
                 },
+                "foreignKeys": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "tableId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "fieldIds": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "referencedTableId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "referencedTableName": { "type": "string" },
+                      "referencedRuleId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "referencedFieldIds": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "referencedFieldNames": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "state": { "type": "string", "const": "active" }
+                    },
+                    "required": [
+                      "id",
+                      "tableId",
+                      "fieldIds",
+                      "referencedTableId",
+                      "referencedTableName",
+                      "referencedRuleId",
+                      "referencedFieldIds",
+                      "referencedFieldNames",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
                 "operators": {
                   "type": "object",
                   "propertyNames": { "type": "string" },
@@ -10972,6 +11280,7 @@
                 "table",
                 "fields",
                 "uniqueRules",
+                "foreignKeys",
                 "operators",
                 "limits"
               ],
@@ -11024,6 +11333,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -11765,6 +12075,69 @@
                     "additionalProperties": false
                   }
                 },
+                "foreignKeys": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "tableId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "fieldIds": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "referencedTableId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "referencedTableName": { "type": "string" },
+                      "referencedRuleId": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "referencedFieldIds": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "referencedFieldNames": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "state": { "type": "string", "const": "active" }
+                    },
+                    "required": [
+                      "id",
+                      "tableId",
+                      "fieldIds",
+                      "referencedTableId",
+                      "referencedTableName",
+                      "referencedRuleId",
+                      "referencedFieldIds",
+                      "referencedFieldNames",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
                 "operators": {
                   "type": "object",
                   "propertyNames": { "type": "string" },
@@ -11787,6 +12160,7 @@
                 "table",
                 "fields",
                 "uniqueRules",
+                "foreignKeys",
                 "operators",
                 "limits"
               ],
@@ -11839,6 +12213,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -12577,6 +12952,69 @@
                 "additionalProperties": false
               }
             },
+            "foreignKeys": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "tableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "fieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedTableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedTableName": { "type": "string" },
+                  "referencedRuleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedFieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedFieldNames": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "state": { "type": "string", "const": "active" }
+                },
+                "required": [
+                  "id",
+                  "tableId",
+                  "fieldIds",
+                  "referencedTableId",
+                  "referencedTableName",
+                  "referencedRuleId",
+                  "referencedFieldIds",
+                  "referencedFieldNames",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
             "operators": {
               "type": "object",
               "propertyNames": { "type": "string" },
@@ -12595,7 +13033,14 @@
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
           },
-          "required": ["table", "fields", "uniqueRules", "operators", "limits"],
+          "required": [
+            "table",
+            "fields",
+            "uniqueRules",
+            "foreignKeys",
+            "operators",
+            "limits"
+          ],
           "additionalProperties": false
         },
         {
@@ -12620,6 +13065,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -12872,6 +13318,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -13114,6 +13561,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -14485,6 +14933,54 @@
                 {
                   "type": "object",
                   "properties": {
+                    "kind": { "type": "string", "const": "foreign-key.create" },
+                    "fieldIds": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      }
+                    },
+                    "referencedTableId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "referencedRuleId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "expectedReferencedSchemaVersion": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2147483647
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "fieldIds",
+                    "referencedTableId",
+                    "referencedRuleId",
+                    "expectedReferencedSchemaVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": { "type": "string", "const": "foreign-key.delete" },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "required": ["kind"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
                     "kind": { "type": "string", "const": "unknown" }
                   },
                   "required": ["kind"],
@@ -15697,6 +16193,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -15906,6 +16403,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -16192,6 +16690,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -16338,6 +16837,585 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_list_foreign_keys",
+    "title": "listForeignKeys",
+    "description": "List foreign keys linking fields to an unconditional unique key in the same database.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": ["orgId", "databaseId", "tableId"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "tableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "fieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedTableId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedTableName": { "type": "string" },
+                  "referencedRuleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "referencedFieldIds": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    }
+                  },
+                  "referencedFieldNames": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "state": { "type": "string", "const": "active" }
+                },
+                "required": [
+                  "id",
+                  "tableId",
+                  "fieldIds",
+                  "referencedTableId",
+                  "referencedTableName",
+                  "referencedRuleId",
+                  "referencedFieldIds",
+                  "referencedFieldNames",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "nextCursor": { "type": ["string", "null"] },
+            "hasMore": { "type": "boolean" }
+          },
+          "required": ["data"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_create_foreign_key",
+    "title": "createForeignKey",
+    "description": "Validate existing rows and create a foreign key to matching scalar fields in the same database. The target requires an active unconditional unique rule. Any NULL in the local tuple skips validation. Referenced values cannot be changed or deleted while in use.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "expectedSchemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "fieldIds": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "referencedTableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "referencedRuleId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "expectedReferencedSchemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "orgId",
+        "databaseId",
+        "tableId",
+        "expectedSchemaVersion",
+        "fieldIds",
+        "referencedTableId",
+        "referencedRuleId",
+        "expectedReferencedSchemaVersion",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "tableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "fieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedTableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedTableName": { "type": "string" },
+                "referencedRuleId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "referencedFieldIds": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "referencedFieldNames": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "state": { "type": "string", "const": "active" }
+              },
+              "required": [
+                "id",
+                "tableId",
+                "fieldIds",
+                "referencedTableId",
+                "referencedTableName",
+                "referencedRuleId",
+                "referencedFieldIds",
+                "referencedFieldNames",
+                "state"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jobId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "cancelled",
+                    "partially_completed"
+                  ]
+                },
+                "statusUrl": { "type": "string" }
+              },
+              "required": ["jobId", "state", "statusUrl"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_delete_foreign_key",
+    "title": "deleteForeignKey",
+    "description": "Remove foreign-key validation without changing existing rows.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "expectedSchemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "orgId",
+        "databaseId",
+        "tableId",
+        "expectedSchemaVersion",
+        "id",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "deleted": { "type": "boolean" },
+            "mutationId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "required": ["deleted"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -16578,6 +17656,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -16910,6 +17989,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -17072,6 +18152,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -17282,6 +18363,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -17472,6 +18554,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -17621,6 +18704,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -17764,6 +18848,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -17912,6 +18997,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -18133,6 +19219,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -18287,6 +19374,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -18640,6 +19728,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -18793,6 +19882,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -19076,6 +20166,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -19790,6 +20881,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -20522,6 +21614,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -20652,6 +21745,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -20802,6 +21896,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -20955,6 +22050,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -21153,6 +22249,7 @@
                           "ROW_VERSION_CONFLICT",
                           "SCHEMA_VERSION_CONFLICT",
                           "UNIQUE_CONFLICT",
+                          "FOREIGN_KEY_CONFLICT",
                           "AUTO_INCREMENT_EXHAUSTED",
                           "ROW_SIZE_LIMIT",
                           "ROW_LIMIT_REACHED",
@@ -21247,6 +22344,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -21414,6 +22512,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -21501,6 +22600,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -21674,6 +22774,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -21761,6 +22862,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -21898,6 +23000,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -22039,6 +23142,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -22209,6 +23313,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",
@@ -22439,6 +23544,7 @@
                     "ROW_VERSION_CONFLICT",
                     "SCHEMA_VERSION_CONFLICT",
                     "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
                     "AUTO_INCREMENT_EXHAUSTED",
                     "ROW_SIZE_LIMIT",
                     "ROW_LIMIT_REACHED",

@@ -11,6 +11,7 @@ import {
   FingerPrintIcon,
   Download01Icon,
   Key01Icon,
+  Link01Icon,
   Mail01Icon,
   ComputerIcon,
   SecurityCheckIcon,
@@ -46,7 +47,13 @@ export const settingsGroups = {
   table: [
     {
       title: "Settings",
-      sections: ["table", "fields", "rules", "table-danger-zone"],
+      sections: [
+        "table",
+        "fields",
+        "rules",
+        "foreign-keys",
+        "table-danger-zone",
+      ],
     },
     { title: "Data", sections: ["exports"] },
   ],
@@ -187,6 +194,7 @@ export const settingsIcons = {
   "table-danger-zone": Delete02Icon,
   fields: TablePropertiesIcon,
   rules: SecurityCheckIcon,
+  "foreign-keys": Link01Icon,
   exports: Download01Icon,
 };
 

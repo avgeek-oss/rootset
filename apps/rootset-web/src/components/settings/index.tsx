@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Page } from "@avgeek-oss/design-system/layouts/page";
 import { ContentPage, SettingsPageTitle } from "@avgeek-oss/design-system";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   PageSelectionContext,
@@ -15,7 +16,7 @@ import {
 } from "./account/settings-pages";
 import { PasskeySettings } from "./account/passkey-settings";
 import { ApiMcpSettings } from "./account/api-mcp-settings";
-import { settingsScope } from "./navigation";
+import { settingsIcons, settingsScope } from "./navigation";
 
 import { useResource } from "./api";
 import { OrganisationSettings, MembersSettings } from "./accounts";
@@ -28,6 +29,7 @@ import {
   TableDangerZone,
 } from "./schema";
 import { ExportsSettings } from "./jobs";
+import { ForeignKeysSettings } from "./foreign-keys";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
   canOpenSettings,
@@ -80,6 +82,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone": TableDangerZone,
     fields: FieldsSettings,
     rules: UniqueRulesSettings,
+    "foreign-keys": ForeignKeysSettings,
     exports: ExportsSettings,
   };
   const Component = components[activeSection];
@@ -88,6 +91,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "table-danger-zone",
     "fields",
     "rules",
+    "foreign-keys",
     "exports",
   ];
   const databaseSections = ["database", "database-danger-zone"];
@@ -142,14 +146,25 @@ export function SettingsPanel(props: SettingsPanelProps) {
             <IdentityConfirmation />
           </ContentPage>
         ) : (
-          <div className="rootset-settings">
-            <header className="settings-header">
-              <h1>{SECTION_LABELS[activeSection]}</h1>
-              {selection?.actions}
-            </header>
+          <ContentPage
+            title={title}
+            breadcrumbAncestors={[]}
+            actions={selection?.actions}
+            titleContent={
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <HugeiconsIcon
+                  icon={settingsIcons[activeSection]}
+                  size={24}
+                  className="shrink-0"
+                  aria-hidden="true"
+                />
+                <span>{title}</span>
+              </span>
+            }
+          >
             <div className="settings-content">{content}</div>
             <IdentityConfirmation />
-          </div>
+          </ContentPage>
         )}
       </RelativeTimeProvider>
     </PageSelectionContext.Provider>

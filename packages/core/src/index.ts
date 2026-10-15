@@ -207,6 +207,7 @@ const asynchronous = new Set([
   "deleteTable",
   "applySchemaChange",
   "createUniqueRule",
+  "createForeignKey",
   "updateField",
   "deleteField",
   "countRows",
@@ -564,6 +565,7 @@ export class RootsetCore {
       uniqueRules: (
         await this.options.storage.listUniqueRules(actor, tableId)
       ).map(rulePublic),
+      foreignKeys: await this.options.storage.listForeignKeys(actor, tableId),
       operators,
       limits: { ...limits },
     };
@@ -801,6 +803,26 @@ export class RootsetCore {
       }
       case "listUniqueRules":
         return { data: (await s.listUniqueRules(a, tableId)).map(rulePublic) };
+      case "listForeignKeys":
+        return { data: await s.listForeignKeys(a, tableId) };
+      case "createForeignKey":
+        return s.createForeignKey(a, tableId, {
+          fieldIds: input.fieldIds as string[],
+          referencedTableId: str(input.referencedTableId),
+          referencedRuleId: str(input.referencedRuleId),
+          expectedReferencedSchemaVersion: Number(
+            input.expectedReferencedSchemaVersion,
+          ),
+          ...schemaOptions(input, ctx),
+        });
+      case "deleteForeignKey":
+        await s.deleteForeignKey(
+          a,
+          tableId,
+          str(input.id),
+          schemaOptions(input, ctx),
+        );
+        return { deleted: true };
       case "createUniqueRule":
         return rulePublic(
           await s.createUniqueRule(a, tableId, {
