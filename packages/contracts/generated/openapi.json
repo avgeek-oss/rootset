@@ -5954,6 +5954,24 @@
                               "maximum": 199
                             },
                             "type": { "type": "string", "const": "text" },
+                            "allowedValues": {
+                              "anyOf": [
+                                {
+                                  "minItems": 1,
+                                  "maxItems": 100,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                                  "uniqueItems": true,
+                                  "x-rootset-max-utf8-bytes": 65536
+                                },
+                                { "type": "null" }
+                              ]
+                            },
                             "charLimit": {
                               "type": "integer",
                               "exclusiveMinimum": 0,
@@ -7481,6 +7499,24 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "text" },
+                          "allowedValues": {
+                            "anyOf": [
+                              {
+                                "minItems": 1,
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                                "uniqueItems": true,
+                                "x-rootset-max-utf8-bytes": 65536
+                              },
+                              { "type": "null" }
+                            ]
+                          },
                           "charLimit": {
                             "type": "integer",
                             "exclusiveMinimum": 0,
@@ -8094,6 +8130,24 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "text" },
+                          "allowedValues": {
+                            "anyOf": [
+                              {
+                                "minItems": 1,
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                                "uniqueItems": true,
+                                "x-rootset-max-utf8-bytes": 65536
+                              },
+                              { "type": "null" }
+                            ]
+                          },
                           "charLimit": {
                             "type": "integer",
                             "exclusiveMinimum": 0,
@@ -10004,7 +10058,7 @@
       "post": {
         "operationId": "createUniqueRule",
         "tags": ["schema"],
-        "summary": "Validate the whole table and activate collision-safe scalar uniqueness.",
+        "summary": "Validate existing matching rows and atomically activate scalar uniqueness. Optional where accepts one scalar field ID with eq, ne, isNull or isNotNull; null unique values remain distinct.",
         "parameters": [
           {
             "name": "orgId",
@@ -10065,6 +10119,44 @@
                       "type": "string",
                       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                     }
+                  },
+                  "where": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                          },
+                          "op": { "type": "string", "enum": ["eq", "ne"] },
+                          "value": {
+                            "anyOf": [
+                              { "type": "string", "maxLength": 4096 },
+                              { "type": "number" },
+                              { "type": "boolean" }
+                            ]
+                          }
+                        },
+                        "required": ["field", "op", "value"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": ["isNull", "isNotNull"]
+                          }
+                        },
+                        "required": ["field", "op"],
+                        "additionalProperties": false
+                      }
+                    ]
                   }
                 },
                 "required": ["expectedSchemaVersion", "fieldIds"],
@@ -18297,6 +18389,24 @@
                       "maximum": 199
                     },
                     "type": { "type": "string", "const": "text" },
+                    "allowedValues": {
+                      "anyOf": [
+                        {
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                          "uniqueItems": true,
+                          "x-rootset-max-utf8-bytes": 65536
+                        },
+                        { "type": "null" }
+                      ]
+                    },
                     "charLimit": {
                       "type": "integer",
                       "exclusiveMinimum": 0,
@@ -18771,6 +18881,24 @@
                       "maximum": 199
                     },
                     "type": { "type": "string", "const": "text" },
+                    "allowedValues": {
+                      "anyOf": [
+                        {
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                          "uniqueItems": true,
+                          "x-rootset-max-utf8-bytes": 65536
+                        },
+                        { "type": "null" }
+                      ]
+                    },
                     "charLimit": {
                       "type": "integer",
                       "exclusiveMinimum": 0,
@@ -19193,6 +19321,44 @@
                     "type": "string",
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                   }
+                },
+                "where": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": { "type": "string", "enum": ["eq", "ne"] },
+                        "value": {
+                          "anyOf": [
+                            { "type": "string", "maxLength": 4096 },
+                            { "type": "number" },
+                            { "type": "boolean" }
+                          ]
+                        }
+                      },
+                      "required": ["field", "op", "value"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": ["isNull", "isNotNull"]
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "nullPolicy": { "type": "string", "const": "distinct" },
                 "state": {
@@ -19607,6 +19773,24 @@
                       "maximum": 199
                     },
                     "type": { "type": "string", "const": "text" },
+                    "allowedValues": {
+                      "anyOf": [
+                        {
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                          "uniqueItems": true,
+                          "x-rootset-max-utf8-bytes": 65536
+                        },
+                        { "type": "null" }
+                      ]
+                    },
                     "charLimit": {
                       "type": "integer",
                       "exclusiveMinimum": 0,
@@ -20030,6 +20214,44 @@
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                   }
                 },
+                "where": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": { "type": "string", "enum": ["eq", "ne"] },
+                        "value": {
+                          "anyOf": [
+                            { "type": "string", "maxLength": 4096 },
+                            { "type": "number" },
+                            { "type": "boolean" }
+                          ]
+                        }
+                      },
+                      "required": ["field", "op", "value"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": ["isNull", "isNotNull"]
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
                 "nullPolicy": { "type": "string", "const": "distinct" },
                 "state": {
                   "type": "string",
@@ -20134,6 +20356,24 @@
                       "maximum": 199
                     },
                     "type": { "type": "string", "const": "text" },
+                    "allowedValues": {
+                      "anyOf": [
+                        {
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                          "uniqueItems": true,
+                          "x-rootset-max-utf8-bytes": 65536
+                        },
+                        { "type": "null" }
+                      ]
+                    },
                     "charLimit": {
                       "type": "integer",
                       "exclusiveMinimum": 0,
@@ -20585,6 +20825,24 @@
                   },
                   "order": { "type": "integer", "minimum": 0, "maximum": 199 },
                   "type": { "type": "string", "const": "text" },
+                  "allowedValues": {
+                    "anyOf": [
+                      {
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                        "uniqueItems": true,
+                        "x-rootset-max-utf8-bytes": 65536
+                      },
+                      { "type": "null" }
+                    ]
+                  },
                   "charLimit": {
                     "type": "integer",
                     "exclusiveMinimum": 0,
@@ -21030,6 +21288,24 @@
                           "maximum": 199
                         },
                         "type": { "type": "string", "const": "text" },
+                        "allowedValues": {
+                          "anyOf": [
+                            {
+                              "minItems": 1,
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                              "uniqueItems": true,
+                              "x-rootset-max-utf8-bytes": 65536
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "charLimit": {
                           "type": "integer",
                           "exclusiveMinimum": 0,
@@ -21453,6 +21729,44 @@
                         "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                       }
                     },
+                    "where": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "op": { "type": "string", "enum": ["eq", "ne"] },
+                            "value": {
+                              "anyOf": [
+                                { "type": "string", "maxLength": 4096 },
+                                { "type": "number" },
+                                { "type": "boolean" }
+                              ]
+                            }
+                          },
+                          "required": ["field", "op", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": ["isNull", "isNotNull"]
+                            }
+                          },
+                          "required": ["field", "op"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
                     "nullPolicy": { "type": "string", "const": "distinct" },
                     "state": {
                       "type": "string",
@@ -21580,6 +21894,24 @@
                   },
                   "order": { "type": "integer", "minimum": 0, "maximum": 199 },
                   "type": { "type": "string", "const": "text" },
+                  "allowedValues": {
+                    "anyOf": [
+                      {
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                        "uniqueItems": true,
+                        "x-rootset-max-utf8-bytes": 65536
+                      },
+                      { "type": "null" }
+                    ]
+                  },
                   "charLimit": {
                     "type": "integer",
                     "exclusiveMinimum": 0,
@@ -22027,6 +22359,24 @@
                           "maximum": 199
                         },
                         "type": { "type": "string", "const": "text" },
+                        "allowedValues": {
+                          "anyOf": [
+                            {
+                              "minItems": 1,
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                              "uniqueItems": true,
+                              "x-rootset-max-utf8-bytes": 65536
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "charLimit": {
                           "type": "integer",
                           "exclusiveMinimum": 0,
@@ -22449,6 +22799,44 @@
                         "type": "string",
                         "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                       }
+                    },
+                    "where": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "op": { "type": "string", "enum": ["eq", "ne"] },
+                            "value": {
+                              "anyOf": [
+                                { "type": "string", "maxLength": 4096 },
+                                { "type": "number" },
+                                { "type": "boolean" }
+                              ]
+                            }
+                          },
+                          "required": ["field", "op", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": ["isNull", "isNotNull"]
+                            }
+                          },
+                          "required": ["field", "op"],
+                          "additionalProperties": false
+                        }
+                      ]
                     },
                     "nullPolicy": { "type": "string", "const": "distinct" },
                     "state": {
@@ -22679,6 +23067,24 @@
                           "maximum": 199
                         },
                         "type": { "type": "string", "const": "text" },
+                        "allowedValues": {
+                          "anyOf": [
+                            {
+                              "minItems": 1,
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                              "uniqueItems": true,
+                              "x-rootset-max-utf8-bytes": 65536
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "charLimit": {
                           "type": "integer",
                           "exclusiveMinimum": 0,
@@ -23102,6 +23508,44 @@
                         "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                       }
                     },
+                    "where": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "op": { "type": "string", "enum": ["eq", "ne"] },
+                            "value": {
+                              "anyOf": [
+                                { "type": "string", "maxLength": 4096 },
+                                { "type": "number" },
+                                { "type": "boolean" }
+                              ]
+                            }
+                          },
+                          "required": ["field", "op", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": ["isNull", "isNotNull"]
+                            }
+                          },
+                          "required": ["field", "op"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
                     "nullPolicy": { "type": "string", "const": "distinct" },
                     "state": {
                       "type": "string",
@@ -23328,6 +23772,24 @@
                       "maximum": 199
                     },
                     "type": { "type": "string", "const": "text" },
+                    "allowedValues": {
+                      "anyOf": [
+                        {
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                          "uniqueItems": true,
+                          "x-rootset-max-utf8-bytes": 65536
+                        },
+                        { "type": "null" }
+                      ]
+                    },
                     "charLimit": {
                       "type": "integer",
                       "exclusiveMinimum": 0,
@@ -23750,6 +24212,44 @@
                     "type": "string",
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                   }
+                },
+                "where": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": { "type": "string", "enum": ["eq", "ne"] },
+                        "value": {
+                          "anyOf": [
+                            { "type": "string", "maxLength": 4096 },
+                            { "type": "number" },
+                            { "type": "boolean" }
+                          ]
+                        }
+                      },
+                      "required": ["field", "op", "value"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": ["isNull", "isNotNull"]
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "nullPolicy": { "type": "string", "const": "distinct" },
                 "state": {
@@ -24245,6 +24745,24 @@
                               "maximum": 199
                             },
                             "type": { "type": "string", "const": "text" },
+                            "allowedValues": {
+                              "anyOf": [
+                                {
+                                  "minItems": 1,
+                                  "maxItems": 100,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                                  "uniqueItems": true,
+                                  "x-rootset-max-utf8-bytes": 65536
+                                },
+                                { "type": "null" }
+                              ]
+                            },
                             "charLimit": {
                               "type": "integer",
                               "exclusiveMinimum": 0,
@@ -24669,6 +25187,24 @@
                             "maximum": 199
                           },
                           "type": { "type": "string", "const": "text" },
+                          "allowedValues": {
+                            "anyOf": [
+                              {
+                                "minItems": 1,
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                                "uniqueItems": true,
+                                "x-rootset-max-utf8-bytes": 65536
+                              },
+                              { "type": "null" }
+                            ]
+                          },
                           "charLimit": {
                             "type": "integer",
                             "exclusiveMinimum": 0,
@@ -25043,6 +25579,24 @@
                   "changes": {
                     "type": "object",
                     "properties": {
+                      "allowedValues": {
+                        "anyOf": [
+                          {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 4096
+                            },
+                            "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                            "uniqueItems": true,
+                            "x-rootset-max-utf8-bytes": 65536
+                          },
+                          { "type": "null" }
+                        ]
+                      },
                       "name": {
                         "type": "string",
                         "minLength": 1,
@@ -25107,6 +25661,24 @@
                   "changes": {
                     "type": "object",
                     "properties": {
+                      "allowedValues": {
+                        "anyOf": [
+                          {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 4096
+                            },
+                            "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                            "uniqueItems": true,
+                            "x-rootset-max-utf8-bytes": 65536
+                          },
+                          { "type": "null" }
+                        ]
+                      },
                       "name": {
                         "type": "string",
                         "minLength": 1,
@@ -25205,6 +25777,44 @@
                       "type": "string",
                       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                     }
+                  },
+                  "where": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                          },
+                          "op": { "type": "string", "enum": ["eq", "ne"] },
+                          "value": {
+                            "anyOf": [
+                              { "type": "string", "maxLength": 4096 },
+                              { "type": "number" },
+                              { "type": "boolean" }
+                            ]
+                          }
+                        },
+                        "required": ["field", "op", "value"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": ["isNull", "isNotNull"]
+                          }
+                        },
+                        "required": ["field", "op"],
+                        "additionalProperties": false
+                      }
+                    ]
                   },
                   "name": { "type": "string", "minLength": 1, "maxLength": 255 }
                 },
@@ -25349,6 +25959,24 @@
                               "maximum": 199
                             },
                             "type": { "type": "string", "const": "text" },
+                            "allowedValues": {
+                              "anyOf": [
+                                {
+                                  "minItems": 1,
+                                  "maxItems": 100,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                                  "uniqueItems": true,
+                                  "x-rootset-max-utf8-bytes": 65536
+                                },
+                                { "type": "null" }
+                              ]
+                            },
                             "charLimit": {
                               "type": "integer",
                               "exclusiveMinimum": 0,
@@ -25884,6 +26512,24 @@
                         "maximum": 199
                       },
                       "type": { "type": "string", "const": "text" },
+                      "allowedValues": {
+                        "anyOf": [
+                          {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 4096
+                            },
+                            "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                            "uniqueItems": true,
+                            "x-rootset-max-utf8-bytes": 65536
+                          },
+                          { "type": "null" }
+                        ]
+                      },
                       "charLimit": {
                         "type": "integer",
                         "exclusiveMinimum": 0,
@@ -26380,6 +27026,44 @@
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                   }
                 },
+                "where": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": { "type": "string", "enum": ["eq", "ne"] },
+                        "value": {
+                          "anyOf": [
+                            { "type": "string", "maxLength": 4096 },
+                            { "type": "number" },
+                            { "type": "boolean" }
+                          ]
+                        }
+                      },
+                      "required": ["field", "op", "value"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": ["isNull", "isNotNull"]
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
                 "nullPolicy": { "type": "string", "const": "distinct" },
                 "state": {
                   "type": "string",
@@ -26440,6 +27124,41 @@
               "type": "string",
               "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
             }
+          },
+          "where": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "op": { "type": "string", "enum": ["eq", "ne"] },
+                  "value": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 4096 },
+                      { "type": "number" },
+                      { "type": "boolean" }
+                    ]
+                  }
+                },
+                "required": ["field", "op", "value"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "op": { "type": "string", "enum": ["isNull", "isNotNull"] }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "required": [
@@ -26472,6 +27191,44 @@
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
                 }
+              },
+              "where": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "op": { "type": "string", "enum": ["eq", "ne"] },
+                      "value": {
+                        "anyOf": [
+                          { "type": "string", "maxLength": 4096 },
+                          { "type": "number" },
+                          { "type": "boolean" }
+                        ]
+                      }
+                    },
+                    "required": ["field", "op", "value"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": ["isNull", "isNotNull"]
+                      }
+                    },
+                    "required": ["field", "op"],
+                    "additionalProperties": false
+                  }
+                ]
               },
               "nullPolicy": { "type": "string", "const": "distinct" },
               "state": {
@@ -28152,6 +28909,24 @@
                           "maximum": 199
                         },
                         "type": { "type": "string", "const": "text" },
+                        "allowedValues": {
+                          "anyOf": [
+                            {
+                              "minItems": 1,
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                              "uniqueItems": true,
+                              "x-rootset-max-utf8-bytes": 65536
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "charLimit": {
                           "type": "integer",
                           "exclusiveMinimum": 0,
@@ -28761,6 +29536,24 @@
                           "maximum": 199
                         },
                         "type": { "type": "string", "const": "text" },
+                        "allowedValues": {
+                          "anyOf": [
+                            {
+                              "minItems": 1,
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                              "uniqueItems": true,
+                              "x-rootset-max-utf8-bytes": 65536
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "charLimit": {
                           "type": "integer",
                           "exclusiveMinimum": 0,

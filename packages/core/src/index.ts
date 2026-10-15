@@ -5,6 +5,7 @@ import {
   assertValueLexemes,
   assertFieldDefinitionLexemes,
   assertQueryLexemes,
+  type UniqueRuleCondition,
   newId,
   RootsetError,
   QuerySpecSchema,
@@ -129,6 +130,7 @@ const rulePublic = (r: UniqueRule) => ({
   id: r.id,
   tableId: r.tableId,
   fieldIds: r.fieldIds,
+  ...(r.where ? { where: r.where } : {}),
   nullPolicy: "distinct",
   strategy: r.strategy,
   state: r.state,
@@ -367,6 +369,13 @@ export class RootsetCore {
           table.fields,
           QuerySpecSchema.parse(input.query ?? {}),
           lexemes,
+        );
+      if (table && operationId === "createUniqueRule" && input.where)
+        assertQueryLexemes(
+          table.fields,
+          { where: input.where as UniqueRuleCondition },
+          lexemes,
+          [],
         );
       if (
         table &&
@@ -792,6 +801,7 @@ export class RootsetCore {
         return rulePublic(
           await s.createUniqueRule(a, tableId, {
             fieldIds: input.fieldIds as string[],
+            where: input.where as UniqueRuleCondition | undefined,
             ...schemaOptions(input, ctx),
           }),
         );

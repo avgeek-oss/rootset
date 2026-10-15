@@ -15,6 +15,7 @@ export const limits = Object.freeze({
   jsonDepth: 32,
   maxUniqueFields: 8,
   maxUniqueRules: 16,
+  maxAllowedValues: 100,
   mutationBatch: 1_000,
   queryRows: 25_000,
   restDefaultRows: 5_000,
@@ -323,6 +324,7 @@ export interface FieldDefinition {
   required?: boolean;
   default?: JsonValue;
   charLimit?: number;
+  allowedValues?: string[] | null;
   min?: number | string;
   max?: number | string;
   order?: number;

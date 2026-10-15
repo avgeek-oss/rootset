@@ -1,3 +1,4 @@
+import { UniqueRuleConditionSchema } from "./unique-rules";
 import { z } from "zod";
 import {
   AccountNameSchema,
@@ -855,9 +856,10 @@ operation(
     ...table,
     ...expected,
     fieldIds: z.array(IdSchema).min(1).max(limits.maxUniqueFields),
+    where: UniqueRuleConditionSchema.optional(),
   }),
   jobOr(UniqueRuleSchema),
-  "Validate the whole table and activate collision-safe scalar uniqueness.",
+  "Validate existing matching rows and atomically activate scalar uniqueness. Optional where accepts one scalar field ID with eq, ne, isNull or isNotNull; null unique values remain distinct.",
   { job: true },
 );
 operation(

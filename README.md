@@ -10,7 +10,7 @@ the latest 200 changes per existing cell. Deleting a row, field, table, or datab
 V1 uses Admin, Member and Viewer roles. Admins manage people and can delete databases and tables. Members can create and edit databases, tables and fields. Viewers can read data. Browser database deletion requires password/passkey confirmation; authorised API/MCP credentials execute directly.
 SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Database backup and restore use your PostgreSQL provider’s tooling.
 There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
-Each table can have only one unique rule for a given set of fields; selecting the same fields in a different order does not create another rule.
+Unique rules can apply to all rows or rows matching one scalar condition. Each table can have only one rule for a given field set and condition; selecting the same fields in a different order does not create another rule. See [conditional uniqueness](docs/unique-rules.mdx) for the contract and NULL behavior.
 Personal API keys have Read-only, Edit or Administrative permissions, capped by
 the person's current role. Workspace-owned team keys use the same permissions,
 with admin-only creation, rotation and revocation independent of the creator.
@@ -22,7 +22,7 @@ literal default is supplied. The field editor requires a valid non-null literal
 default for required fields; new rows must receive a valid value or use that
 default.
 
-Fields support text, URI, URL, image, integer, float, boolean, date, time, date-time and JSON. URI, URL and image values are stored as plain strings without address-format validation or custom constraints. Image cells display a compact thumbnail and edit the stored URL inline; unavailable images show a muted image icon.
+Fields support text, URI, URL, image, integer, float, boolean, date, time, date-time and JSON. Text fields can restrict values to a bounded choice list; the grid edits them with a dropdown. Defaults and existing rows are validated before activating a constraint. URI, URL and image values are stored as plain strings without address-format validation or custom constraints. Image cells display a compact thumbnail and edit the stored URL inline; unavailable images show a muted image icon.
 
 The [current V1 plan](rc-plan/README.md) and its
 [verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) define
@@ -81,8 +81,7 @@ OAuth, MCP and artifact transfer. For HTTPS routing, configure
 browser session cookie and accepts credentialed requests from the exact UI
 origin.
 
-V1 has one fresh-install schema, [0001_baseline.sql](packages/database/migrations/0001_baseline.sql).
-It can be regenerated before V1 release. An earlier prelaunch database is not an
+Fresh installations apply [0001_baseline.sql](packages/database/migrations/0001_baseline.sql) and the subsequent numbered migrations. Released migration files are immutable. An earlier prelaunch database is not an
 upgrade target: startup must refuse its incompatible ledger without changing data.
 Preserve that installation and use an empty, separate installation for the new
 baseline. Do not clear its ledger or delete its volumes to bypass the refusal.

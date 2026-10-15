@@ -12,6 +12,8 @@ import {
   type FieldDefinition,
   type JsonValue,
   type QuerySpec,
+  type UniqueRuleCondition,
+  validateUniqueRuleCondition,
   type Row,
   type QueryResult,
   RootsetError,
@@ -116,6 +118,7 @@ export interface UniqueRule {
   tableId: string;
   name: string;
   fieldIds: string[];
+  where?: UniqueRuleCondition;
   strategy: "native" | "registry";
   state: string;
   physicalName: string | null;
@@ -196,10 +199,33 @@ function storageError(error: unknown): never {
       503,
       { retryAfter: 1 },
     );
-  const e = error as { code?: string; message?: string; detail?: string };
-  if (e.code === "23505")
-    fail("UNIQUE_CONFLICT", "A declared unique tuple already exists", 409);
+  const e = error as {
+    code?: string;
+    message?: string;
+    detail?: string;
+    constraint?: string;
+  };
+  if (e.code === "23505") {
+    const ruleId =
+      e.constraint
+        ?.match(/^rsu_([0-9a-hjkmnp-tv-z]{26})(?:_g\d+)?$/)?.[1]
+        ?.toUpperCase() ??
+      (e.message === "unique rule conflict" ? e.detail : undefined);
+    fail(
+      "UNIQUE_CONFLICT",
+      "A declared unique tuple already exists among rows matched by the rule",
+      409,
+      ruleId ? { ruleId } : undefined,
+    );
+  }
   if (e.code === "23514") {
+    if (e.message === "allowed value constraint violated")
+      fail(
+        "VALIDATION_FAILED",
+        "Choose an allowed value for this field",
+        422,
+        e.detail ? { fieldId: e.detail } : undefined,
+      );
     if (e.message?.includes("65536"))
       fail("ROW_SIZE_LIMIT", "Row exceeds canonical byte limit");
     if (e.message?.includes("tables_row_count_check"))
@@ -334,6 +360,7 @@ function changedField(
   const base = { ...before };
   if (patch.type && patch.type !== before.type) {
     delete base.charLimit;
+    delete base.allowedValues;
     delete base.min;
     delete base.max;
   }
@@ -1221,8 +1248,21 @@ export class TableStorage {
   ): Promise<void> {
     for await (const batch of this.iterateRows(c, t)) {
       for (const r of batch) {
-        const values = validateValues(fields, map(r));
-        assertRowBytes(fields, values);
+        try {
+          const values = validateValues(fields, map(r));
+          assertRowBytes(fields, values);
+        } catch (error) {
+          if (error instanceof RootsetError)
+            throw new RootsetError(error.code, error.message, error.status, {
+              ...(error.details &&
+              typeof error.details === "object" &&
+              !Array.isArray(error.details)
+                ? error.details
+                : {}),
+              rowId: r.id,
+            });
+          throw error;
+        }
       }
     }
   }
@@ -1336,7 +1376,7 @@ export class TableStorage {
       async (c, t) => {
         const f = fieldFor(t, fieldId);
         const rules = await c.query<Raw>(
-          "SELECT * FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active'",
+          "SELECT * FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
           [t.id, f.id],
         );
         if (rules.rowCount && !input.removeDependencies)
@@ -2196,6 +2236,7 @@ export class TableStorage {
       tableId: t.id,
       name: String(v.name),
       fieldIds: v.field_ids as string[],
+      ...(v.condition ? { where: v.condition as UniqueRuleCondition } : {}),
       strategy: v.strategy as UniqueRule["strategy"],
       state: String(v.state),
       physicalName: v.physical_name as string | null,
@@ -2226,6 +2267,17 @@ export class TableStorage {
     );
     return `rootset_control.canonical_json(jsonb_build_array(${values.join(",")}))`;
   }
+  private conditionSql(t: TableRecord, rule: UniqueRule, prefix = ""): string {
+    if (!rule.where) return "TRUE";
+    const f = fieldFor(t, rule.where.field);
+    const column = `${prefix}${q(fieldColumn(f))}`;
+    if (!("value" in rule.where))
+      return `${column} IS ${rule.where.op === "isNull" ? "" : "NOT "}NULL`;
+    // DDL cannot bind parameters. Only validated scalar literals and generated
+    // column identifiers enter this expression; types come from physicalType.
+    const value = literal(String(parameter(f, rule.where.value)));
+    return `${column} ${rule.where.op === "eq" ? "=" : "<>"} ${value}::${physicalType(f)}`;
+  }
   private async buildRule(
     c: PoolClient,
     t: TableRecord,
@@ -2235,12 +2287,13 @@ export class TableStorage {
     const notNull = fields
       .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
       .join(" AND ");
+    const matching = `(${this.conditionSql(t, rule)}) AND ${notNull}`;
     const tuple = this.tupleSql(fields);
     const nativeColumns = fields.map((f) => q(fieldColumn(f)));
     const duplicateSql =
       rule.strategy === "native"
-        ? `WITH duplicates AS (SELECT ${nativeColumns.join(",")},count(*)::text AS count FROM ${tablePath(t)} WHERE ${notNull} GROUP BY ${nativeColumns.join(",")} HAVING count(*)>1 LIMIT 100) SELECT d.count,ARRAY(SELECT r.row_id FROM ${tablePath(t)} r WHERE ${nativeColumns.map((column) => `r.${column}=d.${column}`).join(" AND ")} ORDER BY r.row_id LIMIT 20) AS row_ids FROM duplicates d`
-        : `SELECT ${tuple} COLLATE "C" AS tuple,count(*)::text AS count,(array_agg(row_id ORDER BY row_id))[1:20] AS row_ids FROM ${tablePath(t)} source_row WHERE ${notNull} GROUP BY ${tuple} COLLATE "C" HAVING count(*)>1 LIMIT 100`;
+        ? `WITH duplicates AS (SELECT ${nativeColumns.join(",")},count(*)::text AS count FROM ${tablePath(t)} WHERE ${matching} GROUP BY ${nativeColumns.join(",")} HAVING count(*)>1 LIMIT 100) SELECT d.count,ARRAY(SELECT r.row_id FROM ${tablePath(t)} r WHERE (${this.conditionSql(t, rule, "r.")}) AND ${nativeColumns.map((column) => `r.${column}=d.${column}`).join(" AND ")} ORDER BY r.row_id LIMIT 20) AS row_ids FROM duplicates d`
+        : `SELECT ${tuple} COLLATE "C" AS tuple,count(*)::text AS count,(array_agg(row_id ORDER BY row_id))[1:20] AS row_ids FROM ${tablePath(t)} source_row WHERE ${matching} GROUP BY ${tuple} COLLATE "C" HAVING count(*)>1 LIMIT 100`;
     const duplicates = await c.query<{
       count: string;
       row_ids: string[];
@@ -2252,6 +2305,7 @@ export class TableStorage {
         409,
         {
           fieldIds: rule.fieldIds,
+          ...(rule.where ? { where: rule.where } : {}),
           conflicts: duplicates.rows.map((v) => ({
             count: Number(v.count),
             rowIds: v.row_ids,
@@ -2261,11 +2315,11 @@ export class TableStorage {
       );
     if (rule.strategy === "native") {
       await c.query(
-        `CREATE UNIQUE INDEX ${q(rule.physicalName!)} ON ${tablePath(t)}(${fields.map((f) => q(fieldColumn(f))).join(",")})`,
+        `CREATE UNIQUE INDEX ${q(rule.physicalName!)} ON ${tablePath(t)}(${fields.map((f) => q(fieldColumn(f))).join(",")})${rule.where ? ` WHERE ${this.conditionSql(t, rule)}` : ""}`,
       );
     } else {
       await c.query(
-        `INSERT INTO rootset_control.unique_entries(rule_id,row_id,digest,tuple) SELECT $1,row_id,rootset_control.unique_digest(${tuple}),${tuple} FROM ${tablePath(t)} source_row WHERE ${notNull}`,
+        `INSERT INTO rootset_control.unique_entries(rule_id,row_id,digest,tuple) SELECT $1,row_id,rootset_control.unique_digest(${tuple}),${tuple} FROM ${tablePath(t)} source_row WHERE ${matching}`,
         [rule.id],
       );
       await c.query(
@@ -2277,7 +2331,11 @@ export class TableStorage {
   async createUniqueRule(
     a: Actor,
     tableId: string,
-    input: { fieldIds: string[]; name?: string } & SchemaOptions,
+    input: {
+      fieldIds: string[];
+      name?: string;
+      where?: UniqueRuleCondition;
+    } & SchemaOptions,
   ): Promise<UniqueRule> {
     let ruleId = "";
     let outcome: UniqueRule | undefined;
@@ -2288,6 +2346,7 @@ export class TableStorage {
       input,
       async (c, t, operationId) => {
         const rules = await this.rules(c, t);
+        const where = validateUniqueRuleCondition(input.where, t.fields);
         if (
           !input.fieldIds.length ||
           input.fieldIds.length > limits.maxUniqueFields ||
@@ -2301,7 +2360,9 @@ export class TableStorage {
           rules.some(
             (rule) =>
               rule.fieldIds.length === fields.length &&
-              fields.every((field) => rule.fieldIds.includes(field.id)),
+              fields.every((field) => rule.fieldIds.includes(field.id)) &&
+              canonicalJson(rule.where ?? null) ===
+                canonicalJson(where ?? null),
           )
         )
           fail(
@@ -2321,14 +2382,24 @@ export class TableStorage {
           tableId: t.id,
           name: input.name ?? fields.map((f) => f.name).join(" + "),
           fieldIds: fields.map((f) => f.id),
+          ...(where ? { where } : {}),
           strategy,
           state: "building",
           physicalName:
             strategy === "native" ? `rsu_${ruleId.toLowerCase()}` : null,
         };
         await c.query(
-          "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,physical_name) VALUES($1,$2,$3,$4,$5,$6,$7)",
-          [r.id, t.id, a.orgId, r.name, r.fieldIds, r.strategy, r.physicalName],
+          "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,physical_name,condition) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)",
+          [
+            r.id,
+            t.id,
+            a.orgId,
+            r.name,
+            r.fieldIds,
+            r.strategy,
+            r.physicalName,
+            where ? JSON.stringify(where) : null,
+          ],
         );
         await this.buildRule(c, t, r);
         await c.query(
@@ -2438,7 +2509,7 @@ export class TableStorage {
         this.expected(old, input.expectedSchemaVersion);
         const previous = fieldFor(old, fieldId);
         const dependencies = await c.query<Raw>(
-          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active'",
+          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
           [old.id, previous.id],
         );
         if (dependencies.rows.length)
@@ -2549,7 +2620,7 @@ export class TableStorage {
               q(fieldColumn(fieldFor(fresh, fid))),
             );
             await c.query(
-              `CREATE UNIQUE INDEX ${q(physicalName)} ON ${tablePath(fresh)}(${columns.join(",")})`,
+              `CREATE UNIQUE INDEX ${q(physicalName)} ON ${tablePath(fresh)}(${columns.join(",")})${rule.where ? ` WHERE ${this.conditionSql(fresh, rule)}` : ""}`,
             );
             await c.query(
               "UPDATE rootset_control.unique_rules SET physical_name=$2 WHERE id=$1",
@@ -2693,6 +2764,15 @@ export class TableStorage {
         fieldId = before.id;
         converts = after.type !== before.type;
         if (converts) {
+          const dependencies = await c.query(
+            "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
+            [t.id, before.id],
+          );
+          if (dependencies.rowCount)
+            fail(
+              "VALIDATION_FAILED",
+              "Remove affected unique rules before conversion",
+            );
           if (!change.conversion)
             fail(
               "VALIDATION_FAILED",
@@ -2718,7 +2798,7 @@ export class TableStorage {
         const before = fieldFor(t, String(change.fieldId));
         fieldId = before.id;
         const deps = await c.query<Raw>(
-          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND $2=ANY(field_ids) AND state='active'",
+          "SELECT id FROM rootset_control.unique_rules WHERE table_id=$1 AND ($2=ANY(field_ids) OR condition->>'field'=$2) AND state='active'",
           [t.id, before.id],
         );
         if (deps.rows.length && !change.removeDependencies)
@@ -3119,5 +3199,5 @@ export class TableStorage {
   }
 }
 function literal(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
+  return `E'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
 }

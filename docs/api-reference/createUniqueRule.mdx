@@ -1,5 +1,5 @@
 ---
 title: "Create unique rule"
-description: "Validate the whole table and activate collision-safe scalar uniqueness."
+description: "Validate existing matching rows and atomically activate scalar uniqueness. Optional where accepts one scalar field ID with eq, ne, isNull or isNotNull; null unique values remain distinct."
 openapi: "/api-reference/openapi.json POST /v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/unique-rules"
 ---

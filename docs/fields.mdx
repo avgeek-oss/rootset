@@ -11,7 +11,7 @@ Open a table's **Settings → Fields**. The table lists each column's name and t
 
 | Type        | Stored value and browser behaviour                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------- |
-| `text`      | String with an optional maximum character count.                                                                     |
+| `text`      | String with an optional maximum character count and allowed values.                                                  |
 | `uri`       | Plain string representing a URI. No address-format validation.                                                       |
 | `url`       | Plain string representing a URL. No address-format validation.                                                       |
 | `image`     | URL stored as a plain string, displayed as a compact image thumbnail. An unavailable image shows a muted image icon. |
@@ -30,6 +30,28 @@ Date, time and date-time fields support inclusive minimum and maximum bounds. Da
 Optional fields allow `NULL` and use `NULL` as their default unless you supply a literal value. Required fields cannot contain `NULL`; the editor requires a valid non-NULL literal default. New rows must supply a valid value or use that default. There is no separate nullable setting.
 
 Column names use 1–64 letters or underscores. They are the keys used in API row values. Rootset rejects reserved system names.
+
+## Allowed values
+
+For a text field, select **Allowed values → Only these choices** in the field editor. Add one or more choices and choose a default when needed. Constrained text cells use a dropdown; optional fields also offer NULL. Enter saves, Tab saves and moves, Escape cancels, and leaving a cell saves through the normal revision checks.
+
+Allowed values are supported only on `text` fields. Supply 1–100 distinct, nonempty strings. Each choice may contain up to 4,096 Unicode characters within the field's character limit; the complete JSON choice list is capped at 65,536 UTF-8 bytes. Matching is exact, including case, spaces and Unicode spelling. Rootset does not trim or rewrite choices. The string `"NULL"` is a value separate from a NULL cell. Duplicate and empty choices are rejected. Optional fields may be NULL; `required: true` prohibits NULL. Any literal default must be an allowed value.
+
+REST/MCP field creation and editing use the same field definition:
+
+```json
+{
+  "name": "STATUS",
+  "type": "text",
+  "required": true,
+  "default": "active",
+  "allowedValues": ["active", "planned", "suspended", "ceased", "unknown"]
+}
+```
+
+Field and table-schema reads return `allowedValues`. Omit it to preserve a constraint in a patch, or send `allowedValues: null` to remove it from a text field. In the field editor, selecting **Any text** removes the constraint. `[]` is invalid. Converting a text field to another type removes this text-only constraint and still validates the converted values.
+
+Adding or tightening choices checks every existing row before activating the change, including defaults and new-field backfills. A conflict leaves values and schema version unchanged; the error identifies an affected row and field, and the preview lists bounded row conflicts. Removing or renaming an option in use is a constraint change, not a bulk edit. To rename a choice, first allow both names, update the affected cells and default, then remove the old name. Choices, required checks and [unique rules](/unique-rules) apply together on every create, update, batch, paste/import and repair. Changes serialize with writes so waiting writers validate the activated definition.
 
 ## Change or remove a field
 

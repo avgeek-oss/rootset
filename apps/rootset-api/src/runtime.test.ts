@@ -2325,6 +2325,243 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       (await call("getTableSchema", wideIds, "rest")).uniqueRules.length,
       0,
     );
+    await t.test(
+      "conditional unique rules round-trip through REST, MCP and durable jobs",
+      async () => {
+        for (const mode of ["rest", "mcp"] as const) {
+          const created = await call(
+            "createTable",
+            {
+              orgId,
+              databaseId,
+              name: `Conditional ${mode}`,
+              fields: [
+                {
+                  name: "code",
+                  type: "text",
+                  charLimit: mode === "rest" ? 20 : 4000,
+                },
+                {
+                  name: "status",
+                  type: "text",
+                  allowedValues: ["active", "ceased"],
+                  default: "ceased",
+                },
+                { name: "count", type: "integer" },
+              ],
+            },
+            "rest",
+          );
+          const target = { orgId, databaseId, tableId: created.table.id };
+          for (const status of ["ceased", "ceased", "active"])
+            await call(
+              "createRow",
+              {
+                ...target,
+                expectedSchemaVersion: 1,
+                values: { code: "shared", status },
+              },
+              "rest",
+            );
+          assert.deepEqual(created.fields[1].allowedValues, [
+            "active",
+            "ceased",
+          ]);
+          const defaulted = await mcpOperation("createRow", {
+            ...target,
+            expectedSchemaVersion: 1,
+            values: { code: "defaulted" },
+          });
+          assert.equal(
+            (defaulted.row as { values: { status: string } }).values.status,
+            "ceased",
+          );
+          const invalidChoice = await call(
+            "createRow",
+            {
+              ...target,
+              expectedSchemaVersion: 1,
+              values: { code: "invalid", status: "Active" },
+            },
+            "rest",
+            422,
+          );
+          assert.equal(invalidChoice.error.code, "VALIDATION_FAILED");
+          const invalidMcp = await client.callTool({
+            name: "rootset_create_row",
+            arguments: {
+              ...target,
+              expectedSchemaVersion: 1,
+              values: { code: "invalid", status: "missing" },
+              idempotencyKey: newId(),
+            },
+          });
+          assert.equal(invalidMcp.isError, true);
+          assert.equal(
+            (invalidMcp.structuredContent as { error: { code: string } }).error
+              .code,
+            "VALIDATION_FAILED",
+          );
+          const where = {
+            field: created.fields[1].id,
+            op: "eq",
+            value: "active",
+          };
+          const input = {
+            ...target,
+            expectedSchemaVersion: 1,
+            fieldIds: [created.fields[0].id],
+            where,
+          };
+          const ruleKey = `conditional-runtime-${mode}`;
+          const accepted =
+            mode === "rest"
+              ? await call(
+                  "createUniqueRule",
+                  input,
+                  "rest",
+                  undefined,
+                  ruleKey,
+                )
+              : await mcpOperation("createUniqueRule", input, ruleKey);
+          const completed = await terminalJob(accepted.jobId);
+          assert.equal(completed.state, "succeeded");
+          const schema = await call("getTableSchema", target, "rest");
+          assert.deepEqual(schema.uniqueRules[0].where, where);
+          assert.equal(schema.uniqueRules[0].nullPolicy, "distinct");
+          assert.deepEqual(
+            (await mcpOperation("listUniqueRules", target)).data,
+            schema.uniqueRules,
+          );
+          const journal = await call(
+            "getSchemaOperation",
+            { ...target, id: accepted.jobId },
+            "rest",
+          );
+          assert.deepEqual(journal.request.where, where);
+          const denied = await call(
+            "createRow",
+            {
+              ...target,
+              expectedSchemaVersion: 2,
+              values: { code: "shared", status: "active" },
+            },
+            "rest",
+            409,
+          );
+          assert.equal(denied.error.code, "UNIQUE_CONFLICT");
+          assert.equal(denied.error.details.ruleId, schema.uniqueRules[0].id);
+          await mcpOperation("createRow", {
+            ...target,
+            expectedSchemaVersion: 2,
+            values: { code: "shared", status: "ceased" },
+          });
+          const invalid = await call(
+            "createUniqueRule",
+            {
+              ...input,
+              expectedSchemaVersion: 2,
+              where: { ...where, field: "status" },
+            },
+            "rest",
+            422,
+          );
+          assert.equal(invalid.error.code, "VALIDATION_FAILED");
+          const numericPath = `/v1/orgs/${orgId}/databases/${databaseId}/tables/${target.tableId}/unique-rules`;
+          const numeric = await fetch(`${baseURL}${numericPath}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${restSecret}`,
+              "Content-Type": "application/json",
+              "Idempotency-Key": newId(),
+            },
+            body: JSON.stringify({
+              ...input,
+              expectedSchemaVersion: 2,
+              where: { field: created.fields[2].id, op: "eq", value: "LOSSY" },
+            }).replace('"LOSSY"', "1.00000000000000001"),
+          });
+          assert.equal(numeric.status, 422);
+          assert.equal((await numeric.json()).error.code, "VALIDATION_FAILED");
+          const failing = await call(
+            "createUniqueRule",
+            {
+              ...input,
+              expectedSchemaVersion: 2,
+              where: { ...where, value: "ceased" },
+            },
+            "rest",
+          );
+          await runtime!.jobs.runOnce(orgId);
+          const failure = await call(
+            "getJob",
+            { orgId, id: failing.jobId },
+            "rest",
+          );
+          assert.equal(failure.state, "failed");
+          assert.equal(failure.error.code, "UNIQUE_CONFLICT");
+          assert.equal(
+            (await call("getTableSchema", target, "rest")).uniqueRules.length,
+            1,
+          );
+          const incompatible = await call(
+            "updateField",
+            {
+              ...target,
+              fieldId: created.fields[1].id,
+              expectedSchemaVersion: 2,
+              field: {
+                name: "status",
+                type: "text",
+                allowedValues: ["active"],
+                default: "active",
+              },
+            },
+            "rest",
+          );
+          await runtime!.jobs.runOnce(orgId);
+          const incompatibleJob = await call(
+            "getJob",
+            { orgId, id: incompatible.jobId },
+            "rest",
+          );
+          assert.equal(incompatibleJob.state, "failed");
+          assert.equal(incompatibleJob.error.code, "VALIDATION_FAILED");
+          assert.equal(
+            (await call("getTableSchema", target, "rest")).table.schemaVersion,
+            2,
+          );
+          const removedPredicate = await call(
+            "deleteField",
+            {
+              ...target,
+              fieldId: created.fields[1].id,
+              expectedSchemaVersion: 2,
+              removeDependencies: true,
+            },
+            "rest",
+          );
+          await terminalJob(removedPredicate.jobId);
+          const replay =
+            mode === "rest"
+              ? await call(
+                  "createUniqueRule",
+                  input,
+                  "rest",
+                  undefined,
+                  ruleKey,
+                )
+              : await mcpOperation("createUniqueRule", input, ruleKey);
+          assert.equal(replay.jobId, accepted.jobId);
+          const deleted = await call(
+            "deleteTable",
+            { ...target, expectedSchemaVersion: 3 },
+            "rest",
+          );
+          await terminalJob(deleted.jobId);
+        }
+      },
+    );
     const secondTable = await call("createTable", {
       orgId,
       databaseId,

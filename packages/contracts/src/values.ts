@@ -179,6 +179,41 @@ export const DateTimeSchema = z
     }
   });
 
+export const AllowedValuesSchema = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .max(limits.textCharLimit * 2)
+      .refine(validUnicode, "Choices require valid Unicode text")
+      .refine(
+        (value) => [...value].length <= limits.textCharLimit,
+        "Choices support up to 4,096 characters",
+      )
+      .meta({ maxLength: limits.textCharLimit }),
+  )
+  .min(1)
+  .max(limits.maxAllowedValues)
+  .superRefine((values, context) => {
+    if (new Set(values).size !== values.length)
+      context.addIssue({
+        code: "custom",
+        message:
+          "Allowed values must be distinct (case and spaces are significant)",
+      });
+    if (encoder.encode(JSON.stringify(values)).length > limits.rowBytes)
+      context.addIssue({
+        code: "custom",
+        message: "Allowed values exceed the 65,536-byte definition budget",
+      });
+  })
+  .meta({
+    description:
+      "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+    uniqueItems: true,
+    "x-rootset-max-utf8-bytes": limits.rowBytes,
+  });
+
 const common = {
   id: IdSchema,
   name: FieldNameSchema,
@@ -190,6 +225,7 @@ const rawFields = z.discriminatedUnion("type", [
   z.strictObject({
     ...common,
     type: z.literal("text"),
+    allowedValues: AllowedValuesSchema.nullable().optional(),
     charLimit: z.number().int().positive().max(limits.rowBytes).optional(),
   }),
   z.strictObject({
@@ -224,6 +260,15 @@ const rawFields = z.discriminatedUnion("type", [
   z.strictObject({ ...common, type: z.literal("json") }),
 ]);
 export const FieldDefinitionSchema = rawFields.superRefine((field, context) => {
+  if (field.type === "text" && field.allowedValues)
+    for (const [index, value] of field.allowedValues.entries()) {
+      if ([...value].length > (field.charLimit ?? limits.textCharLimit))
+        context.addIssue({
+          code: "custom",
+          path: ["allowedValues", index],
+          message: "Choice exceeds the field character limit",
+        });
+    }
   if (
     "min" in field &&
     "max" in field &&
@@ -287,6 +332,11 @@ export function validateCell(
         invalid(`Field ${field.name} requires valid Unicode text`);
       if ([...value].length > (field.charLimit ?? limits.textCharLimit))
         invalid(`Field ${field.name} exceeds its character limit`);
+      if (field.allowedValues && !field.allowedValues.includes(value))
+        invalid(`Field ${field.name} requires one of its allowed values`, {
+          fieldId: field.id,
+          field: field.name,
+        });
       result = value;
       break;
     case "uri":

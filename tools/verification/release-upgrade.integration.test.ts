@@ -184,11 +184,14 @@ for (const mode of ["SQL bridge", "migration runner"])
     const { pool, actor, storage, table, rows } = await fixture(t);
     assert.equal((await migrationStatus(pool)).complete, false);
     const before = await snapshot(pool, actor.orgId);
-    if (mode === "SQL bridge") await runBridge(pool);
-    else
+    if (mode === "SQL bridge") {
+      await runBridge(pool);
+      assert.deepEqual(await migrate(pool), ["0004_field_constraints.sql"]);
+    } else
       assert.deepEqual(await migrate(pool), [
         "0001_baseline.sql",
         "0003_comment_deletion_log.sql",
+        "0004_field_constraints.sql",
       ]);
     const preservedTables = before.tables.filter(
       (name) => name !== "rootset_control.migrations",
@@ -206,7 +209,7 @@ for (const mode of ["SQL bridge", "migration runner"])
     );
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0003_comment_deletion_log.sql",
+      version: "0004_field_constraints.sql",
     });
     assert.deepEqual(await migrate(pool), []);
     for (const row of rows) {
@@ -252,12 +255,15 @@ for (const mode of ["SQL bridge", "migration runner"])
       0,
     );
     const upgraded = await snapshot(pool, actor.orgId);
-    await Promise.all([runBridge(pool), runBridge(pool)]);
+    await Promise.all([
+      assert.rejects(runBridge(pool), /unmodified Rootset/),
+      assert.rejects(runBridge(pool), /unmodified Rootset/),
+    ]);
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(
       await snapshot(pool, actor.orgId),
       upgraded,
-      "Reruns and concurrent attempts must not change data or comments",
+      "The retired bridge must refuse a newer ledger without changing data or comments",
     );
   });
 
@@ -286,7 +292,7 @@ test("concurrent migration hooks apply the compatibility upgrade only once", asy
   const { pool, actor } = await fixture(t);
   const before = await snapshot(pool, actor.orgId);
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  assert.deepEqual(results.map((names) => names.length).sort(), [0, 2]);
+  assert.deepEqual(results.map((names) => names.length).sort(), [0, 3]);
   assert.equal(
     (await pool.query("SELECT count(*) FROM rootset_control.migration_repairs"))
       .rows[0].count,
@@ -338,5 +344,6 @@ test("a failure after schema creation rolls back all DDL, data and ledger change
   );
   await pool.query("DROP FUNCTION rootset_control.protect_comment_log()");
   await runBridge(pool);
+  assert.deepEqual(await migrate(pool), ["0004_field_constraints.sql"]);
   assert.equal((await migrationStatus(pool)).complete, true);
 });

@@ -6,6 +6,9 @@ export interface FieldDraft {
   type: TableField["type"];
   required: boolean;
   charLimit: string;
+  restrictValues: boolean;
+  allowedValues: string[];
+  hadAllowedValues: boolean;
   min: string;
   max: string;
   defaultMode: "null" | "value";
@@ -21,6 +24,9 @@ export function fieldDraft(field?: TableField): FieldDraft {
     type: field?.type ?? "text",
     required: field?.required ?? false,
     charLimit: String(field?.charLimit ?? 4096),
+    restrictValues: Boolean(field?.allowedValues),
+    allowedValues: field?.allowedValues ? [...field.allowedValues] : [""],
+    hadAllowedValues: Boolean(field?.allowedValues),
     min: String(field?.min ?? ""),
     max: String(field?.max ?? ""),
     defaultMode:
@@ -53,7 +59,11 @@ export function parseFieldDraft(
     type: value.type,
     required: value.required,
   };
-  if (value.type === "text") result.charLimit = Number(value.charLimit);
+  if (value.type === "text") {
+    result.charLimit = Number(value.charLimit);
+    if (value.restrictValues) result.allowedValues = value.allowedValues;
+    else if (value.hadAllowedValues) result.allowedValues = null;
+  }
   if (["integer", "float", "date", "date-time"].includes(value.type))
     for (const bound of ["min", "max"] as const)
       if (value[bound] !== "")
@@ -68,7 +78,12 @@ export function parseFieldDraft(
     if (
       value.required &&
       value.type !== "boolean" &&
-      !value.defaultValue.trim()
+      !value.defaultValue.trim() &&
+      !(
+        value.type === "text" &&
+        value.restrictValues &&
+        value.allowedValues.includes(value.defaultValue)
+      )
     )
       errors.defaultValue = "Enter a default value for this required field.";
     if (["integer", "float"].includes(value.type) && !value.defaultValue.trim())

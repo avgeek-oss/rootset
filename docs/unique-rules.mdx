@@ -1,21 +1,44 @@
 ---
 title: "Unique rules"
-description: "Keep individual values or combinations of fields unique across a table."
+description: "Keep values or combinations of fields unique across all rows or a matching subset."
 ---
 
-import { Screenshot } from "/snippets/oss/screenshot.jsx";
+Open **Settings → Unique rules** and select **Create unique rule**. Choose up to eight scalar fields. Leave **Apply to** set to **All rows**, or choose **Rows matching a condition** and select a condition field, comparison and value.
 
-Open **Settings → Unique rules** and select **Create unique rule**. Choose one or more scalar fields from the dropdown, then create the rule. A rule can cover up to eight fields. Rows containing NULL in any selected field are excluded from uniqueness enforcement.
+For example, make `CODE` unique where `STATUS` is `active`. Any number of rows whose status is `ceased` can share a code, while only one active row can use it. For a combination such as `SKU` and `REGION`, the combination is unique; either field may repeat separately.
 
-Rootset checks existing rows before activating a rule. Once active, it rejects writes that would duplicate another row's selected values. For a combination such as `SKU` and `REGION`, the combination is unique; either field may repeat separately.
+The rules table shows the selected fields, the condition under **Applies to**, and the rule's status. A field set and condition cannot be added twice, even when the unique fields are selected in another order. Different conditions can use the same field set. All applicable rules are enforced when their subsets overlap.
 
-The rules table shows the selected fields, status and actions. The same set of fields cannot have duplicate rules, even when selected in another order. If existing records collide, correct the data and create the rule again. Removing a rule removes its enforcement, not the records.
+## Conditions and NULL
 
-<Screenshot
-  light="/assets/screenshots/unique-rule-editor-light.png"
-  dark="/assets/screenshots/unique-rule-editor-dark.png"
-  alt="Create unique rule dialog with a field selector"
-  caption="Select fields from the dropdown; the chosen names appear comma-separated."
-  width={3840}
-  height={2160}
-/>
+A condition compares one scalar field using `eq` (is), `ne` (is not), `isNull` or `isNotNull`. Text comparisons are exact, including case and whitespace; a condition literal supports up to 4,096 Unicode characters within the field character limit. Numbers and booleans use their native types; date/time values use Rootset's existing ISO/UTC formats. `eq` and `ne` never match a NULL condition field. Use a null test without a value to include NULL explicitly.
+
+Rows containing NULL in **any selected unique field** are excluded, even if the condition matches. This is the existing `nullPolicy: "distinct"` behavior. An omitted condition applies to all rows.
+
+JSON fields, nested `and`/`or` groups, ranges, value lists, substring matching, JSON paths and raw SQL are not supported as unique-rule conditions. The bounded contract keeps membership deterministic and consistent between native indexes and the registry used for wide keys.
+
+## REST and MCP
+
+Use the stable IDs returned by the table schema for both `fieldIds` and `where.field`. The input uses the same `field`, `op`, and typed `value` names as table filters, but conditions require IDs so renaming a field preserves the rule.
+
+```json
+{
+  "expectedSchemaVersion": 3,
+  "fieldIds": ["01ARZ3NDEKTSV4RRFFQ69G5FAV"],
+  "where": {
+    "field": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+    "op": "eq",
+    "value": "active"
+  }
+}
+```
+
+Send this body to [Create unique rule](/api-reference/createUniqueRule) with an `Idempotency-Key`. For `rootset_create_unique_rule`, also supply `orgId`, `databaseId`, `tableId` and `idempotencyKey`. The accepted response contains a job ID; follow `getJob` or `rootset_get_job` until it succeeds. Rule lists, table schemas and schema-operation reports include the saved condition.
+
+## Activation, writes and schema changes
+
+Rootset checks matching existing rows before activating a rule. Conflicts fail the job without publishing a rule or changing the schema version. The conflict report includes the condition, selected fields, and a bounded list of conflicting row IDs. Correct the matching records and submit a new request.
+
+Backfill and activation share a transaction and hold the existing schema/write barrier. Writes may wait while a rule builds. Once active, PostgreSQL enforces membership and uniqueness atomically on creates, updates, batches, imports and repair writes, including concurrent requests. Updating a row into the subset claims its tuple; leaving the subset or deleting the row releases it. Batches run in order in one transaction: release a tuple before assigning it to another row. Any conflict rolls the whole batch back.
+
+A conflicting write returns `UNIQUE_CONFLICT` with the rule ID. Removing a rule leaves the records in place. Renames preserve stable references. Type conversion of a condition field requires removing the dependent rule first, and field deletion requires explicit removal of its dependent rules.

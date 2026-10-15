@@ -20,6 +20,7 @@ verificationCase(
         "0001_baseline.sql",
         "0002_mcp_role_revocation.sql",
         "0003_comment_deletion_log.sql",
+        "0004_field_constraints.sql",
       ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();
@@ -110,6 +111,101 @@ verificationCase(
         { digest: "forced-collision", count: 3 },
       ]);
       assert.equal((await storage.getTable(actor, table.id)).rowCount, 3);
+      const conditional = await storage.createTable(actor, database.id, {
+        name: "Conditional collision",
+        fields: [
+          { name: "CODE", type: "text", charLimit: 4000 },
+          {
+            name: "STATUS",
+            type: "text",
+            allowedValues: ["active", "ceased"],
+            default: "ceased",
+          },
+        ],
+      });
+      const condition = {
+        field: conditional.fields[1]!.id,
+        op: "eq" as const,
+        value: "active",
+      };
+      const conditionalRule = await storage.createUniqueRule(
+        actor,
+        conditional.id,
+        {
+          fieldIds: [conditional.fields[0]!.id],
+          where: condition,
+          expectedSchemaVersion: 1,
+        },
+      );
+      const live = await storage.createRow(actor, conditional.id, {
+        CODE: "same",
+        STATUS: "active",
+      });
+      const historical = await storage.createRow(actor, conditional.id, {
+        CODE: "same",
+        STATUS: "ceased",
+      });
+      await storage.createRow(actor, conditional.id, {
+        CODE: "same",
+        STATUS: "ceased",
+      });
+      await storage.createRow(actor, conditional.id, {
+        CODE: "different",
+        STATUS: "active",
+      });
+      await assert.rejects(
+        storage.updateRow(
+          actor,
+          conditional.id,
+          historical.id,
+          { STATUS: "active" },
+          { expectedVersion: historical.version },
+        ),
+        { code: "UNIQUE_CONFLICT" },
+      );
+      await storage.updateRow(
+        actor,
+        conditional.id,
+        live.id,
+        { STATUS: "ceased" },
+        { expectedVersion: live.version },
+      );
+      await storage.updateRow(
+        actor,
+        conditional.id,
+        historical.id,
+        { STATUS: "active" },
+        { expectedVersion: historical.version },
+      );
+      const racing = await Promise.allSettled(
+        Array.from({ length: 5 }, () =>
+          storage.createRow(actor, conditional.id, {
+            CODE: "raced",
+            STATUS: "active",
+          }),
+        ),
+      );
+      assert.equal(
+        racing.filter((result) => result.status === "fulfilled").length,
+        1,
+      );
+      assert.equal(
+        racing.filter(
+          (result) =>
+            result.status === "rejected" &&
+            result.reason.code === "UNIQUE_CONFLICT",
+        ).length,
+        4,
+      );
+      assert.deepEqual(
+        (
+          await fixture.owner.query(
+            "SELECT digest,count(*)::int AS count FROM rootset_control.unique_entries WHERE rule_id=$1 GROUP BY digest",
+            [conditionalRule.id],
+          )
+        ).rows,
+        [{ digest: "forced-collision", count: 3 }],
+      );
     } finally {
       await fixture.close();
     }

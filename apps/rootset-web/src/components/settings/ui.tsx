@@ -65,6 +65,7 @@ export function Field({
   autoComplete,
   readOnly,
   multiline,
+  rows,
 }: {
   label: string;
   value: string;
@@ -83,6 +84,7 @@ export function Field({
   autoComplete?: string;
   readOnly?: boolean;
   multiline?: boolean;
+  rows?: number;
 }) {
   return (
     <TextField
@@ -99,7 +101,7 @@ export function Field({
       {multiline ? (
         <TextArea
           variant="secondary"
-          rows={3}
+          rows={rows ?? 3}
           autoComplete={autoComplete ?? "off"}
         />
       ) : (

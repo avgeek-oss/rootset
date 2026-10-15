@@ -27,7 +27,7 @@ curl --fail-with-body \
   --data "{\"expectedSchemaVersion\":$ROOTSET_SCHEMA_VERSION,\"values\":{\"NAME\":\"Field notebook\",\"STOCK\":24}}"
 ```
 
-Writes validate field types, required values, bounds and unique rules. Optional omitted values use their default. Row creation is available through REST/MCP even though the browser does not have an Add row action.
+Writes validate field types, required values, [allowed text values](/fields#allowed-values), bounds and [unique rules](/unique-rules), including rules that apply only to matching rows. Optional omitted values use their default. Row creation is available through REST/MCP even though the browser does not have an Add row action.
 
 ## Query and update
 

@@ -5,7 +5,17 @@ import { statusColor, statusIcon, statusLabel } from "./status";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Label, ListBox, Select } from "@heroui/react";
-import { limits } from "@rootset/contracts";
+import {
+  canonicalJson,
+  limits,
+  type UniqueRuleCondition,
+} from "@rootset/contracts";
+import {
+  parseUniqueRuleCondition,
+  uniqueRuleConditionLabel,
+} from "../../lib/unique-rule-condition";
+import { allowedValueLabel } from "../../lib/field-choices";
+import { operatorLabels } from "../../lib/table-filters";
 import { useEffect, useMemo, useState } from "react";
 import {
   ResourceName,
@@ -43,7 +53,12 @@ import {
 } from "./types";
 
 import { FIELD_TYPE_OPTIONS, FieldTypeIcon } from "./field-type-options";
-import { fieldDraft, parseFieldDraft, type FieldDraft } from "./field-draft";
+import {
+  fieldDraft,
+  parseFieldDraft,
+  type FieldDraft,
+  type FieldDraftErrors,
+} from "./field-draft";
 
 const EMPTY_SCHEMA: TableSchemaResult = {
   table: { name: "", schemaVersion: 1 },
@@ -173,8 +188,12 @@ export function FieldForm({
   submit: (input: Record<string, unknown>) => Promise<void>;
 }) {
   const [value, setValue] = useState(() => fieldDraft(field));
+  const [errors, setErrors] = useState<FieldDraftErrors>({});
   function patch<K extends keyof FieldDraft>(key: K, next: FieldDraft[K]) {
-    setValue((previous) => ({ ...previous, [key]: next }));
+    const updated = { ...value, [key]: next };
+    setValue(updated);
+    if (Object.keys(errors).length)
+      setErrors(parseFieldDraft(updated).errors ?? {});
   }
   return (
     <Form
@@ -184,6 +203,7 @@ export function FieldForm({
       onCancel={onCancel}
       onSubmit={async () => {
         const parsed = parseFieldDraft(value);
+        setErrors(parsed.errors ?? {});
         if (!parsed.input) {
           toast.danger(
             Object.values(parsed.errors)[0] ?? "Check the field definition.",
@@ -227,6 +247,82 @@ export function FieldForm({
           max={65536}
           required
         />
+      )}
+      {value.type === "text" && (
+        <>
+          <Choice
+            label="Allowed values"
+            value={value.restrictValues ? "choices" : "any"}
+            disabled={busy}
+            options={[
+              { value: "any", label: "Any text" },
+              { value: "choices", label: "Only these choices" },
+            ]}
+            onChange={(next) => patch("restrictValues", next === "choices")}
+            description="Choices match exactly, including case and spaces. Optional fields also allow NULL."
+          />
+          {value.restrictValues && (
+            <div className="flex flex-col gap-3">
+              {value.allowedValues.map((choice, index) => (
+                <div key={index} className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Field
+                      label={`Choice ${index + 1}`}
+                      value={choice}
+                      multiline
+                      rows={Math.min(3, choice.split(/\r?\n/).length)}
+                      readOnly={busy}
+                      onChange={(next) =>
+                        patch(
+                          "allowedValues",
+                          value.allowedValues.map((entry, position) =>
+                            position === index ? next : entry,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    isDisabled={busy}
+                    aria-label={`Remove choice ${index + 1}`}
+                    onPress={() =>
+                      patch(
+                        "allowedValues",
+                        value.allowedValues.filter(
+                          (_, position) => position !== index,
+                        ),
+                      )
+                    }
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {errors.allowedValues && (
+                <p role="alert" className="text-danger">
+                  {errors.allowedValues}
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                isDisabled={
+                  busy || value.allowedValues.length >= limits.maxAllowedValues
+                }
+                onPress={() =>
+                  patch("allowedValues", [...value.allowedValues, ""])
+                }
+              >
+                Add choice
+              </Button>
+              <p className="settings-muted">
+                Up to {limits.maxAllowedValues} distinct, nonempty choices.
+                Removing or renaming a choice in use fails until those cells and
+                any default are updated.
+              </p>
+            </div>
+          )}
+        </>
       )}
       {["integer", "float", "date", "date-time"].includes(value.type) && (
         <div className="settings-inline">
@@ -286,6 +382,20 @@ export function FieldForm({
             label={value.required ? "Default for new rows" : "Default value"}
             selected={value.defaultBoolean}
             onChange={(next) => patch("defaultBoolean", next)}
+          />
+        ) : value.type === "text" && value.restrictValues ? (
+          <Choice
+            label={value.required ? "Default for new rows" : "Default value"}
+            value={value.defaultValue}
+            disabled={busy}
+            error={errors.defaultValue}
+            options={[
+              ...new Set(value.allowedValues.filter((choice) => choice !== "")),
+            ].map((choice) => ({
+              value: choice,
+              label: allowedValueLabel(choice),
+            }))}
+            onChange={(next) => patch("defaultValue", next)}
           />
         ) : (
           <Field
@@ -623,7 +733,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                         (rule) =>
                           (rule.fieldIds ?? rule.fields ?? []).includes(
                             field.id,
-                          ),
+                          ) || rule.where?.field === field.id,
                       );
                       if (
                         await confirmation.confirm(
@@ -734,6 +844,15 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
   const confirmation = useConfirmation();
   const [formOpen, setFormOpen] = useState(false);
   const [fieldIds, setFieldIds] = useState<string[]>([]);
+  const [conditional, setConditional] = useState(false);
+  const [conditionField, setConditionField] = useState("");
+  const [conditionOp, setConditionOp] =
+    useState<UniqueRuleCondition["op"]>("eq");
+  const [conditionValue, setConditionValue] = useState("");
+  const [conditionError, setConditionError] = useState<string>();
+  const predicateField = schema.data.fields.find(
+    (field) => field.id === conditionField,
+  );
   const fields = schema.data.fields.filter((field) => field.type !== "json");
   const busy = mutation.busy || Boolean(pendingJobId);
   const disabled = busy || schema.loading || Boolean(schema.error);
@@ -743,6 +862,11 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
         isDisabled={disabled || !fields.length}
         onPress={() => {
           setFieldIds([]);
+          setConditional(false);
+          setConditionField("");
+          setConditionOp("eq");
+          setConditionValue("");
+          setConditionError(undefined);
           setFormOpen(true);
         }}
       >
@@ -780,6 +904,24 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                           ?.name ?? id,
                     )
                     .join(", "),
+              },
+              {
+                key: "condition",
+                header: "Applies to",
+                cell: (rule) => {
+                  const condition = uniqueRuleConditionLabel(
+                    rule.where,
+                    schema.data.fields,
+                  );
+                  return (
+                    <TooltipText
+                      tooltip={condition}
+                      className="block max-w-80 truncate"
+                    >
+                      {condition}
+                    </TooltipText>
+                  );
+                },
               },
               {
                 key: "status",
@@ -859,16 +1001,39 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                 toast.danger("Choose at least one field.");
                 return;
               }
+              let where: UniqueRuleCondition | undefined;
+              try {
+                where = conditional
+                  ? parseUniqueRuleCondition(
+                      schema.data.fields,
+                      conditionField,
+                      conditionOp,
+                      conditionValue,
+                    )
+                  : undefined;
+                setConditionError(undefined);
+              } catch (error) {
+                setConditionError(
+                  error instanceof Error
+                    ? error.message
+                    : "Check the condition value.",
+                );
+                return;
+              }
               if (
                 schema.data.uniqueRules.some((rule) => {
                   const existingFields = rule.fieldIds ?? rule.fields ?? [];
                   return (
                     existingFields.length === fieldIds.length &&
-                    fieldIds.every((id) => existingFields.includes(id))
+                    fieldIds.every((id) => existingFields.includes(id)) &&
+                    canonicalJson(rule.where ?? null) ===
+                      canonicalJson(where ?? null)
                   );
                 })
               ) {
-                toast.danger("A unique rule already exists for these fields.");
+                toast.danger(
+                  "A unique rule already exists for these fields and condition.",
+                );
                 return;
               }
               const result = await mutation.run(() =>
@@ -877,6 +1042,7 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                   "POST",
                   {
                     fieldIds,
+                    ...(where ? { where } : {}),
                     expectedSchemaVersion: schema.data.table.schemaVersion,
                   },
                 ),
@@ -893,9 +1059,94 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
             }}
           >
             <p className="settings-muted">
-              Values must be unique across the selected fields. Rows containing
-              NULL in any selected field are excluded.
+              Matching rows must have a unique combination of the selected
+              fields. Rows containing NULL in any selected unique field are
+              excluded.
             </p>
+            <Choice
+              label="Apply to"
+              value={conditional ? "matching" : "all"}
+              disabled={busy}
+              options={[
+                { value: "all", label: "All rows" },
+                { value: "matching", label: "Rows matching a condition" },
+              ]}
+              onChange={(value) => {
+                setConditional(value === "matching");
+                setConditionError(undefined);
+              }}
+            />
+            {conditional && (
+              <>
+                <Choice
+                  label="Condition field"
+                  value={conditionField}
+                  required
+                  disabled={busy}
+                  options={fields.map((field) => ({
+                    value: field.id,
+                    label: field.name,
+                  }))}
+                  error={!conditionField ? conditionError : undefined}
+                  onChange={(value) => {
+                    setConditionField(value);
+                    setConditionValue("");
+                    setConditionError(undefined);
+                  }}
+                />
+                <Choice
+                  label="Condition"
+                  value={conditionOp}
+                  disabled={busy}
+                  options={(["eq", "ne", "isNull", "isNotNull"] as const).map(
+                    (op) => ({ value: op, label: operatorLabels[op] }),
+                  )}
+                  onChange={(value) => {
+                    setConditionOp(value as UniqueRuleCondition["op"]);
+                    setConditionError(undefined);
+                  }}
+                />
+                {(conditionOp === "eq" || conditionOp === "ne") &&
+                  (predicateField?.type === "boolean" ? (
+                    <Choice
+                      label="Condition value"
+                      value={conditionValue}
+                      disabled={busy}
+                      required
+                      error={conditionField ? conditionError : undefined}
+                      options={["true", "false"]}
+                      onChange={(value) => {
+                        setConditionValue(value);
+                        setConditionError(undefined);
+                      }}
+                    />
+                  ) : (
+                    <Field
+                      label="Condition value"
+                      value={conditionValue}
+                      readOnly={busy}
+                      error={conditionField ? conditionError : undefined}
+                      description={
+                        predicateField?.type === "date-time"
+                          ? "Use an ISO date-time in UTC, for example 2026-01-01T00:00:00Z."
+                          : predicateField?.type === "time"
+                            ? "Use UTC time, for example 09:30:00Z."
+                            : predicateField?.type === "date"
+                              ? "Use YYYY-MM-DD."
+                              : undefined
+                      }
+                      onChange={(value) => {
+                        setConditionValue(value);
+                        setConditionError(undefined);
+                      }}
+                    />
+                  ))}
+                <p className="settings-muted">
+                  NULL condition values match only “is NULL”. Text matches
+                  exactly, including case and spaces.
+                </p>
+              </>
+            )}
             <Select
               variant="secondary"
               className="settings-field"
