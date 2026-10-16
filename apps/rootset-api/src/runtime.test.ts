@@ -1080,29 +1080,19 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             await client.close();
           }
         }
-        const exported = await call(
-          "exportRows",
-          { ...ids, format: "jsonl" },
-          "rest",
-          undefined,
-          newId(),
-          readTeam!.secret,
-        );
-        let job = await call(
-          "getJob",
-          { orgId, id: exported.jobId },
-          "rest",
-          undefined,
-          newId(),
-          readTeam!.secret,
-        );
-        for (
-          let attempt = 0;
-          attempt < 10 && ["queued", "running"].includes(job.state);
-          attempt++
-        ) {
-          await runtime!.jobs.runOnce(orgId);
-          job = await call(
+        for (const [operation, exportTarget] of [
+          ["exportRows", ids],
+          ["exportDatabase", { orgId, databaseId }],
+        ] as const) {
+          const exported = await call(
+            operation,
+            { ...exportTarget, format: "jsonl" },
+            "rest",
+            undefined,
+            newId(),
+            readTeam!.secret,
+          );
+          let job = await call(
             "getJob",
             { orgId, id: exported.jobId },
             "rest",
@@ -1110,27 +1100,48 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             newId(),
             readTeam!.secret,
           );
-        }
-        assert.equal(job.state, "succeeded", JSON.stringify(job.error ?? {}));
-        const artifact = await call(
-          "getArtifact",
-          { orgId, id: job.result.artifactId },
-          "rest",
-          undefined,
-          newId(),
-          readTeam!.secret,
-        );
-        assert.equal(
-          (
-            await request(
-              new URL(artifact.downloadUrl).pathname,
-              "GET",
+          for (
+            let attempt = 0;
+            attempt < 10 && ["queued", "running"].includes(job.state);
+            attempt++
+          ) {
+            await runtime!.jobs.runOnce(orgId);
+            job = await call(
+              "getJob",
+              { orgId, id: exported.jobId },
+              "rest",
               undefined,
-              { token: readTeam!.secret },
-            )
-          ).status,
-          200,
-        );
+              newId(),
+              readTeam!.secret,
+            );
+          }
+          assert.equal(job.state, "succeeded", JSON.stringify(job.error ?? {}));
+          const artifact = await call(
+            "getArtifact",
+            { orgId, id: job.result.artifactId },
+            "rest",
+            undefined,
+            newId(),
+            readTeam!.secret,
+          );
+          assert.equal(
+            (
+              await request(
+                new URL(artifact.downloadUrl).pathname,
+                "GET",
+                undefined,
+                { token: readTeam!.secret },
+              )
+            ).status,
+            200,
+          );
+          assert.equal(
+            artifact.format,
+            operation === "exportDatabase" ? "zip" : "jsonl",
+          );
+          if (operation === "exportDatabase")
+            assert.equal(artifact.tableCount, 1);
+        }
         const listed = await call("listTeamKeys", { orgId });
         assert.equal(
           listed.data.filter((key: { scope: string }) => key.scope === "team")
@@ -1410,6 +1421,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       "keys:manage",
       "exports:read",
       "jobs:read",
+      "schema:read",
       "schema:manage",
       "backups:read",
       "backups:manage",
@@ -2047,6 +2059,70 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(browserDownload.status, 200);
     assert.equal(await browserDownload.text(), exportText);
+    const databaseExport = await client.callTool({
+      name: "rootset_export_database",
+      arguments: {
+        orgId,
+        databaseId,
+        format: "csv",
+        idempotencyKey: "runtime-mcp-database-export-001",
+      },
+    });
+    assert.notEqual(databaseExport.isError, true);
+    const databaseExportJob = getOperation("exportDatabase").outputSchema.parse(
+      databaseExport.structuredContent,
+    ) as { jobId: string };
+    const databaseExportReplay = await client.callTool({
+      name: "rootset_export_database",
+      arguments: {
+        orgId,
+        databaseId,
+        format: "csv",
+        idempotencyKey: "runtime-mcp-database-export-001",
+      },
+    });
+    assert.deepEqual(
+      databaseExportReplay.structuredContent,
+      databaseExport.structuredContent,
+    );
+    await runtime.jobs.runOnce(orgId);
+    const databaseJob = await call(
+      "getJob",
+      { orgId, id: databaseExportJob.jobId },
+      "rest",
+    );
+    assert.equal(
+      databaseJob.state,
+      "succeeded",
+      JSON.stringify(databaseJob.error),
+    );
+    assert.equal(databaseJob.result.tableCount, 1);
+    const databaseArtifact = await call(
+      "getArtifact",
+      { orgId, id: databaseJob.result.artifactId },
+      "rest",
+    );
+    assert.equal(databaseArtifact.format, "zip");
+    assert.equal(databaseArtifact.tableCount, 1);
+    const zipDownload = await request(
+      new URL(databaseArtifact.downloadUrl).pathname.replace(
+        /^\/v1\//,
+        "/api/internal/v1/",
+      ),
+      "GET",
+      undefined,
+      { browser: true },
+    );
+    assert.equal(zipDownload.status, 200);
+    assert.equal(zipDownload.headers.get("content-type"), "application/zip");
+    assert.match(zipDownload.headers.get("content-disposition")!, /\.zip/);
+    const zip = Buffer.from(await zipDownload.arrayBuffer());
+    assert.equal(zip.subarray(0, 4).toString("hex"), "504b0304");
+    assert.equal(
+      createHash("sha256").update(zip).digest("hex"),
+      databaseArtifact.checksum,
+    );
+
     assert.equal(
       browserDownload.headers.get("digest"),
       downloaded.headers.get("digest"),
@@ -2112,6 +2188,20 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     });
     assert.equal(readExportDownload.status, 200);
     assert.equal(await readExportDownload.text(), exportText);
+    assert.equal(
+      (
+        await request(
+          new URL(databaseArtifact.downloadUrl).pathname,
+          "GET",
+          undefined,
+          {
+            token: readExportGrant.access_token,
+          },
+        )
+      ).status,
+      403,
+    );
+
     const missingExportGrant = await issueMcpGrant([
       "rows:read",
       "tables:read",

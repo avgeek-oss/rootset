@@ -21,6 +21,7 @@ import { MetadataPaging } from "../../core/src/paging.js";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database.js";
 import { stableStringify } from "./types.js";
 import { runMutation } from "@rootset/idempotency";
+import { fromBuffer } from "yauzl";
 
 if (!process.env.ROOTSET_TEST_DATABASE_URL)
   throw new Error(
@@ -269,6 +270,353 @@ test("JSONL export includes every row and field and exposes its format in reques
   );
 });
 
+async function databaseArchive(artifactId: string) {
+  const download = await jobs.downloadArtifact(actor, artifactId);
+  const chunks: Buffer[] = [];
+  for await (const chunk of download.stream) chunks.push(Buffer.from(chunk));
+  const bytes = Buffer.concat(chunks);
+  const files = await new Promise<Map<string, Buffer>>((resolve, reject) => {
+    fromBuffer(bytes, { lazyEntries: true }, (error, archive) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      const files = new Map<string, Buffer>();
+      archive.on("error", reject);
+      archive.on("end", () => resolve(files));
+      archive.on("entry", (entry) =>
+        archive.openReadStream(entry, (error, stream) => {
+          if (error) {
+            archive.close();
+            reject(error);
+            return;
+          }
+          void (async () => {
+            const chunks: Buffer[] = [];
+            for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+            files.set(entry.fileName, Buffer.concat(chunks));
+            archive.readEntry();
+          })().catch((error) => {
+            archive.close();
+            reject(error);
+          });
+        }),
+      );
+      archive.readEntry();
+    });
+  });
+  return { download, bytes, files };
+}
+
+test("database ZIP exports include every schema, relationship and empty table with CSV or JSONL data", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Database export ${newId()}`,
+  });
+  let parent = await storage.createTable(actor, database.id, {
+    name: "Manufacturers",
+    fields: [
+      {
+        name: "RECORD_ID",
+        type: "integer",
+        required: true,
+        autoIncrement: true,
+      },
+      {
+        name: "CODE",
+        type: "text",
+        charLimit: 32,
+        allowedValues: ["001", "002"],
+        required: true,
+      },
+      { name: "ACTIVE", type: "boolean" },
+      { name: "DETAILS", type: "json" },
+    ],
+    idempotencyKey: newId(),
+  });
+  const unique = await storage.createUniqueRule(actor, parent.id, {
+    name: "Code",
+    fieldIds: [parent.fields[1]!.id],
+    expectedSchemaVersion: parent.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  parent = await storage.getTable(actor, parent.id);
+  await storage.createUniqueRule(actor, parent.id, {
+    name: "Active code",
+    fieldIds: [parent.fields[1]!.id],
+    where: { field: parent.fields[2]!.id, op: "eq", value: true },
+    expectedSchemaVersion: parent.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  parent = await storage.getTable(actor, parent.id);
+  for (const [CODE, ACTIVE] of [
+    ["001", true],
+    ["002", false],
+  ] as const)
+    await storage.createRow(
+      actor,
+      parent.id,
+      { CODE, ACTIVE, DETAILS: { CODE, values: [false, 0, null] } },
+      { idempotencyKey: newId() },
+    );
+  const child = await storage.createTable(actor, database.id, {
+    name: "Aircraft",
+    fields: [
+      { name: "manufacturerId", type: "text", charLimit: 32 },
+      { name: "note", type: "text", charLimit: 64 },
+    ],
+    idempotencyKey: newId(),
+  });
+  const foreign = await storage.createForeignKey(actor, child.id, {
+    fieldIds: [child.fields[0]!.id],
+    referencedTableId: parent.id,
+    referencedRuleId: unique.id,
+    expectedSchemaVersion: child.schemaVersion,
+    expectedReferencedSchemaVersion: parent.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  for (const values of [
+    { manufacturerId: "001", note: "" },
+    { manufacturerId: "002", note: "\\N" },
+    { manufacturerId: null, note: null },
+  ])
+    await storage.createRow(actor, child.id, values, {
+      idempotencyKey: newId(),
+    });
+  const empty = await storage.createTable(actor, database.id, {
+    name: "Empty table",
+    fields: [{ name: "VALUE", type: "text", charLimit: 32 }],
+    idempotencyKey: newId(),
+  });
+  for (const format of ["csv", "jsonl"] as const) {
+    const input = { databaseId: database.id, format };
+    const idempotencyKey = newId();
+    const run = (await jobs.execute("exportDatabase", actor, input, {
+      idempotencyKey,
+    })) as { jobId: string };
+    assert.deepEqual(
+      await jobs.execute("exportDatabase", actor, input, { idempotencyKey }),
+      run,
+    );
+    await assert.rejects(
+      jobs.execute(
+        "exportDatabase",
+        actor,
+        { ...input, format: format === "csv" ? "jsonl" : "csv" },
+        { idempotencyKey },
+      ),
+      (error) =>
+        error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+    );
+    const done = await terminal(run.jobId);
+    assert.equal(done.state, "succeeded", JSON.stringify(done.error));
+    assert.equal(done.result?.format, "zip");
+    assert.equal(done.result?.rowCount, 5);
+    assert.equal(done.result?.tableCount, 3);
+    const artifactId = String(done.result?.artifactId);
+    const artifact = await jobs.execute("getArtifact", actor, {
+      id: artifactId,
+    });
+    const parsed = getOperation("getArtifact").outputSchema.parse(artifact) as {
+      format: string;
+      tableCount: number;
+    };
+    assert.equal(parsed.format, "zip");
+    assert.equal(parsed.tableCount, 3);
+    const { download, bytes, files } = await databaseArchive(artifactId);
+    assert.equal(download.mediaType, "application/zip");
+    assert.match(download.fileName, /\.zip$/);
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      done.result?.checksum,
+    );
+    assert.equal(files.size, 9);
+    const json = (path: string) => JSON.parse(files.get(path)!.toString());
+    const manifest = json("manifest.json");
+    assert.equal(manifest.format, "rootset.database-export");
+    assert.equal(manifest.formatVersion, 1);
+    assert.equal(manifest.databaseId, database.id);
+    assert.equal(manifest.dataFormat, format);
+    assert.equal(manifest.rowCount, 5);
+    assert.deepEqual(
+      manifest.tables.map((table: { id: string }) => table.id),
+      [parent.id, child.id, empty.id],
+    );
+    assert.deepEqual(
+      manifest.tables.map((table: { rowCount: number }) => table.rowCount),
+      [2, 3, 0],
+    );
+    for (const file of manifest.files) {
+      const body = files.get(file.name)!;
+      assert.equal(body.length, file.bytes);
+      assert.equal(
+        createHash("sha256").update(body).digest("hex"),
+        file.sha256,
+      );
+    }
+    assert.equal(json("database.json").id, database.id);
+    const parentSchema = json(`tables/${parent.id}/schema.json`);
+    assert.deepEqual(
+      parentSchema.fields.map((field: { name: string }) => field.name),
+      ["RECORD_ID", "CODE", "ACTIVE", "DETAILS"],
+    );
+    assert.equal(parentSchema.fields[0].autoIncrement, true);
+    assert.deepEqual(parentSchema.fields[1].allowedValues, ["001", "002"]);
+    assert.equal(parentSchema.uniqueRules.length, 2);
+    assert.deepEqual(parentSchema.uniqueRules[1].where, {
+      field: parent.fields[2]!.id,
+      op: "eq",
+      value: true,
+    });
+    assert.deepEqual(json(`tables/${child.id}/schema.json`).foreignKeys, [
+      foreign,
+    ]);
+    for (const name of [parent.id, child.id, empty.id])
+      assert.doesNotMatch(
+        files.get(`tables/${name}/schema.json`)!.toString(),
+        /physicalName|schemaName|physical_name|rootset_control/,
+      );
+    if (format === "csv") {
+      assert.equal(
+        files.get(`tables/${child.id}/data.csv`)!.toString(),
+        'manufacturerId,note\n001,""\n002,\\\\N\n\\N,\\N\n',
+      );
+      assert.equal(
+        files.get(`tables/${empty.id}/data.csv`)!.toString(),
+        "VALUE\n",
+      );
+    } else {
+      assert.deepEqual(
+        files
+          .get(`tables/${child.id}/data.jsonl`)!
+          .toString()
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line)),
+        [
+          { manufacturerId: "001", note: "" },
+          { manufacturerId: "002", note: "\\N" },
+          { manufacturerId: null, note: null },
+        ],
+      );
+      assert.equal(files.get(`tables/${empty.id}/data.jsonl`)!.length, 0);
+    }
+    const page = (await jobs.execute("listJobs", actor, {
+      kind: "export",
+      databaseId: database.id,
+    })) as { data: { id: string; databaseId: string; format: string }[] };
+    assert.equal(
+      page.data.find((job) => job.id === run.jobId)?.databaseId,
+      database.id,
+    );
+    assert.equal(page.data.find((job) => job.id === run.jobId)?.format, format);
+  }
+});
+
+test("database exports keep one snapshot across tables and handle an empty database", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Export snapshot ${newId()}`,
+  });
+  const first = await storage.createTable(actor, database.id, {
+    name: "First",
+    fields: [{ name: "VALUE", type: "text", charLimit: 32 }],
+    idempotencyKey: newId(),
+  });
+  const second = await storage.createTable(actor, database.id, {
+    name: "Second",
+    fields: [{ name: "VALUE", type: "text", charLimit: 32 }],
+    idempotencyKey: newId(),
+  });
+  for (const table of [first, second])
+    await storage.createRow(
+      actor,
+      table.id,
+      { VALUE: "before snapshot" },
+      { idempotencyKey: newId() },
+    );
+  const run = (await jobs.execute("exportDatabase", actor, {
+    databaseId: database.id,
+    format: "jsonl",
+  })) as { jobId: string };
+  hook = async (point, id) => {
+    if (point !== "database-export.afterTable" || id !== run.jobId) return;
+    hook = null;
+    await storage.createRow(
+      actor,
+      second.id,
+      { VALUE: "after snapshot" },
+      { idempotencyKey: newId() },
+    );
+  };
+  let done;
+  try {
+    done = await terminal(run.jobId);
+  } finally {
+    hook = null;
+  }
+  assert.equal(done.state, "succeeded", JSON.stringify(done.error));
+  const { files } = await databaseArchive(String(done.result?.artifactId));
+  assert.equal(
+    files.get(`tables/${second.id}/data.jsonl`)!.toString(),
+    '{"VALUE":"before snapshot"}\n',
+  );
+  assert.equal(done.result?.rowCount, 2);
+  const empty = await storage.createDatabase(actor, {
+    name: `Empty export ${newId()}`,
+  });
+  const emptyRun = (await jobs.execute("exportDatabase", actor, {
+    databaseId: empty.id,
+    format: "csv",
+  })) as { jobId: string };
+  const emptyDone = await terminal(emptyRun.jobId);
+  assert.equal(emptyDone.state, "succeeded", JSON.stringify(emptyDone.error));
+  const archive = await databaseArchive(String(emptyDone.result?.artifactId));
+  assert.deepEqual(
+    [...archive.files.keys()],
+    ["database.json", "README.txt", "manifest.json"],
+  );
+  assert.equal(emptyDone.result?.tableCount, 0);
+  assert.equal(emptyDone.result?.rowCount, 0);
+});
+
+test("database exports fail during maintenance and can be retried without publishing a partial ZIP", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Maintenance export ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Changing table",
+    fields: [{ name: "VALUE", type: "text" }],
+    idempotencyKey: newId(),
+  });
+  await owner.query(
+    "UPDATE rootset_control.tables SET state='maintenance' WHERE id=$1",
+    [target.id],
+  );
+  const accepted = (await jobs.execute("exportDatabase", actor, {
+    databaseId: database.id,
+    format: "csv",
+  })) as { jobId: string };
+  const failed = await terminal(accepted.jobId);
+  assert.equal(failed.state, "failed");
+  assert.equal(failed.error?.code, "SCHEMA_MAINTENANCE");
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int count FROM rootset_control.artifacts WHERE job_id=$1 AND state='ready'",
+        [accepted.jobId],
+      )
+    ).rows[0].count,
+    0,
+  );
+  await owner.query(
+    "UPDATE rootset_control.tables SET state='active' WHERE id=$1",
+    [target.id],
+  );
+  await jobs.execute("retryJob", actor, { id: accepted.jobId });
+  const succeeded = await terminal(accepted.jobId);
+  assert.equal(succeeded.state, "succeeded", JSON.stringify(succeeded.error));
+  assert.equal(succeeded.result?.tableCount, 1);
+});
+
 test("V1-07 V1-24: duplicate admission is idempotent, only one lease claims, old lease cannot checkpoint", async () => {
   const key = newId();
   const input = { tableId: table.id, format: "jsonl" };
@@ -497,6 +845,7 @@ test("V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute unde
     role: "viewer",
     scopes: [
       "exports:read",
+      "schema:read",
       "jobs:read",
       "jobs:cancel",
       "jobs:retry",
@@ -523,119 +872,153 @@ test("V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute unde
       return fallback.authorise(a.id === viewer.id ? liveViewer! : a, op, t);
     },
   });
-  const queued = (await service.execute(
-    "exportRows",
-    viewer,
-    { tableId: target.id, format: "jsonl" },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  const cancelKey = newId();
-  const cancelled = (await service.execute(
-    "cancelJob",
-    viewer,
-    { id: queued.jobId },
-    { idempotencyKey: cancelKey },
-  )) as { state: string };
-  getOperation("cancelJob").outputSchema.parse(cancelled);
-  assert.equal(cancelled.state, "cancelled");
-  assert.deepEqual(
-    await service.execute(
+  await assert.rejects(
+    fallback.authorise(
+      {
+        ...viewer,
+        scopes: viewer.scopes.filter((scope) => scope !== "schema:read"),
+      },
+      "exportDatabase",
+      { databaseId: database.id },
+    ),
+    (error) =>
+      error instanceof RootsetError && error.code === "INSUFFICIENT_SCOPE",
+  );
+  for (const [exportOperation, exportTarget] of [
+    ["exportRows", { tableId: target.id }],
+    ["exportDatabase", { databaseId: database.id }],
+  ] as const) {
+    const queued = (await service.execute(
+      exportOperation,
+      viewer,
+      { ...exportTarget, format: "jsonl" },
+      { idempotencyKey: newId() },
+    )) as { jobId: string };
+    const cancelKey = newId();
+    const cancelled = (await service.execute(
       "cancelJob",
       viewer,
       { id: queued.jobId },
       { idempotencyKey: cancelKey },
-    ),
-    cancelled,
-  );
-  const foreign: Actor = {
-    ...viewer,
-    id: newId(),
-    credentialId: newId(),
-    userId: newId(),
-  };
-  for (const operation of ["cancelJob", "retryJob"])
-    await assert.rejects(
-      service.execute(
-        operation,
-        foreign,
+    )) as { state: string };
+    getOperation("cancelJob").outputSchema.parse(cancelled);
+    assert.equal(cancelled.state, "cancelled");
+    assert.deepEqual(
+      await service.execute(
+        "cancelJob",
+        viewer,
         { id: queued.jobId },
-        { idempotencyKey: newId() },
+        { idempotencyKey: cancelKey },
       ),
+      cancelled,
+    );
+    const foreign: Actor = {
+      ...viewer,
+      id: newId(),
+      credentialId: newId(),
+      userId: newId(),
+    };
+    for (const operation of ["cancelJob", "retryJob"])
+      await assert.rejects(
+        service.execute(
+          operation,
+          foreign,
+          { id: queued.jobId },
+          { idempotencyKey: newId() },
+        ),
+        (error) =>
+          error instanceof RootsetError && error.code === "RESOURCE_NOT_FOUND",
+      );
+    liveViewer = undefined;
+    for (const operation of ["cancelJob", "retryJob"])
+      await assert.rejects(
+        service.execute(
+          operation,
+          viewer,
+          { id: queued.jobId },
+          { idempotencyKey: operation === "cancelJob" ? cancelKey : newId() },
+        ),
+        (error) =>
+          error instanceof RootsetError && error.code === "ACCESS_DENIED",
+      );
+    liveViewer = viewer;
+    const retryKey = newId();
+    const retry = (await service.execute(
+      "retryJob",
+      viewer,
+      { id: queued.jobId },
+      { idempotencyKey: retryKey },
+    )) as { jobId: string };
+    getOperation("retryJob").outputSchema.parse(retry);
+    assert.equal(retry.jobId, queued.jobId);
+    assert.deepEqual(
+      await service.execute(
+        "retryJob",
+        viewer,
+        { id: queued.jobId },
+        { idempotencyKey: retryKey },
+      ),
+      retry,
+    );
+    await service.runOnce(viewer.orgId);
+    const finished = (await service.execute("getJob", viewer, {
+      id: queued.jobId,
+    })) as { state: string; result: { artifactId: string } };
+    getOperation("getJob").outputSchema.parse(finished);
+    assert.equal(finished.state, "succeeded");
+    const download = await service.downloadArtifact(
+      viewer,
+      finished.result.artifactId,
+    );
+    const chunks: Buffer[] = [];
+    for await (const chunk of download.stream) chunks.push(Buffer.from(chunk));
+    if (exportOperation === "exportRows")
+      assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString()), {
+        value: "Viewer row",
+      });
+    else
+      assert.equal(
+        Buffer.concat(chunks).subarray(0, 4).toString("hex"),
+        "504b0304",
+      );
+    await assert.rejects(
+      service.downloadArtifact(foreign, finished.result.artifactId),
       (error) =>
         error instanceof RootsetError && error.code === "RESOURCE_NOT_FOUND",
     );
-  liveViewer = undefined;
-  for (const operation of ["cancelJob", "retryJob"])
+    liveViewer = undefined;
+    await assert.rejects(
+      service.downloadArtifact(viewer, finished.result.artifactId),
+      (error) =>
+        error instanceof RootsetError && error.code === "ACCESS_DENIED",
+    );
     await assert.rejects(
       service.execute(
-        operation,
+        "retryJob",
         viewer,
         { id: queued.jobId },
-        { idempotencyKey: operation === "cancelJob" ? cancelKey : newId() },
+        { idempotencyKey: retryKey },
       ),
       (error) =>
         error instanceof RootsetError && error.code === "ACCESS_DENIED",
     );
-  liveViewer = viewer;
-  const retryKey = newId();
-  const retry = (await service.execute(
-    "retryJob",
-    viewer,
-    { id: queued.jobId },
-    { idempotencyKey: retryKey },
-  )) as { jobId: string };
-  getOperation("retryJob").outputSchema.parse(retry);
-  assert.equal(retry.jobId, queued.jobId);
-  assert.deepEqual(
-    await service.execute(
-      "retryJob",
+    liveViewer = viewer;
+    const revoked = (await service.execute(
+      exportOperation,
       viewer,
-      { id: queued.jobId },
-      { idempotencyKey: retryKey },
-    ),
-    retry,
-  );
-  await service.runOnce(viewer.orgId);
-  const finished = (await service.execute("getJob", viewer, {
-    id: queued.jobId,
-  })) as { state: string; result: { artifactId: string } };
-  getOperation("getJob").outputSchema.parse(finished);
-  assert.equal(finished.state, "succeeded");
-  const download = await service.downloadArtifact(
-    viewer,
-    finished.result.artifactId,
-  );
-  const chunks: Buffer[] = [];
-  for await (const chunk of download.stream) chunks.push(Buffer.from(chunk));
-  assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString()), {
-    value: "Viewer row",
-  });
-  liveViewer = undefined;
-  await assert.rejects(
-    service.execute(
-      "retryJob",
-      viewer,
-      { id: queued.jobId },
-      { idempotencyKey: retryKey },
-    ),
-    (error) => error instanceof RootsetError && error.code === "ACCESS_DENIED",
-  );
-  liveViewer = viewer;
-  const revoked = (await service.execute(
-    "exportRows",
-    viewer,
-    { tableId: target.id, format: "jsonl" },
-    { idempotencyKey: newId() },
-  )) as { jobId: string };
-  liveViewer = undefined;
-  await service.runOnce(viewer.orgId);
-  liveViewer = viewer;
-  const refused = (await service.execute("getJob", viewer, {
-    id: revoked.jobId,
-  })) as { state: string; error: { code: string } };
-  getOperation("getJob").outputSchema.parse(refused);
-  assert.equal(refused.state, "failed");
-  assert.equal(refused.error.code, "ACCESS_DENIED");
+      { ...exportTarget, format: "jsonl" },
+      { idempotencyKey: newId() },
+    )) as { jobId: string };
+    liveViewer = undefined;
+    await service.runOnce(viewer.orgId);
+    liveViewer = viewer;
+    const refused = (await service.execute("getJob", viewer, {
+      id: revoked.jobId,
+    })) as { state: string; error: { code: string } };
+    getOperation("getJob").outputSchema.parse(refused);
+    assert.equal(refused.state, "failed");
+    assert.equal(refused.error.code, "ACCESS_DENIED");
+  }
 });
 
 test("V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current authority before publishing their artifact", async () => {
@@ -653,57 +1036,64 @@ test("V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current 
     { value: "Only authorized output" },
     { idempotencyKey: newId() },
   );
-  for (const action of ["cancel", "revoke"] as const) {
-    const run = (await jobs.execute(
-      "exportRows",
-      actor,
-      { tableId: target.id, format: "jsonl" },
-      { idempotencyKey: newId() },
-    )) as { jobId: string };
-    hook = async (point, id) => {
-      if (point !== "export.afterBatch" || id !== run.jobId) return;
-      hook = null;
-      if (action === "cancel")
-        await jobs.execute(
-          "cancelJob",
-          actor,
-          { id },
-          { idempotencyKey: newId() },
-        );
-      else currentAccess = false;
-    };
-    try {
-      await jobs.runOnce(actor.orgId);
-    } finally {
-      hook = null;
-      currentAccess = true;
+  for (const [operation, inputTarget] of [
+    ["exportRows", { tableId: target.id }],
+    ["exportDatabase", { databaseId: database.id }],
+  ] as const) {
+    for (const action of ["cancel", "revoke"] as const) {
+      const run = (await jobs.execute(
+        operation,
+        actor,
+        { ...inputTarget, format: "jsonl" },
+        { idempotencyKey: newId() },
+      )) as { jobId: string };
+      hook = async (point, id) => {
+        if (point !== "export.afterBatch" || id !== run.jobId) return;
+        hook = null;
+        if (action === "cancel")
+          await jobs.execute(
+            "cancelJob",
+            actor,
+            { id },
+            { idempotencyKey: newId() },
+          );
+        else currentAccess = false;
+      };
+      try {
+        await jobs.runOnce(actor.orgId);
+      } finally {
+        hook = null;
+        currentAccess = true;
+      }
+      const result = (await jobs.execute("getJob", actor, {
+        id: run.jobId,
+      })) as {
+        state: string;
+        error: { code: string };
+        result?: unknown;
+      };
+      getOperation("getJob").outputSchema.parse(result);
+      assert.equal(result.state, action === "cancel" ? "cancelled" : "failed");
+      assert.equal(result.result, undefined);
+      if (action === "revoke") assert.equal(result.error.code, "ACCESS_DENIED");
+      const artifacts = await withOrg(
+        ddlPool,
+        actor.orgId,
+        async (c) =>
+          (
+            await c.query<{ id: string; state: string }>(
+              "SELECT id,state FROM rootset_control.artifacts WHERE job_id=$1 AND purpose='export'",
+              [run.jobId],
+            )
+          ).rows,
+      );
+      assert.equal(artifacts.length, 1);
+      assert.equal(artifacts[0]!.state, "failed");
+      await assert.rejects(
+        jobs.execute("getArtifact", actor, { id: artifacts[0]!.id }),
+        (error) => error instanceof RootsetError && error.code === "JOB_FAILED",
+      );
     }
-    const result = (await jobs.execute("getJob", actor, { id: run.jobId })) as {
-      state: string;
-      error: { code: string };
-      result?: unknown;
-    };
-    getOperation("getJob").outputSchema.parse(result);
-    assert.equal(result.state, action === "cancel" ? "cancelled" : "failed");
-    assert.equal(result.result, undefined);
-    if (action === "revoke") assert.equal(result.error.code, "ACCESS_DENIED");
-    const artifacts = await withOrg(
-      ddlPool,
-      actor.orgId,
-      async (c) =>
-        (
-          await c.query<{ id: string; state: string }>(
-            "SELECT id,state FROM rootset_control.artifacts WHERE job_id=$1 AND purpose='export'",
-            [run.jobId],
-          )
-        ).rows,
-    );
-    assert.equal(artifacts.length, 1);
-    assert.equal(artifacts[0]!.state, "failed");
-    await assert.rejects(
-      jobs.execute("getArtifact", actor, { id: artifacts[0]!.id }),
-      (error) => error instanceof RootsetError && error.code === "JOB_FAILED",
-    );
   }
 });
 

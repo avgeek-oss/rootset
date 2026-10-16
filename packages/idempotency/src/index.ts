@@ -40,6 +40,7 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "deleteField",
   "countRows",
   "exportRows",
+  "exportDatabase",
 ]);
 export const backupMutationSet: ReadonlySet<string> = new Set([
   "saveBackupSchedule",

@@ -2,10 +2,8 @@ import { DatabaseBackups, backupJobKinds } from "./backups/index.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { timingSafeEqual } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { stringify } from "csv-stringify/sync";
 import { writeFile } from "node:fs/promises";
 import {
-  canonicalJson,
   getOperation,
   IdSchema,
   JobAcceptedSchema,
@@ -24,6 +22,11 @@ import {
   lockOperationAdmission,
 } from "@rootset/idempotency";
 import { ArtifactStore } from "./artifacts.js";
+import {
+  databaseExport,
+  tableExportRows,
+  type ExportFormat,
+} from "./exports.js";
 import {
   DurableQueue,
   JobCancelled,
@@ -595,6 +598,23 @@ export class JobsService {
     idempotencyKey: string | undefined,
   ): Promise<unknown> {
     switch (operationId) {
+      case "exportDatabase": {
+        const database = await this.storage.getDatabase(
+          actor,
+          String(input.databaseId),
+        );
+        return accepted(
+          await this.queue.enqueue(
+            actor,
+            operationId,
+            "export",
+            { type: "database", id: database.id },
+            input,
+            this.requireKey(idempotencyKey),
+            context.client,
+          ),
+        );
+      }
       case "exportRows": {
         const table = await this.storage.getTable(actor, String(input.tableId));
         return accepted(
@@ -796,7 +816,7 @@ export class JobsService {
   ): Promise<void> {
     await this.authorise(
       actor,
-      "exportRows",
+      artifact.target_type === "database" ? "exportDatabase" : "exportRows",
       artifact.target_type === "table"
         ? { tableId: artifact.target_id }
         : { databaseId: artifact.target_id },
@@ -834,6 +854,9 @@ export class JobsService {
       resourceUri: `rootset://artifacts/${artifact.id}`,
       ...(typeof artifact.metadata.rowCount === "number"
         ? { rowCount: artifact.metadata.rowCount }
+        : {}),
+      ...(typeof artifact.metadata.tableCount === "number"
+        ? { tableCount: artifact.metadata.tableCount }
         : {}),
     };
   }
@@ -1032,6 +1055,14 @@ export class JobsService {
   }
 
   private async export(actor: Actor, job: JobRecord): Promise<JsonValue> {
+    const format = job.input.format;
+    if (format !== "csv" && format !== "jsonl")
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Export format must be csv or jsonl",
+      );
+    if (job.target_type === "database")
+      return this.exportDatabase(actor, job, format);
     const table = await this.storage.getTable(actor, job.target_id);
     if (table.schemaVersion !== Number(job.input.schemaVersion))
       throw new RootsetError(
@@ -1056,55 +1087,21 @@ export class JobsService {
           {},
           client,
         );
-        const format = String(job.input.format);
-        if (!["csv", "jsonl"].includes(format))
-          throw new RootsetError(
-            "VALIDATION_FAILED",
-            "Export format must be csv or jsonl",
-          );
         let rowCount = 0;
         const fields = source.table.fields;
         const checkCurrent = async () => {
           actor = await this.jobActor(job);
           await this.queue.fenced(job, async () => undefined);
         };
-        const afterBatch = () =>
-          this.config.failpoint?.("export.afterBatch", job.id);
-        async function* records() {
-          if (format === "csv")
-            yield stringify([fields.map((field) => field.name)]);
-          for await (const batch of source.rows) {
-            await checkCurrent();
-            for (const row of batch) {
-              rowCount++;
-              if (format === "jsonl")
-                yield `${canonicalJson(row.values, { maxDepth: 96 })}\n`;
-              else
-                yield stringify(
-                  [
-                    fields.map((field) => {
-                      const value = row.values[field.name];
-                      let text =
-                        value === null
-                          ? "\\N"
-                          : typeof value === "object"
-                            ? canonicalJson(value)
-                            : String(value);
-                      if (
-                        ["text", "uri", "url", "image"].includes(field.type) &&
-                        typeof value === "string" &&
-                        text.startsWith("\\")
-                      )
-                        text = `\\${text}`;
-                      return text;
-                    }),
-                  ],
-                  { quoted_empty: true },
-                );
-            }
-            await afterBatch();
-          }
-        }
+        const records = tableExportRows(fields, source.rows, format, {
+          check: checkCurrent,
+          afterBatch: async () => {
+            await this.config.failpoint?.("export.afterBatch", job.id);
+          },
+          onRows(count) {
+            rowCount += count;
+          },
+        });
         const artifact = await this.artifacts.write(
           actor,
           job,
@@ -1112,7 +1109,7 @@ export class JobsService {
           "export",
           format,
           format === "csv" ? "text/csv" : "application/x-ndjson",
-          records(),
+          records,
           {
             schemaVersion: table.schemaVersion,
             snapshot: "repeatable_read",
@@ -1133,6 +1130,82 @@ export class JobsService {
           format,
           schemaVersion: table.schemaVersion,
           snapshot: "repeatable_read",
+        };
+      },
+    );
+  }
+
+  private async exportDatabase(
+    actor: Actor,
+    job: JobRecord,
+    format: ExportFormat,
+  ): Promise<JsonValue> {
+    const check = async () => {
+      actor = await this.jobActor(job);
+      await this.queue.fenced(job, async () => undefined);
+    };
+    return snapshotTransaction(
+      this.queue.workerPool,
+      actor.orgId,
+      job.target_id,
+      async (client) => {
+        const archive = await databaseExport({
+          client,
+          storage: this.storage,
+          actor,
+          databaseId: job.target_id,
+          rootsetVersion: this.config.rootsetVersion ?? "unknown",
+          format,
+          check,
+          afterBatch: async () => {
+            await this.config.failpoint?.("export.afterBatch", job.id);
+          },
+          afterTable: async () => {
+            await this.config.failpoint?.("database-export.afterTable", job.id);
+          },
+          onTable: async (completed, total) => {
+            await this.queue.fenced(job, async (connection) => {
+              await connection.query(
+                "UPDATE rootset_control.jobs SET stage='exporting',progress=$2,updated_at=now() WHERE id=$1",
+                [job.id, { completed, total, unit: "tables" }],
+              );
+            });
+          },
+        });
+        const artifact = await this.artifacts.write(
+          actor,
+          job,
+          { type: "database", id: job.target_id },
+          "export",
+          "zip",
+          "application/zip",
+          archive.stream,
+          {
+            dataFormat: format,
+            snapshot: "repeatable_read",
+            snapshotAt: archive.manifest.snapshotAt,
+          },
+          { beforePublish: check },
+        );
+        const counts = {
+          rowCount: archive.manifest.rowCount,
+          tableCount: archive.manifest.tables.length,
+        };
+        await withOrg(this.queue.workerPool, actor.orgId, (connection) =>
+          connection.query(
+            "UPDATE rootset_control.artifacts SET metadata=metadata||$2::jsonb WHERE id=$1",
+            [artifact.id, counts],
+          ),
+        );
+        return {
+          artifactId: artifact.id,
+          ...counts,
+          checksum: artifact.checksum!,
+          byteLength: Number(artifact.byte_length),
+          format: "zip",
+          dataFormat: format,
+          snapshot: "repeatable_read",
+          snapshotAt: archive.manifest.snapshotAt,
         };
       },
     );

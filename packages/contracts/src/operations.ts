@@ -1241,6 +1241,17 @@ operation(
   { minimumRole: "viewer", job: true, successStatus: 202 },
 );
 operation(
+  "exportDatabase",
+  "export_database",
+  "POST",
+  `${D}/exports`,
+  ["exports:read", "rows:read", "schema:read"],
+  z.strictObject({ ...database, format: z.enum(["csv", "jsonl"]) }),
+  JobAcceptedSchema,
+  "Export every table and its schema from one database snapshot as a ZIP containing CSV or JSONL data, field definitions, unique rules and foreign keys.",
+  { minimumRole: "viewer", job: true, successStatus: 202 },
+);
+operation(
   "getArtifact",
   "get_artifact",
   "GET",

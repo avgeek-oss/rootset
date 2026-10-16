@@ -81,6 +81,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     database: DatabaseSettings,
     "backup-schedule": BackupScheduleSettings,
     "backup-history": BackupHistorySettings,
+    "database-exports": ExportsSettings,
     "database-danger-zone": DatabaseDangerZone,
     table: TableSettings,
     "table-danger-zone": TableDangerZone,
@@ -103,6 +104,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "database-danger-zone",
     "backup-schedule",
     "backup-history",
+    "database-exports",
   ];
   const content =
     context.loading || context.error ? (

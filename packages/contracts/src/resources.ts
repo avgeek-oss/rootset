@@ -236,13 +236,14 @@ export const ArtifactSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
   kind: z.literal("export"),
-  format: z.enum(["csv", "jsonl", "json"]),
+  format: z.enum(["csv", "jsonl", "json", "zip"]),
   sizeBytes: z.number().int().nonnegative(),
   checksum: z.string(),
   expiresAt: DateTimeSchema,
   downloadUrl: z.string().optional(),
   resourceUri: z.string().optional(),
   rowCount: z.number().int().nonnegative().optional(),
+  tableCount: z.number().int().nonnegative().optional(),
 });
 export const SchemaChangeSchema = z.discriminatedUnion("kind", [
   z.strictObject({

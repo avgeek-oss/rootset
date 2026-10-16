@@ -15150,6 +15150,199 @@
         }
       }
     },
+    "/v1/orgs/{orgId}/databases/{databaseId}/exports": {
+      "post": {
+        "operationId": "exportDatabase",
+        "tags": ["artifacts"],
+        "summary": "Export every table and its schema from one database snapshot as a ZIP containing CSV or JSONL data, field definitions, unique rules and foreign keys.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [
+          { "apiKey": [] },
+          { "oauth": ["exports:read", "rows:read", "schema:read"] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "format": { "type": "string", "enum": ["csv", "jsonl"] }
+                },
+                "required": ["format"],
+                "additionalProperties": false
+              },
+              "example": { "format": "csv" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/exportDatabaseOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["exports:read", "rows:read", "schema:read"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": true,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_export_database",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "format": "csv"
+        }
+      }
+    },
     "/v1/orgs/{orgId}/artifacts/{id}": {
       "get": {
         "operationId": "getArtifact",
@@ -32852,6 +33045,45 @@
         "required": ["jobId", "state", "statusUrl"],
         "additionalProperties": false
       },
+      "exportDatabaseInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "format": { "type": "string", "enum": ["csv", "jsonl"] }
+        },
+        "required": ["orgId", "databaseId", "format"],
+        "additionalProperties": false
+      },
+      "exportDatabaseOutput": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "partially_completed"
+            ]
+          },
+          "statusUrl": { "type": "string" }
+        },
+        "required": ["jobId", "state", "statusUrl"],
+        "additionalProperties": false
+      },
       "getArtifactInput": {
         "type": "object",
         "properties": {
@@ -32876,7 +33108,10 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
           "kind": { "type": "string", "const": "export" },
-          "format": { "type": "string", "enum": ["csv", "jsonl", "json"] },
+          "format": {
+            "type": "string",
+            "enum": ["csv", "jsonl", "json", "zip"]
+          },
           "sizeBytes": {
             "type": "integer",
             "minimum": 0,
@@ -32893,6 +33128,11 @@
           "downloadUrl": { "type": "string" },
           "resourceUri": { "type": "string" },
           "rowCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "tableCount": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
@@ -34440,6 +34680,7 @@
               "rows:write": "Current rows:write authority; the live role ceiling still applies.",
               "history:read": "Current history:read authority; the live role ceiling still applies.",
               "exports:read": "Current exports:read authority; the live role ceiling still applies.",
+              "schema:read": "Current schema:read authority; the live role ceiling still applies.",
               "jobs:read": "Current jobs:read authority; the live role ceiling still applies.",
               "jobs:cancel": "Current jobs:cancel authority; the live role ceiling still applies.",
               "jobs:retry": "Current jobs:retry authority; the live role ceiling still applies.",

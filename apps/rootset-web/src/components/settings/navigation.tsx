@@ -44,6 +44,7 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["team-api-keys"] },
   ],
   database: [
+    { title: "Data", sections: ["database-exports"] },
     { title: "Backup", sections: ["backup-schedule", "backup-history"] },
     { title: "Settings", sections: ["database", "database-danger-zone"] },
   ],
@@ -101,7 +102,7 @@ export function settingsHref(
       ? "general"
       : section.endsWith("danger-zone")
         ? "danger-zone"
-        : section === "exports"
+        : section === "exports" || section === "database-exports"
           ? "export-requests"
           : section;
   return `${base}/settings/${page}`;
@@ -174,7 +175,9 @@ export function resourceRoute(path: string) {
           ? "table-danger-zone"
           : "database-danger-zone"
         : page === "export-requests"
-          ? "exports"
+          ? tableId
+            ? "exports"
+            : "database-exports"
           : page;
   return { databaseId, tableId, section };
 }
@@ -194,6 +197,7 @@ export const settingsIcons = {
   database: DatabaseSettingIcon,
   "backup-schedule": Clock01Icon,
   "backup-history": TransactionHistoryIcon,
+  "database-exports": Download01Icon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
   "table-danger-zone": Delete02Icon,

@@ -57,6 +57,11 @@ describe("context settings navigation", () => {
       ),
     ).toEqual(["exports"]);
     expect(
+      settingsNavigationGroups("database", "viewer").flatMap((group) =>
+        group.items.map((item) => item.id),
+      ),
+    ).toEqual(["database-exports"]);
+    expect(
       settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
@@ -82,6 +87,9 @@ describe("context settings navigation", () => {
     expect(settingsHref("exports", context)).toBe(
       "/databases/db/tables/table/settings/export-requests",
     );
+    expect(settingsHref("database-exports", context)).toBe(
+      "/databases/db/settings/export-requests",
+    );
     expect(dataHref("db", "table")).toBe("/databases/db/tables/table");
   });
   it("round trips resource pages and separates destructive settings", () => {
@@ -90,6 +98,7 @@ describe("context settings navigation", () => {
       "database-danger-zone",
       "backup-schedule",
       "backup-history",
+      "database-exports",
       "table",
       "table-danger-zone",
       "fields",
@@ -123,10 +132,20 @@ describe("context settings navigation", () => {
       databaseId: "db",
       tableId: "table",
     });
-    expect(groups.map((group) => group.title)).toEqual(["Backup", "Settings"]);
+    expect(groups.map((group) => group.title)).toEqual([
+      "Data",
+      "Backup",
+      "Settings",
+    ]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.label)),
-    ).toEqual(["Backup Schedule", "Backup History", "General", "Danger Zone"]);
+    ).toEqual([
+      "Export Requests",
+      "Backup Schedule",
+      "Backup History",
+      "General",
+      "Danger Zone",
+    ]);
     const danger = groups
       .flatMap((group) => group.items)
       .find((item) => item.id === "database-danger-zone");

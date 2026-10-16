@@ -20,6 +20,7 @@ const personalAndRead = [
   "api-keys",
   "mcp-connections",
   "exports",
+  "database-exports",
 ] as const;
 describe("settings role boundaries", () => {
   it.each(["database", "table", "fields", "rules", "foreign-keys"] as const)(

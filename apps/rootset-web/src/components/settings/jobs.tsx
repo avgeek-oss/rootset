@@ -13,6 +13,7 @@ import { PageSelectionTitle } from "./account/page-selection-title";
 import { RelativeTime } from "./account/last-synced-time";
 import {
   organisationPath,
+  databasePath,
   read,
   readRaw,
   tablePath,
@@ -56,6 +57,7 @@ export function ExportRequestsTable({
   onCancel,
   onRetry,
   emptyAction,
+  databaseLevel = false,
 }: {
   requests: Job[];
   busy: boolean;
@@ -63,6 +65,7 @@ export function ExportRequestsTable({
   onCancel: (job: Job) => void;
   onRetry: (job: Job) => void;
   emptyAction?: ReactNode;
+  databaseLevel?: boolean;
 }) {
   return (
     <ResourceTable
@@ -71,7 +74,11 @@ export function ExportRequestsTable({
       getRowKey={(request) => request.id}
       tableClassName="min-w-3xl"
       emptyTitle="No export requests yet"
-      emptyDescription="Create a request to download every row and field as CSV or JSONL."
+      emptyDescription={
+        databaseLevel
+          ? "Create a request to download a ZIP containing every table’s schema and CSV or JSONL data."
+          : "Create a request to download every row and field as CSV or JSONL."
+      }
       emptyAction={emptyAction}
       columns={[
         {
@@ -85,7 +92,9 @@ export function ExportRequestsTable({
           key: "format",
           header: "File format",
           cell: (request) =>
-            request.format?.toUpperCase() ?? (
+            request.format ? (
+              `${databaseLevel ? "ZIP · " : ""}${request.format.toUpperCase()}`
+            ) : (
               <span className="field-empty">—</span>
             ),
         },
@@ -103,6 +112,20 @@ export function ExportRequestsTable({
             </Chip>
           ),
         },
+        ...(databaseLevel
+          ? [
+              {
+                key: "tables",
+                header: "Tables",
+                cell: (request: Job) =>
+                  typeof request.result?.tableCount === "number" ? (
+                    request.result.tableCount.toLocaleString()
+                  ) : (
+                    <span className="field-empty">—</span>
+                  ),
+              },
+            ]
+          : []),
         {
           key: "rows",
           header: "Rows",
@@ -155,17 +178,22 @@ export function ExportRequestsTable({
 }
 
 export function ExportsSettings(props: SettingsPanelProps) {
+  const databaseLevel = props.section === "database-exports";
   const path =
-    props.databaseId && props.tableId
-      ? tablePath(props.orgId, props.databaseId, props.tableId)
-      : undefined;
+    databaseLevel && props.databaseId
+      ? databasePath(props.orgId, props.databaseId)
+      : props.databaseId && props.tableId
+        ? tablePath(props.orgId, props.databaseId, props.tableId)
+        : undefined;
   const [cursors, setCursors] = useState<string[]>([]);
   const cursor = cursors.at(-1);
   const query = new URLSearchParams({
     kind: "export",
-    tableId: props.tableId ?? "",
     limit: "50",
   });
+  if (databaseLevel && props.databaseId)
+    query.set("databaseId", props.databaseId);
+  else if (props.tableId) query.set("tableId", props.tableId);
   if (cursor) query.set("cursor", cursor);
   const requests = useResource<ExportPage>(
     path ? `${organisationPath(props.orgId)}/jobs?${query}` : undefined,
@@ -210,7 +238,13 @@ export function ExportsSettings(props: SettingsPanelProps) {
     ),
     [mutation.busy],
   );
-  if (!path) return <Empty>Select a table to create export requests.</Empty>;
+  if (!path)
+    return (
+      <Empty>
+        Select a {databaseLevel ? "database" : "table"} to create export
+        requests.
+      </Empty>
+    );
   return (
     <>
       <PageSelectionTitle label="Export Requests" actions={actions} />
@@ -221,7 +255,8 @@ export function ExportsSettings(props: SettingsPanelProps) {
             <ExportRequestsTable
               requests={requests.data.data}
               busy={mutation.busy}
-              emptyAction={actions}
+              databaseLevel={databaseLevel}
+              emptyAction={databaseLevel ? undefined : actions}
               onDownload={(id) => {
                 void mutation.run(
                   () => downloadArtifact(props.orgId, id),
@@ -306,8 +341,14 @@ export function ExportsSettings(props: SettingsPanelProps) {
               }
             }}
           >
+            {databaseLevel && (
+              <p>
+                The ZIP includes every table’s schema and data from one database
+                snapshot. Choose the data format used inside each table folder.
+              </p>
+            )}
             <Choice
-              label="File format"
+              label={databaseLevel ? "Table data format" : "File format"}
               value={format}
               onChange={setFormat}
               options={[

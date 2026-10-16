@@ -1,6 +1,6 @@
 ---
 title: "Export Requests"
-description: "Export every row and field as CSV or JSONL and track the request in a table."
+description: "Export a table as CSV or JSONL, or download every table and its schema in a database ZIP."
 ---
 
 import { Screenshot } from "/snippets/oss/screenshot.jsx";
@@ -8,6 +8,18 @@ import { Screenshot } from "/snippets/oss/screenshot.jsx";
 Open a table's **Export Requests** page and select **Create export request**. Choose **CSV** or **JSONL**, then select **Start export**.
 
 Each request exports a complete snapshot of the table: every row and every field. You do not select individual fields, and spreadsheet filters do not limit the export. The worker prepares the artifact; the requests table shows progress and the download action when ready. Viewers can request exports of data they can read.
+
+## Export a database
+
+Open a database and choose **Data → Export Requests**, then **Create export request**. Choose CSV or JSONL for the table data and start the export. The worker prepares one ZIP containing every active table, including empty tables, from the same consistent database snapshot.
+
+The ZIP contains `database.json`, a versioned `manifest.json`, a short `README.txt`, and a folder for each table under `tables/<table-id>/`. Each folder includes `schema.json` and `data.csv` or `data.jsonl`. Schema files include table details, ordered field definitions, active unique rules and foreign keys. The manifest maps table IDs to names and records schema versions, actual row counts, snapshot time and file checksums. Internal physical database identifiers are excluded.
+
+The requests table shows table and row counts when complete. Downloads use the existing expiring artifact flow and require current database, row and schema read access. Cancellation, retries and job visibility follow the same ownership rules as table exports. Record writes continue during extraction; schema changes and deletion coordinate with the snapshot lock. Tables undergoing maintenance must finish before an export can begin.
+
+Database exports use the normal export storage configured for the worker; backup storage configuration is not required. They include schema and record values, excluding accounts, credentials, comments and retained history. They do not configure backup schedules or provide a restore/import operation.
+
+## Data formats
 
 | Format | Use it for                                               |
 | ------ | -------------------------------------------------------- |
