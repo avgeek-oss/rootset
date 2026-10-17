@@ -30,7 +30,7 @@ export type ActivityInput = z.infer<typeof ActivityInputSchema>;
 const resource = z.strictObject({
   id: IdSchema,
   name: z.string(),
-  state: z.enum(["active", "deleted"]),
+  state: z.enum(["active", "maintenance", "deleted"]),
 });
 export const ActivityEventSchema = z.strictObject({
   id: z.string(),

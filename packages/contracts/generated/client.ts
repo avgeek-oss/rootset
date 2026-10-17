@@ -4296,8 +4296,16 @@ export type listActivityOutput = {
       | "partially_completed"
       | "resolved";
     actor: { id: unknown; kind: string; name: string };
-    database: { id: string; name: string; state: "active" | "deleted" } | null;
-    table: { id: string; name: string; state: "active" | "deleted" } | null;
+    database: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
+    table: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
     rowId: string | null;
     affectedRows: number | null;
     jobId: string | null;
@@ -4321,8 +4329,16 @@ export type listActivityOutput = {
     "records" | "schema" | "imports" | "exports" | "backups" | "restores"
   )[];
   scope: {
-    database: { id: string; name: string; state: "active" | "deleted" } | null;
-    table: { id: string; name: string; state: "active" | "deleted" } | null;
+    database: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
+    table: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
   };
 };
 export type queryHistoryInput = {

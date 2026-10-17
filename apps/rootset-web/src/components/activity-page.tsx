@@ -347,6 +347,11 @@ function ActivityContents({
                         event.table?.state === "deleted") && (
                         <span className="text-xs text-muted">Deleted</span>
                       )}
+                      {event.table?.state === "maintenance" && (
+                        <span className="text-xs text-muted">
+                          In maintenance
+                        </span>
+                      )}
                     </div>
                   );
                 },

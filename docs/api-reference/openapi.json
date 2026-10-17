@@ -37346,7 +37346,7 @@
                         "name": { "type": "string" },
                         "state": {
                           "type": "string",
-                          "enum": ["active", "deleted"]
+                          "enum": ["active", "maintenance", "deleted"]
                         }
                       },
                       "required": ["id", "name", "state"],
@@ -37367,7 +37367,7 @@
                         "name": { "type": "string" },
                         "state": {
                           "type": "string",
-                          "enum": ["active", "deleted"]
+                          "enum": ["active", "maintenance", "deleted"]
                         }
                       },
                       "required": ["id", "name", "state"],
@@ -37478,7 +37478,7 @@
                       "name": { "type": "string" },
                       "state": {
                         "type": "string",
-                        "enum": ["active", "deleted"]
+                        "enum": ["active", "maintenance", "deleted"]
                       }
                     },
                     "required": ["id", "name", "state"],
@@ -37499,7 +37499,7 @@
                       "name": { "type": "string" },
                       "state": {
                         "type": "string",
-                        "enum": ["active", "deleted"]
+                        "enum": ["active", "maintenance", "deleted"]
                       }
                     },
                     "required": ["id", "name", "state"],

@@ -121,7 +121,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         activeSection,
         props.role ?? context.data?.principal.role,
       ) ? (
-      <Empty>Admin access is required to manage these settings.</Empty>
+      <Empty>Your role does not allow access to this page.</Empty>
     ) : (
       <Component
         key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}

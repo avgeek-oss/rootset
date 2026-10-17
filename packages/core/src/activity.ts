@@ -187,6 +187,7 @@ function authority(actor: Actor): string {
     scopes: [...new Set(actor.scopes)].sort(),
   });
 }
+type ResourceState = NonNullable<ActivityEvent["table"]>["state"];
 interface SourceRow {
   event_key: string;
   occurred_at: string;
@@ -198,10 +199,10 @@ interface SourceRow {
   actor_name: string;
   database_id: string | null;
   database_name: string | null;
-  database_state: "active" | "deleted" | null;
+  database_state: ResourceState | null;
   table_id: string | null;
   table_name: string | null;
-  table_state: "active" | "deleted" | null;
+  table_state: ResourceState | null;
   row_id: string | null;
   affected_rows: string | null;
   job_id: string | null;
@@ -346,10 +347,10 @@ export class ActivityReader {
             await client.query<{
               database_id: string | null;
               database_name: string | null;
-              database_state: "active" | "deleted" | null;
+              database_state: ResourceState | null;
               table_id: string | null;
               table_name: string | null;
-              table_state: "active" | "deleted" | null;
+              table_state: ResourceState | null;
               cutoff: string;
             }>(
               `SELECT d.id database_id,d.name database_name,d.state database_state,t.id table_id,t.name table_name,t.state table_state,${utc("clock_timestamp()")} cutoff

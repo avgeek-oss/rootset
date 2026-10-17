@@ -42,6 +42,7 @@ describe("activity resource navigation", () => {
       { database: null },
       { database: { ...event.database!, state: "deleted" as const } },
       { table: { ...event.table!, state: "deleted" as const } },
+      { table: { ...event.table!, state: "maintenance" as const } },
       { table: null },
     ])
       expect(activityHref({ ...event, ...patch })).toBeNull();

@@ -381,6 +381,28 @@ test(
       await t.test(
         "archived resources retain allowed metadata without live links or deleted record history",
         async () => {
+          await withOrg(fixture.app, orgId, (c) =>
+            c.query(
+              "UPDATE rootset_control.tables SET state='maintenance' WHERE id=$1",
+              [table.id],
+            ),
+          );
+          const maintenance = await list({ tableId: table.id });
+          assert.equal(maintenance.scope.table?.state, "maintenance");
+          assert.ok(maintenance.data.length);
+          assert.ok(
+            maintenance.data.every(
+              (event) =>
+                event.table?.state === "maintenance" &&
+                event.destination === null,
+            ),
+          );
+          await withOrg(fixture.app, orgId, (c) =>
+            c.query(
+              "UPDATE rootset_control.tables SET state='active' WHERE id=$1",
+              [table.id],
+            ),
+          );
           await runtime.storage.deleteTable(admin, table.id, {
             expectedSchemaVersion: table.schemaVersion,
           });
