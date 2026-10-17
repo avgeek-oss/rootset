@@ -21866,6 +21866,385 @@
     }
   },
   {
+    "name": "rootset_list_activity",
+    "title": "listActivity",
+    "description": "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "records",
+            "schema",
+            "imports",
+            "exports",
+            "backups",
+            "restores"
+          ]
+        },
+        "q": { "type": "string", "maxLength": 200 },
+        "from": {
+          "type": "string",
+          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+        },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "cursor": {
+          "anyOf": [
+            { "type": "string", "maxLength": 131200 },
+            { "type": "null" }
+          ]
+        }
+      },
+      "required": ["orgId"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "records",
+                      "schema",
+                      "imports",
+                      "exports",
+                      "backups",
+                      "restores"
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "summary": { "type": "string" },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "requested",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "partially_completed",
+                      "resolved"
+                    ]
+                  },
+                  "actor": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": ["string", "null"] },
+                      "kind": { "type": "string" },
+                      "name": { "type": "string" }
+                    },
+                    "required": ["id", "kind", "name"],
+                    "additionalProperties": false
+                  },
+                  "database": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                          },
+                          "name": { "type": "string" },
+                          "state": {
+                            "type": "string",
+                            "enum": ["active", "deleted"]
+                          }
+                        },
+                        "required": ["id", "name", "state"],
+                        "additionalProperties": false
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "table": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                          },
+                          "name": { "type": "string" },
+                          "state": {
+                            "type": "string",
+                            "enum": ["active", "deleted"]
+                          }
+                        },
+                        "required": ["id", "name", "state"],
+                        "additionalProperties": false
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "rowId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "affectedRows": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "jobId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "fileName": { "type": ["string", "null"] },
+                  "destination": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "record",
+                          "table",
+                          "database",
+                          "imports",
+                          "exports",
+                          "database-exports",
+                          "backup-history",
+                          "backup-schedule"
+                        ]
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "category",
+                  "occurredAt",
+                  "summary",
+                  "status",
+                  "actor",
+                  "database",
+                  "table",
+                  "rowId",
+                  "affectedRows",
+                  "jobId",
+                  "fileName",
+                  "destination"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "asOf": {
+              "type": "string",
+              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+            },
+            "startCursor": { "type": "string" },
+            "nextCursor": { "type": ["string", "null"] },
+            "hasMore": { "type": "boolean" },
+            "availableCategories": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "records",
+                  "schema",
+                  "imports",
+                  "exports",
+                  "backups",
+                  "restores"
+                ]
+              }
+            },
+            "scope": {
+              "type": "object",
+              "properties": {
+                "database": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": { "type": "string" },
+                        "state": {
+                          "type": "string",
+                          "enum": ["active", "deleted"]
+                        }
+                      },
+                      "required": ["id", "name", "state"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "table": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": { "type": "string" },
+                        "state": {
+                          "type": "string",
+                          "enum": ["active", "deleted"]
+                        }
+                      },
+                      "required": ["id", "name", "state"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": ["database", "table"],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "data",
+            "asOf",
+            "startCursor",
+            "nextCursor",
+            "hasMore",
+            "availableCategories",
+            "scope"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT"
+      ]
+    }
+  },
+  {
     "name": "rootset_query_history",
     "title": "queryHistory",
     "description": "Query bounded row/table history under current resource access.",

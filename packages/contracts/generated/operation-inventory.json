@@ -2514,6 +2514,44 @@
     "verification": ["API-01", "API-02", "API-03", "API-06", "API-12", "MCP-08"]
   },
   {
+    "operationId": "listActivity",
+    "publicRoute": "GET /v1/orgs/{orgId}/activity",
+    "browserRoute": "GET /api/internal/v1/orgs/{orgId}/activity",
+    "mcpTool": "rootset_list_activity",
+    "scopes": ["history:read"],
+    "role": "viewer",
+    "resource": "organisation",
+    "personal": false,
+    "readOnly": true,
+    "stepUp": "never",
+    "job": false,
+    "errors": [
+      "VALIDATION_FAILED",
+      "UNAUTHENTICATED",
+      "ACCESS_DENIED",
+      "FORBIDDEN",
+      "INSUFFICIENT_SCOPE",
+      "RESOURCE_NOT_FOUND",
+      "DEPENDENCY_UNAVAILABLE",
+      "REQUEST_TIMEOUT"
+    ],
+    "jsonRequestMaxBytes": 8388608,
+    "jsonReadTimeoutMs": 10000,
+    "uiEntry": "accounts",
+    "verification": [
+      "API-01",
+      "API-02",
+      "API-03",
+      "API-06",
+      "API-12",
+      "MCP-08",
+      "ACC-03",
+      "ACC-04",
+      "ACC-12",
+      "UI-14"
+    ]
+  },
+  {
     "operationId": "queryHistory",
     "publicRoute": "POST /v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query",
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query",

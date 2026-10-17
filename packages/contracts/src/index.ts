@@ -21,3 +21,4 @@ export * from "./relationships";
 export * from "./restores";
 
 export * from "./backup-policy";
+export * from "./activity";

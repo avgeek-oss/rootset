@@ -22,6 +22,8 @@ export type SettingsSection =
   | "backup-schedule"
   | "backup-history"
   | "database-exports"
+  | "database-activity"
+  | "table-activity"
   | "database-danger-zone"
   | "table-danger-zone"
   | "table"
@@ -216,6 +218,8 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "backup-schedule": "Backup Schedule",
   "backup-history": "Backup History",
   "database-exports": "Export Requests",
+  "database-activity": "Activity",
+  "table-activity": "Activity",
   "database-danger-zone": "Danger Zone",
   table: "General",
   "table-danger-zone": "Danger Zone",

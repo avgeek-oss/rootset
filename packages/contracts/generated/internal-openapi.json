@@ -15537,6 +15537,235 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/activity": {
+      "get": {
+        "operationId": "listActivity",
+        "tags": ["accounts"],
+        "summary": "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          {
+            "name": "tableId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "records",
+                "schema",
+                "imports",
+                "exports",
+                "backups",
+                "restores"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "type": "string", "maxLength": 131200 },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/listActivityOutput" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["history:read"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_list_activity",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": { "orgId": "01K6J7B8000000000000000000" }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query": {
       "post": {
         "operationId": "queryHistory",
@@ -37111,6 +37340,289 @@
           "hasMore": { "type": "boolean" }
         },
         "required": ["data", "nextCursor", "hasMore"],
+        "additionalProperties": false
+      },
+      "listActivityInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "records",
+              "schema",
+              "imports",
+              "exports",
+              "backups",
+              "restores"
+            ]
+          },
+          "q": { "type": "string", "maxLength": 200 },
+          "from": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "cursor": {
+            "anyOf": [
+              { "type": "string", "maxLength": 131200 },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["orgId"],
+        "additionalProperties": false
+      },
+      "listActivityOutput": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "records",
+                    "schema",
+                    "imports",
+                    "exports",
+                    "backups",
+                    "restores"
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                },
+                "summary": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "requested",
+                    "succeeded",
+                    "failed",
+                    "cancelled",
+                    "partially_completed",
+                    "resolved"
+                  ]
+                },
+                "actor": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": ["string", "null"] },
+                    "kind": { "type": "string" },
+                    "name": { "type": "string" }
+                  },
+                  "required": ["id", "kind", "name"],
+                  "additionalProperties": false
+                },
+                "database": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": { "type": "string" },
+                        "state": {
+                          "type": "string",
+                          "enum": ["active", "deleted"]
+                        }
+                      },
+                      "required": ["id", "name", "state"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "table": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "name": { "type": "string" },
+                        "state": {
+                          "type": "string",
+                          "enum": ["active", "deleted"]
+                        }
+                      },
+                      "required": ["id", "name", "state"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "rowId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "affectedRows": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "jobId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "fileName": { "type": ["string", "null"] },
+                "destination": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "record",
+                        "table",
+                        "database",
+                        "imports",
+                        "exports",
+                        "database-exports",
+                        "backup-history",
+                        "backup-schedule"
+                      ]
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "category",
+                "occurredAt",
+                "summary",
+                "status",
+                "actor",
+                "database",
+                "table",
+                "rowId",
+                "affectedRows",
+                "jobId",
+                "fileName",
+                "destination"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "startCursor": { "type": "string" },
+          "nextCursor": { "type": ["string", "null"] },
+          "hasMore": { "type": "boolean" },
+          "availableCategories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "records",
+                "schema",
+                "imports",
+                "exports",
+                "backups",
+                "restores"
+              ]
+            }
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "name": { "type": "string" },
+                      "state": {
+                        "type": "string",
+                        "enum": ["active", "deleted"]
+                      }
+                    },
+                    "required": ["id", "name", "state"],
+                    "additionalProperties": false
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "table": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      "name": { "type": "string" },
+                      "state": {
+                        "type": "string",
+                        "enum": ["active", "deleted"]
+                      }
+                    },
+                    "required": ["id", "name", "state"],
+                    "additionalProperties": false
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": ["database", "table"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "data",
+          "asOf",
+          "startCursor",
+          "nextCursor",
+          "hasMore",
+          "availableCategories",
+          "scope"
+        ],
         "additionalProperties": false
       },
       "queryHistoryInput": {

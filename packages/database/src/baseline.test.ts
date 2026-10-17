@@ -64,6 +64,9 @@ test(
     });
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       await client.query(
+        "INSERT INTO rootset_control.jobs(id,org_id,kind,operation_id,actor,requester_id,target_type,target_id,input,input_digest,idempotency_key,state,created_at,completed_at) VALUES('00000000000000000000000031','00000000000000000000000001','export','exportRows','{}','legacy','table','00000000000000000000000011','{}','digest','legacy','failed','2026-01-01T01:02:03.123456Z','2026-01-02T01:02:03.654321Z')",
+      );
+      await client.query(
         "INSERT INTO rootset_control.unique_rules(id,table_id,org_id,name,field_ids,strategy,state) VALUES('00000000000000000000000021','00000000000000000000000011','00000000000000000000000001','Existing rule',ARRAY['00000000000000000000000022'],'registry','active')",
       );
       await client.query(
@@ -82,8 +85,20 @@ test(
       "0010_saved_views.sql",
       "0011_database_restores.sql",
       "0012_backup_retention_alerts.sql",
+      "0013_activity_job_events.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
+      assert.deepEqual(
+        (
+          await client.query(
+            "SELECT state,to_char(occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') occurred_at FROM rootset_control.activity_job_events WHERE job_id='00000000000000000000000031' ORDER BY occurred_at",
+          )
+        ).rows,
+        [
+          { state: "queued", occurred_at: "2026-01-01T01:02:03.123456Z" },
+          { state: "failed", occurred_at: "2026-01-02T01:02:03.654321Z" },
+        ],
+      );
       assert.deepEqual(
         (
           await client.query(
@@ -130,7 +145,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0012_backup_retention_alerts.sql",
+      version: "0013_activity_job_events.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -257,6 +272,7 @@ test(
       "backup_policies",
       "backup_alerts",
       "restore_results",
+      "activity_job_events",
     ])
       assert.notEqual(
         (
@@ -283,6 +299,7 @@ test(
       "0010_saved_views.sql",
       "0011_database_restores.sql",
       "0012_backup_retention_alerts.sql",
+      "0013_activity_job_events.sql",
     ])
       await writeFile(
         join(directory, name),

@@ -4269,6 +4269,62 @@ export type getCellHistoryOutput = {
   nextCursor: unknown;
   hasMore: boolean;
 };
+export type listActivityInput = {
+  orgId: string;
+  databaseId?: string;
+  tableId?: string;
+  category?:
+    "records" | "schema" | "imports" | "exports" | "backups" | "restores";
+  q?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listActivityOutput = {
+  data: {
+    id: string;
+    category:
+      "records" | "schema" | "imports" | "exports" | "backups" | "restores";
+    occurredAt: string;
+    summary: string;
+    status:
+      | "requested"
+      | "succeeded"
+      | "failed"
+      | "cancelled"
+      | "partially_completed"
+      | "resolved";
+    actor: { id: unknown; kind: string; name: string };
+    database: { id: string; name: string; state: "active" | "deleted" } | null;
+    table: { id: string; name: string; state: "active" | "deleted" } | null;
+    rowId: string | null;
+    affectedRows: number | null;
+    jobId: string | null;
+    fileName: unknown;
+    destination:
+      | "record"
+      | "table"
+      | "database"
+      | "imports"
+      | "exports"
+      | "database-exports"
+      | "backup-history"
+      | "backup-schedule"
+      | null;
+  }[];
+  asOf: string;
+  startCursor: string;
+  nextCursor: unknown;
+  hasMore: boolean;
+  availableCategories: (
+    "records" | "schema" | "imports" | "exports" | "backups" | "restores"
+  )[];
+  scope: {
+    database: { id: string; name: string; state: "active" | "deleted" } | null;
+    table: { id: string; name: string; state: "active" | "deleted" } | null;
+  };
+};
 export type queryHistoryInput = {
   orgId: string;
   databaseId: string;
@@ -5740,6 +5796,11 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
+  listActivity: {
+    path: "/v1/orgs/{orgId}/activity",
+    method: "GET",
+    idempotencyRequired: false,
+  },
   queryHistory: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query",
     method: "POST",
@@ -6618,6 +6679,16 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<getCellHistoryOutput>;
+  }
+  listActivity(
+    input: listActivityInput,
+    options?: CallOptions,
+  ): Promise<listActivityOutput> {
+    return this.call(
+      "listActivity",
+      input,
+      options,
+    ) as Promise<listActivityOutput>;
   }
   queryHistory(
     input: queryHistoryInput,

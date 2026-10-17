@@ -23,6 +23,7 @@ import {
   SavedViewVisibilitySchema,
 } from "./views";
 import { z } from "zod";
+import { ActivityInputSchema, ActivityPageSchema } from "./activity";
 import {
   AccountNameSchema,
   CanonicalUtcDateTimeSchema,
@@ -1281,6 +1282,16 @@ operation(
   z.strictObject({ ...table, rowId: IdSchema, fieldId: IdSchema, ...paging }),
   HistoryPageSchema,
   "Read the latest 200 saved changes for an existing cell.",
+);
+operation(
+  "listActivity",
+  "list_activity",
+  "GET",
+  `${O}/activity`,
+  ["history:read"],
+  ActivityInputSchema,
+  ActivityPageSchema,
+  "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
 );
 operation(
   "queryHistory",

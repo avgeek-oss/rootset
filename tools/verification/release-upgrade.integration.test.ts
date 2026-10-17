@@ -192,6 +192,11 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0006_foreign_keys.sql",
         "0007_database_backups.sql",
         "0008_backup_schedule_lifecycle.sql",
+        "0009_import_requests.sql",
+        "0010_saved_views.sql",
+        "0011_database_restores.sql",
+        "0012_backup_retention_alerts.sql",
+        "0013_activity_job_events.sql",
       ]);
     } else
       assert.deepEqual(await migrate(pool), [
@@ -202,6 +207,11 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0006_foreign_keys.sql",
         "0007_database_backups.sql",
         "0008_backup_schedule_lifecycle.sql",
+        "0009_import_requests.sql",
+        "0010_saved_views.sql",
+        "0011_database_restores.sql",
+        "0012_backup_retention_alerts.sql",
+        "0013_activity_job_events.sql",
       ]);
     const preservedTables = before.tables.filter(
       (name) => name !== "rootset_control.migrations",
@@ -219,7 +229,7 @@ for (const mode of ["SQL bridge", "migration runner"])
     );
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0008_backup_schedule_lifecycle.sql",
+      version: "0013_activity_job_events.sql",
     });
     assert.deepEqual(await migrate(pool), []);
     for (const row of rows) {
@@ -302,7 +312,7 @@ test("concurrent migration hooks apply the compatibility upgrade only once", asy
   const { pool, actor } = await fixture(t);
   const before = await snapshot(pool, actor.orgId);
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  assert.deepEqual(results.map((names) => names.length).sort(), [0, 7]);
+  assert.deepEqual(results.map((names) => names.length).sort(), [0, 12]);
   assert.equal(
     (await pool.query("SELECT count(*) FROM rootset_control.migration_repairs"))
       .rows[0].count,
@@ -360,6 +370,11 @@ test("a failure after schema creation rolls back all DDL, data and ledger change
     "0006_foreign_keys.sql",
     "0007_database_backups.sql",
     "0008_backup_schedule_lifecycle.sql",
+    "0009_import_requests.sql",
+    "0010_saved_views.sql",
+    "0011_database_restores.sql",
+    "0012_backup_retention_alerts.sql",
+    "0013_activity_job_events.sql",
   ]);
   assert.equal((await migrationStatus(pool)).complete, true);
 });

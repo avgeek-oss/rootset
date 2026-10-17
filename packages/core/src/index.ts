@@ -38,6 +38,7 @@ import { MetadataPaging } from "./paging.js";
 import { readUsage } from "./usage.js";
 import { mapSchemaJournal } from "./schema-journal.js";
 import { rowComments } from "./row-comments.js";
+import { ActivityReader } from "./activity.js";
 
 export interface OperationContext {
   requestId?: string;
@@ -240,9 +241,16 @@ const jobOperations = new Set([
 
 export class RootsetCore {
   readonly paging: MetadataPaging;
+  readonly activity: ActivityReader;
   constructor(readonly options: CoreOptions) {
     this.paging =
       options.paging ?? new MetadataPaging(options.config.cursorSecret);
+    this.activity = new ActivityReader({
+      pool: options.pool,
+      secret: options.config.cursorSecret,
+      refreshActor: (actor, client) =>
+        options.identity.refreshActor(actor, client),
+    });
   }
   async authorise(
     incoming: Actor,
@@ -257,10 +265,12 @@ export class RootsetCore {
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
       typeof input.tableId === "string" ? input.tableId : undefined;
-    const destructiveReplay =
-      operationId === "deleteDatabase" || operationId === "deleteTable";
+    const archivedResource =
+      operationId === "deleteDatabase" ||
+      operationId === "deleteTable" ||
+      operationId === "listActivity";
     if (tableId) {
-      const table = await (destructiveReplay
+      const table = await (archivedResource
         ? this.options.storage.getArchivedTable(actor, tableId)
         : this.options.storage.getTable(actor, tableId));
       if (databaseId && table.databaseId !== databaseId)
@@ -272,7 +282,7 @@ export class RootsetCore {
       databaseId = table.databaseId;
     }
     if (databaseId) {
-      await (destructiveReplay
+      await (archivedResource
         ? this.options.storage.getArchivedDatabase(actor, databaseId)
         : this.options.storage.getDatabase(actor, databaseId));
     }
@@ -1152,6 +1162,11 @@ export class RootsetCore {
           hasMore: r.hasMore,
         };
       }
+      case "listActivity":
+        return this.activity.list(a, input, {
+          signal: readSignal(ctx),
+          responseBudget: ctx.responseBudget,
+        });
       case "queryHistory": {
         const r = await s.queryHistory(a, tableId, {
           ...input,

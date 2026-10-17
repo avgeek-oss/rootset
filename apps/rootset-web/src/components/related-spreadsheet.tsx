@@ -48,6 +48,17 @@ export function RelatedSpreadsheet({
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+  if (
+    props.initialRecordId !== null &&
+    props.initialRecordId !== undefined &&
+    !IdSchema.safeParse(props.initialRecordId).success
+  )
+    return (
+      <div className="empty-state" role="alert">
+        <h2>Record unavailable</h2>
+        <p>This record link is invalid.</p>
+      </div>
+    );
   if (!linked) return <Spreadsheet {...props} />;
   if (!valid || relation.isError)
     return (

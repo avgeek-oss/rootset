@@ -71,6 +71,7 @@ import {
   Mail01Icon,
   News01Icon,
   Message01Icon,
+  TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
 
 const AuthScreen = dynamic(() =>
@@ -86,6 +87,9 @@ const Spreadsheet = dynamic(() =>
 );
 const SettingsPanel = dynamic(() =>
   import("./settings").then((module) => module.SettingsPanel),
+);
+const ActivityPage = dynamic(() =>
+  import("./activity-page").then((module) => module.ActivityPage),
 );
 
 const repositoryUrl = "https://github.com/avgeek-oss/rootset";
@@ -119,6 +123,7 @@ export function RootsetApp() {
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
   const route = resourceRoute(path);
+  const activityPage = path === "/activity";
   const databaseId = route.databaseId ?? parameters.get("databaseId");
   const tableId = route.tableId ?? parameters.get("tableId");
   const teamSection = path.startsWith("/team-settings/")
@@ -137,15 +142,16 @@ export function RootsetApp() {
             : null);
   const settings = resolveSettingsSection(section ?? null);
   const needsResources =
-    !settings || !["account", "team"].includes(settingsScope(settings));
+    !activityPage &&
+    (!settings || !["account", "team"].includes(settingsScope(settings)));
   useEffect(() => {
-    if (parameters.has("databaseId"))
+    if (!activityPage && parameters.has("databaseId"))
       router.replace(
         settings
           ? settingsHref(settings, { databaseId, tableId })
           : dataHref(databaseId, tableId),
       );
-  }, [parameters, router, settings, databaseId, tableId]);
+  }, [parameters, router, settings, databaseId, tableId, activityPage]);
   const [create, setCreate] = useState<"database" | "table" | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -464,7 +470,8 @@ export function RootsetApp() {
     />
   );
   const resourceScope =
-    !settings || ["database", "table"].includes(settingsScope(settings));
+    !activityPage &&
+    (!settings || ["database", "table"].includes(settingsScope(settings)));
   return (
     <RouteProvider pathname={path} navigate={(href) => router.push(href)}>
       <a href="#table-content" className="skip-link">
@@ -529,6 +536,14 @@ export function RootsetApp() {
                         href: "/databases",
                         icon: DatabaseIcon,
                         activePath: resourceScope ? path : "/databases",
+                      },
+                      {
+                        kind: "link",
+                        id: "activity",
+                        label: "Activity",
+                        href: "/activity",
+                        icon: TransactionHistoryIcon,
+                        activePath: activityPage ? path : "/activity",
                       },
                     ],
                   },
@@ -656,17 +671,24 @@ export function RootsetApp() {
           }
         >
           <AppShellBreadcrumb
-            items={resourceBreadcrumbs({
-              databaseId: selectedDatabaseId,
-              databaseName: database?.name,
-              tableId: selectedTableId,
-              tableName: table?.name,
-              section: settings,
-            })}
+            items={
+              activityPage
+                ? [{ label: "Rootset", href: "/" }, { label: "Activity" }]
+                : resourceBreadcrumbs({
+                    databaseId: selectedDatabaseId,
+                    databaseName: database?.name,
+                    tableId: selectedTableId,
+                    tableName: table?.name,
+                    section: settings,
+                  })
+            }
             title={
-              settings
-                ? SECTION_LABELS[settings]
-                : (table?.name ?? (selectedDatabaseId ? "Tables" : "Databases"))
+              activityPage
+                ? "Activity"
+                : settings
+                  ? SECTION_LABELS[settings]
+                  : (table?.name ??
+                    (selectedDatabaseId ? "Tables" : "Databases"))
             }
           />
           <div id="table-content" tabIndex={-1} className="rootset-workspace">
@@ -677,7 +699,12 @@ export function RootsetApp() {
                   {mutationError}
                 </p>
               )}
-              {settings ? (
+              {activityPage ? (
+                <ActivityPage
+                  key={`${orgId}:${context.data.principal.role}`}
+                  orgId={orgId!}
+                />
+              ) : settings ? (
                 <AppShell.Content variant="broad">
                   <SettingsPanel
                     section={settings}
@@ -711,6 +738,7 @@ export function RootsetApp() {
                     parameters.get("view"),
                     parameters.get("relationship"),
                     parameters.get("record"),
+                    parameters.get("row"),
                   ])}
                   orgId={orgId!}
                   databaseId={selectedDatabaseId}
@@ -722,6 +750,7 @@ export function RootsetApp() {
                   referencedRowId={parameters.get("record")}
                   linkedFilter={parameters.get("filter")}
                   savedViewId={parameters.get("view")}
+                  initialRecordId={parameters.get("row")}
                   onSettings={(section) =>
                     openSettings(section as SettingsSection)
                   }

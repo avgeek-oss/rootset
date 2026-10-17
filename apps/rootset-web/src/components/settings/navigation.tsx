@@ -45,7 +45,7 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["team-api-keys"] },
   ],
   database: [
-    { title: "Data", sections: ["database-exports"] },
+    { title: "Data", sections: ["database-exports", "database-activity"] },
     { title: "Backup", sections: ["backup-schedule", "backup-history"] },
     { title: "Settings", sections: ["database", "database-danger-zone"] },
   ],
@@ -60,7 +60,7 @@ export const settingsGroups = {
         "table-danger-zone",
       ],
     },
-    { title: "Data", sections: ["imports", "exports"] },
+    { title: "Data", sections: ["imports", "exports", "table-activity"] },
   ],
 } satisfies Record<
   SettingsScope,
@@ -98,8 +98,9 @@ export function settingsHref(
     context.databaseId,
     scope === "table" ? context.tableId : null,
   );
-  const page =
-    section === "database" || section === "table"
+  const page = section.endsWith("-activity")
+    ? "activity"
+    : section === "database" || section === "table"
       ? "general"
       : section.endsWith("danger-zone")
         ? "danger-zone"
@@ -169,21 +170,25 @@ export function resourceRoute(path: string) {
       ? parts[settingsIndex + 1]
       : null;
   const section =
-    page === "general"
+    page === "activity"
       ? tableId
-        ? "table"
-        : "database"
-      : page === "danger-zone"
+        ? "table-activity"
+        : "database-activity"
+      : page === "general"
         ? tableId
-          ? "table-danger-zone"
-          : "database-danger-zone"
-        : page === "export-requests"
+          ? "table"
+          : "database"
+        : page === "danger-zone"
           ? tableId
-            ? "exports"
-            : "database-exports"
-          : page === "import-requests"
-            ? "imports"
-            : page;
+            ? "table-danger-zone"
+            : "database-danger-zone"
+          : page === "export-requests"
+            ? tableId
+              ? "exports"
+              : "database-exports"
+            : page === "import-requests"
+              ? "imports"
+              : page;
   return { databaseId, tableId, section };
 }
 
@@ -203,6 +208,8 @@ export const settingsIcons = {
   "backup-schedule": Clock01Icon,
   "backup-history": TransactionHistoryIcon,
   "database-exports": Download01Icon,
+  "database-activity": TransactionHistoryIcon,
+  "table-activity": TransactionHistoryIcon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
   "table-danger-zone": Delete02Icon,

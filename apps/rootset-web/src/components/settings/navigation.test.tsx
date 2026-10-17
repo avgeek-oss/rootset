@@ -55,12 +55,12 @@ describe("context settings navigation", () => {
       settingsNavigationGroups("table", "viewer").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["exports"]);
+    ).toEqual(["exports", "table-activity"]);
     expect(
       settingsNavigationGroups("database", "viewer").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["database-exports"]);
+    ).toEqual(["database-exports", "database-activity"]);
     expect(
       settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
@@ -72,6 +72,7 @@ describe("context settings navigation", () => {
       "foreign-keys",
       "imports",
       "exports",
+      "table-activity",
     ]);
     expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });
@@ -114,6 +115,8 @@ describe("context settings navigation", () => {
       "backup-schedule",
       "backup-history",
       "database-exports",
+      "database-activity",
+      "table-activity",
       "table",
       "table-danger-zone",
       "fields",
@@ -156,6 +159,7 @@ describe("context settings navigation", () => {
       groups.flatMap((group) => group.items.map((item) => item.label)),
     ).toEqual([
       "Export Requests",
+      "Activity",
       "Backup Schedule",
       "Backup History",
       "General",

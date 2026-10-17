@@ -175,6 +175,7 @@ export function Spreadsheet({
   canManage,
   linkedFilter = null,
   savedViewId = null,
+  initialRecordId = null,
   onSettings,
   onChanged,
 }: {
@@ -186,6 +187,7 @@ export function Spreadsheet({
   canManage: boolean;
   linkedFilter?: string | null;
   savedViewId?: string | null;
+  initialRecordId?: string | null;
   onSettings: (section: string) => void;
   onChanged: () => void;
 }) {
@@ -297,7 +299,7 @@ export function Spreadsheet({
   const [recordEditor, setRecordEditor] = useState<{
     rowId?: string;
     focusFieldId?: string;
-  } | null>(null);
+  } | null>(() => (initialRecordId ? { rowId: initialRecordId } : null));
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
