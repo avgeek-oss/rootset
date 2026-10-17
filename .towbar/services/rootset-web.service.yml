@@ -3,8 +3,8 @@ id: rootset-web
 name: Rootset UI
 deployment:
   type: image
-  # Rootset 0.2.0; update API, worker and UI together from rootset-images.json.
-  image: ghcr.io/avgeek-oss/rootset-web@sha256:65275726d3e8b709c3d2372c4f87e5bf4dee4877b378d19ec5d608d0bfa93e27
+  # Rootset 0.2.1; update API, worker and UI together from rootset-images.json.
+  image: ghcr.io/avgeek-oss/rootset-web@sha256:5a7fce28a544369b05ca7c0d4d7511aa19d993707ede91ef6afb5e54c6547d08
   platform: linux/arm64
 autoDeploy: false
 rollout:
