@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 (Unreleased)
+
+- Create and edit complete records in a drawer, with required fields, defaults, generated IDs, choices, foreign keys and concurrent-edit protection.
+- Import CSV or JSONL files with column mapping, typed previews, row-specific validation and downloadable error reports. Imports append records in resumable batches.
+- Search referenced records by a personal display field and select complete composite foreign keys.
+- Save named personal or shared views with filters, sorting and column layouts. Stale or invalid views preserve their definitions and block loading until corrected.
+- Select up to 200 records to preview and atomically apply field changes, duplication or deletion.
+- Export all matching records from the current view with visible or selected columns, alongside existing full-table and database exports.
+- Navigate incoming relationships from a record, with indexed counts and links to the matching source records.
+- Verify a managed backup, preview its contents and restore into a new database. Restore preserves records, schemas, constraints, counters, comments, retained history and compatible saved views without copying access grants or schedules.
+- Configure successful-backup retention, protect the latest snapshot and packages needed by restores, and notify current administrators about failed or overdue backups.
+- Search unified activity across retained record and schema changes, imports, exports, backups and restores, with current-access checks, relative timestamps and resource links.
+- Keep native tables on mobile and use the shared drawers, controls, typography and interaction patterns throughout these workflows.
+
 ## 0.1.9 (2026-10-16)
 
 - Mark foreign-key columns with an fk chip and open referenced records in a new tab, filtered by the linked values, including composite keys.
