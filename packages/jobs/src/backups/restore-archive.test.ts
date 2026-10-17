@@ -238,8 +238,8 @@ describe("verified restore archive", () => {
       const comments = [];
       for await (const batch of archive.source.history("comments"))
         comments.push(...batch);
-      expect(comments[0]!.body).toBe("Retained comment");
-      expect(comments[0]!.created_at).toBe(stamp);
+      expect(comments[0]!.value.body).toBe("Retained comment");
+      expect(comments[0]!.value.created_at).toBe(stamp);
     } finally {
       archive.close();
     }

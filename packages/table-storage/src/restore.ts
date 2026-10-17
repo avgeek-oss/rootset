@@ -5,6 +5,7 @@ import {
   type FieldDefinition,
   type JsonValue,
   type UniqueRuleCondition,
+  type NumberLexeme,
 } from "@rootset/contracts";
 
 export const restoreLimits = Object.freeze({
@@ -24,7 +25,8 @@ export type RestoreIdKind =
   | "foreign_key"
   | "mutation"
   | "comment"
-  | "history";
+  | "history"
+  | "view";
 const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 export function restoredId(
   databaseId: string,
@@ -115,11 +117,15 @@ export interface RestoreTable {
   counters: { fieldId: string; nextValue: string }[];
 }
 export type RestoreHistoryKind =
-  "comments" | "mutations" | "cell-changes" | "resource-history";
+  "comments" | "mutations" | "cell-changes" | "resource-history" | "views";
+export interface RestoreHistoryRecord {
+  value: Record<string, unknown>;
+  numbers: readonly NumberLexeme[];
+}
 export interface RestoreSource {
   database: { id: string; name: string; description: string };
   tables: RestoreTable[];
   rows(tableId: string): AsyncIterable<RestoreRow[]>;
-  history(kind: RestoreHistoryKind): AsyncIterable<Record<string, unknown>[]>;
+  history(kind: RestoreHistoryKind): AsyncIterable<RestoreHistoryRecord[]>;
   check(): Promise<void>;
 }

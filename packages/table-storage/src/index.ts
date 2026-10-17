@@ -440,6 +440,13 @@ function tablePath(table: TableRecord): string {
   return `${q(table.schemaName)}.${q(table.physicalName)}`;
 }
 
+import {
+  restoreDatabaseSnapshot,
+  type RestoreDatabaseInput,
+  type RestoreDatabaseResult,
+} from "./restore-database.js";
+import type { RestoreSource } from "./restore.js";
+
 export class TableStorage {
   readonly pool: Pool;
   readonly ddlPool: Pool;
@@ -3031,6 +3038,63 @@ export class TableStorage {
       signal,
     );
   }
+  private async buildForeignKey(
+    c: PoolClient,
+    source: TableRecord,
+    target: TableRecord,
+    key: ForeignKey,
+  ): Promise<void> {
+    const fields = key.fieldIds.map((fid) => fieldFor(source, fid));
+    const targetFields = key.referencedFieldIds.map((fid) =>
+      fieldFor(target, fid),
+    );
+    await c.query(
+      "INSERT INTO rootset_control.foreign_keys(id,org_id,table_id,field_ids,referenced_table_id,referenced_rule_id,referenced_field_ids) VALUES($1,$2,$3,$4,$5,$6,$7)",
+      [
+        key.id,
+        source.orgId,
+        source.id,
+        key.fieldIds,
+        target.id,
+        key.referencedRuleId,
+        key.referencedFieldIds,
+      ],
+    );
+    const targetTuple = this.tupleSql(targetFields);
+    const targetNotNull = targetFields
+      .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
+      .join(" AND ");
+    await c.query(
+      `INSERT INTO rootset_control.foreign_key_targets(unique_rule_id,row_id,org_id,digest,tuple) SELECT $1,row_id,org_id,rootset_control.unique_digest(${targetTuple}),${targetTuple} FROM ${tablePath(target)} source_row WHERE ${targetNotNull} ON CONFLICT(unique_rule_id,row_id) DO NOTHING`,
+      [key.referencedRuleId],
+    );
+    const sourceTuple = this.tupleSql(fields);
+    const sourceNotNull = fields
+      .map((f) => `source_row.${q(fieldColumn(f))} IS NOT NULL`)
+      .join(" AND ");
+    const joined = `FROM ${tablePath(source)} source_row LEFT JOIN rootset_control.foreign_key_targets target ON target.unique_rule_id=$1 AND target.digest=rootset_control.unique_digest(${sourceTuple}) AND target.tuple=${sourceTuple} COLLATE "C" WHERE ${sourceNotNull}`;
+    const missing = await c.query<{ row_id: string }>(
+      `SELECT source_row.row_id ${joined} AND target.row_id IS NULL ORDER BY source_row.row_id LIMIT 20`,
+      [key.referencedRuleId],
+    );
+    if (missing.rowCount)
+      fail(
+        "FOREIGN_KEY_CONFLICT",
+        "Existing rows have no matching value in the referenced table",
+        409,
+        {
+          fieldIds: key.fieldIds,
+          rowIds: missing.rows.map((r) => r.row_id),
+          reportTruncated: missing.rowCount === 20,
+        },
+      );
+    await c.query(
+      `INSERT INTO rootset_control.foreign_key_entries(rule_id,row_id,org_id,target_rule_id,target_row_id) SELECT $2,source_row.row_id,source_row.org_id,$1,target.row_id ${joined}`,
+      [key.referencedRuleId, key.id],
+    );
+    await this.installReferenceTrigger(c, source);
+    if (target.id !== source.id) await this.installReferenceTrigger(c, target);
+  }
   async createForeignKey(
     a: Actor,
     tableId: string,
@@ -3112,52 +3176,7 @@ export class TableStorage {
           referencedFieldNames: targetFields.map((f) => f.name),
           state: "active",
         };
-        await c.query(
-          "INSERT INTO rootset_control.foreign_keys(id,org_id,table_id,field_ids,referenced_table_id,referenced_rule_id,referenced_field_ids) VALUES($1,$2,$3,$4,$5,$6,$7)",
-          [
-            outcome.id,
-            a.orgId,
-            t.id,
-            outcome.fieldIds,
-            target.id,
-            rule.id,
-            rule.fieldIds,
-          ],
-        );
-        const targetTuple = this.tupleSql(targetFields);
-        const targetNotNull = targetFields
-          .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
-          .join(" AND ");
-        await c.query(
-          `INSERT INTO rootset_control.foreign_key_targets(unique_rule_id,row_id,org_id,digest,tuple) SELECT $1,row_id,org_id,rootset_control.unique_digest(${targetTuple}),${targetTuple} FROM ${tablePath(target)} source_row WHERE ${targetNotNull} ON CONFLICT(unique_rule_id,row_id) DO NOTHING`,
-          [rule.id],
-        );
-        const sourceTuple = this.tupleSql(fields);
-        const sourceNotNull = fields
-          .map((f) => `source_row.${q(fieldColumn(f))} IS NOT NULL`)
-          .join(" AND ");
-        const joined = `FROM ${tablePath(t)} source_row LEFT JOIN rootset_control.foreign_key_targets target ON target.unique_rule_id=$1 AND target.digest=rootset_control.unique_digest(${sourceTuple}) AND target.tuple=${sourceTuple} COLLATE "C" WHERE ${sourceNotNull}`;
-        const missing = await c.query<{ row_id: string }>(
-          `SELECT source_row.row_id ${joined} AND target.row_id IS NULL ORDER BY source_row.row_id LIMIT 20`,
-          [rule.id],
-        );
-        if (missing.rowCount)
-          fail(
-            "FOREIGN_KEY_CONFLICT",
-            "Existing rows have no matching value in the referenced table",
-            409,
-            {
-              fieldIds: outcome.fieldIds,
-              rowIds: missing.rows.map((r) => r.row_id),
-              reportTruncated: missing.rowCount === 20,
-            },
-          );
-        await c.query(
-          `INSERT INTO rootset_control.foreign_key_entries(rule_id,row_id,org_id,target_rule_id,target_row_id) SELECT $2,source_row.row_id,source_row.org_id,$1,target.row_id ${joined}`,
-          [rule.id, outcome.id],
-        );
-        await this.installReferenceTrigger(c, t);
-        if (target.id !== t.id) await this.installReferenceTrigger(c, target);
+        await this.buildForeignKey(c, t, target, outcome);
         await c.query(
           "UPDATE rootset_control.schema_operations SET plan=plan||jsonb_build_object('outcome',$2::jsonb) WHERE id=$1",
           [operationId, JSON.stringify(outcome)],
@@ -3936,6 +3955,60 @@ export class TableStorage {
       true,
     );
   }
+  async restoreDatabase(
+    actor: Actor,
+    input: RestoreDatabaseInput,
+    source: RestoreSource,
+    options: {
+      context: MutationContext;
+      progress?: (
+        stage: string,
+        completed: number,
+        total: number | null,
+        unit: string,
+      ) => Promise<void>;
+    },
+  ): Promise<RestoreDatabaseResult> {
+    return this.run(
+      actor,
+      (client) =>
+        restoreDatabaseSnapshot(
+          client,
+          actor,
+          { ...input, name: name(input.name) },
+          source,
+          {
+            createPhysical: (client, table) =>
+              this.createPhysical(client, table, false),
+            insertField: (client, table, field, state) =>
+              this.insertField(client, table, field, state),
+            buildRule: (client, table, rule) =>
+              this.buildRule(client, table, rule),
+            buildForeignKey: (client, table, target, rule) =>
+              this.buildForeignKey(client, table, target, rule),
+            installTrigger: (client, table) =>
+              this.installTrigger(client, table),
+            parameter,
+            progress: options.progress ?? (async () => {}),
+            publish: async (client, result) => {
+              await this.assertPublication(client, actor, options.context);
+              await this.audit(
+                client,
+                actor,
+                input.databaseId,
+                null,
+                input.databaseId,
+                "database.restore",
+                null,
+                result,
+                options.context,
+              );
+            },
+          },
+        ),
+      true,
+    );
+  }
   async snapshotTable(
     a: Actor,
     tableId: string,
@@ -4239,4 +4312,10 @@ export type {
   RestoreField,
   RestoreUniqueRule,
   RestoreForeignKey,
+  RestoreHistoryRecord,
 } from "./restore.js";
+
+export type {
+  RestoreDatabaseInput,
+  RestoreDatabaseResult,
+} from "./restore-database.js";

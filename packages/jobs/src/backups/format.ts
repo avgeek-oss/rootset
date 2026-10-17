@@ -175,7 +175,6 @@ export async function writeBackupPackage(options: {
   };
 }
 
-/** Internal format reader for recovery rehearsals; no restore operation is exposed. */
 export async function decryptBackupPackage(
   source: string,
   destination: string,

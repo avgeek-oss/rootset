@@ -150,6 +150,11 @@ export async function databaseSnapshot(options: {
   }
   const logs = [
     {
+      file: "saved-views.ndjson",
+      sql: "SELECT r.*,r.created_at::text AS created_at,r.updated_at::text AS updated_at,r.deleted_at::text AS deleted_at FROM rootset_control.saved_views r JOIN rootset_control.tables t ON t.id=r.table_id WHERE t.database_id=$1 AND r.id>$2 ORDER BY r.id LIMIT 500",
+      key: "",
+    },
+    {
       file: "comments.ndjson",
       sql: "SELECT r.*,r.created_at::text AS created_at,r.deleted_at::text AS deleted_at FROM rootset_control.row_comments r JOIN rootset_control.tables t ON t.id=r.table_id WHERE t.database_id=$1 AND r.id>$2 ORDER BY r.id LIMIT 500",
       key: "",

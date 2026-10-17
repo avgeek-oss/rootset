@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import {
   assertAllowedValuesBudget,
   assertFieldNames,
+  assertRowBytes,
   assertFieldDefinitionLexemes,
   assertQueryLexemes,
   assertValueLexemes,
@@ -13,6 +14,7 @@ import {
   limits,
   RootsetError,
   validateUniqueRuleCondition,
+  validateValues,
   VersionSchema,
   type JsonValue,
   type NumberLexeme,
@@ -23,6 +25,7 @@ import {
   type RestoreField,
   type RestoreForeignKey,
   type RestoreHistoryKind,
+  type RestoreHistoryRecord,
   type RestoreRow,
   type RestoreSource,
   type RestoreTable,
@@ -51,6 +54,23 @@ function definition(value: unknown) {
 function version(value: unknown): string {
   const result = VersionSchema.safeParse(value);
   return result.success ? result.data : invalid("invalid record version");
+}
+function numericIdentity(value: string): string {
+  const parts = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(value)!;
+  const fraction = parts[3] ?? "";
+  const digits = `${parts[2]}${fraction}`.replace(/^0+/, "");
+  if (!digits) return "0";
+  const trailing = digits.match(/0*$/)![0].length;
+  const exponent = Number(parts[4] ?? 0) - fraction.length + trailing;
+  return `${parts[1]}${digits.slice(0, digits.length - trailing)}e${exponent}`;
+}
+function losslessNumbers(numbers: readonly NumberLexeme[]): void {
+  for (const number of numbers)
+    if (
+      numericIdentity(number.lexeme) !==
+      numericIdentity(JSON.stringify(number.value))
+    )
+      invalid("a number cannot be decoded without losing precision");
 }
 function object(value: unknown): Record<string, JsonValue> {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -92,6 +112,7 @@ const historyFiles: Record<RestoreHistoryKind, string> = {
   mutations: "history/mutations.ndjson",
   "cell-changes": "history/cell-changes.ndjson",
   "resource-history": "history/resource-history.ndjson",
+  views: "history/saved-views.ndjson",
 };
 export interface RestoreArchive {
   source: RestoreSource;
@@ -142,6 +163,7 @@ class ArchiveReader {
       safeIntegers: false,
       onNumber: (number) => numbers.push(number),
     });
+    losslessNumbers(numbers);
     for (const number of numbers) {
       const leaf = String(number.path.at(-1));
       if (
@@ -179,6 +201,7 @@ class ArchiveReader {
         safeIntegers: false,
         onNumber: (number) => numbers.push(number),
       });
+      losslessNumbers(numbers);
       const result = { value, numbers, bytes };
       chunks.length = 0;
       bytes = 0;
@@ -203,8 +226,9 @@ class ArchiveReader {
   }
   async *history(
     kind: RestoreHistoryKind,
-  ): AsyncGenerator<Record<string, unknown>[]> {
-    let batch: Record<string, unknown>[] = [];
+  ): AsyncGenerator<RestoreHistoryRecord[]> {
+    if (kind === "views" && !this.entries.has(historyFiles.views)) return;
+    let batch: RestoreHistoryRecord[] = [];
     let bytes = 0;
     for await (const line of this.lines(
       historyFiles[kind],
@@ -220,7 +244,7 @@ class ArchiveReader {
         batch = [];
         bytes = 0;
       }
-      batch.push(object(line.value));
+      batch.push({ value: object(line.value), numbers: line.numbers });
       bytes += line.bytes;
     }
     if (batch.length) {
@@ -258,6 +282,13 @@ class ArchiveReader {
       if (Object.keys(values).length !== fieldIds.size)
         invalid("a record is missing fields");
       assertValueLexemes(table.fields, line.numbers);
+      const named = Object.fromEntries(
+        table.fields.map((field) => [field.name, values[field.id]]),
+      );
+      assertRowBytes(
+        table.fields,
+        validateValues(table.fields, named, "create"),
+      );
       const row: RestoreRow = {
         id: identifier(raw.id),
         version: version(raw.version),
@@ -385,8 +416,11 @@ export async function openRestoreArchive(options: {
       "migrations.json",
       "schedule.json",
       "catalog.json",
-      ...Object.values(historyFiles),
+      ...Object.values(historyFiles).filter(
+        (name) => name !== historyFiles.views,
+      ),
     ]);
+    if (entries.has(historyFiles.views)) expected.add(historyFiles.views);
     await reader.json("schedule.json");
     const tables: RestoreTable[] = [];
     const seenTables = new Set<string>(),
