@@ -1905,7 +1905,7 @@ export function Spreadsheet({
     ? rows.findIndex((row) => row.id === draft.row.id)
     : -1;
   const rowNumberWidth = Math.max(
-    80,
+    64,
     String(Math.max(table.rowCount, windowStart + rows.length)).length * 9 + 48,
     query.where
       ? table.rowCount.toLocaleString(preferences.locale).length * 8 + 64
