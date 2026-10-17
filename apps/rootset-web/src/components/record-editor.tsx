@@ -352,7 +352,7 @@ function RecordForm({
       ref={form}
       className="record-editor-form"
       noValidate
-      aria-label={row ? "Edit record" : "Add record"}
+      aria-label={readOnly ? "Record" : row ? "Edit record" : "Add record"}
       aria-busy={busy || reloading}
       onSubmit={(event) => {
         event.preventDefault();
