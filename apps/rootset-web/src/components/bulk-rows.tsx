@@ -542,12 +542,12 @@ function BulkForm(
               original records stay unchanged.
             </li>
             <li>
-              Field values and foreign key links are copied. Auto-increment
-              fields receive newly generated values.
+              Field values and table relations are copied. Auto-increment fields
+              receive newly generated values.
             </li>
             <li>Comments and cell history are not copied.</li>
             <li>
-              Every copy must pass field validation, foreign key checks and
+              Every copy must pass field validation, table relation checks and
               unique rules. A copied unique value can prevent duplication.
             </li>
             <li>

@@ -85,7 +85,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
         }}
       >
         <Plus />
-        Create foreign key
+        Create table relation
       </Button>
     ),
     [disabled, schema.data.fields.length],
@@ -107,29 +107,29 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
     props.onChanged?.();
     if (job.data.state === "succeeded") {
       setFormOpen(false);
-      toast.success("Foreign key created.");
+      toast.success("Table relation created.");
     } else
       setFormError(
         typeof job.data.error === "string"
           ? job.data.error
           : (job.data.error?.message ??
-              "The foreign key could not be created."),
+              "The table relation could not be created."),
       );
   }, [pendingJobId, job.data, schema.reload, props.onChanged]);
-  if (!path) return <Empty>Select a table to manage foreign keys.</Empty>;
+  if (!path) return <Empty>Select a table to manage table relations.</Empty>;
   return (
     <>
-      <PageSelectionTitle label="Foreign keys" actions={actions} />
+      <PageSelectionTitle label="Table relations" actions={actions} />
       <Loading {...schema} retry={schema.reload} />
       <Loading {...tables} retry={tables.reload} />
       <Loading {...job} retry={job.reload} />
       {!schema.loading && !schema.error && (
         <ResourceTable
-          ariaLabel="Foreign keys"
+          ariaLabel="Table relations"
           items={schema.data.foreignKeys}
           getRowKey={(rule) => rule.id}
           tableClassName="min-w-2xl"
-          emptyTitle="No foreign keys yet"
+          emptyTitle="No table relations yet"
           emptyDescription="Link fields to a unique key in another table to validate their values."
           columns={[
             {
@@ -165,7 +165,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
                     onPress={async () => {
                       if (
                         !(await confirmation.confirm(
-                          "Remove foreign key?",
+                          "Remove table relation?",
                           "Future writes will no longer require a matching value in the referenced table.",
                           "Remove",
                         ))
@@ -177,7 +177,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
                             expectedSchemaVersion:
                               schema.data.table.schemaVersion,
                           }),
-                        "Foreign key removed.",
+                        "Table relation removed.",
                       );
                       if (result.ok) {
                         schema.reload();
@@ -196,14 +196,14 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
       )}
       {formOpen && (
         <Dialog
-          title="Create foreign key"
+          title="Create table relation"
           onClose={() => setFormOpen(false)}
           closeDisabled={busy}
         >
           <Form
             noValidate
             busy={busy || target.loading}
-            submit="Create foreign key"
+            submit="Create table relation"
             submitIcon={<Plus />}
             onCancel={() => setFormOpen(false)}
             onSubmit={async () => {
@@ -236,7 +236,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
                   setFormOpen(false);
                   schema.reload();
                   props.onChanged?.();
-                  toast.success("Foreign key created.");
+                  toast.success("Table relation created.");
                 }
               }
             }}

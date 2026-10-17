@@ -223,7 +223,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   "table-danger-zone": "Delete Table",
   fields: "Fields",
   rules: "Unique rules",
-  "foreign-keys": "Foreign keys",
+  "foreign-keys": "Table relations",
   exports: "Export Requests",
   imports: "Import Requests",
 };

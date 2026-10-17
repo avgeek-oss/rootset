@@ -56,11 +56,11 @@ export const settingsGroups = {
     { title: "Danger Zone", sections: ["database-danger-zone"] },
   ],
   table: [
+    { title: "Data", sections: ["imports", "exports"] },
     {
       title: "Settings",
       sections: ["table", "fields", "rules", "foreign-keys"],
     },
-    { title: "Data", sections: ["imports", "exports"] },
     { title: "Danger Zone", sections: ["table-danger-zone"] },
   ],
 } satisfies Record<

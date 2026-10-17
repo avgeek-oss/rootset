@@ -2062,7 +2062,7 @@ export function Spreadsheet({
                 color="accent"
                 variant="primary"
                 className="shrink-0"
-                aria-label="Foreign key"
+                aria-label="Table relation"
               >
                 <Chip.Label className="text-xs font-medium italic">
                   fk
