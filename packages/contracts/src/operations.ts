@@ -43,6 +43,7 @@ import {
   FieldInputSchema,
 } from "./values";
 import { QuerySpecSchema } from "./query";
+import { ExportViewQuerySchema } from "./exports";
 import {
   ArtifactSchema,
   ConnectionSchema,
@@ -1309,6 +1310,22 @@ operation(
   }),
   JobAcceptedSchema,
   "Start a complete-table snapshot export in CSV or JSONL, including every row and field, with checksummed artifacts.",
+  { minimumRole: "viewer", job: true, successStatus: 202 },
+);
+operation(
+  "exportView",
+  "export_view",
+  "POST",
+  `${T}/view-exports`,
+  ["exports:read", "rows:read"],
+  z.strictObject({
+    ...table,
+    ...expected,
+    format: z.enum(["csv", "jsonl"]),
+    query: ExportViewQuerySchema,
+  }),
+  JobAcceptedSchema,
+  "Export every matching record and the chosen columns from a consistent snapshot of the captured filters and sort order. Complete-table exports remain available separately.",
   { minimumRole: "viewer", job: true, successStatus: 202 },
 );
 operation(

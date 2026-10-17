@@ -3816,13 +3816,25 @@ export class TableStorage {
     tableId: string,
     input: QuerySpec,
     c: PoolClient,
-    options: { preserveTimestampPrecision?: boolean } = {},
+    options: {
+      preserveTimestampPrecision?: boolean;
+      expectedSchemaVersion?: number;
+    } = {},
   ): Promise<{ table: TableRecord; rows: AsyncIterable<Row[]> }> {
     const t = await this.table(c, a, tableId);
     await c.query(
       "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
       [t.databaseId],
     );
+    if (
+      options.expectedSchemaVersion !== undefined &&
+      t.schemaVersion !== options.expectedSchemaVersion
+    )
+      throw new RootsetError(
+        "SCHEMA_VERSION_CONFLICT",
+        "Export schema changed before snapshot establishment",
+        409,
+      );
     const compiled = compileQuery(t.fields, { ...input, cursor: undefined });
     const timestamps = options.preserveTimestampPrecision
       ? `,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __backup_created_at,to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __backup_updated_at`

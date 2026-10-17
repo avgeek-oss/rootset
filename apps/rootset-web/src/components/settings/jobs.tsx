@@ -89,6 +89,16 @@ export function ExportRequestsTable({
           ),
         },
         {
+          key: "scope",
+          header: "Scope",
+          cell: (request) =>
+            request.exportScope === "view"
+              ? "Current view"
+              : databaseLevel
+                ? "Full database"
+                : "Full table",
+        },
+        {
           key: "format",
           header: "File format",
           cell: (request) =>
@@ -341,6 +351,12 @@ export function ExportsSettings(props: SettingsPanelProps) {
               }
             }}
           >
+            {!databaseLevel && (
+              <p>
+                This request exports every row and field. To export filters and
+                chosen columns, use Export current view from the table.
+              </p>
+            )}
             {databaseLevel && (
               <p>
                 The ZIP includes every table’s schema and data from one database

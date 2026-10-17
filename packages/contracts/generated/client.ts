@@ -4499,6 +4499,59 @@ export type exportRowsOutput = {
     | "partially_completed";
   statusUrl: string;
 };
+export type exportViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  format: "csv" | "jsonl";
+  query: {
+    select: string[];
+    where?:
+      | {
+          field: string;
+          op:
+            | "eq"
+            | "ne"
+            | "lt"
+            | "lte"
+            | "gt"
+            | "gte"
+            | "between"
+            | "in"
+            | "isNull"
+            | "isNotNull"
+            | "prefix"
+            | "contains"
+            | "iContains"
+            | "pathExists"
+            | "pathEq"
+            | "jsonContains";
+          value?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          path?: (string | number)[];
+        }
+      | { and: JsonValue[] }
+      | { or: JsonValue[] };
+    orderBy?: { field: string; direction: "asc" | "desc" }[];
+  };
+};
+export type exportViewOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
 export type exportDatabaseInput = {
   orgId: string;
   databaseId: string;
@@ -4554,6 +4607,7 @@ export type listJobsOutput = {
     previewId?: string;
     cancelRequested?: boolean;
     format?: "csv" | "jsonl";
+    exportScope?: "view" | "table" | "database";
     state:
       | "queued"
       | "running"
@@ -4598,6 +4652,7 @@ export type getJobOutput = {
   previewId?: string;
   cancelRequested?: boolean;
   format?: "csv" | "jsonl";
+  exportScope?: "view" | "table" | "database";
   state:
     | "queued"
     | "running"
@@ -4639,6 +4694,7 @@ export type cancelJobOutput = {
   previewId?: string;
   cancelRequested?: boolean;
   format?: "csv" | "jsonl";
+  exportScope?: "view" | "table" | "database";
   state:
     | "queued"
     | "running"
@@ -5560,6 +5616,11 @@ const routes = {
     method: "POST",
     idempotencyRequired: true,
   },
+  exportView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/view-exports",
+    method: "POST",
+    idempotencyRequired: true,
+  },
   exportDatabase: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/exports",
     method: "POST",
@@ -6410,6 +6471,12 @@ export class RootsetClient {
     options?: CallOptions,
   ): Promise<exportRowsOutput> {
     return this.call("exportRows", input, options) as Promise<exportRowsOutput>;
+  }
+  exportView(
+    input: exportViewInput,
+    options?: CallOptions,
+  ): Promise<exportViewOutput> {
+    return this.call("exportView", input, options) as Promise<exportViewOutput>;
   }
   exportDatabase(
     input: exportDatabaseInput,

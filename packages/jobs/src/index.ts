@@ -8,6 +8,7 @@ import {
   IdSchema,
   JobAcceptedSchema,
   newId,
+  normalizeExportViewQuery,
   RootsetError,
   type Actor,
   type JsonValue,
@@ -95,7 +96,17 @@ function jobView(job: JobRecord): Record<string, unknown> {
       ? { fileName: job.input.fileName }
       : {}),
     ...(job.kind === "import" ? { previewId: job.input.previewId } : {}),
-    ...(job.kind === "export" ? { format: job.input.format } : {}),
+    ...(job.kind === "export"
+      ? {
+          format: job.input.format,
+          exportScope:
+            job.target_type === "database"
+              ? "database"
+              : job.operation_id === "exportView"
+                ? "view"
+                : "table",
+        }
+      : {}),
     state: job.state,
     stage: job.stage,
     ...(job.target_type === "table"
@@ -690,15 +701,30 @@ export class JobsService {
           ),
         );
       }
+      case "exportView":
       case "exportRows": {
         const table = await this.storage.getTable(actor, String(input.tableId));
+        const view = operationId === "exportView";
+        if (view && input.expectedSchemaVersion !== table.schemaVersion)
+          throw new RootsetError(
+            "SCHEMA_VERSION_CONFLICT",
+            "The fields changed. Reload the table before exporting this view.",
+            409,
+          );
+        const query = view
+          ? normalizeExportViewQuery(input.query, table.fields)
+          : undefined;
         return accepted(
           await this.queue.enqueue(
             actor,
             operationId,
             "export",
             { type: "table", id: table.id },
-            { ...input, schemaVersion: table.schemaVersion },
+            {
+              ...input,
+              ...(query ? { exportQuery: query } : {}),
+              schemaVersion: table.schemaVersion,
+            },
             this.requireKey(idempotencyKey),
             context.client,
           ),
@@ -1166,6 +1192,10 @@ export class JobsService {
         "Snapshot export extraction is unavailable",
         500,
       );
+    const projection =
+      job.operation_id === "exportView"
+        ? normalizeExportViewQuery(job.input.exportQuery, table.fields)
+        : null;
     return snapshotTransaction(
       this.queue.workerPool,
       actor.orgId,
@@ -1174,11 +1204,16 @@ export class JobsService {
         const source = await this.storage.snapshotTable!(
           actor,
           table.id,
-          {},
+          projection ?? {},
           client,
+          { expectedSchemaVersion: Number(job.input.schemaVersion) },
         );
         let rowCount = 0;
-        const fields = source.table.fields;
+        const fields = projection
+          ? projection.select.map((id) =>
+              source.table.fields.find((field) => field.id === id)!,
+            )
+          : source.table.fields;
         const checkCurrent = async () => {
           actor = await this.jobActor(job);
           await this.queue.fenced(job, async () => undefined);
@@ -1203,6 +1238,8 @@ export class JobsService {
           {
             schemaVersion: table.schemaVersion,
             snapshot: "repeatable_read",
+            exportScope: projection ? "view" : "table",
+            fieldIds: fields.map((field) => field.id),
           },
           { beforePublish: checkCurrent },
         );
@@ -1218,8 +1255,10 @@ export class JobsService {
           checksum: artifact.checksum!,
           byteLength: Number(artifact.byte_length),
           format,
-          schemaVersion: table.schemaVersion,
+          schemaVersion: source.table.schemaVersion,
           snapshot: "repeatable_read",
+          exportScope: projection ? "view" : "table",
+          fieldIds: fields.map((field) => field.id),
         };
       },
     );

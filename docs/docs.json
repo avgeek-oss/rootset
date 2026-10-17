@@ -188,6 +188,7 @@
               "api-reference/deleteForeignKey",
               "api-reference/previewImportRows",
               "api-reference/importRows",
+              "api-reference/exportView",
               "api-reference/listSavedViews",
               "api-reference/createSavedView",
               "api-reference/getSavedView",

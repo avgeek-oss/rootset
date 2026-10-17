@@ -44,6 +44,7 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "deleteField",
   "countRows",
   "exportRows",
+  "exportView",
   "exportDatabase",
   "previewImportRows",
   "importRows",

@@ -270,6 +270,220 @@ test("JSONL export includes every row and field and exposes its format in reques
   );
 });
 
+test("current-view exports stream a projected filtered snapshot beyond one keyset batch", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `View snapshot ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "View data",
+    fields: [
+      { name: "COUNT", type: "integer" },
+      { name: "NOTE", type: "text", charLimit: 100 },
+      { name: "ACTIVE", type: "boolean" },
+    ],
+    idempotencyKey: newId(),
+  });
+  const created = await storage.mutateRows(actor, target.id, {
+    expectedSchemaVersion: target.schemaVersion,
+    operations: Array.from({ length: 1000 }, (_, index) => ({
+      kind: "create" as const,
+      values: {
+        COUNT: index,
+        NOTE:
+          index === 0
+            ? null
+            : index === 1
+              ? ""
+              : index === 2
+                ? "\\N"
+                : `Note ${index}`,
+        ACTIVE: false,
+      },
+    })),
+    idempotencyKey: newId(),
+  });
+  await storage.mutateRows(actor, target.id, {
+    expectedSchemaVersion: target.schemaVersion,
+    operations: Array.from({ length: 6 }, (_, index) => ({
+      kind: "create" as const,
+      values: {
+        COUNT: 1000 + index,
+        NOTE: `Note ${1000 + index}`,
+        ACTIVE: index === 5,
+      },
+    })),
+    idempotencyKey: newId(),
+  });
+  const input = {
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+    format: "jsonl",
+    query: {
+      select: [target.fields[1]!.id, target.fields[0]!.id],
+      where: {
+        and: [
+          { field: "COUNT", op: "gte", value: 0 },
+          { field: "ACTIVE", op: "eq", value: false },
+        ],
+      },
+      orderBy: [{ field: "COUNT", direction: "desc" }],
+    },
+  };
+  const key = newId();
+  const [run, replay] = (await Promise.all([
+    jobs.execute("exportView", actor, input, { idempotencyKey: key }),
+    jobs.execute("exportView", actor, input, { idempotencyKey: key }),
+  ])) as { jobId: string }[];
+  assert.equal(run!.jobId, replay!.jobId);
+  await assert.rejects(
+    jobs.execute(
+      "exportView",
+      actor,
+      { ...input, query: { ...input.query, select: ["COUNT"] } },
+      { idempotencyKey: key },
+    ),
+    (error) =>
+      error instanceof RootsetError && error.code === "IDEMPOTENCY_CONFLICT",
+  );
+  let changed = false;
+  hook = async (point, id) => {
+    if (point !== "export.afterBatch" || id !== run!.jobId || changed) return;
+    changed = true;
+    const first = created.rows[0]!;
+    await storage.updateRow(
+      actor,
+      target.id,
+      first.id,
+      { COUNT: -1, NOTE: "After snapshot" },
+      { expectedVersion: first.version, idempotencyKey: newId() },
+    );
+    await storage.createRow(
+      actor,
+      target.id,
+      { COUNT: 2000, NOTE: "Added after snapshot", ACTIVE: false },
+      { idempotencyKey: newId() },
+    );
+  };
+  const completed = await terminal(run!.jobId);
+  hook = null;
+  assert.equal(completed.state, "succeeded", JSON.stringify(completed.error));
+  assert.equal(changed, true);
+  assert.equal(completed.result?.rowCount, 1005);
+  assert.deepEqual(completed.result?.fieldIds, [
+    target.fields[1]!.id,
+    target.fields[0]!.id,
+  ]);
+  const download = await jobs.downloadArtifact(
+    actor,
+    String(completed.result?.artifactId),
+  );
+  let content = "";
+  for await (const chunk of download.stream) content += String(chunk);
+  const rows = content
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  assert.equal(rows.length, 1005);
+  assert.deepEqual(
+    rows.map((row) => row.COUNT),
+    Array.from({ length: 1005 }, (_, i) => 1004 - i),
+  );
+  assert.deepEqual(rows.at(-1), { COUNT: 0, NOTE: null });
+  assert.deepEqual(rows.at(-2), { COUNT: 1, NOTE: "" });
+  assert.deepEqual(rows.at(-3), { COUNT: 2, NOTE: "\\N" });
+  assert.ok(
+    rows.every((row) => Object.keys(row).sort().join(",") === "COUNT,NOTE"),
+  );
+  assert.equal(
+    download.checksum,
+    createHash("sha256").update(content).digest("hex"),
+  );
+  const csv = (await jobs.execute("exportView", actor, {
+    ...input,
+    format: "csv",
+    query: {
+      select: ["NOTE", "COUNT", "ACTIVE"],
+      where: { field: "COUNT", op: "lte", value: 2 },
+      orderBy: [{ field: "COUNT", direction: "desc" }],
+    },
+  })) as { jobId: string };
+  const csvResult = await terminal(csv.jobId);
+  assert.equal(csvResult.state, "succeeded", JSON.stringify(csvResult.error));
+  const csvDownload = await jobs.downloadArtifact(
+    actor,
+    String(csvResult.result?.artifactId),
+  );
+  let csvContent = "";
+  for await (const chunk of csvDownload.stream) csvContent += String(chunk);
+  assert.equal(
+    csvContent,
+    'NOTE,COUNT,ACTIVE\n\\\\N,2,false\n"",1,false\nAfter snapshot,-1,false\n',
+  );
+  const empty = (await jobs.execute("exportView", actor, {
+    ...input,
+    format: "csv",
+    query: {
+      select: ["NOTE"],
+      where: { field: "COUNT", op: "eq", value: 99999 },
+    },
+  })) as { jobId: string };
+  const emptyResult = await terminal(empty.jobId);
+  assert.equal(emptyResult.result?.rowCount, 0);
+  const emptyDownload = await jobs.downloadArtifact(
+    actor,
+    String(emptyResult.result?.artifactId),
+  );
+  let emptyContent = "";
+  for await (const chunk of emptyDownload.stream) emptyContent += String(chunk);
+  assert.equal(emptyContent, "NOTE\n");
+  const history = await jobs.execute("getJob", actor, { id: run!.jobId });
+  getOperation("getJob").outputSchema.parse(history);
+  assert.equal((history as { exportScope: string }).exportScope, "view");
+});
+
+test("current-view exports reject stale schemas at admission and snapshot without publishing data", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `View schema ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Changing fields",
+    fields: [{ name: "VALUE", type: "integer" }],
+    idempotencyKey: newId(),
+  });
+  const input = {
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+    format: "csv",
+    query: { select: ["VALUE"] },
+  };
+  await assert.rejects(
+    jobs.execute("exportView", actor, {
+      ...input,
+      expectedSchemaVersion: target.schemaVersion + 1,
+    }),
+    (error) =>
+      error instanceof RootsetError && error.code === "SCHEMA_VERSION_CONFLICT",
+  );
+  const run = (await jobs.execute("exportView", actor, input)) as {
+    jobId: string;
+  };
+  await storage.updateField(actor, target.id, target.fields[0]!.id, {
+    name: "CHANGED",
+    expectedSchemaVersion: target.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  const result = await terminal(run.jobId);
+  assert.equal(result.state, "failed");
+  assert.equal(result.error?.code, "SCHEMA_VERSION_CONFLICT");
+  const artifacts = await withOrg(ddlPool, actor.orgId, (c) =>
+    c.query(
+      "SELECT id FROM rootset_control.artifacts WHERE job_id=$1 AND state='ready'",
+      [run.jobId],
+    ),
+  );
+  assert.equal(artifacts.rowCount, 0);
+});
+
 async function databaseArchive(artifactId: string) {
   const download = await jobs.downloadArtifact(actor, artifactId);
   const chunks: Buffer[] = [];
@@ -1038,6 +1252,14 @@ test("V1-07 V1-24 V1-25 V1-30: running exports recheck cancellation and current 
   );
   for (const [operation, inputTarget] of [
     ["exportRows", { tableId: target.id }],
+    [
+      "exportView",
+      {
+        tableId: target.id,
+        expectedSchemaVersion: target.schemaVersion,
+        query: { select: [target.fields[0]!.id] },
+      },
+    ],
     ["exportDatabase", { databaseId: database.id }],
   ] as const) {
     for (const action of ["cancel", "revoke"] as const) {

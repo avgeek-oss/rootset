@@ -16172,6 +16172,350 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/view-exports": {
+      "post": {
+        "operationId": "exportView",
+        "tags": ["schema"],
+        "summary": "Export every matching record and the chosen columns from a consistent snapshot of the captured filters and sort order. Complete-table exports remain available separately.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "format": { "type": "string", "enum": ["csv", "jsonl"] },
+                  "query": {
+                    "type": "object",
+                    "properties": {
+                      "select": {
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "where": {
+                        "$ref": "#/components/schemas/exportViewInput/$defs/__schema0"
+                      },
+                      "orderBy": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "direction": {
+                              "type": "string",
+                              "enum": ["asc", "desc"]
+                            }
+                          },
+                          "required": ["field", "direction"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["select"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["expectedSchemaVersion", "format", "query"],
+                "additionalProperties": false,
+                "$defs": {
+                  "__schema0": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "eq",
+                              "ne",
+                              "lt",
+                              "lte",
+                              "gt",
+                              "gte",
+                              "between",
+                              "in",
+                              "isNull",
+                              "isNotNull",
+                              "prefix",
+                              "contains",
+                              "iContains",
+                              "pathExists",
+                              "pathEq",
+                              "jsonContains"
+                            ]
+                          },
+                          "value": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "path": {
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                { "type": "string", "maxLength": 1024 },
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 2147483647
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "required": ["field", "op"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "and": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/exportViewInput/$defs/__schema0"
+                            }
+                          }
+                        },
+                        "required": ["and"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "or": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/exportViewInput/$defs/__schema0"
+                            }
+                          }
+                        },
+                        "required": ["or"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "format": "csv",
+                "query": { "select": ["example"] }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/exportViewOutput" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["exports:read", "rows:read"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": true,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_export_view",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "expectedSchemaVersion": 1,
+          "format": "csv",
+          "query": { "select": ["example"] }
+        }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/exports": {
       "post": {
         "operationId": "exportDatabase",
@@ -36258,6 +36602,188 @@
         "required": ["jobId", "state", "statusUrl"],
         "additionalProperties": false
       },
+      "exportViewInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "format": { "type": "string", "enum": ["csv", "jsonl"] },
+          "query": {
+            "type": "object",
+            "properties": {
+              "select": {
+                "minItems": 1,
+                "maxItems": 200,
+                "type": "array",
+                "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+              },
+              "where": {
+                "$ref": "#/components/schemas/exportViewInput/$defs/__schema0"
+              },
+              "orderBy": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "direction": { "type": "string", "enum": ["asc", "desc"] }
+                  },
+                  "required": ["field", "direction"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["select"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "format",
+          "query"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "lte",
+                      "gt",
+                      "gte",
+                      "between",
+                      "in",
+                      "isNull",
+                      "isNotNull",
+                      "prefix",
+                      "contains",
+                      "iContains",
+                      "pathExists",
+                      "pathEq",
+                      "jsonContains"
+                    ]
+                  },
+                  "value": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "path": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 1024 },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "and": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/exportViewInput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["and"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "or": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/exportViewInput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["or"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "exportViewOutput": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "partially_completed"
+            ]
+          },
+          "statusUrl": { "type": "string" }
+        },
+        "required": ["jobId", "state", "statusUrl"],
+        "additionalProperties": false
+      },
       "exportDatabaseInput": {
         "type": "object",
         "properties": {
@@ -36425,6 +36951,10 @@
                 },
                 "cancelRequested": { "type": "boolean" },
                 "format": { "type": "string", "enum": ["csv", "jsonl"] },
+                "exportScope": {
+                  "type": "string",
+                  "enum": ["view", "table", "database"]
+                },
                 "state": {
                   "type": "string",
                   "enum": [
@@ -36599,6 +37129,10 @@
           },
           "cancelRequested": { "type": "boolean" },
           "format": { "type": "string", "enum": ["csv", "jsonl"] },
+          "exportScope": {
+            "type": "string",
+            "enum": ["view", "table", "database"]
+          },
           "state": {
             "type": "string",
             "enum": [
@@ -36766,6 +37300,10 @@
           },
           "cancelRequested": { "type": "boolean" },
           "format": { "type": "string", "enum": ["csv", "jsonl"] },
+          "exportScope": {
+            "type": "string",
+            "enum": ["view", "table", "database"]
+          },
           "state": {
             "type": "string",
             "enum": [

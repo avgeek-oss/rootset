@@ -2642,6 +2642,45 @@
     ]
   },
   {
+    "operationId": "exportView",
+    "publicRoute": "POST /v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/view-exports",
+    "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/view-exports",
+    "mcpTool": "rootset_export_view",
+    "scopes": ["exports:read", "rows:read"],
+    "role": "viewer",
+    "resource": "table",
+    "personal": false,
+    "readOnly": false,
+    "stepUp": "never",
+    "job": true,
+    "errors": [
+      "VALIDATION_FAILED",
+      "UNAUTHENTICATED",
+      "ACCESS_DENIED",
+      "FORBIDDEN",
+      "INSUFFICIENT_SCOPE",
+      "RESOURCE_NOT_FOUND",
+      "DEPENDENCY_UNAVAILABLE",
+      "REQUEST_TIMEOUT",
+      "IDEMPOTENCY_CONFLICT"
+    ],
+    "jsonRequestMaxBytes": 8388608,
+    "jsonReadTimeoutMs": 10000,
+    "uiEntry": "schema",
+    "verification": [
+      "API-01",
+      "API-02",
+      "API-03",
+      "API-06",
+      "API-12",
+      "MCP-08",
+      "API-09",
+      "JOB-04",
+      "JOB-06",
+      "MCP-10"
+    ]
+  },
+  {
     "operationId": "exportDatabase",
     "publicRoute": "POST /v1/orgs/{orgId}/databases/{databaseId}/exports",
     "browserRoute": "POST /api/internal/v1/orgs/{orgId}/databases/{databaseId}/exports",

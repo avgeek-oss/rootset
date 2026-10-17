@@ -1080,8 +1080,27 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             await client.close();
           }
         }
+        const exportSchema = await call(
+          "getTableSchema",
+          ids,
+          "rest",
+          undefined,
+          newId(),
+          readTeam!.secret,
+        );
         for (const [operation, exportTarget] of [
           ["exportRows", ids],
+          [
+            "exportView",
+            {
+              ...ids,
+              expectedSchemaVersion: exportSchema.table.schemaVersion,
+              query: {
+                select: ["NAME"],
+                where: { field: "NAME", op: "isNotNull" },
+              },
+            },
+          ],
           ["exportDatabase", { orgId, databaseId }],
         ] as const) {
           const exported = await call(

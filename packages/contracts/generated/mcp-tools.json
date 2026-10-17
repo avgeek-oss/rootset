@@ -22841,6 +22841,278 @@
     }
   },
   {
+    "name": "rootset_export_view",
+    "title": "exportView",
+    "description": "Export every matching record and the chosen columns from a consistent snapshot of the captured filters and sort order. Complete-table exports remain available separately.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "expectedSchemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "format": { "type": "string", "enum": ["csv", "jsonl"] },
+        "query": {
+          "type": "object",
+          "properties": {
+            "select": {
+              "minItems": 1,
+              "maxItems": 200,
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+            },
+            "where": { "$ref": "#/$defs/__schema0" },
+            "orderBy": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "direction": { "type": "string", "enum": ["asc", "desc"] }
+                },
+                "required": ["field", "direction"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["select"],
+          "additionalProperties": false
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "orgId",
+        "databaseId",
+        "tableId",
+        "expectedSchemaVersion",
+        "format",
+        "query",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false,
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "eq",
+                    "ne",
+                    "lt",
+                    "lte",
+                    "gt",
+                    "gte",
+                    "between",
+                    "in",
+                    "isNull",
+                    "isNotNull",
+                    "prefix",
+                    "contains",
+                    "iContains",
+                    "pathExists",
+                    "pathEq",
+                    "jsonContains"
+                  ]
+                },
+                "value": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                },
+                "path": {
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 1024 },
+                      { "type": "integer", "minimum": 0, "maximum": 2147483647 }
+                    ]
+                  }
+                }
+              },
+              "required": ["field", "op"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "and": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/__schema0" }
+                }
+              },
+              "required": ["and"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "or": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/__schema0" }
+                }
+              },
+              "required": ["or"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "cancelled",
+                "partially_completed"
+              ]
+            },
+            "statusUrl": { "type": "string" }
+          },
+          "required": ["jobId", "state", "statusUrl"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
     "name": "rootset_export_database",
     "title": "exportDatabase",
     "description": "Export every table and its schema from one database snapshot as a ZIP containing CSV or JSONL data, field definitions, unique rules and foreign keys.",
@@ -23215,6 +23487,10 @@
                   },
                   "cancelRequested": { "type": "boolean" },
                   "format": { "type": "string", "enum": ["csv", "jsonl"] },
+                  "exportScope": {
+                    "type": "string",
+                    "enum": ["view", "table", "database"]
+                  },
                   "state": {
                     "type": "string",
                     "enum": [
@@ -23485,6 +23761,10 @@
             },
             "cancelRequested": { "type": "boolean" },
             "format": { "type": "string", "enum": ["csv", "jsonl"] },
+            "exportScope": {
+              "type": "string",
+              "enum": ["view", "table", "database"]
+            },
             "state": {
               "type": "string",
               "enum": [
@@ -23754,6 +24034,10 @@
             },
             "cancelRequested": { "type": "boolean" },
             "format": { "type": "string", "enum": ["csv", "jsonl"] },
+            "exportScope": {
+              "type": "string",
+              "enum": ["view", "table", "database"]
+            },
             "state": {
               "type": "string",
               "enum": [

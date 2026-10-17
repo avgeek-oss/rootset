@@ -157,6 +157,7 @@ export interface Job {
   id: string;
   type?: string;
   kind?: string;
+  exportScope?: "view" | "table" | "database";
   format?: "csv" | "jsonl";
   state: string;
   stage?: string;

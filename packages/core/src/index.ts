@@ -216,6 +216,7 @@ const asynchronous = new Set([
 ]);
 const queuedFamilies = new Set([
   "exportRows",
+  "exportView",
   "exportDatabase",
   "previewImportRows",
   "importRows",
@@ -224,6 +225,7 @@ const jobOperations = new Set([
   "previewImportRows",
   "importRows",
   "exportRows",
+  "exportView",
   "exportDatabase",
   "getArtifact",
   "listJobs",
@@ -380,7 +382,9 @@ export class RootsetCore {
         assertValueLexemes(table.fields, lexemes);
       if (
         table &&
-        ["queryRows", "countRows", "exportRows"].includes(operationId)
+        ["queryRows", "countRows", "exportRows", "exportView"].includes(
+          operationId,
+        )
       )
         assertQueryLexemes(
           table.fields,

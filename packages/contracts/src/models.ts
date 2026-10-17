@@ -436,6 +436,7 @@ export const JobSchema = z.strictObject({
   previewId: IdSchema.optional(),
   cancelRequested: z.boolean().optional(),
   format: z.enum(["csv", "jsonl"]).optional(),
+  exportScope: z.enum(["view", "table", "database"]).optional(),
   state: JobStateSchema,
   stage: z.string().optional(),
   databaseId: IdSchema.optional(),

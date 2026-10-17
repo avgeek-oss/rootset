@@ -47,6 +47,7 @@ import {
   Plus,
   View,
   Upload,
+  ArrowDownToLine,
 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
@@ -91,6 +92,7 @@ import { Dialog } from "./dialog";
 import { RowComments } from "./row-comments";
 import { RecordEditor } from "./record-editor";
 import { ImportRecords } from "./import-records";
+import { ExportView } from "./export-view";
 import { SavedViewsToolbar } from "./saved-views";
 import { ViewColumns } from "./view-columns";
 import { BulkRows } from "./bulk-rows";
@@ -297,6 +299,7 @@ export function Spreadsheet({
     focusFieldId?: string;
   } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
     initialFilter.conditions,
   );
@@ -381,6 +384,7 @@ export function Spreadsheet({
   const recordAccessLost = useCallback(() => {
     setRecordEditor(null);
     setImportOpen(false);
+    setExportOpen(false);
     setBulkAction(null);
     setSelectedRecords(new Map());
     setDiscussion(null);
@@ -2046,12 +2050,7 @@ export function Spreadsheet({
             size="lg"
             variant="secondary"
             aria-label="More table actions"
-            isDisabled={
-              saving ||
-              accessRevoked ||
-              !allFields.length ||
-              (!canEdit && (!selection || !rows[selection.row]))
-            }
+            isDisabled={saving || accessRevoked || !allFields.length}
           >
             <MoreHorizontal size={20} />
           </Button>
@@ -2065,6 +2064,8 @@ export function Spreadsheet({
                   );
                 else if (key === "import")
                   void leaveEditor(() => setImportOpen(true));
+                else if (key === "export")
+                  void leaveEditor(() => setExportOpen(true));
               }}
             >
               <Dropdown.Item
@@ -2074,6 +2075,20 @@ export function Spreadsheet({
               >
                 <View className="shrink-0 text-muted" />
                 Open record
+              </Dropdown.Item>
+              <Dropdown.Item
+                id="export"
+                textValue="Export current view"
+                isDisabled={
+                  !viewReady ||
+                  Boolean(unavailableView) ||
+                  Boolean(queryProblem) ||
+                  Boolean(linkedFilterError) ||
+                  (schema.data?.table.state ?? table.state) !== "active"
+                }
+              >
+                <ArrowDownToLine className="shrink-0 text-muted" />
+                Export current view
               </Dropdown.Item>
               {canEdit && (
                 <Dropdown.Item
@@ -2134,6 +2149,26 @@ export function Spreadsheet({
           preferences={preferences}
           onClose={() => setImportOpen(false)}
           onImported={() => recordsChanged(true)}
+          onAccessLost={recordAccessLost}
+        />
+      )}
+      {exportOpen && schema.data && (
+        <ExportView
+          target={{ orgId, databaseId, tableId: table.id }}
+          tableName={table.name}
+          fields={allFields}
+          visible={fields}
+          selected={
+            selection
+              ? fields.slice(
+                  Math.min(selection.column, selection.endColumn),
+                  Math.max(selection.column, selection.endColumn) + 1,
+                )
+              : []
+          }
+          query={query}
+          schemaVersion={schema.data.table.schemaVersion}
+          onClose={() => setExportOpen(false)}
           onAccessLost={recordAccessLost}
         />
       )}
