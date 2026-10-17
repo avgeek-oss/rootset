@@ -9,10 +9,15 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   createDateTimeFormatter,
   type DatabaseBackup,
+  type Job,
 } from "@rootset/contracts";
+import { RestoreBackup } from "../restore-backup";
+import Link from "next/link";
+import { buttonVariants } from "@avgeek-oss/design-system/buttons/button";
 import { formatStorageBytes } from "../../lib/format-storage";
 import {
   databasePath,
+  organisationPath,
   performAction,
   readRaw,
   useMutation,
@@ -29,6 +34,13 @@ interface BackupPage {
   nextCursor: string | null;
 }
 const EMPTY_PAGE: BackupPage = { data: [], nextCursor: null };
+interface RestorePage {
+  data: Job[];
+  nextCursor: string | null;
+}
+const EMPTY_RESTORES: RestorePage = { data: [], nextCursor: null };
+const loadRestores = (path: string, signal?: AbortSignal) =>
+  readRaw<RestorePage>(path, signal);
 const loadHistory = (path: string, signal?: AbortSignal) =>
   readRaw<BackupPage>(path, signal);
 const isActive = (state: string) => state === "queued" || state === "running";
@@ -46,6 +58,19 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
     EMPTY_PAGE,
     loadHistory,
   );
+  const [selected, setSelected] = useState<{
+    backupId: string;
+    initialJob?: Job;
+  } | null>(null);
+  const [restoreCursors, setRestoreCursors] = useState<string[]>([""]);
+  const [restorePage, setRestorePage] = useState(0);
+  const restores = useResource<RestorePage>(
+    props.databaseId
+      ? `${organisationPath(props.orgId)}/jobs?databaseId=${props.databaseId}&kind=database_restore&order=desc&limit=25${restoreCursors[restorePage] ? `&cursor=${encodeURIComponent(restoreCursors[restorePage]!)}` : ""}`
+      : undefined,
+    EMPTY_RESTORES,
+    loadRestores,
+  );
   const mutation = useMutation();
   const format = useMemo(
     () =>
@@ -57,6 +82,13 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
     [props.preferences],
   );
   const hasActiveRun = history.data.data.some((run) => isActive(run.state));
+  const hasActiveRestore = restores.data.data.some((run) =>
+    isActive(run.state),
+  );
+  useEffect(() => {
+    const timer = setInterval(restores.reload, hasActiveRestore ? 2000 : 10000);
+    return () => clearInterval(timer);
+  }, [restores.reload, hasActiveRestore]);
   useEffect(() => {
     if (!path || page !== 0) return;
     const timer = setInterval(history.reload, hasActiveRun ? 2000 : 10000);
@@ -74,7 +106,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
           getRowKey={(run) => run.id}
           tableClassName="min-w-5xl"
           emptyTitle="No backups yet"
-          emptyDescription="Test a destination, then save a schedule or start a backup."
+          emptyDescription="Save a backup schedule to start creating database snapshots."
           columns={[
             {
               key: "scheduled",
@@ -226,6 +258,16 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
                   >
                     Cancel
                   </Button>
+                ) : run.kind === "backup" &&
+                  run.state === "succeeded" &&
+                  run.objectKey &&
+                  run.checksum ? (
+                  <Button
+                    variant="secondary"
+                    onPress={() => setSelected({ backupId: run.id })}
+                  >
+                    Restore
+                  </Button>
                 ) : (
                   <span className="text-muted">—</span>
                 ),
@@ -254,7 +296,157 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
             Older
           </Button>
         </div>
+        <section
+          className="grid min-w-0 gap-4"
+          aria-labelledby="restore-requests-heading"
+        >
+          <h2 id="restore-requests-heading" className="text-lg font-medium">
+            Restore requests
+          </h2>
+          <Loading {...restores} retry={restores.reload} />
+          <ResourceTable
+            ariaLabel="Database restore requests"
+            items={restores.data.data}
+            getRowKey={(run) => run.id}
+            tableClassName="min-w-2xl"
+            emptyTitle="No restore requests"
+            emptyDescription="Choose Restore on a successful backup to verify its contents."
+            columns={[
+              {
+                key: "created",
+                header: "Requested",
+                cell: (run) => (
+                  <RelativeTime
+                    label="Restore requested"
+                    value={run.createdAt}
+                  />
+                ),
+              },
+              {
+                key: "type",
+                header: "Type",
+                cell: (run) =>
+                  run.kind === "database_restore_preview"
+                    ? "Verification"
+                    : "Restore",
+              },
+              {
+                key: "status",
+                header: "Status",
+                cell: (run) => (
+                  <Chip color={statusColor(run.state)}>
+                    <Chip.Label>{statusLabel(run.state)}</Chip.Label>
+                  </Chip>
+                ),
+              },
+              {
+                key: "progress",
+                header: "Progress",
+                cell: (run) => (
+                  <span className="text-sm text-muted">
+                    {run.error?.message ??
+                      (isActive(run.state)
+                        ? statusLabel(run.stage ?? run.state)
+                        : run.state === "succeeded"
+                          ? "Completed"
+                          : "—")}
+                  </span>
+                ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                headerClassName: "text-right",
+                cell: (run) => {
+                  const result = run.result;
+                  const databaseId =
+                    result &&
+                    typeof result === "object" &&
+                    !Array.isArray(result) &&
+                    typeof result.databaseId === "string"
+                      ? result.databaseId
+                      : null;
+                  return (
+                    <div className="flex justify-end gap-2">
+                      {databaseId && (
+                        <Link
+                          href={`/databases/${databaseId}`}
+                          className={buttonVariants({ variant: "secondary" })}
+                        >
+                          Open database
+                        </Link>
+                      )}
+                      {run.backupId && (
+                        <Button
+                          variant="secondary"
+                          onPress={() =>
+                            setSelected({
+                              backupId: run.backupId!,
+                              initialJob: run,
+                            })
+                          }
+                        >
+                          View request
+                        </Button>
+                      )}
+                    </div>
+                  );
+                },
+              },
+            ]}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              isDisabled={restorePage === 0 || restores.loading}
+              onPress={() => setRestorePage((value) => value - 1)}
+            >
+              Newer requests
+            </Button>
+            <Button
+              variant="secondary"
+              isDisabled={!restores.data.nextCursor || restores.loading}
+              onPress={() => {
+                setRestoreCursors((values) => [
+                  ...values.slice(0, restorePage + 1),
+                  restores.data.nextCursor!,
+                ]);
+                setRestorePage((value) => value + 1);
+              }}
+            >
+              Older requests
+            </Button>
+          </div>
+        </section>
       </div>
+      {selected && (
+        <RestoreBackup
+          key={selected.initialJob?.id ?? selected.backupId}
+          orgId={props.orgId}
+          backupId={selected.backupId}
+          initialJob={selected.initialJob}
+          destination={(() => {
+            const run = history.data.data.find(
+              (run) => run.id === selected.backupId,
+            );
+            return run?.objectKey
+              ? `${run.bucket}/${run.objectKey}`
+              : undefined;
+          })()}
+          onClose={() => {
+            setSelected(null);
+            restores.reload();
+          }}
+          onRestored={() => {
+            restores.reload();
+            props.onChanged?.();
+          }}
+          onAccessLost={() => {
+            setSelected(null);
+            props.onClose();
+          }}
+        />
+      )}
     </>
   );
 }

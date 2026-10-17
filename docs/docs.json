@@ -143,7 +143,9 @@
               "api-reference/getUsage",
               "api-reference/getViewPreferences",
               "api-reference/updateViewPreferences",
-              "api-reference/updateForeignKeyDisplayField"
+              "api-reference/updateForeignKeyDisplayField",
+              "api-reference/previewDatabaseRestore",
+              "api-reference/restoreDatabaseBackup"
             ]
           },
           {

@@ -1,3 +1,4 @@
+import { DatabaseRestores, restoreJobKinds } from "./backups/restores.js";
 import { DatabaseBackups, backupJobKinds } from "./backups/index.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { timingSafeEqual } from "node:crypto";
@@ -43,6 +44,7 @@ import type {
   OperationContext,
   Target,
 } from "./types.js";
+import { stableStringify } from "./types.js";
 export * from "./types.js";
 export * from "./queue.js";
 export * from "./artifacts.js";
@@ -114,6 +116,15 @@ function jobView(job: JobRecord): Record<string, unknown> {
       : job.target_type === "database"
         ? { databaseId: job.target_id }
         : {}),
+    ...(restoreJobKinds.includes(job.kind)
+      ? {
+          databaseId: job.input.sourceDatabaseId,
+          backupId: job.input.backupId,
+          ...(job.kind === "database_restore"
+            ? { previewId: job.input.previewId }
+            : {}),
+        }
+      : {}),
     progress: {
       completed: Number(job.progress.completed ?? job.progress.committed ?? 0),
       ...(job.progress.committed === undefined
@@ -145,6 +156,7 @@ export class JobsService {
   readonly artifacts: ArtifactStore;
   readonly imports: TableImports;
   readonly backups: DatabaseBackups;
+  readonly restores: DatabaseRestores;
   readonly config: JobsOptions["config"];
   readonly storage: JobsOptions["storage"];
   private readonly authoriseCallback: JobsOptions["authorise"];
@@ -206,18 +218,23 @@ export class JobsService {
       },
     );
     this.backups = new DatabaseBackups(options, this.queue);
+    this.restores = new DatabaseRestores(options, this.queue, (job, client) =>
+      this.authorise(job.actor, job.operation_id, {}, client),
+    );
   }
 
   async authorise(
     actor: Actor,
     operationId: string,
     inputTarget: Target,
+    client?: PoolClient,
   ): Promise<Actor> {
     if (this.authoriseCallback) {
       const current = await this.authoriseCallback(
         actor,
         operationId,
         inputTarget,
+        client,
       );
       actor = current ?? actor;
       if (!inputTarget.repair) return actor;
@@ -630,6 +647,12 @@ export class JobsService {
     idempotencyKey: string | undefined,
   ): Promise<unknown> {
     switch (operationId) {
+      case "previewDatabaseRestore":
+      case "restoreDatabaseBackup":
+        return this.restores.enqueue(operationId, actor, input, {
+          ...context,
+          idempotencyKey,
+        });
       case "previewImportRows":
       case "importRows": {
         let fileName: unknown;
@@ -860,7 +883,14 @@ export class JobsService {
         "Metadata cursor signing is not configured",
         503,
       );
+    const order: "asc" | "desc" | undefined =
+      input.order === "desc"
+        ? "desc"
+        : input.order === "asc"
+          ? "asc"
+          : undefined;
     const request = {
+      ...(order ? { order } : {}),
       resource: `jobs:${actor.orgId}`,
       limit,
       cursor: typeof input.cursor === "string" ? input.cursor : null,
@@ -879,8 +909,8 @@ export class JobsService {
         (
           await client.query<JobRecord>(
             `SELECT * FROM rootset_control.jobs
-      WHERE ($1::text IS NULL OR id>$1) AND ($2::text IS NULL OR state=$2) AND ($3::text IS NULL OR kind=$3 OR ($3='import' AND kind='import_preview'))
-      AND ($4::text IS NULL OR (target_type='database' AND target_id=$4)) AND ($5::text IS NULL OR (target_type='table' AND target_id=$5)) ORDER BY id ASC LIMIT $6`,
+      WHERE ($1::text IS NULL OR id${order === "desc" ? "<" : ">"}$1) AND ($2::text IS NULL OR state=$2) AND ($3::text IS NULL OR kind=$3 OR ($3='import' AND kind='import_preview') OR ($3='database_restore' AND kind='database_restore_preview'))
+      AND ($4::text IS NULL OR (target_type='database' AND target_id=$4) OR (kind IN ('database_restore_preview','database_restore') AND input->>'sourceDatabaseId'=$4)) AND ($5::text IS NULL OR (target_type='table' AND target_id=$5)) ORDER BY id ${order === "desc" ? "DESC" : "ASC"} LIMIT $6`,
             [
               position.afterId,
               input.state ?? null,
@@ -996,6 +1026,8 @@ export class JobsService {
       return this.imports.committedResult(job);
     if (backupJobKinds.includes(job.kind))
       return this.backups.committedResult(job);
+    if (restoreJobKinds.includes(job.kind))
+      return this.restores.committedResult(job);
     if (job.kind === "operation" && this.config.reconcileOperation) {
       const outcome = await this.config.reconcileOperation(job);
       if (outcome !== undefined) return outcome;
@@ -1075,6 +1107,13 @@ export class JobsService {
     );
     heartbeat.unref();
     try {
+      if (restoreJobKinds.includes(job.kind)) {
+        const prior = await this.restores.committedResult(job);
+        if (prior !== undefined) {
+          await this.queue.finish(job, "succeeded", prior);
+          return true;
+        }
+      }
       if (["import", "import_preview"].includes(job.kind)) {
         const prior = await this.imports.committedResult(job);
         if (prior !== undefined) {
@@ -1089,6 +1128,11 @@ export class JobsService {
           return true;
         }
       }
+      if (
+        (job.input.operationContext as Record<string, unknown> | undefined)
+          ?.admissionBinding !== undefined
+      )
+        this.storedAdmission(job);
       const actor = backupJobKinds.includes(job.kind)
         ? job.actor
         : await this.jobActor(job);
@@ -1096,6 +1140,8 @@ export class JobsService {
       let result: JsonValue;
       if (backupJobKinds.includes(job.kind))
         result = await this.backups.run(job);
+      else if (restoreJobKinds.includes(job.kind))
+        result = await this.restores.run(job);
       else if (job.kind === "export") result = await this.export(actor, job);
       else if (["import", "import_preview"].includes(job.kind))
         result = await this.imports.run(job);
@@ -1171,6 +1217,12 @@ export class JobsService {
   }
 
   private async export(actor: Actor, job: JobRecord): Promise<JsonValue> {
+    if (!this.queue.authenticInput(job))
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "Export request metadata changed after admission",
+        409,
+      );
     const format = job.input.format;
     if (format !== "csv" && format !== "jsonl")
       throw new RootsetError(
@@ -1194,8 +1246,17 @@ export class JobsService {
       );
     const projection =
       job.operation_id === "exportView"
-        ? normalizeExportViewQuery(job.input.exportQuery, table.fields)
+        ? normalizeExportViewQuery(job.input.query, table.fields)
         : null;
+    if (
+      projection &&
+      stableStringify(projection) !== stableStringify(job.input.exportQuery)
+    )
+      throw new RootsetError(
+        "IDEMPOTENCY_CONFLICT",
+        "The captured export columns or filters changed after admission",
+        409,
+      );
     return snapshotTransaction(
       this.queue.workerPool,
       actor.orgId,

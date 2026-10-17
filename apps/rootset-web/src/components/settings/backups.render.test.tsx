@@ -53,7 +53,7 @@ vi.mock("./api", () => ({
             })),
             nextCursor: null,
           }
-        : null,
+        : { data: [], nextCursor: null },
     loading: fixture.loading,
     reload() {},
     replace() {},

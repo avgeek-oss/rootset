@@ -10,11 +10,14 @@ import {
   GetObjectCommand,
   ListObjectsV2Command,
   DeleteObjectCommand,
+  PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { withOrg } from "@rootset/database";
 import {
   newId,
   RootsetError,
+  RestorePreviewSchema,
+  DatabaseRestoreResultSchema,
   type Actor,
   type BackupScheduleResult,
   type DatabaseBackup,
@@ -22,7 +25,11 @@ import {
   type Row,
   type UniqueRuleCondition,
 } from "@rootset/contracts";
-import { TableStorage, type TableRecord } from "@rootset/table-storage";
+import {
+  TableStorage,
+  restoredId,
+  type TableRecord,
+} from "@rootset/table-storage";
 import { fieldColumn } from "../../../table-storage/src/query.js";
 import { MetadataPaging } from "../../../core/src/paging.js";
 import { isolatedDatabase } from "../../../../tools/verification/isolated-database.js";
@@ -291,6 +298,24 @@ before(async () => {
       [newId(), orgId, child.id, childRow.id, actor],
     );
   });
+  await withOrg(app, orgId, (client) =>
+    client.query(
+      "INSERT INTO rootset_control.saved_views(id,org_id,table_id,owner_name_snapshot,name,visibility,definition,schema_version) VALUES($1,$2,$3,'Backup author','Shared backup view','shared',$4,$5)",
+      [
+        newId(),
+        orgId,
+        child.id,
+        {
+          frozenColumns: 0,
+          columnOrder: child.fields.map((field) => field.id),
+          hiddenColumns: [child.fields[1]!.id],
+          columnWidths: {},
+          query: { where: { field: child.fields[0]!.id, op: "eq", value: 1 } },
+        },
+        child.schemaVersion,
+      ],
+    ),
+  );
   await owner.query(
     "INSERT INTO rootset_control.worker_heartbeats(id,state,backup_backend_id) VALUES($1,'ready',$2)",
     [workerId, jobs.backups.backendId],
@@ -315,7 +340,9 @@ after(async () => {
     } while (token);
   } finally {
     jobs.backups.close();
+    jobs.restores.close();
     disabled.backups.close();
+    disabled.restores.close();
     objects.destroy();
     await rm(temporary, { recursive: true, force: true });
     await fixture.close();
@@ -792,6 +819,362 @@ test("consistent full packages reconstruct rows, rules, counters, comments and h
     ).rowCount,
     0,
   );
+});
+
+let restoreBackupId: string, restorePreviewId: string;
+const restoreRequest = (
+  operation: string,
+  input: Record<string, unknown>,
+  key = newId(),
+  value = actor,
+) =>
+  jobs.execute(
+    operation,
+    value,
+    { orgId, ...input },
+    { idempotencyKey: key },
+  ) as Promise<{ jobId: string }>;
+async function restoreAbsent(jobId: string) {
+  const job = (
+    await owner.query<JobRecord>(
+      "SELECT * FROM rootset_control.jobs WHERE id=$1",
+      [jobId],
+    )
+  ).rows[0]!;
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS n FROM rootset_control.databases WHERE id=$1",
+        [job.input.destinationDatabaseId],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=$1",
+        [`rsd_${String(job.input.destinationDatabaseId).toLowerCase()}`],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS n FROM rootset_control.restore_results WHERE job_id=$1",
+        [jobId],
+      )
+    ).rows[0].n,
+    0,
+  );
+}
+test("managed restore previews verify encrypted packages without writes and restore into a new database with working constraints", async () => {
+  await owner.query(
+    "UPDATE rootset_control.worker_heartbeats SET heartbeat_at=now() WHERE id=$1",
+    [workerId],
+  );
+  await save();
+  restoreBackupId = (await queueBackup()).jobId;
+  assert.equal((await terminal(restoreBackupId)).state, "succeeded");
+  const before = (
+    await owner.query(
+      "SELECT count(*)::int AS n FROM rootset_control.databases",
+    )
+  ).rows[0].n;
+  const preview = await restoreRequest("previewDatabaseRestore", {
+    backupId: restoreBackupId,
+  });
+  restorePreviewId = preview.jobId;
+  assert.equal(await disabled.runOnce(orgId), false);
+  const checked = await terminal(preview.jobId);
+  assert.equal(checked.state, "succeeded", JSON.stringify(checked.error));
+  const summary = RestorePreviewSchema.parse(checked.result);
+  assert.equal(summary.tables.length, 2);
+  assert.equal(summary.rowCount, 2);
+  assert.equal(summary.commentCount, 2);
+  assert.equal(summary.viewCount, 1);
+  assert.ok(summary.historyEvents > 0);
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS n FROM rootset_control.databases",
+      )
+    ).rows[0].n,
+    before,
+  );
+  const key = newId(),
+    input = {
+      backupId: restoreBackupId,
+      previewId: preview.jobId,
+      name: "Recovered via worker",
+    };
+  const accepted = await restoreRequest("restoreDatabaseBackup", input, key);
+  assert.deepEqual(
+    await restoreRequest("restoreDatabaseBackup", input, key),
+    accepted,
+  );
+  const done = await terminal(accepted.jobId);
+  assert.equal(done.state, "succeeded", JSON.stringify(done.error));
+  const result = DatabaseRestoreResultSchema.parse(done.result);
+  assert.notEqual(result.databaseId, databaseId);
+  assert.equal(result.rowCount, 2);
+  assert.equal(result.viewCount, 1);
+  const saved = (
+    await owner.query(
+      "SELECT definition FROM rootset_control.saved_views WHERE table_id=$1",
+      [restoredId(result.databaseId, "table", child.id)],
+    )
+  ).rows[0]!;
+  assert.deepEqual(saved.definition.query.where, {
+    field: restoredId(result.databaseId, "field", child.fields[0]!.id),
+    op: "eq",
+    value: 1,
+  });
+  const parentId = restoredId(result.databaseId, "table", parent.id),
+    childId = restoredId(result.databaseId, "table", child.id);
+  const parentCopy = await storage.getRow(actor, parentId, parentRow.id),
+    childCopy = await storage.getRow(actor, childId, childRow.id);
+  assert.deepEqual(
+    parentCopy.values,
+    (await storage.getRow(actor, parent.id, parentRow.id)).values,
+  );
+  assert.deepEqual(
+    childCopy.values,
+    (await storage.getRow(actor, child.id, childRow.id)).values,
+  );
+  assert.equal(childCopy.version, childRow.version);
+  const next = await storage.createRow(actor, parentId, { CODE: "ALPHA" });
+  assert.equal(next.values.RECORD_ID, 9001);
+  await assert.rejects(storage.createRow(actor, childId, { REF: 999999 }), {
+    code: "FOREIGN_KEY_CONFLICT",
+  });
+  await assert.rejects(
+    restoreRequest("restoreDatabaseBackup", input, newId(), {
+      ...actor,
+      role: "viewer",
+    }),
+    { status: 403 },
+  );
+  const listed = await jobs.execute("listJobs", actor, {
+    orgId,
+    databaseId,
+    kind: "database_restore",
+    limit: 100,
+  });
+  assert.ok(
+    (listed as { data: { id: string }[] }).data.some(
+      (row) => row.id === accepted.jobId,
+    ),
+  );
+  const descending = {
+    orgId,
+    databaseId,
+    kind: "database_restore",
+    limit: 1,
+    order: "desc",
+  };
+  const first = (await jobs.execute("listJobs", actor, descending)) as {
+    data: { id: string }[];
+    nextCursor: string;
+  };
+  assert.equal(first.data[0]!.id, accepted.jobId);
+  const second = (await jobs.execute("listJobs", actor, {
+    ...descending,
+    cursor: first.nextCursor,
+  })) as { data: { id: string }[] };
+  assert.equal(second.data[0]!.id, preview.jobId);
+  await assert.rejects(
+    jobs.execute("listJobs", actor, {
+      ...descending,
+      order: "asc",
+      cursor: first.nextCursor,
+    }),
+    { code: "CURSOR_INVALID" },
+  );
+});
+test("restore cancellation, revoked authority, stale previews and tampered storage never expose a partial database", async () => {
+  for (const mode of ["cancel", "authority"] as const) {
+    const request = await restoreRequest("restoreDatabaseBackup", {
+      backupId: restoreBackupId,
+      previewId: restorePreviewId,
+      name: `Failed ${mode}`,
+    });
+    let reached = false;
+    hook = async (point, id) => {
+      if (!reached && point === "restore.restoring_rows") {
+        reached = true;
+        if (mode === "cancel") await jobs.queue.cancel(actor, id);
+        else authorized = false;
+      }
+    };
+    try {
+      const result = await terminal(request.jobId);
+      assert.equal(reached, true);
+      assert.equal(
+        result.state,
+        mode === "cancel" ? "cancelled" : "failed",
+        JSON.stringify(result.error),
+      );
+      await restoreAbsent(request.jobId);
+    } finally {
+      hook = undefined;
+      authorized = true;
+    }
+  }
+  const preview = (
+    await owner.query<JobRecord>(
+      "SELECT * FROM rootset_control.jobs WHERE id=$1",
+      [restorePreviewId],
+    )
+  ).rows[0]!;
+  await owner.query(
+    "UPDATE rootset_control.jobs SET result=jsonb_set(result,'{expiresAt}',to_jsonb('2020-01-01T00:00:00.000Z'::text)) WHERE id=$1",
+    [restorePreviewId],
+  );
+  await assert.rejects(
+    restoreRequest("restoreDatabaseBackup", {
+      backupId: restoreBackupId,
+      previewId: restorePreviewId,
+      name: "Expired",
+    }),
+    /expired/,
+  );
+  await owner.query("UPDATE rootset_control.jobs SET result=$2 WHERE id=$1", [
+    restorePreviewId,
+    preview.result,
+  ]);
+  const source = (
+    await owner.query<{ object_key: string }>(
+      "SELECT object_key FROM rootset_control.database_backups WHERE id=$1",
+      [restoreBackupId],
+    )
+  ).rows[0]!;
+  const original = await objects.send(
+    new GetObjectCommand({ Bucket: bucket, Key: source.object_key }),
+  );
+  const bytes = await original.Body!.transformToByteArray();
+  const damaged = Buffer.from(bytes);
+  damaged[damaged.length - 1] = damaged[damaged.length - 1]! ^ 1;
+  await objects.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: source.object_key,
+      Body: damaged,
+    }),
+  );
+  try {
+    const request = await restoreRequest("restoreDatabaseBackup", {
+      backupId: restoreBackupId,
+      previewId: restorePreviewId,
+      name: "Damaged package",
+    });
+    const result = await terminal(request.jobId);
+    assert.equal(result.state, "failed");
+    assert.match(JSON.stringify(result.error), /checksum/);
+    await restoreAbsent(request.jobId);
+  } finally {
+    await objects.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: source.object_key,
+        Body: bytes,
+      }),
+    );
+  }
+});
+test("a committed restore reconciles after worker loss without duplicating data even after requester revocation", async () => {
+  const request = await restoreRequest("restoreDatabaseBackup", {
+    backupId: restoreBackupId,
+    previewId: restorePreviewId,
+    name: "Crash recovery",
+  });
+  let publications = 0;
+  hook = async (point) => {
+    if (point === "restore.afterPublish") {
+      publications++;
+      throw Error("Worker died after commit");
+    }
+  };
+  try {
+    await jobs.runOnce(orgId);
+    assert.equal(publications, 1);
+    authorized = false;
+    const done = await terminal(request.jobId);
+    assert.equal(done.state, "succeeded", JSON.stringify(done.error));
+    assert.equal(publications, 1);
+    const result = DatabaseRestoreResultSchema.parse(done.result);
+    assert.equal(
+      (
+        await owner.query(
+          "SELECT count(*)::int AS n FROM rootset_control.databases WHERE id=$1",
+          [result.databaseId],
+        )
+      ).rows[0].n,
+      1,
+    );
+    await assert.rejects(
+      jobs.execute("getJob", actor, { orgId, id: done.id }),
+      { code: "ACCESS_DENIED" },
+    );
+  } finally {
+    hook = undefined;
+    authorized = true;
+  }
+});
+
+test("restore recovers an expired staging lease and can use a backup whose source database is archived", async () => {
+  const request = await restoreRequest("restoreDatabaseBackup", {
+    backupId: restoreBackupId,
+    previewId: restorePreviewId,
+    name: "Recovered staging lease",
+  });
+  let expired = false;
+  hook = async (point, id) => {
+    if (!expired && point === "restore.creating_tables") {
+      expired = true;
+      await owner.query(
+        "UPDATE rootset_control.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+        [id],
+      );
+    }
+  };
+  try {
+    await jobs.runOnce(orgId);
+    assert.equal(expired, true);
+    await restoreAbsent(request.jobId);
+  } finally {
+    hook = undefined;
+  }
+  const recovered = await terminal(request.jobId);
+  assert.equal(recovered.state, "succeeded", JSON.stringify(recovered.error));
+  assert.equal(recovered.attempt, 2);
+  await owner.query(
+    "UPDATE rootset_control.databases SET state='deleted' WHERE id=$1",
+    [databaseId],
+  );
+  try {
+    const preview = await restoreRequest("previewDatabaseRestore", {
+      backupId: restoreBackupId,
+    });
+    assert.equal((await terminal(preview.jobId)).state, "succeeded");
+    const archived = await restoreRequest("restoreDatabaseBackup", {
+      backupId: restoreBackupId,
+      previewId: preview.jobId,
+      name: "Archived source recovery",
+    });
+    const result = await terminal(archived.jobId);
+    assert.equal(result.state, "succeeded", JSON.stringify(result.error));
+    assert.equal(
+      DatabaseRestoreResultSchema.parse(result.result).sourceDatabaseId,
+      databaseId,
+    );
+  } finally {
+    await owner.query(
+      "UPDATE rootset_control.databases SET state='active' WHERE id=$1",
+      [databaseId],
+    );
+  }
 });
 
 test("manual concurrency and durable replay do not create duplicate backups", async () => {

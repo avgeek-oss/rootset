@@ -1089,7 +1089,7 @@ export class DatabaseBackups {
     this.lastCleanup = now;
     const root = this.config.tempDirectory ?? tmpdir();
     for (const name of await readdir(root)) {
-      if (!/^rootset-backup-[A-Za-z0-9]{6}$/.test(name)) continue;
+      if (!/^rootset-(?:backup|restore)-[A-Za-z0-9]{6}$/.test(name)) continue;
       const path = join(root, name);
       const stat = await lstat(path);
       if (

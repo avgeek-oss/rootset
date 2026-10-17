@@ -17,3 +17,5 @@ export * from "./bulk-rows";
 export * from "./exports";
 
 export * from "./relationships";
+
+export * from "./restores";

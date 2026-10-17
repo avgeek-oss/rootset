@@ -3,7 +3,7 @@ title: "Database backups"
 description: "Schedule full encrypted database backups to your own S3-compatible bucket."
 ---
 
-An Admin can open a database and choose **Backup → Backup Schedule**. Each backup captures every table in that database, field definitions, unique rules, foreign keys, auto-increment counters, comments and retained history at one consistent point in time.
+An Admin can open a database and choose **Backup → Backup Schedule**. Each backup captures every table in that database, field definitions, unique rules, foreign keys, auto-increment counters, comments, saved views and retained history at one consistent point in time.
 
 ## Configure the worker
 
@@ -51,6 +51,16 @@ Each `.rootset-backup` is an independent full backup: a versioned authenticated 
 
 Authentication secrets, accounts, sessions, API keys, OAuth grants, job queues, temporary exports and installation credentials are outside the database backup. Historical authors are preserved as attribution, not login authority. A database backup is separate from a complete installation recovery plan.
 
-There is **no restore UI or public restore operation** in this version. The package format is designed for a later restore into a new database, with schema and relationship validation before publication. Its internal recovery rehearsal verifies reconstruction without exposing restore to users. A future restore must leave backup scheduling unconfigured until an Admin saves and verifies a schedule.
+## Restore into a new database
+
+In **Backup History**, choose **Restore** on a successful managed backup, then **Verify backup**. A worker with the original endpoint and encryption key downloads the published object, verifies its size and SHA-256 checksum, authenticates its AES-GCM envelope, and checks every archive entry against the manifest. It validates compatible schema migrations, field definitions, typed records and the relationship graph. The preview lists active tables, fields, records, unique rules and foreign keys, plus counts for comments, saved views and retained history. Previewing does not create or modify a database.
+
+Enter a **New database name** and choose **Restore into new database**. Previews expire after 24 hours and belong to the verifying credential. Restoration downloads and verifies the exact package again, then loads it in one database transaction. Required fields, types, bounds, choices, uniqueness, foreign keys and generator counters must all pass validation before publication. Failure or cancellation rolls back the new database and its schema. Existing databases and backup packages are preserved. A committed restore is recorded atomically, so a worker retry after publication returns the same new database.
+
+Use **Restore requests** in Backup History to follow verification and restoration, reopen a request, cancel it, retry a failed restore, or open the restored database. Closing the drawer leaves queued work running. Current Admin authority and both `backups:manage` and `databases:manage` are required at submission and before publication; status reads recheck current authority. Cancellation is checked between download chunks, row/history batches and validation steps. A current storage request or SQL validation statement can finish before it is observed.
+
+Tables, fields, rules and history receive new internal identities. Table-scoped record IDs, versions, values and timestamps retain their original meaning, including microsecond timestamp precision. Historical actor attribution grants no login access. Personal saved views keep their original owner if the account still exists; otherwise they are omitted and reported. Shared views remain shared. Packages created before saved views were included remain supported and restore without those views. Backup scheduling starts unconfigured: save and verify a schedule explicitly for the new database.
+
+Restore accepts only a successful backup already catalogued by this installation in the same organisation, including through the API when the source database has been deleted. Arbitrary archive uploads, overwriting an existing database and restoring accounts or credentials are not supported. The first implementation supports up to 1,000 tables, 10,000 archive entries and 64 MiB of schema metadata, with bounded record/history batches and the configured backup size limit. It needs disk space for both the encrypted package and decrypted ZIP plus the configured reserve; archive entries are read as streams rather than extracted to filesystem paths.
 
 Rootset retains successful packages indefinitely. Pausing a schedule or deleting a database does not remove existing S3 objects. Set your bucket lifecycle policy for retention, and retain every encryption key needed by retained packages.

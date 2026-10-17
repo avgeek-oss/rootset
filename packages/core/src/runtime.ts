@@ -112,8 +112,8 @@ export async function createRuntime(
             }),
           ),
       },
-      authorise: async (actor, id, target) =>
-        core.authorise(actor, id, { ...target }),
+      authorise: async (actor, id, target, client) =>
+        core.authorise(actor, id, { ...target }, client),
     });
     const oauth: OAuthService = new OAuthService(identityPool, {
       baseURL: config.baseURL,

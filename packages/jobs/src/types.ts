@@ -83,6 +83,7 @@ export interface JobsConfig {
 export type TableInfo = TableRecord;
 export type StoragePort = Pick<
   TableStorage,
+  | "restoreDatabase"
   | "getTable"
   | "getDatabase"
   | "snapshotTable"
@@ -98,6 +99,7 @@ export interface JobsOptions {
     actor: Actor,
     operationId: string,
     target: Target,
+    client?: PoolClient,
   ) => Promise<void | Actor>;
 }
 export interface JobRecord {

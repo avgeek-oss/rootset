@@ -35,6 +35,8 @@ export const jobsMutationSet: ReadonlySet<string> = new Set([
   "retryJob",
 ]);
 export const queuedMutationSet: ReadonlySet<string> = new Set([
+  "previewDatabaseRestore",
+  "restoreDatabaseBackup",
   "deleteDatabase",
   "deleteTable",
   "applySchemaChange",

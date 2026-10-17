@@ -214,7 +214,7 @@ export class DurableQueue {
         `WITH candidate AS (
         SELECT id FROM rootset_control.jobs WHERE org_id=$1
           AND ((state='queued' AND next_attempt_at<=now()) OR (state='running' AND lease_until<now()))
-          AND (kind NOT IN ('database_backup','backup_destination_test') OR ($4::text IS NOT NULL AND input->>'backendId'=$4))
+          AND (kind NOT IN ('database_backup','backup_destination_test','database_restore_preview','database_restore') OR ($4::text IS NOT NULL AND input->>'backendId'=$4))
           AND attempt<max_attempts ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
       ) UPDATE rootset_control.jobs j SET state='running',stage=CASE WHEN j.state='running' THEN 'recovering' ELSE j.stage END,
           attempt=attempt+1,lease_token=$2,lease_until=now()+$3*interval '1 second',heartbeat_at=now(),updated_at=now()

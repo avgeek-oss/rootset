@@ -428,6 +428,7 @@ export const JobStateSchema = z.enum([
   "partially_completed",
 ]);
 export const JobSchema = z.strictObject({
+  backupId: IdSchema.optional(),
   id: IdSchema,
   orgId: IdSchema,
   kind: z.string(),

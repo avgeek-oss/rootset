@@ -215,6 +215,8 @@ const asynchronous = new Set([
   "countRows",
 ]);
 const queuedFamilies = new Set([
+  "previewDatabaseRestore",
+  "restoreDatabaseBackup",
   "exportRows",
   "exportView",
   "exportDatabase",
@@ -222,6 +224,8 @@ const queuedFamilies = new Set([
   "importRows",
 ]);
 const jobOperations = new Set([
+  "previewDatabaseRestore",
+  "restoreDatabaseBackup",
   "previewImportRows",
   "importRows",
   "exportRows",
@@ -244,8 +248,9 @@ export class RootsetCore {
     incoming: Actor,
     operationId: string,
     input: Record<string, unknown>,
+    client?: PoolClient,
   ): Promise<Actor> {
-    const actor = await this.options.identity.refreshActor(incoming),
+    const actor = await this.options.identity.refreshActor(incoming, client),
       op = getOperation(operationId);
     const orgId = typeof input.orgId === "string" ? input.orgId : actor.orgId;
     let databaseId =

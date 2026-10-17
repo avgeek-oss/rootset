@@ -4636,9 +4636,11 @@ export type listJobsInput = {
     | "cancelled"
     | "partially_completed";
   kind?: string;
+  order?: "asc" | "desc";
 };
 export type listJobsOutput = {
   data: {
+    backupId?: string;
     id: string;
     orgId: string;
     kind: string;
@@ -4684,6 +4686,7 @@ export type listJobsOutput = {
 };
 export type getJobInput = { orgId: string; id: string };
 export type getJobOutput = {
+  backupId?: string;
   id: string;
   orgId: string;
   kind: string;
@@ -4726,6 +4729,7 @@ export type getJobOutput = {
 };
 export type cancelJobInput = { orgId: string; id: string };
 export type cancelJobOutput = {
+  backupId?: string;
   id: string;
   orgId: string;
   kind: string;
@@ -5281,6 +5285,35 @@ export type testBackupDestinationOutput = {
     | "partially_completed";
   statusUrl: string;
 };
+export type previewDatabaseRestoreInput = { orgId: string; backupId: string };
+export type previewDatabaseRestoreOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type restoreDatabaseBackupInput = {
+  orgId: string;
+  backupId: string;
+  previewId: string;
+  name: string;
+};
+export type restoreDatabaseBackupOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
 export interface CallOptions {
   signal?: AbortSignal;
   idempotencyKey?: string;
@@ -5778,6 +5811,16 @@ const routes = {
   },
   testBackupDestination: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule/test",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  previewDatabaseRestore: {
+    path: "/v1/orgs/{orgId}/backups/{backupId}/restore-preview",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  restoreDatabaseBackup: {
+    path: "/v1/orgs/{orgId}/backups/{backupId}/restore",
     method: "POST",
     idempotencyRequired: true,
   },
@@ -6744,5 +6787,25 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<testBackupDestinationOutput>;
+  }
+  previewDatabaseRestore(
+    input: previewDatabaseRestoreInput,
+    options?: CallOptions,
+  ): Promise<previewDatabaseRestoreOutput> {
+    return this.call(
+      "previewDatabaseRestore",
+      input,
+      options,
+    ) as Promise<previewDatabaseRestoreOutput>;
+  }
+  restoreDatabaseBackup(
+    input: restoreDatabaseBackupInput,
+    options?: CallOptions,
+  ): Promise<restoreDatabaseBackupOutput> {
+    return this.call(
+      "restoreDatabaseBackup",
+      input,
+      options,
+    ) as Promise<restoreDatabaseBackupOutput>;
   }
 }

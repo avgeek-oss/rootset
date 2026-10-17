@@ -1395,6 +1395,7 @@ operation(
     tableId: IdSchema.optional(),
     state: JobSchema.shape.state.optional(),
     kind: z.string().optional(),
+    order: z.enum(["asc", "desc"]).optional(),
   }),
   list(JobSchema),
   "List only currently authorised jobs and their truthful progress.",
@@ -1659,6 +1660,34 @@ operation(
   BackupDestinationSchema.extend(database),
   JobAcceptedSchema,
   "Ask a backup-enabled worker to write, read, verify and remove a probe at the destination.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+
+operation(
+  "previewDatabaseRestore",
+  "preview_database_restore",
+  "POST",
+  `${O}/backups/{backupId}/restore-preview`,
+  ["backups:manage", "databases:manage"],
+  z.strictObject({ ...org, backupId: IdSchema }),
+  JobAcceptedSchema,
+  "Verify a managed backup and preview its contents before restoring into a new database.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+operation(
+  "restoreDatabaseBackup",
+  "restore_database_backup",
+  "POST",
+  `${O}/backups/{backupId}/restore`,
+  ["backups:manage", "databases:manage"],
+  z.strictObject({
+    ...org,
+    backupId: IdSchema,
+    previewId: IdSchema,
+    name: z.string().trim().min(1).max(255),
+  }),
+  JobAcceptedSchema,
+  "Restore an unexpired verified backup into a new database. The source and existing databases are preserved; no backup schedule is enabled.",
   { minimumRole: "admin", job: true, successStatus: 202 },
 );
 
