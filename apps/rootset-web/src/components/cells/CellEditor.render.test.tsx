@@ -90,12 +90,12 @@ describe("cell editor save boundaries", () => {
       }),
     );
     expect(html).toContain("inline-cell-form--json");
-    expect(html).toContain('rows="8"');
+    expect(html).toContain('data-code-editor="json"');
     expect(html).toContain("Format");
     expect(html).toContain("Cancel");
     expect(html).toContain("Save");
     expect(html).toContain("Enter adds a line");
-    expect(html).toContain("\n  &quot;sample&quot;: true");
+    expect(html).not.toContain("<textarea");
   });
 
   it.each([

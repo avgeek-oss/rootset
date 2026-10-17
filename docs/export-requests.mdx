@@ -1,9 +1,21 @@
 ---
 title: "Export Requests"
-description: "Export a table as CSV or JSONL, or download every table and its schema in a database ZIP."
+description: "Export the current view, a complete table, or every table and schema in a database ZIP."
 ---
 
 import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+## Export the current view
+
+In the spreadsheet, open **More table actions → Export current view**. Choose CSV or JSONL, then choose **Visible columns**, **Selected columns** from your cell selection, or **Choose columns**. At least one column is required. The current column order determines the CSV header order.
+
+The export includes every record matching the captured filters and sort order, including records outside the loaded window. Checked records do not limit it. Filters can use fields that are not included in the file. The worker reads one consistent snapshot; record edits made during extraction do not mix different snapshots. A field change requires a fresh request from the updated table.
+
+The drawer shows request progress and a download action. **Open Export Requests** lets you continue working while the worker prepares the file, cancel an active request, or retry a failed request. Retrying uses the original captured filters and columns. Changing a saved view later does not change an existing request.
+
+The requests table distinguishes **Current view**, **Full table**, and **Full database** exports. Viewers can export records they can currently read; downloads check access again.
+
+## Export a complete table
 
 Open a table's **Export Requests** page and select **Create export request**. Choose **CSV** or **JSONL**, then select **Start export**.
 
@@ -28,7 +40,7 @@ Database exports use the normal export storage configured for the worker; backup
 
 Downloads require current access to the source table and use expiring artifact access. Keep the exported file if you need it later. CSV and JSONL serialize values according to their format; the UI's `NULL` label is not a replacement for JSON's native `null`.
 
-Exports are data downloads, not an in-app backup or restore mechanism. Rootset does not import these files through the UI.
+Use [Import Requests](/import-requests) to append a CSV or JSONL file to an existing table. Database ZIP exports include schema files for portability; the import drawer accepts individual table data files.
 
 <Screenshot
   light="/assets/screenshots/export-editor-light.png"

@@ -1,6 +1,6 @@
 {
   "name": "rootset",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.5.3",
@@ -14,7 +14,7 @@
     "lint": "eslint apps packages tools --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test",
+    "test": "turbo run test --concurrency=2",
     "test:integration": "tsx --test tools/verification/*.test.ts",
     "verify": "pnpm docs:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "db:migrate": "tsx tools/migrate.ts",

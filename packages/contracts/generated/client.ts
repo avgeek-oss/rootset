@@ -470,7 +470,9 @@ export type listDatabasesOutput = {
     createdAt: string;
     updatedAt: string;
     tableCount: number;
+    rowCount: number;
     storageBytes: number;
+    lastDataChangeAt: string | null;
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;
@@ -548,7 +550,9 @@ export type listTablesOutput = {
       "active" | "creating" | "maintenance" | "deleting" | "deleted" | "failed";
     createdAt: string;
     updatedAt: string;
+    fieldCount: number;
     storageBytes: number;
+    lastDataChangeAt: string | null;
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;
@@ -3545,6 +3549,46 @@ export type deleteUniqueRuleInput = {
   id: string;
 };
 export type deleteUniqueRuleOutput = { deleted: boolean; mutationId?: string };
+export type getRowRelationshipsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+  expectedVersion?: string;
+  cursor?: string | null;
+  limit?: number;
+};
+export type getRowRelationshipsOutput = {
+  rowVersion: string;
+  asOf: string;
+  data: {
+    id: string;
+    tableId: string;
+    tableName: string;
+    tableState: string;
+    fieldIds: string[];
+    fieldNames: string[];
+    referencedFieldIds: string[];
+    count: number;
+    hasKey: boolean;
+  }[];
+  nextCursor: unknown;
+  hasMore: boolean;
+};
+export type getRelatedRowFilterInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  ruleId: string;
+  referencedRowId: string;
+};
+export type getRelatedRowFilterOutput = {
+  filter: { fieldId: string; value: unknown }[];
+  schemaVersion: number;
+  referencedTableId: string;
+  referencedRowId: string;
+  referencedVersion: string;
+};
 export type listForeignKeysInput = {
   orgId: string;
   databaseId: string;
@@ -3824,6 +3868,72 @@ export type deleteRowInput = {
   expectedVersion: string;
 };
 export type deleteRowOutput = { deleted: boolean; mutationId?: string };
+export type previewBulkRowsInput = {
+  expectedSchemaVersion: number;
+  rows: { rowId: string; expectedVersion: string }[];
+  action:
+    | {
+        type: "set";
+        values: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | { type: "duplicate" }
+    | { type: "delete" };
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type previewBulkRowsOutput = {
+  action: "set" | "duplicate" | "delete";
+  total: number;
+  valid: number;
+  schemaVersion: number;
+  issues: {
+    index: number;
+    rowId: string;
+    code: string;
+    message: string;
+    fieldId?: string;
+    ruleId?: string;
+  }[];
+  sample: {
+    rowId: string;
+    before: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+    after?: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+  }[];
+};
+export type bulkRowsInput = {
+  expectedSchemaVersion: number;
+  rows: { rowId: string; expectedVersion: string }[];
+  action:
+    | {
+        type: "set";
+        values: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | { type: "duplicate" }
+    | { type: "delete" };
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type bulkRowsOutput = {
+  mutationId: string;
+  action: "set" | "duplicate" | "delete";
+  affected: number;
+  createdIds: string[];
+  deletedIds: string[];
+};
 export type mutateRowsInput = {
   orgId: string;
   databaseId: string;
@@ -4163,6 +4273,354 @@ export type getCellHistoryOutput = {
   nextCursor: unknown;
   hasMore: boolean;
 };
+export type listActivityInput = {
+  orgId: string;
+  databaseId?: string;
+  tableId?: string;
+  category?:
+    "records" | "schema" | "imports" | "exports" | "backups" | "restores";
+  event?:
+    | "job.testBackupDestination.cancelled"
+    | "job.testBackupDestination.succeeded"
+    | "job.testBackupDestination.failed"
+    | "job.testBackupDestination.partially_completed"
+    | "job.testBackupDestination.queued"
+    | "job.saveBackupSchedule.cancelled"
+    | "job.saveBackupSchedule.failed"
+    | "job.saveBackupSchedule.partially_completed"
+    | "job.saveBackupSchedule.queued"
+    | "backup.failed.detected"
+    | "backup.failed.resolved"
+    | "backup.overdue.detected"
+    | "backup.overdue.resolved"
+    | "database.backup.prune"
+    | "database.backup_policy.update"
+    | "database.backup_schedule.update"
+    | "database.backup_schedule.delete"
+    | "job.previewDatabaseRestore.cancelled"
+    | "job.previewDatabaseRestore.succeeded"
+    | "job.previewDatabaseRestore.failed"
+    | "job.previewDatabaseRestore.partially_completed"
+    | "job.previewDatabaseRestore.queued"
+    | "job.runDatabaseBackup.cancelled"
+    | "job.runDatabaseBackup.succeeded"
+    | "job.runDatabaseBackup.failed"
+    | "job.runDatabaseBackup.partially_completed"
+    | "job.runDatabaseBackup.queued"
+    | "database.create"
+    | "database.delete"
+    | "job.deleteDatabase.cancelled"
+    | "job.deleteDatabase.failed"
+    | "job.deleteDatabase.partially_completed"
+    | "job.deleteDatabase.queued"
+    | "job.exportDatabase.cancelled"
+    | "job.exportDatabase.succeeded"
+    | "job.exportDatabase.failed"
+    | "job.exportDatabase.partially_completed"
+    | "job.exportDatabase.queued"
+    | "job.restoreDatabaseBackup.cancelled"
+    | "job.restoreDatabaseBackup.failed"
+    | "job.restoreDatabaseBackup.partially_completed"
+    | "job.restoreDatabaseBackup.queued"
+    | "database.restore"
+    | "database.update"
+    | "field.create"
+    | "field.convert"
+    | "job.createField.cancelled"
+    | "job.createField.failed"
+    | "job.createField.partially_completed"
+    | "job.createField.queued"
+    | "field.delete"
+    | "job.deleteField.cancelled"
+    | "job.deleteField.failed"
+    | "job.deleteField.partially_completed"
+    | "job.deleteField.queued"
+    | "job.reorderFields.cancelled"
+    | "job.reorderFields.failed"
+    | "job.reorderFields.partially_completed"
+    | "job.reorderFields.queued"
+    | "job.updateField.cancelled"
+    | "job.updateField.failed"
+    | "job.updateField.partially_completed"
+    | "job.updateField.queued"
+    | "field.update"
+    | "fields.reorder"
+    | "foreign-key.create"
+    | "job.createForeignKey.cancelled"
+    | "job.createForeignKey.failed"
+    | "job.createForeignKey.partially_completed"
+    | "job.createForeignKey.queued"
+    | "foreign-key.delete"
+    | "job.deleteForeignKey.cancelled"
+    | "job.deleteForeignKey.failed"
+    | "job.deleteForeignKey.partially_completed"
+    | "job.deleteForeignKey.queued"
+    | "job.previewImportRows.cancelled"
+    | "job.previewImportRows.succeeded"
+    | "job.previewImportRows.failed"
+    | "job.previewImportRows.partially_completed"
+    | "job.previewImportRows.queued"
+    | "job.importRows.cancelled"
+    | "job.importRows.succeeded"
+    | "job.importRows.failed"
+    | "job.importRows.partially_completed"
+    | "job.importRows.queued"
+    | "records.changed"
+    | "job.applySchemaChange.cancelled"
+    | "job.applySchemaChange.failed"
+    | "job.applySchemaChange.partially_completed"
+    | "job.applySchemaChange.queued"
+    | "table.create"
+    | "job.createTable.cancelled"
+    | "job.createTable.failed"
+    | "job.createTable.partially_completed"
+    | "job.createTable.queued"
+    | "table.delete"
+    | "job.deleteTable.cancelled"
+    | "job.deleteTable.failed"
+    | "job.deleteTable.partially_completed"
+    | "job.deleteTable.queued"
+    | "job.exportRows.cancelled"
+    | "job.exportRows.succeeded"
+    | "job.exportRows.failed"
+    | "job.exportRows.partially_completed"
+    | "job.exportRows.queued"
+    | "job.updateTable.cancelled"
+    | "job.updateTable.failed"
+    | "job.updateTable.partially_completed"
+    | "job.updateTable.queued"
+    | "table.update"
+    | "rule.create"
+    | "job.createUniqueRule.cancelled"
+    | "job.createUniqueRule.failed"
+    | "job.createUniqueRule.partially_completed"
+    | "job.createUniqueRule.queued"
+    | "rule.delete"
+    | "job.deleteUniqueRule.cancelled"
+    | "job.deleteUniqueRule.failed"
+    | "job.deleteUniqueRule.partially_completed"
+    | "job.deleteUniqueRule.queued"
+    | "job.exportView.cancelled"
+    | "job.exportView.succeeded"
+    | "job.exportView.failed"
+    | "job.exportView.partially_completed"
+    | "job.exportView.queued";
+  actor?: string;
+  resource?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  cursor?: string | null;
+};
+export type listActivityOutput = {
+  data: {
+    id: string;
+    category:
+      "records" | "schema" | "imports" | "exports" | "backups" | "restores";
+    occurredAt: string;
+    summary: string;
+    event:
+      | "job.testBackupDestination.cancelled"
+      | "job.testBackupDestination.succeeded"
+      | "job.testBackupDestination.failed"
+      | "job.testBackupDestination.partially_completed"
+      | "job.testBackupDestination.queued"
+      | "job.saveBackupSchedule.cancelled"
+      | "job.saveBackupSchedule.failed"
+      | "job.saveBackupSchedule.partially_completed"
+      | "job.saveBackupSchedule.queued"
+      | "backup.failed.detected"
+      | "backup.failed.resolved"
+      | "backup.overdue.detected"
+      | "backup.overdue.resolved"
+      | "database.backup.prune"
+      | "database.backup_policy.update"
+      | "database.backup_schedule.update"
+      | "database.backup_schedule.delete"
+      | "job.previewDatabaseRestore.cancelled"
+      | "job.previewDatabaseRestore.succeeded"
+      | "job.previewDatabaseRestore.failed"
+      | "job.previewDatabaseRestore.partially_completed"
+      | "job.previewDatabaseRestore.queued"
+      | "job.runDatabaseBackup.cancelled"
+      | "job.runDatabaseBackup.succeeded"
+      | "job.runDatabaseBackup.failed"
+      | "job.runDatabaseBackup.partially_completed"
+      | "job.runDatabaseBackup.queued"
+      | "database.create"
+      | "database.delete"
+      | "job.deleteDatabase.cancelled"
+      | "job.deleteDatabase.failed"
+      | "job.deleteDatabase.partially_completed"
+      | "job.deleteDatabase.queued"
+      | "job.exportDatabase.cancelled"
+      | "job.exportDatabase.succeeded"
+      | "job.exportDatabase.failed"
+      | "job.exportDatabase.partially_completed"
+      | "job.exportDatabase.queued"
+      | "job.restoreDatabaseBackup.cancelled"
+      | "job.restoreDatabaseBackup.failed"
+      | "job.restoreDatabaseBackup.partially_completed"
+      | "job.restoreDatabaseBackup.queued"
+      | "database.restore"
+      | "database.update"
+      | "field.create"
+      | "field.convert"
+      | "job.createField.cancelled"
+      | "job.createField.failed"
+      | "job.createField.partially_completed"
+      | "job.createField.queued"
+      | "field.delete"
+      | "job.deleteField.cancelled"
+      | "job.deleteField.failed"
+      | "job.deleteField.partially_completed"
+      | "job.deleteField.queued"
+      | "job.reorderFields.cancelled"
+      | "job.reorderFields.failed"
+      | "job.reorderFields.partially_completed"
+      | "job.reorderFields.queued"
+      | "job.updateField.cancelled"
+      | "job.updateField.failed"
+      | "job.updateField.partially_completed"
+      | "job.updateField.queued"
+      | "field.update"
+      | "fields.reorder"
+      | "foreign-key.create"
+      | "job.createForeignKey.cancelled"
+      | "job.createForeignKey.failed"
+      | "job.createForeignKey.partially_completed"
+      | "job.createForeignKey.queued"
+      | "foreign-key.delete"
+      | "job.deleteForeignKey.cancelled"
+      | "job.deleteForeignKey.failed"
+      | "job.deleteForeignKey.partially_completed"
+      | "job.deleteForeignKey.queued"
+      | "job.previewImportRows.cancelled"
+      | "job.previewImportRows.succeeded"
+      | "job.previewImportRows.failed"
+      | "job.previewImportRows.partially_completed"
+      | "job.previewImportRows.queued"
+      | "job.importRows.cancelled"
+      | "job.importRows.succeeded"
+      | "job.importRows.failed"
+      | "job.importRows.partially_completed"
+      | "job.importRows.queued"
+      | "records.changed"
+      | "job.applySchemaChange.cancelled"
+      | "job.applySchemaChange.failed"
+      | "job.applySchemaChange.partially_completed"
+      | "job.applySchemaChange.queued"
+      | "table.create"
+      | "job.createTable.cancelled"
+      | "job.createTable.failed"
+      | "job.createTable.partially_completed"
+      | "job.createTable.queued"
+      | "table.delete"
+      | "job.deleteTable.cancelled"
+      | "job.deleteTable.failed"
+      | "job.deleteTable.partially_completed"
+      | "job.deleteTable.queued"
+      | "job.exportRows.cancelled"
+      | "job.exportRows.succeeded"
+      | "job.exportRows.failed"
+      | "job.exportRows.partially_completed"
+      | "job.exportRows.queued"
+      | "job.updateTable.cancelled"
+      | "job.updateTable.failed"
+      | "job.updateTable.partially_completed"
+      | "job.updateTable.queued"
+      | "table.update"
+      | "rule.create"
+      | "job.createUniqueRule.cancelled"
+      | "job.createUniqueRule.failed"
+      | "job.createUniqueRule.partially_completed"
+      | "job.createUniqueRule.queued"
+      | "rule.delete"
+      | "job.deleteUniqueRule.cancelled"
+      | "job.deleteUniqueRule.failed"
+      | "job.deleteUniqueRule.partially_completed"
+      | "job.deleteUniqueRule.queued"
+      | "job.exportView.cancelled"
+      | "job.exportView.succeeded"
+      | "job.exportView.failed"
+      | "job.exportView.partially_completed"
+      | "job.exportView.queued";
+    status:
+      | "requested"
+      | "succeeded"
+      | "failed"
+      | "cancelled"
+      | "partially_completed"
+      | "resolved";
+    actor: {
+      id: unknown;
+      key: string;
+      kind: string;
+      name: string;
+      avatarUrl: string | null;
+    };
+    database: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
+    table: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
+    rowId: string | null;
+    affectedRows: number | null;
+    jobId: string | null;
+    fileName: unknown;
+    destination:
+      | "record"
+      | "table"
+      | "database"
+      | "imports"
+      | "exports"
+      | "database-exports"
+      | "backup-history"
+      | "backup-schedule"
+      | null;
+  }[];
+  asOf: string;
+  startCursor: string;
+  nextCursor: unknown;
+  hasMore: boolean;
+  availableCategories: (
+    "records" | "schema" | "imports" | "exports" | "backups" | "restores"
+  )[];
+  scope: {
+    database: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
+    table: {
+      id: string;
+      name: string;
+      state: "active" | "maintenance" | "deleted";
+    } | null;
+  };
+};
+export type listActivityFilterOptionsInput = {
+  orgId: string;
+  kind: "actors" | "resources";
+  q?: string;
+  limit?: number;
+};
+export type listActivityFilterOptionsOutput = {
+  data: {
+    value: string;
+    label: string;
+    kind: "actor" | "database" | "table";
+    avatarUrl: string | null;
+    description: unknown;
+  }[];
+  hasMore: boolean;
+};
 export type queryHistoryInput = {
   orgId: string;
   databaseId: string;
@@ -4377,6 +4835,45 @@ export type getMutationOutput = {
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
+export type previewImportRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  format: "csv" | "jsonl";
+  content: string;
+  fileName: string;
+  mapping: { source: string; fieldId: string }[];
+};
+export type previewImportRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type importRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  previewId: string;
+};
+export type importRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
 export type exportRowsInput = {
   orgId: string;
   databaseId: string;
@@ -4384,6 +4881,59 @@ export type exportRowsInput = {
   format: "csv" | "jsonl";
 };
 export type exportRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type exportViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  format: "csv" | "jsonl";
+  query: {
+    select: string[];
+    where?:
+      | {
+          field: string;
+          op:
+            | "eq"
+            | "ne"
+            | "lt"
+            | "lte"
+            | "gt"
+            | "gte"
+            | "between"
+            | "in"
+            | "isNull"
+            | "isNotNull"
+            | "prefix"
+            | "contains"
+            | "iContains"
+            | "pathExists"
+            | "pathEq"
+            | "jsonContains";
+          value?:
+            | null
+            | boolean
+            | number
+            | string
+            | unknown[]
+            | Record<string, unknown>;
+          path?: (string | number)[];
+        }
+      | { and: JsonValue[] }
+      | { or: JsonValue[] };
+    orderBy?: { field: string; direction: "asc" | "desc" }[];
+  };
+};
+export type exportViewOutput = {
   jobId: string;
   state:
     | "queued"
@@ -4414,7 +4964,7 @@ export type getArtifactInput = { orgId: string; id: string };
 export type getArtifactOutput = {
   id: string;
   orgId: string;
-  kind: "export";
+  kind: "export" | "import_report";
   format: "csv" | "jsonl" | "json" | "zip";
   sizeBytes: number;
   checksum: string;
@@ -4438,14 +4988,20 @@ export type listJobsInput = {
     | "cancelled"
     | "partially_completed";
   kind?: string;
+  order?: "asc" | "desc";
 };
 export type listJobsOutput = {
   data: {
+    backupId?: string;
     id: string;
     orgId: string;
     kind: string;
     operationId: string;
+    fileName?: string;
+    previewId?: string;
+    cancelRequested?: boolean;
     format?: "csv" | "jsonl";
+    exportScope?: "view" | "table" | "database";
     state:
       | "queued"
       | "running"
@@ -4456,7 +5012,12 @@ export type listJobsOutput = {
     stage?: string;
     databaseId?: string;
     tableId?: string;
-    progress?: { completed: number; total?: number; unit?: string };
+    progress?: {
+      completed: number;
+      committed?: number;
+      total?: number;
+      unit?: string;
+    };
     createdAt: string;
     updatedAt: string;
     result?:
@@ -4477,11 +5038,16 @@ export type listJobsOutput = {
 };
 export type getJobInput = { orgId: string; id: string };
 export type getJobOutput = {
+  backupId?: string;
   id: string;
   orgId: string;
   kind: string;
   operationId: string;
+  fileName?: string;
+  previewId?: string;
+  cancelRequested?: boolean;
   format?: "csv" | "jsonl";
+  exportScope?: "view" | "table" | "database";
   state:
     | "queued"
     | "running"
@@ -4492,7 +5058,12 @@ export type getJobOutput = {
   stage?: string;
   databaseId?: string;
   tableId?: string;
-  progress?: { completed: number; total?: number; unit?: string };
+  progress?: {
+    completed: number;
+    committed?: number;
+    total?: number;
+    unit?: string;
+  };
   createdAt: string;
   updatedAt: string;
   result?:
@@ -4510,11 +5081,16 @@ export type getJobOutput = {
 };
 export type cancelJobInput = { orgId: string; id: string };
 export type cancelJobOutput = {
+  backupId?: string;
   id: string;
   orgId: string;
   kind: string;
   operationId: string;
+  fileName?: string;
+  previewId?: string;
+  cancelRequested?: boolean;
   format?: "csv" | "jsonl";
+  exportScope?: "view" | "table" | "database";
   state:
     | "queued"
     | "running"
@@ -4525,7 +5101,12 @@ export type cancelJobOutput = {
   stage?: string;
   databaseId?: string;
   tableId?: string;
-  progress?: { completed: number; total?: number; unit?: string };
+  progress?: {
+    completed: number;
+    committed?: number;
+    total?: number;
+    unit?: string;
+  };
   createdAt: string;
   updatedAt: string;
   result?:
@@ -4573,6 +5154,7 @@ export type getViewPreferencesOutput = {
     hiddenColumns: string[];
     query?:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
   };
 };
 export type updateViewPreferencesInput = {
@@ -4584,6 +5166,7 @@ export type updateViewPreferencesInput = {
     hiddenColumns: string[];
     query?:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
   };
 };
 export type updateViewPreferencesOutput = {
@@ -4595,7 +5178,390 @@ export type updateViewPreferencesOutput = {
     hiddenColumns: string[];
     query?:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
   };
+};
+export type updateForeignKeyDisplayFieldInput = {
+  tableId: string;
+  foreignKeyId: string;
+  displayFieldId: string | null;
+};
+export type updateForeignKeyDisplayFieldOutput = {
+  tableId: string;
+  preferences: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
+  };
+};
+export type listSavedViewsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type listSavedViewsOutput = {
+  data: {
+    id: string;
+    tableId: string;
+    name: string;
+    visibility: "personal" | "shared";
+    ownerUserId: string | null;
+    ownerName: string;
+    version: string;
+    schemaVersion: number;
+    canEdit: boolean;
+    canChangeVisibility: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+};
+export type getSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  viewId: string;
+};
+export type getSavedViewOutput = {
+  id: string;
+  tableId: string;
+  name: string;
+  visibility: "personal" | "shared";
+  ownerUserId: string | null;
+  ownerName: string;
+  version: string;
+  schemaVersion: number;
+  canEdit: boolean;
+  canChangeVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+  validationErrors: string[];
+};
+export type createSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  name: string;
+  visibility: "personal" | "shared";
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+};
+export type createSavedViewOutput = {
+  id: string;
+  tableId: string;
+  name: string;
+  visibility: "personal" | "shared";
+  ownerUserId: string | null;
+  ownerName: string;
+  version: string;
+  schemaVersion: number;
+  canEdit: boolean;
+  canChangeVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+  validationErrors: string[];
+};
+export type updateSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  viewId: string;
+  expectedVersion: string;
+  name?: string;
+  visibility?: "personal" | "shared";
+  definition?: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+};
+export type updateSavedViewOutput = {
+  id: string;
+  tableId: string;
+  name: string;
+  visibility: "personal" | "shared";
+  ownerUserId: string | null;
+  ownerName: string;
+  version: string;
+  schemaVersion: number;
+  canEdit: boolean;
+  canChangeVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+  validationErrors: string[];
+};
+export type deleteSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  viewId: string;
+  expectedVersion: string;
+};
+export type deleteSavedViewOutput = {
+  id: string;
+  deleted: true;
+  version: string;
+};
+export type getDatabaseBackupPolicyInput = {
+  orgId: string;
+  databaseId: string;
+};
+export type getDatabaseBackupPolicyOutput = {
+  policy: {
+    retentionCount: number | null;
+    overdueGraceMinutes: number;
+    databaseId: string;
+    version: number;
+    updatedAt: string | null;
+  };
+  emailDeliveryAvailable: boolean;
+  lastSuccessful: {
+    backupId: string;
+    snapshotAt: string;
+    completedAt: string;
+    bucket: string;
+    objectKey: string;
+  } | null;
+  alerts: {
+    id: string;
+    kind: "failed" | "overdue";
+    backupId: string | null;
+    occurrenceAt: string;
+    detectedAt: string;
+    notifiedAt: string | null;
+  }[];
+  retentionError: unknown;
+};
+export type saveDatabaseBackupPolicyInput = {
+  expectedVersion: number;
+  retentionCount: number | null;
+  overdueGraceMinutes: number;
+  orgId: string;
+  databaseId: string;
+};
+export type saveDatabaseBackupPolicyOutput = {
+  policy: {
+    retentionCount: number | null;
+    overdueGraceMinutes: number;
+    databaseId: string;
+    version: number;
+    updatedAt: string | null;
+  };
+  emailDeliveryAvailable: boolean;
+  lastSuccessful: {
+    backupId: string;
+    snapshotAt: string;
+    completedAt: string;
+    bucket: string;
+    objectKey: string;
+  } | null;
+  alerts: {
+    id: string;
+    kind: "failed" | "overdue";
+    backupId: string | null;
+    occurrenceAt: string;
+    detectedAt: string;
+    notifiedAt: string | null;
+  }[];
+  retentionError: unknown;
 };
 export type getBackupScheduleInput = { orgId: string; databaseId: string };
 export type getBackupScheduleOutput = {
@@ -4674,6 +5640,9 @@ export type listDatabaseBackupsInput = {
 };
 export type listDatabaseBackupsOutput = {
   data: {
+    storageState: "available" | "deleting" | "pruned";
+    prunedAt: string | null;
+    retentionError: unknown;
     id: string;
     jobId: string | null;
     kind: "backup" | "destination_test" | "skipped";
@@ -4724,6 +5693,35 @@ export type testBackupDestinationInput = {
   databaseId: string;
 };
 export type testBackupDestinationOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type previewDatabaseRestoreInput = { orgId: string; backupId: string };
+export type previewDatabaseRestoreOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type restoreDatabaseBackupInput = {
+  orgId: string;
+  backupId: string;
+  previewId: string;
+  name: string;
+};
+export type restoreDatabaseBackupOutput = {
   jobId: string;
   state:
     | "queued"
@@ -4989,6 +5987,16 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
+  getRowRelationships: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}/relationships",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getRelatedRowFilter: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/relationships/{ruleId}/records/{referencedRowId}/filter",
+    method: "GET",
+    idempotencyRequired: false,
+  },
   listForeignKeys: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys",
     method: "GET",
@@ -5054,6 +6062,16 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
+  previewBulkRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/bulk/preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  bulkRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/bulk",
+    method: "POST",
+    idempotencyRequired: true,
+  },
   mutateRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/batch",
     method: "POST",
@@ -5074,6 +6092,16 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
+  listActivity: {
+    path: "/v1/orgs/{orgId}/activity",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  listActivityFilterOptions: {
+    path: "/v1/orgs/{orgId}/activity/filters",
+    method: "GET",
+    idempotencyRequired: false,
+  },
   queryHistory: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query",
     method: "POST",
@@ -5084,8 +6112,23 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
+  previewImportRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/preview",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  importRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports",
+    method: "POST",
+    idempotencyRequired: true,
+  },
   exportRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/exports",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  exportView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/view-exports",
     method: "POST",
     idempotencyRequired: true,
   },
@@ -5134,6 +6177,46 @@ const routes = {
     method: "PUT",
     idempotencyRequired: true,
   },
+  updateForeignKeyDisplayField: {
+    path: "/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  listSavedViews: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  updateSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  deleteSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  getDatabaseBackupPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  saveDatabaseBackupPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
   getBackupSchedule: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",
     method: "GET",
@@ -5166,6 +6249,16 @@ const routes = {
   },
   testBackupDestination: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule/test",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  previewDatabaseRestore: {
+    path: "/v1/orgs/{orgId}/backups/{backupId}/restore-preview",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  restoreDatabaseBackup: {
+    path: "/v1/orgs/{orgId}/backups/{backupId}/restore",
     method: "POST",
     idempotencyRequired: true,
   },
@@ -5717,6 +6810,26 @@ export class RootsetClient {
       options,
     ) as Promise<deleteUniqueRuleOutput>;
   }
+  getRowRelationships(
+    input: getRowRelationshipsInput,
+    options?: CallOptions,
+  ): Promise<getRowRelationshipsOutput> {
+    return this.call(
+      "getRowRelationships",
+      input,
+      options,
+    ) as Promise<getRowRelationshipsOutput>;
+  }
+  getRelatedRowFilter(
+    input: getRelatedRowFilterInput,
+    options?: CallOptions,
+  ): Promise<getRelatedRowFilterOutput> {
+    return this.call(
+      "getRelatedRowFilter",
+      input,
+      options,
+    ) as Promise<getRelatedRowFilterOutput>;
+  }
   listForeignKeys(
     input: listForeignKeysInput,
     options?: CallOptions,
@@ -5820,6 +6933,22 @@ export class RootsetClient {
   ): Promise<deleteRowOutput> {
     return this.call("deleteRow", input, options) as Promise<deleteRowOutput>;
   }
+  previewBulkRows(
+    input: previewBulkRowsInput,
+    options?: CallOptions,
+  ): Promise<previewBulkRowsOutput> {
+    return this.call(
+      "previewBulkRows",
+      input,
+      options,
+    ) as Promise<previewBulkRowsOutput>;
+  }
+  bulkRows(
+    input: bulkRowsInput,
+    options?: CallOptions,
+  ): Promise<bulkRowsOutput> {
+    return this.call("bulkRows", input, options) as Promise<bulkRowsOutput>;
+  }
   mutateRows(
     input: mutateRowsInput,
     options?: CallOptions,
@@ -5852,6 +6981,26 @@ export class RootsetClient {
       options,
     ) as Promise<getCellHistoryOutput>;
   }
+  listActivity(
+    input: listActivityInput,
+    options?: CallOptions,
+  ): Promise<listActivityOutput> {
+    return this.call(
+      "listActivity",
+      input,
+      options,
+    ) as Promise<listActivityOutput>;
+  }
+  listActivityFilterOptions(
+    input: listActivityFilterOptionsInput,
+    options?: CallOptions,
+  ): Promise<listActivityFilterOptionsOutput> {
+    return this.call(
+      "listActivityFilterOptions",
+      input,
+      options,
+    ) as Promise<listActivityFilterOptionsOutput>;
+  }
   queryHistory(
     input: queryHistoryInput,
     options?: CallOptions,
@@ -5872,11 +7021,33 @@ export class RootsetClient {
       options,
     ) as Promise<getMutationOutput>;
   }
+  previewImportRows(
+    input: previewImportRowsInput,
+    options?: CallOptions,
+  ): Promise<previewImportRowsOutput> {
+    return this.call(
+      "previewImportRows",
+      input,
+      options,
+    ) as Promise<previewImportRowsOutput>;
+  }
+  importRows(
+    input: importRowsInput,
+    options?: CallOptions,
+  ): Promise<importRowsOutput> {
+    return this.call("importRows", input, options) as Promise<importRowsOutput>;
+  }
   exportRows(
     input: exportRowsInput,
     options?: CallOptions,
   ): Promise<exportRowsOutput> {
     return this.call("exportRows", input, options) as Promise<exportRowsOutput>;
+  }
+  exportView(
+    input: exportViewInput,
+    options?: CallOptions,
+  ): Promise<exportViewOutput> {
+    return this.call("exportView", input, options) as Promise<exportViewOutput>;
   }
   exportDatabase(
     input: exportDatabaseInput,
@@ -5944,6 +7115,86 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<updateViewPreferencesOutput>;
+  }
+  updateForeignKeyDisplayField(
+    input: updateForeignKeyDisplayFieldInput,
+    options?: CallOptions,
+  ): Promise<updateForeignKeyDisplayFieldOutput> {
+    return this.call(
+      "updateForeignKeyDisplayField",
+      input,
+      options,
+    ) as Promise<updateForeignKeyDisplayFieldOutput>;
+  }
+  listSavedViews(
+    input: listSavedViewsInput,
+    options?: CallOptions,
+  ): Promise<listSavedViewsOutput> {
+    return this.call(
+      "listSavedViews",
+      input,
+      options,
+    ) as Promise<listSavedViewsOutput>;
+  }
+  getSavedView(
+    input: getSavedViewInput,
+    options?: CallOptions,
+  ): Promise<getSavedViewOutput> {
+    return this.call(
+      "getSavedView",
+      input,
+      options,
+    ) as Promise<getSavedViewOutput>;
+  }
+  createSavedView(
+    input: createSavedViewInput,
+    options?: CallOptions,
+  ): Promise<createSavedViewOutput> {
+    return this.call(
+      "createSavedView",
+      input,
+      options,
+    ) as Promise<createSavedViewOutput>;
+  }
+  updateSavedView(
+    input: updateSavedViewInput,
+    options?: CallOptions,
+  ): Promise<updateSavedViewOutput> {
+    return this.call(
+      "updateSavedView",
+      input,
+      options,
+    ) as Promise<updateSavedViewOutput>;
+  }
+  deleteSavedView(
+    input: deleteSavedViewInput,
+    options?: CallOptions,
+  ): Promise<deleteSavedViewOutput> {
+    return this.call(
+      "deleteSavedView",
+      input,
+      options,
+    ) as Promise<deleteSavedViewOutput>;
+  }
+  getDatabaseBackupPolicy(
+    input: getDatabaseBackupPolicyInput,
+    options?: CallOptions,
+  ): Promise<getDatabaseBackupPolicyOutput> {
+    return this.call(
+      "getDatabaseBackupPolicy",
+      input,
+      options,
+    ) as Promise<getDatabaseBackupPolicyOutput>;
+  }
+  saveDatabaseBackupPolicy(
+    input: saveDatabaseBackupPolicyInput,
+    options?: CallOptions,
+  ): Promise<saveDatabaseBackupPolicyOutput> {
+    return this.call(
+      "saveDatabaseBackupPolicy",
+      input,
+      options,
+    ) as Promise<saveDatabaseBackupPolicyOutput>;
   }
   getBackupSchedule(
     input: getBackupScheduleInput,
@@ -6014,5 +7265,25 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<testBackupDestinationOutput>;
+  }
+  previewDatabaseRestore(
+    input: previewDatabaseRestoreInput,
+    options?: CallOptions,
+  ): Promise<previewDatabaseRestoreOutput> {
+    return this.call(
+      "previewDatabaseRestore",
+      input,
+      options,
+    ) as Promise<previewDatabaseRestoreOutput>;
+  }
+  restoreDatabaseBackup(
+    input: restoreDatabaseBackupInput,
+    options?: CallOptions,
+  ): Promise<restoreDatabaseBackupOutput> {
+    return this.call(
+      "restoreDatabaseBackup",
+      input,
+      options,
+    ) as Promise<restoreDatabaseBackupOutput>;
   }
 }

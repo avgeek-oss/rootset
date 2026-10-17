@@ -13,6 +13,10 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "updateProfile",
   "updatePreferences",
   "updateViewPreferences",
+  "updateForeignKeyDisplayField",
+  "createSavedView",
+  "updateSavedView",
+  "deleteSavedView",
   "revokeSession",
   "revokeConnection",
   "updateOrganisation",
@@ -31,6 +35,8 @@ export const jobsMutationSet: ReadonlySet<string> = new Set([
   "retryJob",
 ]);
 export const queuedMutationSet: ReadonlySet<string> = new Set([
+  "previewDatabaseRestore",
+  "restoreDatabaseBackup",
   "deleteDatabase",
   "deleteTable",
   "applySchemaChange",
@@ -40,15 +46,20 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "deleteField",
   "countRows",
   "exportRows",
+  "exportView",
   "exportDatabase",
+  "previewImportRows",
+  "importRows",
 ]);
 export const backupMutationSet: ReadonlySet<string> = new Set([
+  "saveDatabaseBackupPolicy",
   "saveBackupSchedule",
   "deleteBackupSchedule",
   "runDatabaseBackup",
   "testBackupDestination",
 ]);
 export const mutationSet: ReadonlySet<string> = new Set([
+  "bulkRows",
   ...backupMutationSet,
   ...identityMutationSet,
   ...jobsMutationSet,

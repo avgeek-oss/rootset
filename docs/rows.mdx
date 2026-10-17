@@ -1,11 +1,17 @@
 ---
-title: "Edit rows inline"
-description: "Edit typed cells, undo saved changes, and delete rows from the context menu."
+title: "Create and edit records"
+description: "Create records, edit complete records or typed cells, and manage row discussions."
 ---
 
 import { Screenshot } from "/snippets/oss/screenshot.jsx";
 
+Select **Add record** to create a record in a drawer. Required fields, choices, defaults, automatic IDs and NULL values use the table’s schema. Select a row and choose **Open record** from the table actions menu to edit every field, including fields hidden in the spreadsheet. Save with **Cmd+Enter** on macOS or **Ctrl+Enter** elsewhere. Failed validation keeps the draft and focuses the affected field. Unsaved changes require confirmation before closing; concurrent updates require reloading the saved record before retrying.
+
+Use [Import Requests](/import-requests) to append records from CSV or JSONL. Select record checkboxes for [bulk field updates, duplication and deletion](/bulk-rows).
+
 Double-click a cell to edit it in place. Press Enter to commit or Escape to cancel. Editors follow the field type: numbers, booleans, calendar/time controls, text and JSON. URL and image cells edit the underlying string.
+
+JSON fields use a code editor with syntax highlighting, line numbers and automatic indentation in the record drawer and spreadsheet. Enter adds a line; **Cmd+Enter** or **Ctrl+Enter** saves. The inline editor also provides **Format**, **Save** and **Cancel**. JSON validation and NULL handling follow the same field rules as other record updates.
 
 The selected cell uses the green theme highlight. If a value is invalid or saving fails, Rootset shows a toast and returns the cell to its previous saved value. There is no persistent inline error message.
 

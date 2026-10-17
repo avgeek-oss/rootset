@@ -145,7 +145,6 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     "archiveHistory",
     "prepareImportUpload",
     "validateImport",
-    "importRows",
     "listHistoryArchives",
     "getHistoryArchive",
     "createOrganisation",
@@ -178,8 +177,14 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 86);
+  assert.equal(operations.length, 105);
   assert.equal(getOperation("createRow").readOnly, false);
+  for (const name of ["previewImportRows", "importRows"]) {
+    const operation = getOperation(name);
+    assert.equal(operation.job, true);
+    assert.equal(operation.idempotencyRequired, true);
+    assert.deepEqual(operation.scopes, ["rows:read", "rows:write"]);
+  }
   for (const operation of operations.filter((op) =>
     op.scopes.some((scope) => scope.startsWith("backups:")),
   ))
@@ -1161,7 +1166,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.equal(operation.errors.includes("STEP_UP_REQUIRED"), false);
-  assert.equal(operations.length, 86);
+  assert.equal(operations.length, 105);
   const api = generateOpenApi() as {
     paths: Record<
       string,

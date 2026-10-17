@@ -27,6 +27,7 @@ import { authClient } from "../lib/auth-client";
 import { authFailure } from "../lib/auth-failure";
 import { setupPreferenceOptions } from "../lib/date-time-options";
 import { AuthBrand, AuthFrame, authTextActionClassName } from "./auth-frame";
+import { LogIn } from "./ui/icons";
 
 const publicApi = new RootsetClient({
   baseUrl: () => `${browserApiOrigin()}/v1`,
@@ -42,6 +43,7 @@ export function InitialTeamSetup({ onContinue }: { onContinue: () => void }) {
         description="Your administrator account has been created. Sign in to get started."
       >
         <Button variant="secondary" onPress={onContinue}>
+          <LogIn />
           Continue to sign in
         </Button>
       </AuthFrame>

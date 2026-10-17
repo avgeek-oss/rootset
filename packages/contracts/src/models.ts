@@ -428,11 +428,16 @@ export const JobStateSchema = z.enum([
   "partially_completed",
 ]);
 export const JobSchema = z.strictObject({
+  backupId: IdSchema.optional(),
   id: IdSchema,
   orgId: IdSchema,
   kind: z.string(),
   operationId: z.string(),
+  fileName: z.string().max(255).optional(),
+  previewId: IdSchema.optional(),
+  cancelRequested: z.boolean().optional(),
   format: z.enum(["csv", "jsonl"]).optional(),
+  exportScope: z.enum(["view", "table", "database"]).optional(),
   state: JobStateSchema,
   stage: z.string().optional(),
   databaseId: IdSchema.optional(),
@@ -440,6 +445,7 @@ export const JobSchema = z.strictObject({
   progress: z
     .strictObject({
       completed: z.number().nonnegative(),
+      committed: z.number().nonnegative().optional(),
       total: z.number().nonnegative().optional(),
       unit: z.string().optional(),
     })
@@ -486,4 +492,15 @@ export const ViewPreferencesSchema = z.strictObject({
   frozenColumns: z.number().int().min(0).max(limits.maxFields),
   hiddenColumns: z.array(IdSchema).max(limits.maxFields),
   query: JsonValueSchema.optional(),
+  foreignKeyDisplayFields: z
+    .record(IdSchema, IdSchema)
+    .refine(
+      (fields) => Object.keys(fields).length <= limits.maxForeignKeys,
+      "Too many foreign-key display fields",
+    )
+    .optional()
+    .describe(
+      "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+    ),
 });
+export type ViewPreferences = z.infer<typeof ViewPreferencesSchema>;

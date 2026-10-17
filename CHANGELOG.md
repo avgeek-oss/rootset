@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.0 (2026-10-17)
+
+- Create and edit complete records in a drawer, with required fields, defaults, generated IDs, choices, foreign keys and concurrent-edit protection.
+- Import CSV or JSONL files with column mapping, typed previews, row-specific validation and downloadable error reports. Imports append records in resumable batches.
+- Search referenced records by a personal display field and select complete composite foreign keys.
+- Save named personal or shared views with filters, sorting and column layouts. Stale or invalid views preserve their definitions and block loading until corrected.
+- Select up to 200 records to atomically set field values, duplicate or delete rows. Field updates and duplication run directly from their drawers; deletion uses a confirmation dialog. New copies become the selected rows.
+- Export all matching records from the current view with visible or selected columns, alongside existing full-table and database exports.
+- Add indexed incoming-relationship counts and filtered source-record navigation through REST and MCP.
+- Verify a managed backup, preview its contents and restore into a new database. Restore preserves records, schemas, constraints, counters, comments, retained history and compatible saved views without copying access grants or schedules.
+- Configure successful-backup retention, protect the latest snapshot and packages needed by restores, and notify current administrators about failed or overdue backups.
+- Add root-level Audit Logs under Operate, covering retained record and schema changes, imports, exports, backups and restores. Filter by granular event, resource, actor and time, with permission-aware links and relative dates. Group internal workers and operators as Automation.
+- Organize database backup controls under Backup & Restore, with separate Backup Schedule, Backup Attempts and Restore Attempts pages. Put manual backups on Backup Attempts and distinguish manual and scheduled attempts by chip color.
+- Switch database and table directories between grid and table views. Show descriptions, database total rows and table field counts; table views show the last data change or creation date when no change is recorded.
+- Keep the current page visible until the destination's required data is ready, and load the first spreadsheet window before showing its grid.
+- Use a CodeMirror JSON editor with syntax highlighting, line numbers and indentation in record drawers and expanded spreadsheet editors.
+- Add row and column context menus, selection-aware bulk menus, theme-colored hover states and consistent spreadsheet row heights on desktop and mobile. Fit small tables to the available width and scroll wider tables horizontally.
+- Refine column ordering, drag indicators, view controls, form spacing and action icons. Move Delete Table and Delete Database into final Danger Zone sidebar categories and show the application version beside its title.
+- Page directory reads in PostgreSQL, read active-field counts without loading definitions and calculate database summaries in one table scan per database.
+- Keep native tables on mobile and use the shared drawers, controls, typography and interaction patterns throughout these workflows.
+
 ## 0.1.9 (2026-10-16)
 
 - Mark foreign-key columns with an fk chip and open referenced records in a new tab, filtered by the linked values, including composite keys.

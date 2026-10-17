@@ -1,23 +1,11 @@
-import { z } from "zod";
 import {
-  IdSchema,
-  limits,
+  RelationshipFilterSchema,
   parseStrictJson,
   type FilterNode,
   type ForeignKey,
   type Row,
 } from "@rootset/contracts";
 import type { FilterCondition } from "./table-filters";
-
-const linkedFilterSchema = z
-  .array(
-    z.strictObject({
-      fieldId: IdSchema,
-      value: z.union([z.string(), z.number(), z.boolean()]),
-    }),
-  )
-  .min(1)
-  .max(limits.maxUniqueFields);
 
 export interface ForeignKeyLink {
   id: string;
@@ -57,7 +45,7 @@ export function readLinkedTableFilter(value: string | null): {
 } {
   if (value === null) return { conditions: [] };
   try {
-    const filter = linkedFilterSchema.parse(parseStrictJson(value));
+    const filter = RelationshipFilterSchema.parse(parseStrictJson(value));
     const predicates = filter.map(({ fieldId, value }) => ({
       field: fieldId,
       op: "eq" as const,
@@ -80,4 +68,13 @@ export function readLinkedTableFilter(value: string | null): {
         "The linked record filter is invalid. Clear it to view this table.",
     };
   }
+}
+
+export function reverseRelationshipPath(
+  databaseId: string,
+  tableId: string,
+  ruleId: string,
+  rowId: string,
+): string {
+  return `/databases/${encodeURIComponent(databaseId)}/tables/${encodeURIComponent(tableId)}?${new URLSearchParams({ relationship: ruleId, record: rowId })}`;
 }

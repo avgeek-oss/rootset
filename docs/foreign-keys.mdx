@@ -23,6 +23,26 @@ Renaming a field or table preserves the link. Remove dependent foreign keys befo
 
 Removing a foreign key leaves existing records in place and stops validation for future writes. A table supports up to sixteen foreign keys.
 
+## Choose a linked record
+
+The record drawer provides a searchable picker for each foreign key. Double-click a linked spreadsheet cell, or select it and press F2, to open the record drawer at that relationship. Search by a label or a typed key. The picker shows the display label alongside the actual stored key; choosing a composite key updates all its local fields together.
+
+Open the relationship’s options menu to choose a **Display field**. This personal choice is remembered across sessions and devices without changing record values or another person’s view. Rootset uses a text field as the initial label when one is available. Record reads and searches require current access to the referenced table. Searches and alphabetical result pages contain at most 50 records, with Previous and Next controls; selecting a NULL label does not turn a non-NULL key into NULL.
+
+Choose **NULL** to clear the optional fields of a link. Required fields retain their existing values. **Enter keys manually** exposes the original typed field controls, including defaults and generated IDs when creating a record. All selections and manual values still pass the table’s validation on save. A failed constraint keeps the draft and focuses the affected fields.
+
+The `updateForeignKeyDisplayField` operation changes a personal label atomically and validates that the display field belongs to the referenced table. Passing `null` restores automatic label choice. Ordinary `updateViewPreferences` saves preserve these label choices so a column resize cannot overwrite them.
+
+## Relationship APIs
+
+Use [Get row relationships](/api-reference/getRowRelationships) to read referencing tables, their foreign-key fields and exact matching record counts in REST or MCP. Counts come from the reference registry and use saved values. Supply the parent record's `expectedVersion` when counts must match a particular revision.
+
+Composite keys retain their types and exact text, including leading zeros, `0` and `false`. A parent with a NULL key component has no reference link. Results include each table's maintenance status and require current row and schema read access. Use the returned cursor to read additional relationships.
+
+Links identify the relationship and parent record without embedding long key values in the URL. The destination resolves the current saved key before loading any rows. Deleted rules, missing records, lost access and incomplete keys show an unavailable state; they never silently open the complete table. You can explicitly open the table without the relationship filter when needed.
+
+Use [Get related row filter](/api-reference/getRelatedRowFilter) to resolve a navigation link in REST or MCP.
+
 ## REST and MCP
 
 Use [Create foreign key](/api-reference/createForeignKey) or `rootset_create_foreign_key` with stable field IDs from the table schemas:

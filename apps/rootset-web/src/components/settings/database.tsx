@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   databasePath,
   confirmIdentity,
@@ -11,6 +11,7 @@ import {
 } from "./api";
 import { Empty, Field, Form, Loading, Section, useConfirmation } from "./ui";
 import type { SettingsPanelProps } from "./types";
+import { Trash2 } from "../ui/icons";
 
 export function DatabaseSettings(props: SettingsPanelProps) {
   const path = props.databaseId
@@ -24,9 +25,11 @@ export function DatabaseSettings(props: SettingsPanelProps) {
     resource.reload();
     props.onChanged?.();
   });
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  useEffect(() => {
+  const [name, setName] = useState(resource.data?.name ?? "");
+  const [description, setDescription] = useState(
+    resource.data?.description ?? "",
+  );
+  useLayoutEffect(() => {
     if (resource.data) {
       setName(resource.data.name);
       setDescription(resource.data.description ?? "");
@@ -103,6 +106,7 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
             }
           }}
         >
+          <Trash2 />
           Delete database
         </Button>
       </Section>

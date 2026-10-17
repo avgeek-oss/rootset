@@ -22,17 +22,12 @@ const defaults: Preferences = {
 };
 export function RelativeTimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
-    const update = () => {
-      if (document.hidden) return;
-      currentTime = Date.now();
-      for (const notify of listeners) notify();
-    };
-    const interval = setInterval(update, 30_000);
-    document.addEventListener("visibilitychange", update);
-    update();
+    const interval = setInterval(updateClock, 30_000);
+    document.addEventListener("visibilitychange", updateClock);
+    updateClock();
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", update);
+      document.removeEventListener("visibilitychange", updateClock);
     };
   }, []);
   return children;
@@ -42,7 +37,7 @@ export function RelativeTime({
   label,
   value,
 }: {
-  display?: "stacked" | "relative";
+  display?: "stacked" | "relative" | "compact";
   label: string;
   value?: string;
 }) {
@@ -68,20 +63,35 @@ export function RelativeTime({
   return (
     <TooltipText
       as="time"
-      tooltip={preferences.timezone}
+      tooltip={
+        display === "compact"
+          ? `${absolute} ${preferences.timezone}`
+          : preferences.timezone
+      }
       placement="left"
       aria-label={`${label}: ${absolute} ${preferences.timezone}${relative ? `, ${relative}` : ""}`}
-      className={`${tableCellStackClassName} whitespace-nowrap tabular-nums`}
+      className={`${display === "compact" ? "" : tableCellStackClassName} whitespace-nowrap tabular-nums`}
       dateTime={value}
     >
-      <span aria-hidden={!relative}>{relative ?? "\u00a0"}</span>
-      <TableCellDescription>{absolute}</TableCellDescription>
+      {display === "compact" ? (
+        (relative ?? "—")
+      ) : (
+        <>
+          <span aria-hidden={!relative}>{relative ?? "\u00a0"}</span>
+          <TableCellDescription>{absolute}</TableCellDescription>
+        </>
+      )}
     </TooltipText>
   );
 }
 function subscribeToClock(listener: () => void) {
   listeners.add(listener);
+  updateClock();
   return () => {
     listeners.delete(listener);
   };
+}
+function updateClock() {
+  currentTime = Date.now();
+  for (const notify of listeners) notify();
 }

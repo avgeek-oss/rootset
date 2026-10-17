@@ -4,6 +4,7 @@ import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { useMemo, useState } from "react";
 import type { JsonValue } from "@rootset/contracts";
 import styles from "./repair-intent-review.module.css";
+import { ChevronLeft, ChevronRight } from "./ui/icons";
 
 const charactersPerPage = 32768;
 export function repairValuePage(text: string, page: number) {
@@ -47,6 +48,7 @@ export default function RepairValueReview({
             isDisabled={current.page === 0}
             onPress={() => setPage(current.page - 1)}
           >
+            <ChevronLeft />
             Previous value section
           </Button>
           <p role="status">
@@ -61,6 +63,7 @@ export default function RepairValueReview({
             onPress={() => setPage(current.page + 1)}
           >
             Next value section
+            <ChevronRight />
           </Button>
         </div>
       )}

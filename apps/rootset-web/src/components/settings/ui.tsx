@@ -22,6 +22,8 @@ import {
 } from "react";
 import { showSettingsError, type SettingsError } from "./api";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { Save } from "../ui/icons";
+import "./ui.css";
 
 export function Section({
   title,
@@ -131,6 +133,7 @@ export function Field({
 
 export function Choice({
   label,
+  hideLabel,
   value,
   onChange,
   options,
@@ -140,6 +143,7 @@ export function Choice({
   disabled,
 }: {
   label: string;
+  hideLabel?: boolean;
   value: string;
   onChange: (value: string) => void;
   options: readonly (
@@ -159,19 +163,20 @@ export function Choice({
     <Select
       variant="secondary"
       className="settings-field"
+      aria-label={hideLabel ? label : undefined}
       value={value || null}
       onChange={(key) => onChange(String(key ?? ""))}
       isRequired={required}
       isInvalid={Boolean(error)}
       isDisabled={disabled}
     >
-      <Label>{label}</Label>
+      {!hideLabel && <Label>{label}</Label>}
       <Select.Trigger>
         {selected?.icon ? (
-          <Select.Value>
-            <span className="flex items-center gap-2">
+          <Select.Value className="min-w-0">
+            <span className="flex min-w-0 items-center gap-2">
               {selected.icon}
-              {selected.label}
+              <span className="truncate">{selected.label}</span>
             </span>
           </Select.Value>
         ) : (
@@ -245,6 +250,8 @@ export function Form({
   busy,
   onSubmit,
   submit = "Save changes",
+  submitIcon = <Save />,
+  submitDisabled = false,
   onCancel,
   noValidate = false,
 }: {
@@ -253,12 +260,14 @@ export function Form({
   busy: boolean;
   onSubmit: () => void | Promise<void>;
   submit?: string;
+  submitIcon?: ReactNode;
+  submitDisabled?: boolean;
   onCancel?: () => void;
   noValidate?: boolean;
 }) {
   function submitForm(event: FormEvent) {
     event.preventDefault();
-    if (!busy) void onSubmit();
+    if (!busy && !submitDisabled) void onSubmit();
   }
   return (
     <form
@@ -274,7 +283,12 @@ export function Form({
             Cancel
           </Button>
         )}
-        <Button type="submit" isPending={busy} isDisabled={busy}>
+        <Button
+          type="submit"
+          isPending={busy}
+          isDisabled={busy || submitDisabled}
+        >
+          {submitIcon}
           {busy ? "Working…" : submit}
         </Button>
         {actions}

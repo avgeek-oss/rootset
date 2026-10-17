@@ -9,7 +9,13 @@ import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { Drawer } from "@avgeek-oss/design-system/overlays/drawer";
 import { client } from "@rootset/web-client";
 import type { RowComment } from "@rootset/contracts";
-import { Trash2 } from "./ui/icons";
+import {
+  Trash2,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  CommentPlus,
+} from "./ui/icons";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { useConfirmation } from "./settings/ui";
 import { CommentMarkdown } from "./comment-markdown";
@@ -195,6 +201,7 @@ function RowDiscussion({
           <div role="alert">
             <p>{comments.error.message}</p>
             <Button variant="secondary" onPress={() => void comments.refetch()}>
+              <RefreshCw />
               Retry loading comments
             </Button>
           </div>
@@ -279,6 +286,7 @@ function RowDiscussion({
                 commentList.current?.focus();
               }}
             >
+              <ChevronLeft />
               Previous comments
             </Button>
             <Button
@@ -297,6 +305,7 @@ function RowDiscussion({
               }}
             >
               Next comments
+              <ChevronRight />
             </Button>
           </div>
         )}
@@ -343,6 +352,7 @@ function RowDiscussion({
                   {body.length.toLocaleString()} / 4,096
                 </span>
                 <Button type="submit" isDisabled={busy || !body.trim()}>
+                  <CommentPlus />
                   {busy ? "Saving…" : "Add comment"}
                 </Button>
               </div>

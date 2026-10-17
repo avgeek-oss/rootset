@@ -415,3 +415,305 @@ test(
     }
   },
 );
+
+test(
+  "reverse relationships use registry counts, typed composite keys and current source metadata",
+  { skip: !configured },
+  async () => {
+    let parent = await storage.createTable(actor, databaseId, {
+      name: "Reverse parents",
+      fields: [
+        { name: "CODE", type: "text", charLimit: 5000 },
+        { name: "EDITION", type: "integer" },
+        { name: "ACTIVE", type: "boolean" },
+      ],
+    });
+    const unique = await storage.createUniqueRule(actor, parent.id, {
+      fieldIds: parent.fields.map((field) => field.id),
+      expectedSchemaVersion: parent.schemaVersion,
+    });
+    parent = await storage.getTable(actor, parent.id);
+    const code = "001" + "x".repeat(4000);
+    const first = await storage.createRow(actor, parent.id, {
+      CODE: code,
+      EDITION: 0,
+      ACTIVE: false,
+    });
+    const empty = await storage.createRow(actor, parent.id, {
+      CODE: null,
+      EDITION: 0,
+      ACTIVE: false,
+    });
+    const source = await storage.createTable(actor, databaseId, {
+      name: "Reverse children",
+      fields: [
+        { name: "P_CODE", type: "text", charLimit: 5000 },
+        { name: "P_EDITION", type: "integer" },
+        { name: "P_ACTIVE", type: "boolean" },
+      ],
+    });
+    const key = await storage.createForeignKey(actor, source.id, {
+      fieldIds: source.fields.map((field) => field.id),
+      referencedTableId: parent.id,
+      referencedRuleId: unique.id,
+      expectedSchemaVersion: source.schemaVersion,
+      expectedReferencedSchemaVersion: parent.schemaVersion,
+    });
+    const child1 = await storage.createRow(actor, source.id, {
+      P_CODE: code,
+      P_EDITION: 0,
+      P_ACTIVE: false,
+    });
+    const child2 = await storage.createRow(actor, source.id, {
+      P_CODE: code,
+      P_EDITION: 0,
+      P_ACTIVE: false,
+    });
+    await storage.createRow(actor, source.id, {
+      P_CODE: null,
+      P_EDITION: 0,
+      P_ACTIVE: false,
+    });
+    const page = await storage.rowRelationships(actor, parent.id, first.id, {
+      afterId: null,
+      limit: 21,
+      expectedVersion: first.version,
+    });
+    assert.equal(page.rowVersion, first.version);
+    assert.equal(page.data.length, 1);
+    assert.deepEqual(page.data[0], {
+      id: key.id,
+      tableId: source.id,
+      tableName: source.name,
+      tableState: "active",
+      fieldIds: source.fields.map((field) => field.id),
+      fieldNames: ["P_CODE", "P_EDITION", "P_ACTIVE"],
+      referencedFieldIds: parent.fields.map((field) => field.id),
+      count: 2,
+      hasKey: true,
+    });
+    const filter = await storage.relatedRowFilter(
+      actor,
+      source.id,
+      key.id,
+      first.id,
+    );
+    assert.deepEqual(
+      filter.filter,
+      source.fields.map((field, index) => ({
+        fieldId: field.id,
+        value: [code, 0, false][index],
+      })),
+    );
+    const query = {
+      where: {
+        and: filter.filter.map((item) => ({
+          field: item.fieldId,
+          op: "eq" as const,
+          value: item.value,
+        })),
+      },
+    };
+    assert.equal(
+      (await storage.queryRows(actor, source.id, query)).data.length,
+      2,
+    );
+    assert.equal(
+      (
+        await storage.rowRelationships(actor, parent.id, empty.id, {
+          afterId: null,
+          limit: 21,
+        })
+      ).data[0]!.hasKey,
+      false,
+    );
+    assert.equal(
+      (
+        await storage.rowRelationships(actor, parent.id, empty.id, {
+          afterId: null,
+          limit: 21,
+        })
+      ).data[0]!.count,
+      0,
+    );
+    await assert.rejects(
+      storage.relatedRowFilter(actor, source.id, key.id, empty.id),
+      { code: "FOREIGN_KEY_CONFLICT" },
+    );
+    await storage.updateRow(
+      actor,
+      source.id,
+      child1.id,
+      { P_CODE: null },
+      { expectedVersion: child1.version },
+    );
+    assert.equal(
+      (
+        await storage.rowRelationships(actor, parent.id, first.id, {
+          afterId: null,
+          limit: 21,
+        })
+      ).data[0]!.count,
+      1,
+    );
+    await storage.deleteRow(actor, source.id, child2.id, {
+      expectedVersion: child2.version,
+    });
+    assert.equal(
+      (
+        await storage.rowRelationships(actor, parent.id, first.id, {
+          afterId: null,
+          limit: 21,
+        })
+      ).data[0]!.count,
+      0,
+    );
+    const changed = await storage.updateRow(
+      actor,
+      parent.id,
+      first.id,
+      { EDITION: 1 },
+      { expectedVersion: first.version },
+    );
+    await assert.rejects(
+      storage.rowRelationships(actor, parent.id, first.id, {
+        afterId: null,
+        limit: 21,
+        expectedVersion: first.version,
+      }),
+      { code: "ROW_VERSION_CONFLICT" },
+    );
+    assert.equal(
+      (await storage.relatedRowFilter(actor, source.id, key.id, first.id))
+        .filter[1]!.value,
+      1,
+    );
+    assert.equal(
+      (await storage.relatedRowFilter(actor, source.id, key.id, first.id))
+        .referencedVersion,
+      changed.version,
+    );
+    await assert.rejects(
+      storage.rowRelationships(
+        { ...actor, orgId: newId() },
+        parent.id,
+        first.id,
+        { afterId: null, limit: 21 },
+      ),
+      { code: "RESOURCE_NOT_FOUND" },
+    );
+    await assert.rejects(
+      storage.relatedRowFilter(actor, parent.id, key.id, first.id),
+      { code: "RESOURCE_NOT_FOUND" },
+    );
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      storage.rowRelationships(
+        actor,
+        parent.id,
+        first.id,
+        { afterId: null, limit: 21 },
+        controller.signal,
+      ),
+    );
+    await storage.deleteForeignKey(actor, source.id, key.id, {
+      expectedSchemaVersion: (await storage.getTable(actor, source.id))
+        .schemaVersion,
+    });
+    assert.deepEqual(
+      (
+        await storage.rowRelationships(actor, parent.id, first.id, {
+          afterId: null,
+          limit: 21,
+        })
+      ).data,
+      [],
+    );
+    await assert.rejects(
+      storage.relatedRowFilter(actor, source.id, key.id, first.id),
+      { code: "RESOURCE_NOT_FOUND" },
+    );
+  },
+);
+
+test(
+  "reverse registry pages distinguish multiple rules and self references",
+  { skip: !configured },
+  async () => {
+    let parent = await storage.createTable(actor, databaseId, {
+      name: "Reverse self",
+      fields: [
+        { name: "CODE", type: "integer" },
+        { name: "PARENT", type: "integer" },
+      ],
+    });
+    const unique = await storage.createUniqueRule(actor, parent.id, {
+      fieldIds: [parent.fields[0]!.id],
+      expectedSchemaVersion: parent.schemaVersion,
+    });
+    parent = await storage.getTable(actor, parent.id);
+    const saved = await storage.createRow(actor, parent.id, {
+      CODE: 0,
+      PARENT: 0,
+    });
+    const self = await storage.createForeignKey(actor, parent.id, {
+      fieldIds: [parent.fields[1]!.id],
+      referencedTableId: parent.id,
+      referencedRuleId: unique.id,
+      expectedSchemaVersion: parent.schemaVersion,
+      expectedReferencedSchemaVersion: parent.schemaVersion,
+    });
+    parent = await storage.getTable(actor, parent.id);
+    const source = await storage.createTable(actor, databaseId, {
+      name: "Two references",
+      fields: [
+        { name: "ONE", type: "integer" },
+        { name: "TWO", type: "integer" },
+      ],
+    });
+    await storage.createForeignKey(actor, source.id, {
+      fieldIds: [source.fields[0]!.id],
+      referencedTableId: parent.id,
+      referencedRuleId: unique.id,
+      expectedSchemaVersion: source.schemaVersion,
+      expectedReferencedSchemaVersion: parent.schemaVersion,
+    });
+    await storage.createForeignKey(actor, source.id, {
+      fieldIds: [source.fields[1]!.id],
+      referencedTableId: parent.id,
+      referencedRuleId: unique.id,
+      expectedSchemaVersion: (await storage.getTable(actor, source.id))
+        .schemaVersion,
+      expectedReferencedSchemaVersion: parent.schemaVersion,
+    });
+    await storage.createRow(actor, source.id, { ONE: 0, TWO: 0 });
+    await storage.createRow(actor, source.id, { ONE: 0, TWO: null });
+    const all = await storage.rowRelationships(actor, parent.id, saved.id, {
+      afterId: null,
+      limit: 21,
+    });
+    assert.deepEqual(
+      all.data.map((relation) => relation.count),
+      [1, 2, 1],
+    );
+    assert.equal(all.data[0]!.id, self.id);
+    const first = await storage.rowRelationships(actor, parent.id, saved.id, {
+      afterId: null,
+      limit: 2,
+    });
+    const next = await storage.rowRelationships(actor, parent.id, saved.id, {
+      afterId: first.data[0]!.id,
+      limit: 2,
+    });
+    assert.deepEqual(
+      next.data.map((relation) => relation.id),
+      all.data.slice(1).map((relation) => relation.id),
+    );
+    assert.equal(
+      (await storage.relatedRowFilter(actor, parent.id, self.id, saved.id))
+        .filter[0]!.value,
+      0,
+    );
+  },
+);

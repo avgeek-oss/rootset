@@ -1,0 +1,26 @@
+---
+title: "Import Requests"
+description: "Append CSV or JSONL records with column mapping, validation and downloadable row errors."
+---
+
+Open a table’s **Data → Import Requests** page and select **Import records**. You can also open the import drawer from the spreadsheet’s table actions menu. Members and administrators can import records; viewers cannot.
+
+Choose a UTF-8 CSV, JSONL or NDJSON file of up to 4 MiB, 50,000 records and 200 columns. Map each source column to one destination field or leave it ignored. Matching field names are mapped automatically. Omit fields to use their defaults or generate automatic integer IDs. An explicitly supplied NULL never requests a default or generated ID.
+
+Select **Validate file** to check every record before importing. The preview shows up to ten valid records, including defaults and generated-value placeholders. Validation checks field types, required values, choices, unique rules, foreign keys and capacity without inserting records or consuming integer IDs. Invalid records show their source line, field and reason. The downloadable JSONL error report contains every error; the drawer shows the first 100.
+
+Correct the file or mapping and validate again. **Import records** becomes available only after all records pass. The worker checks the schema, constraints and current permissions again before writing. Imports append records; they do not update or match existing records.
+
+## CSV and JSONL values
+
+CSV uses the first row as its header. Quoted commas, escaped double quotes and newlines are supported. Unquoted empty cells and `\N` represent NULL. A quoted empty string preserves empty text. Double an initial backslash to preserve it literally, following the same convention as Rootset’s CSV exports. Boolean cells use `true` or `false`; dates, times and timestamps use the API’s canonical formats. JSON fields contain valid JSON.
+
+JSONL uses one JSON object per nonempty line and preserves native numbers, booleans, objects and NULL. Missing properties remain omitted. Invalid JSON is reported against its source line. Rootset rejects integers outside its safe numeric range instead of rounding them.
+
+## Progress, retries and reports
+
+You can close the drawer while validation or import runs. **Import Requests** keeps validation and import history, progress, error reports, cancellation and retry actions. A preview can admit only one import, including repeated submissions with different request keys.
+
+The worker commits batches of up to 250 records. If a later batch fails or you stop the request, already committed records remain. Retrying the same request resumes after its last committed batch without creating those records again. A constraint conflict in the remaining records provides an error report before any further rows are written. A schema change requires a new validation with the current fields.
+
+Reports use the worker’s encrypted artifact storage and normal expiry. Viewing a request or downloading its report requires current access and the request ownership or administrator permissions used by other background requests. Imports do not require a separate S3 destination or backup schedule.

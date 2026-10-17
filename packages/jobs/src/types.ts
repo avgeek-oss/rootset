@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "@rootset/database";
-import type { Actor, JsonValue } from "@rootset/contracts";
+import type { Actor, JsonValue, BackupAlertNotice } from "@rootset/contracts";
 import type { Readable } from "node:stream";
 import type { TableStorage, TableRecord } from "@rootset/table-storage";
 
@@ -30,6 +30,11 @@ export interface ArtifactConfig {
   tempDirectory?: string;
 }
 export interface JobsConfig {
+  backupNotificationsAvailable?: boolean;
+  notifyBackupAdministrators?: (
+    client: PoolClient,
+    alert: BackupAlertNotice,
+  ) => Promise<void>;
   backups?: import("./backups/index.js").BackupConfig;
   rootsetVersion?: string;
   idempotencySecret?: string;
@@ -83,7 +88,12 @@ export interface JobsConfig {
 export type TableInfo = TableRecord;
 export type StoragePort = Pick<
   TableStorage,
-  "getTable" | "getDatabase" | "snapshotTable"
+  | "restoreDatabase"
+  | "getTable"
+  | "getDatabase"
+  | "snapshotTable"
+  | "validateImportRows"
+  | "mutateRows"
 >;
 export interface JobsOptions {
   pool: Pool;
@@ -94,6 +104,7 @@ export interface JobsOptions {
     actor: Actor,
     operationId: string,
     target: Target,
+    client?: PoolClient,
   ) => Promise<void | Actor>;
 }
 export interface JobRecord {

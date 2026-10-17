@@ -1,8 +1,17 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import nodemailer from "nodemailer";
 import { renderEmailMessage } from "@avgeek-oss/design-system/emails/render";
-import { newId, RootsetError } from "@rootset/contracts";
-import { transaction, type Pool, type PoolClient } from "@rootset/database";
+import {
+  newId,
+  RootsetError,
+  type BackupAlertNotice,
+} from "@rootset/contracts";
+import {
+  transaction,
+  withOrg,
+  type Pool,
+  type PoolClient,
+} from "@rootset/database";
 
 export interface EncryptionConfig {
   encryptionKey: string;
@@ -82,6 +91,22 @@ export function decryptProtected<T>(
   ) as T;
 }
 export const emailTemplates = {
+  "backup-failed": {
+    subject: "A Rootset database backup failed",
+    title: "Database backup failed",
+    body: "A full database backup failed after its available attempts. Review the request and backup destination before retrying.",
+    action: "Open Backup History",
+    footer:
+      "Backup History shows the latest successful snapshot and request status.",
+  },
+  "backup-overdue": {
+    subject: "A Rootset database backup is overdue",
+    title: "Database backup overdue",
+    body: "A scheduled backup has no successful snapshot within its configured grace period. Check the backup worker and destination.",
+    action: "Open Backup History",
+    footer:
+      "Backup History shows the latest successful snapshot and request status.",
+  },
   invitation: {
     subject: "You're invited to Rootset",
     title: "Join your team",
@@ -145,6 +170,12 @@ export const emailTemplates = {
 } as const;
 export type EmailTemplate = keyof typeof emailTemplates;
 export interface EmailPayload {
+  backupAlert?: {
+    id: string;
+    orgId: string;
+    databaseId: string;
+    userId: string;
+  };
   name?: string;
   organisationName?: string;
   actionUrl?: string;
@@ -171,6 +202,10 @@ export async function renderEmail(
       "Email action origin is invalid",
       500,
     );
+  const footer =
+    "footer" in entry
+      ? entry.footer
+      : "If you did not request this, contact your installation operator.";
   const greeting = payload.name ? `Hello ${payload.name},` : "Hello,";
   const context = [
     payload.organisationName && `Organisation: ${payload.organisationName}`,
@@ -187,7 +222,7 @@ export async function renderEmail(
     entry.body,
     context,
     action && `${action}: ${url!.href}`,
-    "If you did not request this, contact your installation operator.",
+    footer,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -206,11 +241,7 @@ export async function renderEmail(
     message: {
       title: entry.title,
       name: payload.name,
-      paragraphs: [
-        entry.body,
-        ...(context ? [context] : []),
-        "If you did not request this, contact your installation operator.",
-      ],
+      paragraphs: [entry.body, ...(context ? [context] : []), footer],
       actionUrl: url?.href,
       actionLabel: action,
     },
@@ -314,9 +345,44 @@ export class EmailOutbox {
       socketTimeout: 30000,
     });
     try {
+      const payload = decryptProtected<EmailPayload>(
+        row.payload_encrypted,
+        this.config,
+      );
+      if (
+        row.template === "backup-failed" ||
+        row.template === "backup-overdue"
+      ) {
+        const alert = payload.backupAlert;
+        const eligible = alert
+          ? await withOrg(this.pool, alert.orgId, async (client) =>
+              Boolean(
+                (
+                  await client.query(
+                    "SELECT 1 FROM rootset_control.backup_alerts a JOIN rootset_control.memberships m ON m.org_id=a.org_id JOIN rootset_control.users u ON u.id=m.user_id WHERE a.id=$1 AND a.org_id=$2 AND a.database_id=$3 AND a.resolved_at IS NULL AND m.user_id=$4 AND m.role='admin' AND u.email_verified AND u.email=$5",
+                    [
+                      alert.id,
+                      alert.orgId,
+                      alert.databaseId,
+                      alert.userId,
+                      row.to_address,
+                    ],
+                  )
+                ).rowCount,
+              ),
+            )
+          : false;
+        if (!eligible) {
+          await this.pool.query(
+            "UPDATE rootset_control.email_outbox SET state='failed',payload_encrypted='',last_error='Backup alert no longer requires delivery',lease_until=NULL WHERE id=$1",
+            [row.id],
+          );
+          return true;
+        }
+      }
       const rendered = await renderEmail(
         row.template as EmailTemplate,
-        decryptProtected<EmailPayload>(row.payload_encrypted, this.config),
+        payload,
         this.config.baseURL,
         this.config.allowedActionOrigins,
       );
@@ -351,5 +417,44 @@ export class EmailOutbox {
     let n = 0;
     while (n < limit && (await this.deliverNext())) n++;
     return n;
+  }
+}
+
+export async function enqueueBackupAlert(
+  client: PoolClient,
+  outbox: EmailOutbox,
+  alert: BackupAlertNotice,
+  webURL: string,
+): Promise<void> {
+  let after = "";
+  for (;;) {
+    const admins = (
+      await client.query<{ id: string; name: string; email: string }>(
+        "SELECT u.id,u.name,u.email FROM rootset_control.memberships m JOIN rootset_control.users u ON u.id=m.user_id WHERE m.org_id=$1 AND m.role='admin' AND u.email_verified AND u.id>$2 ORDER BY u.id LIMIT 100",
+        [alert.orgId, after],
+      )
+    ).rows;
+    if (!admins.length) break;
+    for (const admin of admins)
+      await outbox.enqueue(client, {
+        template: alert.kind === "failed" ? "backup-failed" : "backup-overdue",
+        to: admin.email,
+        payload: {
+          name: admin.name,
+          actionUrl: new URL(
+            `/databases/${alert.databaseId}/settings/backup-history`,
+            webURL,
+          ).href,
+          details: `Database: ${alert.databaseName}\n${alert.kind === "failed" ? "Failed backup" : "Overdue scheduled backup"}: ${alert.occurrenceAt} (UTC)\nLast successful snapshot: ${alert.lastSuccessfulAt ?? "None"}`,
+          backupAlert: {
+            id: alert.id,
+            orgId: alert.orgId,
+            databaseId: alert.databaseId,
+            userId: admin.id,
+          },
+        },
+        dedupeKey: `backup-alert:${alert.id}:${admin.id}`,
+      });
+    after = admins.at(-1)!.id;
   }
 }

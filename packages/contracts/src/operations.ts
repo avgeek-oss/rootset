@@ -1,12 +1,34 @@
 import {
+  BulkRowsInputSchema,
+  BulkRowsPreviewSchema,
+  BulkRowsResultSchema,
+} from "./bulk-rows";
+import {
   BackupDestinationSchema,
   BackupTimingSchema,
   BackupScheduleInputSchema,
   BackupScheduleResultSchema,
   DatabaseBackupSchema,
 } from "./backups";
+import {
+  BackupPolicyInputSchema,
+  BackupPolicyResultSchema,
+} from "./backup-policy";
 import { UniqueRuleConditionSchema } from "./unique-rules";
+import { ImportSourceSchema } from "./imports";
+import {
+  SavedViewDefinitionSchema,
+  SavedViewSchema,
+  SavedViewSummarySchema,
+  SavedViewVisibilitySchema,
+} from "./views";
 import { z } from "zod";
+import {
+  ActivityInputSchema,
+  ActivityPageSchema,
+  ActivityFilterInputSchema,
+  ActivityFilterOptionsSchema,
+} from "./activity";
 import {
   AccountNameSchema,
   CanonicalUtcDateTimeSchema,
@@ -31,6 +53,11 @@ import {
   FieldInputSchema,
 } from "./values";
 import { QuerySpecSchema } from "./query";
+import { ExportViewQuerySchema } from "./exports";
+import {
+  RowRelationshipsSchema,
+  RelatedRowFilterSchema,
+} from "./relationships";
 import {
   ArtifactSchema,
   ConnectionSchema,
@@ -886,6 +913,34 @@ operation(
   "Remove uniqueness enforcement and update the schema version.",
 );
 operation(
+  "getRowRelationships",
+  "get_row_relationships",
+  "GET",
+  `${T}/rows/{rowId}/relationships`,
+  ["rows:read", "schema:read"],
+  z.strictObject({
+    ...table,
+    rowId: IdSchema,
+    expectedVersion: VersionSchema.optional(),
+    cursor: z.string().max(131200).nullable().optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+  }),
+  RowRelationshipsSchema,
+  "List the tables and foreign keys referencing a saved record with exact live counts and bounded pagination. Optional NULL key components do not form links.",
+  { minimumRole: "viewer" },
+);
+operation(
+  "getRelatedRowFilter",
+  "get_related_row_filter",
+  "GET",
+  `${T}/relationships/{ruleId}/records/{referencedRowId}/filter`,
+  ["rows:read", "schema:read"],
+  z.strictObject({ ...table, ruleId: IdSchema, referencedRowId: IdSchema }),
+  RelatedRowFilterSchema,
+  "Resolve a compact reverse-relationship link into a typed filter using the current saved referenced record. Missing or incomplete keys never produce an unfiltered table.",
+  { minimumRole: "viewer" },
+);
+operation(
   "listForeignKeys",
   "list_foreign_keys",
   "GET",
@@ -1084,6 +1139,43 @@ operation(
   deleted,
   "Delete a row with If-Match revision, remove its cell history and release live capacity.",
 );
+const bulkRowsExample = {
+  orgId: "01J00000000000000000000000",
+  databaseId: "01J00000000000000000000001",
+  tableId: "01J00000000000000000000002",
+  expectedSchemaVersion: 1,
+  rows: [{ rowId: "01J00000000000000000000003", expectedVersion: "1" }],
+  action: { type: "set", values: { NAME: "Updated name" } },
+};
+operation(
+  "previewBulkRows",
+  "preview_bulk_rows",
+  "POST",
+  `${T}/rows/bulk/preview`,
+  ["rows:write"],
+  BulkRowsInputSchema.extend(table),
+  BulkRowsPreviewSchema,
+  "Preview 1–200 revision-bound records for a field patch, duplication with regenerated automatic IDs, or deletion. Validate native constraints and roll back every simulated effect. Return row-specific conflicts and a bounded sample; no records or counters change.",
+  {
+    example: bulkRowsExample,
+    readOnly: true,
+    idempotent: true,
+    idempotencyRequired: false,
+    minimumRole: "member",
+    successStatus: 200,
+  },
+);
+operation(
+  "bulkRows",
+  "bulk_rows",
+  "POST",
+  `${T}/rows/bulk`,
+  ["rows:write"],
+  BulkRowsInputSchema.extend(table),
+  BulkRowsResultSchema,
+  "Apply a field patch, duplicate records with regenerated automatic IDs, or delete 1–200 selected records atomically. Recheck source revisions and schema, enforce native constraints, and replay an unchanged idempotent request without duplicating records.",
+  { destructive: true, example: bulkRowsExample },
+);
 const rowMutation = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("create"), values }),
   OperatorRepairUpdateSchema.extend({ type: z.literal("update") }),
@@ -1197,6 +1289,26 @@ operation(
   "Read the latest 200 saved changes for an existing cell.",
 );
 operation(
+  "listActivity",
+  "list_activity",
+  "GET",
+  `${O}/activity`,
+  ["history:read"],
+  ActivityInputSchema,
+  ActivityPageSchema,
+  "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
+);
+operation(
+  "listActivityFilterOptions",
+  "list_activity_filter_options",
+  "GET",
+  `${O}/activity/filters`,
+  ["history:read"],
+  ActivityFilterInputSchema,
+  ActivityFilterOptionsSchema,
+  "Find actors or resources in permitted audit history, independently of event pagination. Narrow the search when more matches are available.",
+);
+operation(
   "queryHistory",
   "query_history",
   "POST",
@@ -1227,6 +1339,28 @@ operation(
 );
 
 operation(
+  "previewImportRows",
+  "preview_import_rows",
+  "POST",
+  `${T}/imports/preview`,
+  ["rows:read", "rows:write"],
+  z.strictObject({ ...table, ...expected, ...ImportSourceSchema.shape }),
+  JobAcceptedSchema,
+  "Validate an append-only CSV or JSONL import, including mapping, field constraints, unique keys and foreign keys, without inserting records. The job returns a typed preview and a downloadable JSONL error report.",
+  { job: true, successStatus: 202 },
+);
+operation(
+  "importRows",
+  "import_rows",
+  "POST",
+  `${T}/imports`,
+  ["rows:read", "rows:write"],
+  z.strictObject({ ...table, ...expected, previewId: IdSchema }),
+  JobAcceptedSchema,
+  "Append a previously validated import. Each preview can start one import; retries resume committed batches without duplicating records. Current constraints and authority are checked again before publication.",
+  { job: true, successStatus: 202 },
+);
+operation(
   "exportRows",
   "export_rows",
   "POST",
@@ -1238,6 +1372,22 @@ operation(
   }),
   JobAcceptedSchema,
   "Start a complete-table snapshot export in CSV or JSONL, including every row and field, with checksummed artifacts.",
+  { minimumRole: "viewer", job: true, successStatus: 202 },
+);
+operation(
+  "exportView",
+  "export_view",
+  "POST",
+  `${T}/view-exports`,
+  ["exports:read", "rows:read"],
+  z.strictObject({
+    ...table,
+    ...expected,
+    format: z.enum(["csv", "jsonl"]),
+    query: ExportViewQuerySchema,
+  }),
+  JobAcceptedSchema,
+  "Export every matching record and the chosen columns from a consistent snapshot of the captured filters and sort order. Complete-table exports remain available separately.",
   { minimumRole: "viewer", job: true, successStatus: 202 },
 );
 operation(
@@ -1275,6 +1425,7 @@ operation(
     tableId: IdSchema.optional(),
     state: JobSchema.shape.state.optional(),
     kind: z.string().optional(),
+    order: z.enum(["asc", "desc"]).optional(),
   }),
   list(JobSchema),
   "List only currently authorised jobs and their truthful progress.",
@@ -1353,6 +1504,140 @@ operation(
   { personal: true, resource: "table", minimumRole: "viewer" },
 );
 operation(
+  "updateForeignKeyDisplayField",
+  "update_foreign_key_display_field",
+  "PUT",
+  "/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
+  ["rows:read"],
+  z.strictObject({
+    tableId: IdSchema,
+    foreignKeyId: IdSchema,
+    displayFieldId: IdSchema.nullable(),
+  }),
+  ViewPreferencesResultSchema,
+  "Choose your display field for a foreign-key picker without changing its stored keys or other view preferences.",
+  { personal: true, resource: "table", minimumRole: "viewer" },
+);
+operation(
+  "listSavedViews",
+  "list_saved_views",
+  "GET",
+  `${T}/views`,
+  ["rows:read"],
+  z.strictObject(table),
+  z.strictObject({ data: z.array(SavedViewSummarySchema).max(200) }),
+  "List your personal views and accessible shared views. Sharing a view never grants access to its table.",
+  { personal: true, minimumRole: "viewer" },
+);
+operation(
+  "getSavedView",
+  "get_saved_view",
+  "GET",
+  `${T}/views/{viewId}`,
+  ["rows:read"],
+  z.strictObject({ ...table, viewId: IdSchema }),
+  SavedViewSchema,
+  "Read an accessible saved view and its current schema validation. Invalid predicates are retained and must be corrected before executing the view.",
+  { personal: true, minimumRole: "viewer" },
+);
+operation(
+  "createSavedView",
+  "create_saved_view",
+  "POST",
+  `${T}/views`,
+  ["rows:read"],
+  z.strictObject({
+    ...table,
+    ...expected,
+    name: AccountNameSchema,
+    visibility: SavedViewVisibilitySchema,
+    definition: SavedViewDefinitionSchema,
+  }),
+  SavedViewSchema,
+  "Save your filters, sorting and column layout as a personal view. Shared views additionally require current row write authority. Each scope supports up to 100 views.",
+  { personal: true, minimumRole: "viewer", successStatus: 201 },
+);
+operation(
+  "updateSavedView",
+  "update_saved_view",
+  "PATCH",
+  `${T}/views/{viewId}`,
+  ["rows:read"],
+  z
+    .strictObject({
+      ...table,
+      ...expected,
+      viewId: IdSchema,
+      expectedVersion: VersionSchema,
+      name: AccountNameSchema.optional(),
+      visibility: SavedViewVisibilitySchema.optional(),
+      definition: SavedViewDefinitionSchema.optional(),
+    })
+    .refine(
+      (value) =>
+        value.name !== undefined ||
+        value.visibility !== undefined ||
+        value.definition !== undefined,
+      "Change a name, visibility or definition",
+    ),
+  SavedViewSchema,
+  "Update your personal view, or an owned/shared view with current write authority. Administrators can manage shared views; only its owner can make one personal. Versions reject concurrent edits.",
+  {
+    personal: true,
+    minimumRole: "viewer",
+    example: {
+      orgId: "01K6J7B8000000000000000000",
+      databaseId: "01K6J7B8000000000000000001",
+      tableId: "01K6J7B8000000000000000002",
+      viewId: "01K6J7B8000000000000000003",
+      expectedSchemaVersion: 1,
+      expectedVersion: "1",
+      name: "Needs review",
+    },
+  },
+);
+operation(
+  "deleteSavedView",
+  "delete_saved_view",
+  "DELETE",
+  `${T}/views/{viewId}`,
+  ["rows:read"],
+  z.strictObject({
+    ...table,
+    viewId: IdSchema,
+    expectedVersion: VersionSchema,
+  }),
+  z.strictObject({
+    id: IdSchema,
+    deleted: z.literal(true),
+    version: VersionSchema,
+  }),
+  "Delete an owned personal view or a shared view you can manage. Deleting a view never changes its records.",
+  { personal: true, minimumRole: "viewer" },
+);
+operation(
+  "getDatabaseBackupPolicy",
+  "get_database_backup_policy",
+  "GET",
+  `${D}/backup-policy`,
+  ["backups:read"],
+  z.strictObject(database),
+  BackupPolicyResultSchema,
+  "Read backup retention, current failure/overdue alerts and the latest successful snapshot.",
+  { minimumRole: "admin" },
+);
+operation(
+  "saveDatabaseBackupPolicy",
+  "save_database_backup_policy",
+  "PUT",
+  `${D}/backup-policy`,
+  ["backups:manage"],
+  BackupPolicyInputSchema.extend(database),
+  BackupPolicyResultSchema,
+  "Save the successful-backup retention count and overdue grace. The newest successful backup and packages needed by current restore requests remain protected.",
+  { minimumRole: "admin" },
+);
+operation(
   "getBackupSchedule",
   "get_backup_schedule",
   "GET",
@@ -1427,6 +1712,34 @@ operation(
   BackupDestinationSchema.extend(database),
   JobAcceptedSchema,
   "Ask a backup-enabled worker to write, read, verify and remove a probe at the destination.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+
+operation(
+  "previewDatabaseRestore",
+  "preview_database_restore",
+  "POST",
+  `${O}/backups/{backupId}/restore-preview`,
+  ["backups:manage", "databases:manage"],
+  z.strictObject({ ...org, backupId: IdSchema }),
+  JobAcceptedSchema,
+  "Verify a managed backup and preview its contents before restoring into a new database.",
+  { minimumRole: "admin", job: true, successStatus: 202 },
+);
+operation(
+  "restoreDatabaseBackup",
+  "restore_database_backup",
+  "POST",
+  `${O}/backups/{backupId}/restore`,
+  ["backups:manage", "databases:manage"],
+  z.strictObject({
+    ...org,
+    backupId: IdSchema,
+    previewId: IdSchema,
+    name: z.string().trim().min(1).max(255),
+  }),
+  JobAcceptedSchema,
+  "Restore an unexpired verified backup into a new database. The source and existing databases are preserved; no backup schedule is enabled.",
   { minimumRole: "admin", job: true, successStatus: 202 },
 );
 

@@ -21,6 +21,7 @@ export type SettingsSection =
   | "database"
   | "backup-schedule"
   | "backup-history"
+  | "restore-requests"
   | "database-exports"
   | "database-danger-zone"
   | "table-danger-zone"
@@ -28,6 +29,7 @@ export type SettingsSection =
   | "fields"
   | "rules"
   | "foreign-keys"
+  | "imports"
   | "exports";
 
 export interface SettingsPanelProps {
@@ -156,6 +158,7 @@ export interface Job {
   id: string;
   type?: string;
   kind?: string;
+  exportScope?: "view" | "table" | "database";
   format?: "csv" | "jsonl";
   state: string;
   stage?: string;
@@ -212,20 +215,23 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   mcp: "MCP Guide",
   database: "General",
   "backup-schedule": "Backup Schedule",
-  "backup-history": "Backup History",
+  "backup-history": "Backup Attempts",
+  "restore-requests": "Restore Attempts",
   "database-exports": "Export Requests",
-  "database-danger-zone": "Danger Zone",
+  "database-danger-zone": "Delete Database",
   table: "General",
-  "table-danger-zone": "Danger Zone",
+  "table-danger-zone": "Delete Table",
   fields: "Fields",
   rules: "Unique rules",
   "foreign-keys": "Foreign keys",
   exports: "Export Requests",
+  imports: "Import Requests",
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "backup-schedule",
   "backup-history",
+  "restore-requests",
   "team-api-keys",
   "organisation",
   "members",
@@ -240,7 +246,14 @@ export function canOpenSettings(
   if (!["admin", "member", "viewer"].includes(role ?? "")) return false;
   if (ADMIN_SETTINGS.includes(section)) return role === "admin";
   if (
-    ["database", "table", "fields", "rules", "foreign-keys"].includes(section)
+    [
+      "database",
+      "table",
+      "fields",
+      "rules",
+      "foreign-keys",
+      "imports",
+    ].includes(section)
   )
     return role !== "viewer";
   return true;
@@ -251,6 +264,7 @@ export function resolveSettingsSection(
 ): SettingsSection | null {
   const aliases: Record<string, SettingsSection> = {
     "export-requests": "exports",
+    "import-requests": "imports",
     security: "passkeys",
     "2fa": "passkeys",
     keys: "api-keys",

@@ -1,0 +1,72 @@
+.json-code-editor {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-secondary);
+  color: var(--foreground);
+}
+.json-code-editor:has(.cm-focused) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.json-code-editor[data-invalid] {
+  outline: 2px solid var(--danger);
+}
+.json-code-editor[data-disabled] {
+  opacity: 0.5;
+}
+.json-code-editor .cm-editor {
+  min-height: 192px;
+}
+.json-code-editor .cm-editor.cm-focused {
+  outline: none;
+}
+.json-code-editor .cm-scroller {
+  min-height: 192px;
+  max-height: min(320px, 45vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-family: var(--font-mono), monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.json-code-editor .cm-content {
+  padding: 12px 0;
+  caret-color: var(--foreground);
+}
+.json-code-editor .cm-line {
+  padding: 0 12px;
+}
+.json-code-editor .cm-gutters {
+  padding-left: 8px;
+  border: none;
+  background: var(--surface-secondary);
+  color: var(--muted);
+}
+.json-code-editor .cm-activeLine {
+  background: var(--surface-tertiary);
+}
+.json-code-editor .cm-selectionBackground,
+.json-code-editor .cm-focused .cm-selectionBackground {
+  background: var(--accent-soft);
+}
+.json-code-editor .cm-cursor {
+  border-left-color: var(--foreground);
+}
+.json-code-editor .cm-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+.json-code-editor--inline {
+  border-radius: 0;
+  background: var(--background);
+}
+.json-code-editor--inline .cm-gutters {
+  background: var(--background);
+}
+@media (max-width: 640px), (pointer: coarse) {
+  .json-code-editor .cm-scroller {
+    font-size: 16px;
+  }
+}

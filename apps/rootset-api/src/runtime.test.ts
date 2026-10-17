@@ -1080,8 +1080,27 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             await client.close();
           }
         }
+        const exportSchema = await call(
+          "getTableSchema",
+          ids,
+          "rest",
+          undefined,
+          newId(),
+          readTeam!.secret,
+        );
         for (const [operation, exportTarget] of [
           ["exportRows", ids],
+          [
+            "exportView",
+            {
+              ...ids,
+              expectedSchemaVersion: exportSchema.table.schemaVersion,
+              query: {
+                select: ["NAME"],
+                where: { field: "NAME", op: "isNotNull" },
+              },
+            },
+          ],
           ["exportDatabase", { orgId, databaseId }],
         ] as const) {
           const exported = await call(
@@ -1541,6 +1560,46 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         unknown
       >;
     };
+    await t.test(
+      "activity REST, browser and MCP share summaries, current scope ceilings and principal-bound cursors",
+      async () => {
+        const input = { ...ids, category: "records", limit: 25 };
+        const rest = await call("listActivity", input, "rest");
+        const browser = await call("listActivity", input, "browser");
+        const mcp = await mcpOperation("listActivity", input);
+        assert.ok(rest.data.length > 0);
+        assert.deepEqual(browser.data, rest.data);
+        assert.deepEqual(mcp.data, rest.data);
+        assert.ok(
+          !/Example Air|scopes|credentialId|input_digest/.test(
+            JSON.stringify(rest),
+          ),
+        );
+        await call(
+          "listActivity",
+          { orgId, category: "backups" },
+          "rest",
+          403,
+          newId(),
+          readKey.secret,
+        );
+        const first = await call("listActivity", { orgId, limit: 1 }, "rest");
+        assert.ok(first.nextCursor);
+        const mismatch = await call(
+          "listActivity",
+          { orgId, limit: 1, cursor: first.nextCursor },
+          "browser",
+          409,
+        );
+        assert.equal(mismatch.error.code, "CURSOR_INVALID");
+        await call(
+          "listActivity",
+          { orgId, from: "2026-02-30T00:00:00.000Z" },
+          "rest",
+          422,
+        );
+      },
+    );
     await t.test(
       "issued MCP OAuth uses the database backup contracts and current Admin authority",
       async () => {

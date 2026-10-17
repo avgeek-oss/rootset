@@ -15,11 +15,12 @@ import {
   type NumberLexeme,
   type JsonValue,
   type Row,
+  type BulkRowsInput,
 } from "@rootset/contracts";
 import { assertAccess } from "@rootset/access";
 import { withOrg, type Pool, type PoolClient } from "@rootset/database";
 import type { IdentityService } from "@rootset/identity";
-import { lookupMutation, mutationSet } from "@rootset/idempotency";
+import { lookupMutation, mutationSet, runMutation } from "@rootset/idempotency";
 import type {
   TableStorage,
   DatabaseRecord,
@@ -37,6 +38,7 @@ import { MetadataPaging } from "./paging.js";
 import { readUsage } from "./usage.js";
 import { mapSchemaJournal } from "./schema-journal.js";
 import { rowComments } from "./row-comments.js";
+import { ActivityReader } from "./activity.js";
 
 export interface OperationContext {
   requestId?: string;
@@ -115,7 +117,7 @@ const databasePublic = (d: DatabaseRecord) => ({
   createdAt: d.createdAt,
   updatedAt: d.updatedAt,
 });
-const tablePublic = (t: TableRecord) => ({
+const tablePublic = (t: Omit<TableRecord, "fields">) => ({
   id: t.id,
   orgId: t.orgId,
   databaseId: t.databaseId,
@@ -213,9 +215,22 @@ const asynchronous = new Set([
   "deleteField",
   "countRows",
 ]);
-const queuedFamilies = new Set(["exportRows", "exportDatabase"]);
-const jobOperations = new Set([
+const queuedFamilies = new Set([
+  "previewDatabaseRestore",
+  "restoreDatabaseBackup",
   "exportRows",
+  "exportView",
+  "exportDatabase",
+  "previewImportRows",
+  "importRows",
+]);
+const jobOperations = new Set([
+  "previewDatabaseRestore",
+  "restoreDatabaseBackup",
+  "previewImportRows",
+  "importRows",
+  "exportRows",
+  "exportView",
   "exportDatabase",
   "getArtifact",
   "listJobs",
@@ -226,26 +241,36 @@ const jobOperations = new Set([
 
 export class RootsetCore {
   readonly paging: MetadataPaging;
+  readonly activity: ActivityReader;
   constructor(readonly options: CoreOptions) {
     this.paging =
       options.paging ?? new MetadataPaging(options.config.cursorSecret);
+    this.activity = new ActivityReader({
+      pool: options.pool,
+      secret: options.config.cursorSecret,
+      refreshActor: (actor, client) =>
+        options.identity.refreshActor(actor, client),
+    });
   }
   async authorise(
     incoming: Actor,
     operationId: string,
     input: Record<string, unknown>,
+    client?: PoolClient,
   ): Promise<Actor> {
-    const actor = await this.options.identity.refreshActor(incoming),
+    const actor = await this.options.identity.refreshActor(incoming, client),
       op = getOperation(operationId);
     const orgId = typeof input.orgId === "string" ? input.orgId : actor.orgId;
     let databaseId =
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
       typeof input.tableId === "string" ? input.tableId : undefined;
-    const destructiveReplay =
-      operationId === "deleteDatabase" || operationId === "deleteTable";
+    const archivedResource =
+      operationId === "deleteDatabase" ||
+      operationId === "deleteTable" ||
+      operationId === "listActivity";
     if (tableId) {
-      const table = await (destructiveReplay
+      const table = await (archivedResource
         ? this.options.storage.getArchivedTable(actor, tableId)
         : this.options.storage.getTable(actor, tableId));
       if (databaseId && table.databaseId !== databaseId)
@@ -257,7 +282,7 @@ export class RootsetCore {
       databaseId = table.databaseId;
     }
     if (databaseId) {
-      await (destructiveReplay
+      await (archivedResource
         ? this.options.storage.getArchivedDatabase(actor, databaseId)
         : this.options.storage.getDatabase(actor, databaseId));
     }
@@ -362,16 +387,35 @@ export class RootsetCore {
         typeof input.tableId === "string"
           ? await this.options.storage.getTable(actor, input.tableId)
           : undefined;
+      if (
+        table &&
+        ["previewBulkRows", "bulkRows"].includes(operationId) &&
+        record(input.action).type === "set"
+      )
+        assertValueLexemes(table.fields, lexemes, ["action", "values"]);
       if (table && ["createRow", "updateRow"].includes(operationId))
         assertValueLexemes(table.fields, lexemes);
       if (
         table &&
-        ["queryRows", "countRows", "exportRows"].includes(operationId)
+        ["queryRows", "countRows", "exportRows", "exportView"].includes(
+          operationId,
+        )
       )
         assertQueryLexemes(
           table.fields,
           QuerySpecSchema.parse(input.query ?? {}),
           lexemes,
+        );
+      if (
+        table &&
+        ["createSavedView", "updateSavedView"].includes(operationId) &&
+        input.definition
+      )
+        assertQueryLexemes(
+          table.fields,
+          QuerySpecSchema.parse(record(input.definition).query ?? {}),
+          lexemes,
+          ["definition", "query"],
         );
       if (table && operationId === "createUniqueRule" && input.where)
         assertQueryLexemes(
@@ -597,20 +641,26 @@ export class RootsetCore {
         client: ctx.client,
       });
     switch (id) {
-      case "listDatabases":
+      case "listDatabases": {
+        const request = {
+          resource: "databases",
+          limit: typeof input.limit === "number" ? input.limit : undefined,
+          cursor: typeof input.cursor === "string" ? input.cursor : undefined,
+        };
         return this.paging.paginate(
-          (await s.listDatabases(a)).map((database) => ({
-            ...databasePublic(database),
-            tableCount: database.tableCount,
-            storageBytes: database.storageBytes,
-          })),
+          (await s.listDatabases(a, this.paging.read(a, request))).map(
+            (database) => ({
+              ...databasePublic(database),
+              tableCount: database.tableCount,
+              rowCount: database.rowCount,
+              storageBytes: database.storageBytes,
+              lastDataChangeAt: database.lastDataChangeAt,
+            }),
+          ),
           a,
-          {
-            resource: "databases",
-            limit: typeof input.limit === "number" ? input.limit : undefined,
-            cursor: typeof input.cursor === "string" ? input.cursor : undefined,
-          },
+          request,
         );
+      }
       case "createDatabase":
         return databasePublic(
           await s.createDatabase(a, {
@@ -638,19 +688,25 @@ export class RootsetCore {
         );
       case "deleteDatabase":
         return s.deleteDatabase(a, databaseId, mutationOptions(input, ctx));
-      case "listTables":
+      case "listTables": {
+        const request = {
+          resource: `database:${databaseId}:tables`,
+          limit: typeof input.limit === "number" ? input.limit : undefined,
+          cursor: typeof input.cursor === "string" ? input.cursor : undefined,
+        };
         return this.paging.paginate(
-          (await s.listTables(a, databaseId)).map((table) => ({
-            ...tablePublic(table),
-            storageBytes: table.storageBytes,
-          })),
+          (await s.listTables(a, databaseId, this.paging.read(a, request))).map(
+            (table) => ({
+              ...tablePublic(table),
+              fieldCount: table.fieldCount,
+              storageBytes: table.storageBytes,
+              lastDataChangeAt: table.lastDataChangeAt,
+            }),
+          ),
           a,
-          {
-            resource: `database:${databaseId}:tables`,
-            limit: typeof input.limit === "number" ? input.limit : undefined,
-            cursor: typeof input.cursor === "string" ? input.cursor : undefined,
-          },
+          request,
         );
+      }
       case "createTable": {
         const table = await s.createTable(a, databaseId, {
           name: str(input.name),
@@ -812,6 +868,43 @@ export class RootsetCore {
       }
       case "listUniqueRules":
         return { data: (await s.listUniqueRules(a, tableId)).map(rulePublic) };
+      case "getRowRelationships": {
+        const rowId = str(input.rowId);
+        const request = {
+          resource: `row-relationships:${tableId}:${rowId}`,
+          limit: typeof input.limit === "number" ? input.limit : 20,
+          cursor: typeof input.cursor === "string" ? input.cursor : null,
+          filter: {
+            expectedVersion:
+              typeof input.expectedVersion === "string"
+                ? input.expectedVersion
+                : null,
+          },
+        };
+        const position = this.paging.read(a, request);
+        const result = await s.rowRelationships(
+          a,
+          tableId,
+          rowId,
+          {
+            afterId: position.afterId,
+            limit: position.limit + 1,
+            ...(typeof input.expectedVersion === "string"
+              ? { expectedVersion: input.expectedVersion }
+              : {}),
+          },
+          readSignal(ctx),
+        );
+        return { ...result, ...this.paging.paginate(result.data, a, request) };
+      }
+      case "getRelatedRowFilter":
+        return s.relatedRowFilter(
+          a,
+          tableId,
+          str(input.ruleId),
+          str(input.referencedRowId),
+          readSignal(ctx),
+        );
       case "listForeignKeys":
         return { data: await s.listForeignKeys(a, tableId) };
       case "createForeignKey":
@@ -916,6 +1009,40 @@ export class RootsetCore {
           expectedVersion: str(input.expectedVersion),
         });
         return { deleted: true, mutationId: r.mutationId };
+      }
+      case "previewBulkRows":
+      case "bulkRows": {
+        const bulk: BulkRowsInput = {
+          expectedSchemaVersion: num(input.expectedSchemaVersion),
+          rows: input.rows as BulkRowsInput["rows"],
+          action: input.action as BulkRowsInput["action"],
+        };
+        const context = {
+          ...mutationOptions(input, ctx).context,
+          beforePublish: async (client?: PoolClient) => {
+            assertReadOpen(ctx);
+            await ctx.beforePublish?.();
+            const current = await this.options.identity.refreshActor(a, client);
+            assertAccess(current, { scope: "rows:write", orgId: a.orgId });
+            assertReadOpen(ctx);
+          },
+        };
+        if (id === "previewBulkRows")
+          return s.previewBulkRows(a, tableId, bulk, {
+            context,
+            signal: readSignal(ctx),
+          });
+        return withOrg(this.options.pool, a.orgId, (c) =>
+          runMutation(
+            c,
+            a,
+            id,
+            input,
+            ctx.idempotencyKey!,
+            this.options.config.keyHashSecret,
+            () => s.bulkRows(a, tableId, bulk, { context }, c),
+          ),
+        );
       }
       case "mutateRows": {
         const ops = mutations(input.mutations);
@@ -1047,6 +1174,16 @@ export class RootsetCore {
           hasMore: r.hasMore,
         };
       }
+      case "listActivity":
+        return this.activity.list(a, input, {
+          signal: readSignal(ctx),
+          responseBudget: ctx.responseBudget,
+        });
+      case "listActivityFilterOptions":
+        return this.activity.filters(a, input, {
+          signal: readSignal(ctx),
+          responseBudget: ctx.responseBudget,
+        });
       case "queryHistory": {
         const r = await s.queryHistory(a, tableId, {
           ...input,

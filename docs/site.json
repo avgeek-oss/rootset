@@ -38,10 +38,13 @@
               "tables",
               "fields",
               "rows",
+              "bulk-rows",
               "filters",
+              "saved-views",
               "cell-history",
               "unique-rules",
               "foreign-keys",
+              "import-requests",
               "export-requests",
               "backups"
             ]
@@ -97,10 +100,15 @@
               "api-reference/rotateTeamKey",
               "api-reference/revokeTeamKey",
               "api-reference/getSecurityStatus",
+              "api-reference/listActivity",
+              "api-reference/listActivityFilterOptions",
               "api-reference/getMutation",
               "api-reference/getUsage",
               "api-reference/getViewPreferences",
-              "api-reference/updateViewPreferences"
+              "api-reference/updateViewPreferences",
+              "api-reference/updateForeignKeyDisplayField",
+              "api-reference/previewDatabaseRestore",
+              "api-reference/restoreDatabaseBackup"
             ]
           },
           {
@@ -111,6 +119,8 @@
               "api-reference/getDatabase",
               "api-reference/updateDatabase",
               "api-reference/deleteDatabase",
+              "api-reference/getDatabaseBackupPolicy",
+              "api-reference/saveDatabaseBackupPolicy",
               "api-reference/getBackupSchedule",
               "api-reference/saveBackupSchedule",
               "api-reference/deleteBackupSchedule",
@@ -140,14 +150,24 @@
               "api-reference/listUniqueRules",
               "api-reference/createUniqueRule",
               "api-reference/deleteUniqueRule",
+              "api-reference/getRelatedRowFilter",
               "api-reference/listForeignKeys",
               "api-reference/createForeignKey",
-              "api-reference/deleteForeignKey"
+              "api-reference/deleteForeignKey",
+              "api-reference/previewImportRows",
+              "api-reference/importRows",
+              "api-reference/exportView",
+              "api-reference/listSavedViews",
+              "api-reference/createSavedView",
+              "api-reference/getSavedView",
+              "api-reference/updateSavedView",
+              "api-reference/deleteSavedView"
             ]
           },
           {
             "group": "Data",
             "pages": [
+              "api-reference/getRowRelationships",
               "api-reference/listRows",
               "api-reference/createRow",
               "api-reference/queryRows",
@@ -158,6 +178,8 @@
               "api-reference/createRowComment",
               "api-reference/countRowComments",
               "api-reference/deleteRowComment",
+              "api-reference/previewBulkRows",
+              "api-reference/bulkRows",
               "api-reference/mutateRows",
               "api-reference/getTableStatistics",
               "api-reference/countRows",

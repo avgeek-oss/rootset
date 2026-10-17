@@ -6,14 +6,17 @@ import {
   Clock01Icon,
   TransactionHistoryIcon,
   DatabaseIcon,
+  DatabaseRestoreIcon,
   DatabaseSettingIcon,
   Delete02Icon,
   ColumnsThreeCogIcon,
   TablePropertiesIcon,
   FingerPrintIcon,
   Download01Icon,
+  Upload01Icon,
   Key01Icon,
   Link01Icon,
+  RowsThreeIcon,
   Mail01Icon,
   ComputerIcon,
   SecurityCheckIcon,
@@ -45,21 +48,20 @@ export const settingsGroups = {
   ],
   database: [
     { title: "Data", sections: ["database-exports"] },
-    { title: "Backup", sections: ["backup-schedule", "backup-history"] },
-    { title: "Settings", sections: ["database", "database-danger-zone"] },
+    {
+      title: "Backup & Restore",
+      sections: ["backup-schedule", "backup-history", "restore-requests"],
+    },
+    { title: "Settings", sections: ["database"] },
+    { title: "Danger Zone", sections: ["database-danger-zone"] },
   ],
   table: [
     {
       title: "Settings",
-      sections: [
-        "table",
-        "fields",
-        "rules",
-        "foreign-keys",
-        "table-danger-zone",
-      ],
+      sections: ["table", "fields", "rules", "foreign-keys"],
     },
-    { title: "Data", sections: ["exports"] },
+    { title: "Data", sections: ["imports", "exports"] },
+    { title: "Danger Zone", sections: ["table-danger-zone"] },
   ],
 } satisfies Record<
   SettingsScope,
@@ -104,7 +106,13 @@ export function settingsHref(
         ? "danger-zone"
         : section === "exports" || section === "database-exports"
           ? "export-requests"
-          : section;
+          : section === "imports"
+            ? "import-requests"
+            : section === "backup-history"
+              ? "backup-attempts"
+              : section === "restore-requests"
+                ? "restore-attempts"
+                : section;
   return `${base}/settings/${page}`;
 }
 
@@ -178,7 +186,13 @@ export function resourceRoute(path: string) {
           ? tableId
             ? "exports"
             : "database-exports"
-          : page;
+          : page === "import-requests"
+            ? "imports"
+            : page === "backup-attempts"
+              ? "backup-history"
+              : page === "restore-attempts"
+                ? "restore-requests"
+                : page;
   return { databaseId, tableId, section };
 }
 
@@ -197,6 +211,7 @@ export const settingsIcons = {
   database: DatabaseSettingIcon,
   "backup-schedule": Clock01Icon,
   "backup-history": TransactionHistoryIcon,
+  "restore-requests": DatabaseRestoreIcon,
   "database-exports": Download01Icon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
@@ -205,6 +220,7 @@ export const settingsIcons = {
   rules: SecurityCheckIcon,
   "foreign-keys": Link01Icon,
   exports: Download01Icon,
+  imports: Upload01Icon,
 };
 
 export function SettingsNavigation({
@@ -220,6 +236,7 @@ export function SettingsNavigation({
 }) {
   return (
     <SettingsSections
+      key={`${settingsScope(section)}:${role}`}
       section={section}
       scope={settingsScope(section)}
       role={role}
@@ -310,7 +327,14 @@ export function PageNavigation({
       ? "table"
       : "database";
   if (section && (scope === "account" || scope === "team"))
-    return <SettingsSections scope={scope} section={section} role={role} />;
+    return (
+      <SettingsSections
+        key={`${scope}:${role}`}
+        scope={scope}
+        section={section}
+        role={role}
+      />
+    );
   if (!databaseId) return null;
   const tableScope = scope === "table";
   const title = tableScope
@@ -332,7 +356,12 @@ export function PageNavigation({
             id: tableScope ? "rows" : "tables",
             label: tableScope ? "Rows" : "Tables",
             href: dataHref(databaseId, tableScope ? tableId : null),
-            icon: <HugeiconsIcon icon={TableIcon} />,
+            icon: (
+              <HugeiconsIcon
+                icon={tableScope ? RowsThreeIcon : TableIcon}
+                aria-hidden
+              />
+            ),
             badge: (tableScope
               ? table?.rowCount
               : database?.tableCount
@@ -341,6 +370,7 @@ export function PageNavigation({
         ]}
       />
       <SettingsSections
+        key={`${scope}:${role}`}
         scope={scope}
         section={section}
         role={role}

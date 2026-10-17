@@ -40,6 +40,7 @@ import {
   writeBackupPackage,
   type BackupManifest,
 } from "./format.js";
+import { BackupLifecycle } from "./lifecycle.js";
 import { databaseSnapshot } from "./snapshot.js";
 import { nextBackupRuns, latestBackupRun } from "./schedule.js";
 
@@ -98,6 +99,8 @@ const scheduleView = (row: ScheduleRow): BackupSchedule => ({
 });
 export const backupJobKinds = ["database_backup", "backup_destination_test"];
 export const backupOperations = new Set([
+  "getDatabaseBackupPolicy",
+  "saveDatabaseBackupPolicy",
   "getBackupSchedule",
   "saveBackupSchedule",
   "deleteBackupSchedule",
@@ -120,6 +123,7 @@ export function backupBackendId(config: BackupConfig): string {
 }
 export class DatabaseBackups {
   readonly backendId: string | null;
+  readonly lifecycle: BackupLifecycle;
   private readonly objects: S3Client | undefined;
   private lastCleanup = 0;
   constructor(
@@ -139,6 +143,12 @@ export class DatabaseBackups {
           },
         })
       : undefined;
+    this.lifecycle = new BackupLifecycle(
+      options,
+      queue,
+      this.objects,
+      this.backendId,
+    );
   }
   private get config() {
     return this.options.config.backups;
@@ -314,6 +324,11 @@ export class DatabaseBackups {
         "Database was not found",
         404,
       );
+    if (
+      operationId === "getDatabaseBackupPolicy" ||
+      operationId === "saveDatabaseBackupPolicy"
+    )
+      return this.lifecycle.execute(operationId, actor, input, client, context);
     if (operationId === "getBackupSchedule")
       return this.result(client, databaseId);
     if (operationId === "previewBackupSchedule")
@@ -517,6 +532,9 @@ export class DatabaseBackups {
       rows.map((row) =>
         DatabaseBackupSchema.parse({
           id: row.id,
+          storageState: row.storage_state,
+          prunedAt: iso(row.pruned_at),
+          retentionError: row.prune_error,
           jobId: row.job_id,
           kind: row.kind,
           trigger: row.trigger,
@@ -868,6 +886,7 @@ export class DatabaseBackups {
           run.database_id,
           job.org_id,
         );
+        await this.lifecycle.ensurePolicy(client, run.database_id, job.org_id);
         const next = nextBackupRuns(value, new Date(), 1)[0]!;
         await client.query(
           `INSERT INTO rootset_control.backup_schedules(database_id,org_id,version,bucket,prefix,cron,timezone,backend_id,next_run_at,tested_at)
@@ -1089,7 +1108,7 @@ export class DatabaseBackups {
     this.lastCleanup = now;
     const root = this.config.tempDirectory ?? tmpdir();
     for (const name of await readdir(root)) {
-      if (!/^rootset-backup-[A-Za-z0-9]{6}$/.test(name)) continue;
+      if (!/^rootset-(?:backup|restore)-[A-Za-z0-9]{6}$/.test(name)) continue;
       const path = join(root, name);
       const stat = await lstat(path);
       if (

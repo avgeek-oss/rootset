@@ -29,8 +29,10 @@ import {
   TableDangerZone,
 } from "./schema";
 import { ExportsSettings } from "./jobs";
+import { ImportsSettings } from "./imports";
 import { BackupScheduleSettings } from "./backups";
 import { BackupHistorySettings } from "./backup-history";
+import { RestoreRequestsSettings } from "./restore-requests";
 import { ForeignKeysSettings } from "./foreign-keys";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
@@ -81,6 +83,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     database: DatabaseSettings,
     "backup-schedule": BackupScheduleSettings,
     "backup-history": BackupHistorySettings,
+    "restore-requests": RestoreRequestsSettings,
     "database-exports": ExportsSettings,
     "database-danger-zone": DatabaseDangerZone,
     table: TableSettings,
@@ -89,6 +92,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     rules: UniqueRulesSettings,
     "foreign-keys": ForeignKeysSettings,
     exports: ExportsSettings,
+    imports: ImportsSettings,
   };
   const Component = components[activeSection];
   const tableSections = [
@@ -98,12 +102,14 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "rules",
     "foreign-keys",
     "exports",
+    "imports",
   ];
   const databaseSections = [
     "database",
     "database-danger-zone",
     "backup-schedule",
     "backup-history",
+    "restore-requests",
     "database-exports",
   ];
   const content =
@@ -113,7 +119,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         activeSection,
         props.role ?? context.data?.principal.role,
       ) ? (
-      <Empty>Admin access is required to manage these settings.</Empty>
+      <Empty>Your role does not allow access to this page.</Empty>
     ) : (
       <Component
         key={`${activeSection}:${props.orgId}:${databaseSections.includes(activeSection) || tableSections.includes(activeSection) ? props.databaseId : ""}:${tableSections.includes(activeSection) ? props.tableId : ""}`}

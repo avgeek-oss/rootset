@@ -14,6 +14,8 @@ import {
   type QuerySpec,
   type UniqueRuleCondition,
   type ForeignKey,
+  type RowRelationship,
+  type RelatedRowFilter,
   validateUniqueRuleCondition,
   type Row,
   type QueryResult,
@@ -31,6 +33,15 @@ import {
   assertRowBytes,
   assertFieldNames,
   assertAllowedValuesBudget,
+  importLimits,
+  bulkRowsLimits,
+  BulkRowsInputSchema,
+  type BulkRowsInput,
+  type BulkRowsPreview,
+  type BulkRowsIssue,
+  type BulkRowsResult,
+  type ImportRow,
+  type ImportIssue,
 } from "@rootset/contracts";
 import {
   compileQuery,
@@ -54,6 +65,10 @@ function renamedValues(
 }
 
 export type FieldInput = Omit<FieldDefinition, "id">;
+interface ResourcePage {
+  afterId: string | null;
+  limit: number;
+}
 type FieldChanges = Partial<FieldInput> & { clearDefault?: boolean };
 export interface DatabaseRecord {
   id: string;
@@ -86,7 +101,7 @@ export interface MutationContext {
   source?: "rest" | "mcp" | "ui" | "import" | "schema" | "operator";
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
-  beforePublish?: () => Promise<unknown>;
+  beforePublish?: (client?: PoolClient) => Promise<unknown>;
   repair?: { reason: string; jobId: string };
 }
 export interface MutationOptions {
@@ -95,6 +110,7 @@ export interface MutationOptions {
   context?: MutationContext;
   onCommit?: (client: PoolClient, outcome: MutationResult) => Promise<void>;
   responseBudget?: number;
+  returnRows?: false;
 }
 export type RowOperation =
   | { kind: "create"; values: Record<string, JsonValue> }
@@ -110,6 +126,7 @@ export interface MutationResult {
   schemaVersion: number;
   rows: Row[];
   deletedIds: string[];
+  createdIds?: string[];
 }
 export interface SchemaOptions {
   expectedSchemaVersion: number;
@@ -427,6 +444,13 @@ function tablePath(table: TableRecord): string {
   return `${q(table.schemaName)}.${q(table.physicalName)}`;
 }
 
+import {
+  restoreDatabaseSnapshot,
+  type RestoreDatabaseInput,
+  type RestoreDatabaseResult,
+} from "./restore-database.js";
+import type { RestoreSource } from "./restore.js";
+
 export class TableStorage {
   readonly pool: Pool;
   readonly ddlPool: Pool;
@@ -525,7 +549,7 @@ export class TableStorage {
     ctx: MutationContext | undefined,
     lock = true,
   ): Promise<void> {
-    await ctx?.beforePublish?.();
+    await ctx?.beforePublish?.(c);
     const fence = ctx?.jobFence;
     if (!fence) return;
     if (ctx.jobId && ctx.jobId !== fence.jobId)
@@ -587,6 +611,12 @@ export class TableStorage {
       [t.id, "active"],
     );
     return {
+      ...this.tableRecord(t),
+      fields: fs.rows.map((x) => x.definition),
+    };
+  }
+  private tableRecord(t: Raw): Omit<TableRecord, "fields"> {
+    return {
       id: String(t.id),
       orgId: String(t.org_id),
       databaseId: String(t.database_id),
@@ -600,7 +630,6 @@ export class TableStorage {
       state: String(t.state),
       createdAt: iso(t.created_at),
       updatedAt: iso(t.updated_at),
-      fields: fs.rows.map((x) => x.definition),
     };
   }
   private async barrier(c: PoolClient, databaseId: string): Promise<void> {
@@ -850,27 +879,41 @@ export class TableStorage {
   }
   async listDatabases(
     a: Actor,
+    page?: ResourcePage,
   ): Promise<
-    (DatabaseRecord & { tableCount: number; storageBytes: number })[]
+    (DatabaseRecord & {
+      tableCount: number;
+      rowCount: number;
+      storageBytes: number;
+      lastDataChangeAt: string | null;
+    })[]
   > {
     return this.run(a, async (c) => {
       const r = await c.query<Raw>(
-        `SELECT d.*,
-          (SELECT count(*) FROM rootset_control.tables t
-           WHERE t.database_id=d.id AND t.org_id=d.org_id
-             AND t.state IN ('active','maintenance')) AS table_count,
-          (SELECT COALESCE(sum(pg_total_relation_size(to_regclass(format('%I.%I', d.schema_name, t.physical_name)))), 0)
-           FROM rootset_control.tables t
-           WHERE t.database_id=d.id AND t.org_id=d.org_id
-             AND t.state IN ('active','maintenance')) AS storage_bytes
-         FROM rootset_control.databases d
-         WHERE d.org_id=$1 AND d.state='active' ORDER BY d.created_at,d.id`,
-        [a.orgId],
+        `SELECT d.*,summary.*
+         FROM (
+           SELECT * FROM rootset_control.databases
+           WHERE org_id=$1 AND state='active' AND ($2::varchar IS NULL OR id>$2)
+           ORDER BY id LIMIT $3
+         ) d
+         CROSS JOIN LATERAL (
+           SELECT count(*) FILTER (WHERE t.state IN ('active','maintenance')) AS table_count,
+             COALESCE(sum(t.row_count) FILTER (WHERE t.state IN ('active','maintenance')),0) AS row_count,
+             max(t.last_data_change_at) AS last_data_change_at,
+             COALESCE(sum(pg_total_relation_size(to_regclass(format('%I.%I',d.schema_name,t.physical_name))))
+               FILTER (WHERE t.state IN ('active','maintenance')),0) AS storage_bytes
+           FROM rootset_control.tables t WHERE t.database_id=d.id AND t.org_id=d.org_id
+         ) summary
+         ORDER BY d.id`,
+        [a.orgId, page?.afterId ?? null, page ? page.limit + 1 : null],
       );
       return r.rows.map((d) => ({
         ...this.databaseRecord(d),
         tableCount: Number(d.table_count),
+        rowCount: Number(d.row_count),
         storageBytes: Number(d.storage_bytes),
+        lastDataChangeAt:
+          d.last_data_change_at == null ? null : iso(d.last_data_change_at),
       }));
     });
   }
@@ -1138,19 +1181,39 @@ export class TableStorage {
   async listTables(
     a: Actor,
     databaseId: string,
-  ): Promise<(TableRecord & { storageBytes: number })[]> {
+    page?: ResourcePage,
+  ): Promise<
+    (Omit<TableRecord, "fields"> & {
+      storageBytes: number;
+      fieldCount: number;
+      lastDataChangeAt: string | null;
+    })[]
+  > {
     return this.run(a, async (c) => {
       const d = await this.database(c, a, databaseId);
-      const r = await c.query<{ id: string; storage_bytes: string }>(
-        "SELECT id, COALESCE(pg_total_relation_size(to_regclass(format('%I.%I', $3::text, physical_name))), 0)::text AS storage_bytes FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2 AND state IN ('active','maintenance') ORDER BY created_at,id",
-        [d.id, a.orgId, d.schemaName],
+      const r = await c.query<Raw>(
+        `SELECT t.*,$3::text AS schema_name,
+          COALESCE(pg_total_relation_size(to_regclass(format('%I.%I',$3::text,t.physical_name))),0)::text AS storage_bytes,
+          (SELECT count(*) FROM rootset_control.fields f WHERE f.org_id=$2 AND f.table_id=t.id AND f.state='active') AS field_count
+         FROM (
+           SELECT * FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2 AND state IN ('active','maintenance')
+             AND ($4::varchar IS NULL OR id>$4) ORDER BY id LIMIT $5
+         ) t ORDER BY t.id`,
+        [
+          d.id,
+          a.orgId,
+          d.schemaName,
+          page?.afterId ?? null,
+          page ? page.limit + 1 : null,
+        ],
       );
-      return Promise.all(
-        r.rows.map(async (t) => ({
-          ...(await this.table(c, a, t.id)),
-          storageBytes: Number(t.storage_bytes),
-        })),
-      );
+      return r.rows.map((t) => ({
+        ...this.tableRecord(t),
+        storageBytes: Number(t.storage_bytes),
+        fieldCount: Number(t.field_count),
+        lastDataChangeAt:
+          t.last_data_change_at == null ? null : iso(t.last_data_change_at),
+      }));
     });
   }
   async getTable(a: Actor, tableId: string): Promise<TableRecord> {
@@ -1567,6 +1630,475 @@ export class TableStorage {
         [fieldId, table.id, table.orgId, maximum],
       );
   }
+  async validateImportRows(
+    actor: Actor,
+    tableId: string,
+    input: { rows: ImportRow[]; expectedSchemaVersion: number },
+    hooks: {
+      check(): Promise<Actor>;
+      progress(completed: number): Promise<void>;
+    },
+  ): Promise<ImportIssue[]> {
+    const issues = new Map(
+      input.rows.flatMap((row) =>
+        row.issue ? [[row.line, row.issue] as const] : [],
+      ),
+    );
+    const seen = new Map<string, Set<string>>();
+    const selfTargets = new Map<string, Map<string, number>>();
+    const counters = new Map<string, bigint>();
+    for (
+      let offset = 0;
+      offset < input.rows.length;
+      offset += importLimits.batch
+    ) {
+      actor = await hooks.check();
+      await this.read(actor, async (c) => {
+        const table = await this.table(c, actor, tableId);
+        this.expected(table, input.expectedSchemaVersion);
+        if (table.state !== "active")
+          fail(
+            "SCHEMA_MAINTENANCE",
+            "Wait for table maintenance to finish",
+            409,
+          );
+        const batch = input.rows
+          .slice(offset, offset + importLimits.batch)
+          .filter((row, index) => {
+            if (row.issue) return false;
+            if (table.rowCount + offset + index >= limits.maxRows) {
+              issues.set(row.line, {
+                line: row.line,
+                code: "CAPACITY_LIMIT",
+                message: "This import would exceed this table’s row limit",
+              });
+              return false;
+            }
+            return true;
+          })
+          .map((row) => ({
+            line: row.line,
+            values: validateValues(table.fields, row.values),
+          }));
+        for (const field of table.fields.filter(
+          (field) => field.type === "integer" && field.autoIncrement,
+        )) {
+          if (!counters.has(field.id)) {
+            const counter = (
+              await c.query<{ next_value: string }>(
+                "SELECT next_value::text FROM rootset_control.integer_counters WHERE table_id=$1 AND field_id=$2",
+                [table.id, field.id],
+              )
+            ).rows[0];
+            if (!counter)
+              fail("INTERNAL_ERROR", "Auto-increment counter is missing", 500);
+            counters.set(field.id, BigInt(counter.next_value));
+          }
+          let next = counters.get(field.id)!;
+          for (const row of batch) {
+            const explicit = row.values[field.name];
+            if (typeof explicit === "number" && BigInt(explicit) >= next)
+              next = BigInt(explicit) + 1n;
+          }
+          for (const row of batch) {
+            if (Object.hasOwn(row.values, field.name)) continue;
+            if (next > BigInt(field.max ?? Number.MAX_SAFE_INTEGER)) {
+              issues.set(row.line, {
+                line: row.line,
+                field: field.name,
+                code: "AUTO_INCREMENT_EXHAUSTED",
+                message: `Auto-increment for ${field.name} has reached its maximum`,
+              });
+            } else row.values[field.name] = validateCell(field, Number(next++));
+          }
+          counters.set(field.id, next);
+        }
+        for (const row of batch) {
+          if (issues.has(row.line)) continue;
+          try {
+            assertRowBytes(table.fields, row.values);
+          } catch (error) {
+            if (!(error instanceof RootsetError)) throw error;
+            issues.set(row.line, {
+              line: row.line,
+              code: error.code,
+              message: error.message,
+            });
+          }
+        }
+        const rules = (await this.rules(c, table)).filter(
+          (rule) => rule.state === "active",
+        );
+        const foreignKeys = await this.foreignKeys(c, table.id);
+        const tuple = (
+          row: { values: Record<string, JsonValue> },
+          fields: FieldDefinition[],
+        ) => hash(fields.map((field) => row.values[field.name]));
+        const complete = (
+          row: { values: Record<string, JsonValue> },
+          fields: FieldDefinition[],
+        ) =>
+          fields.every(
+            (field) =>
+              row.values[field.name] !== null &&
+              row.values[field.name] !== undefined,
+          );
+        const candidates = (
+          rows: typeof batch,
+          sourceFields: FieldDefinition[],
+          targetFields = sourceFields,
+        ) => {
+          const params: unknown[] = [];
+          const values = rows.map((row) => {
+            params.push(row.line);
+            const cells = [`$${params.length}::integer`];
+            for (const [index, field] of sourceFields.entries()) {
+              params.push(parameter(field, row.values[field.name]!));
+              cells.push(
+                `$${params.length}::${physicalType(targetFields[index]!)}`,
+              );
+            }
+            return `(${cells.join(",")})`;
+          });
+          return {
+            params,
+            sql: `(VALUES ${values.join(",")}) AS candidate(line,${sourceFields.map((_, index) => `key_${index}`).join(",")})`,
+            match: targetFields
+              .map(
+                (field, index) =>
+                  `stored.${q(fieldColumn(field))}=candidate.key_${index}`,
+              )
+              .join(" AND "),
+          };
+        };
+        for (const rule of rules) {
+          const fields = rule.fieldIds.map((fieldId) =>
+            fieldFor(table, fieldId),
+          );
+          const condition = rule.where;
+          const matched = batch.filter((row) => {
+            if (!complete(row, fields) || issues.has(row.line)) return false;
+            if (!condition) return true;
+            const value = row.values[fieldFor(table, condition.field).name];
+            if (!("value" in condition))
+              return condition.op === "isNull"
+                ? value === null
+                : value !== null && value !== undefined;
+            if (value === null || value === undefined) return false;
+            return (
+              (canonicalJson(value) === canonicalJson(condition.value)) ===
+              (condition.op === "eq")
+            );
+          });
+          const keys = seen.get(rule.id) ?? new Set<string>();
+          seen.set(rule.id, keys);
+          for (const row of matched) {
+            const key = tuple(row, fields);
+            if (keys.has(key))
+              issues.set(row.line, {
+                line: row.line,
+                field: fields.map((field) => field.name).join(", "),
+                code: "UNIQUE_CONFLICT",
+                message: "This key is repeated in the import file",
+              });
+            keys.add(key);
+          }
+          if (!matched.length) continue;
+          const query = candidates(matched, fields);
+          const conflicts = await c.query<{ line: number }>(
+            `SELECT DISTINCT candidate.line FROM ${query.sql} JOIN ${tablePath(table)} stored ON ${query.match} WHERE ${this.conditionSql(table, rule, "stored.")}`,
+            query.params,
+          );
+          for (const conflict of conflicts.rows)
+            if (!issues.has(conflict.line))
+              issues.set(conflict.line, {
+                line: conflict.line,
+                field: fields.map((field) => field.name).join(", "),
+                code: "UNIQUE_CONFLICT",
+                message: "This key already exists in the table",
+              });
+        }
+        for (const key of foreignKeys) {
+          const fields = key.fieldIds.map((fieldId) =>
+            fieldFor(table, fieldId),
+          );
+          const target =
+            key.referencedTableId === table.id
+              ? table
+              : await this.table(c, actor, key.referencedTableId);
+          const targetFields = key.referencedFieldIds.map((fieldId) =>
+            fieldFor(target, fieldId),
+          );
+          const self = selfTargets.get(key.id) ?? new Map<string, number>();
+          if (target.id === table.id) {
+            for (const row of batch)
+              if (complete(row, targetFields)) {
+                const targetKey = tuple(row, targetFields);
+                if (!self.has(targetKey)) self.set(targetKey, row.line);
+              }
+            selfTargets.set(key.id, self);
+          }
+          const matched = batch.filter(
+            (row) => !issues.has(row.line) && complete(row, fields),
+          );
+          if (!matched.length) continue;
+          const query = candidates(matched, fields, targetFields);
+          const missing = await c.query<{ line: number }>(
+            `SELECT candidate.line FROM ${query.sql} WHERE NOT EXISTS (SELECT 1 FROM ${tablePath(target)} stored WHERE ${query.match})`,
+            query.params,
+          );
+          for (const item of missing.rows) {
+            const row = matched.find((row) => row.line === item.line)!;
+            const own =
+              target.id === table.id ? self.get(tuple(row, fields)) : undefined;
+            if (own !== undefined && own <= row.line) continue;
+            issues.set(row.line, {
+              line: row.line,
+              field: fields.map((field) => field.name).join(", "),
+              code: "FOREIGN_KEY_CONFLICT",
+              message: `No matching record exists in ${target.name}`,
+            });
+          }
+        }
+      });
+      await hooks.progress(
+        Math.min(input.rows.length, offset + importLimits.batch),
+      );
+    }
+    return [...issues.values()].sort((a, b) => a.line - b.line);
+  }
+
+  private async bulkPlan(
+    c: PoolClient,
+    actor: Actor,
+    tableId: string,
+    input: BulkRowsInput,
+  ) {
+    let table = await this.table(c, actor, tableId);
+    await this.database(c, actor, table.databaseId);
+    await c.query(
+      "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+      [table.databaseId],
+    );
+    table = await this.table(c, actor, tableId, true);
+    this.expected(table, input.expectedSchemaVersion);
+    if (table.state !== "active")
+      fail("SCHEMA_MAINTENANCE", "Wait for table maintenance to finish", 409);
+    const found = await c.query<Raw>(
+      `SELECT * FROM ${tablePath(table)} WHERE row_id=ANY($1::varchar[]) ORDER BY row_id FOR UPDATE`,
+      [input.rows.map((row) => id(row.rowId))],
+    );
+    const rows = new Map(
+      found.rows.map((raw) => {
+        const row = rowFrom(raw, table.fields);
+        return [row.id, row] as const;
+      }),
+    );
+    const patch =
+      input.action.type === "set"
+        ? validateValues(table.fields, input.action.values, "patch")
+        : undefined;
+    const issues: BulkRowsIssue[] = [];
+    const entries: { index: number; before: Row; operation: RowOperation }[] =
+      [];
+    for (const [index, selected] of input.rows.entries()) {
+      const before = rows.get(selected.rowId);
+      if (!before || before.version !== selected.expectedVersion) {
+        issues.push({
+          index,
+          rowId: selected.rowId,
+          code: before ? "ROW_VERSION_CONFLICT" : "RESOURCE_NOT_FOUND",
+          message: before
+            ? "This record changed after it was selected. Reload the selected records and preview again."
+            : "This record no longer exists.",
+        });
+        continue;
+      }
+      const operation: RowOperation =
+        input.action.type === "set"
+          ? {
+              kind: "update",
+              rowId: before.id,
+              expectedVersion: selected.expectedVersion,
+              values: patch!,
+            }
+          : input.action.type === "delete"
+            ? {
+                kind: "delete",
+                rowId: before.id,
+                expectedVersion: selected.expectedVersion,
+              }
+            : {
+                kind: "create",
+                values: Object.fromEntries(
+                  table.fields
+                    .filter((field) => !field.autoIncrement)
+                    .map((field) => [field.name, before.values[field.name]!]),
+                ),
+              };
+      entries.push({ index, before, operation });
+    }
+    if (
+      Buffer.byteLength(
+        JSON.stringify(entries.map((entry) => entry.operation)),
+      ) +
+        4096 >
+      limits.requestBytes
+    )
+      fail(
+        "PAYLOAD_TOO_LARGE",
+        "This bulk action exceeds 8 MiB. Select fewer records.",
+        413,
+      );
+    return { table, entries, issues };
+  }
+
+  async previewBulkRows(
+    actor: Actor,
+    tableId: string,
+    input: BulkRowsInput,
+    options: { context?: MutationContext; signal?: AbortSignal } = {},
+  ): Promise<BulkRowsPreview> {
+    input = BulkRowsInputSchema.parse(input);
+    const deadline = Date.now() + limits.queryTimeoutMs;
+    const check = () => {
+      if (options.signal?.aborted)
+        fail("REQUEST_TIMEOUT", "The bulk preview was cancelled", 408);
+      if (Date.now() >= deadline)
+        fail(
+          "QUERY_TIMEOUT",
+          "The bulk preview exceeded its execution budget. Select fewer records.",
+          408,
+        );
+    };
+    return this.run(actor, async (c) => {
+      check();
+      await c.query("SAVEPOINT bulk_preview");
+      const plan = await this.bulkPlan(c, actor, tableId, input);
+      const issues = [...plan.issues];
+      const sample: BulkRowsPreview["sample"] = [];
+      let sampleBytes = 0;
+      for (const { index, before, operation } of plan.entries) {
+        check();
+        await c.query("SELECT set_config('statement_timeout',$1,true)", [
+          `${Math.max(1, deadline - Date.now())}ms`,
+        ]);
+        await c.query("SAVEPOINT bulk_record");
+        try {
+          const result = await this.mutateRows(
+            actor,
+            tableId,
+            {
+              expectedSchemaVersion: input.expectedSchemaVersion,
+              operations: [operation],
+              context: { ...options.context, beforePublish: undefined },
+            },
+            c,
+          );
+          const value = {
+            rowId: before.id,
+            before: before.values,
+            ...(result.rows[0] ? { after: result.rows[0].values } : {}),
+          };
+          const bytes = Buffer.byteLength(JSON.stringify(value));
+          if (
+            sample.length < bulkRowsLimits.sampleRows &&
+            sampleBytes + bytes <= bulkRowsLimits.sampleBytes
+          ) {
+            sample.push(value);
+            sampleBytes += bytes;
+          }
+          await c.query("RELEASE SAVEPOINT bulk_record");
+        } catch (error) {
+          await c.query("ROLLBACK TO SAVEPOINT bulk_record");
+          await c.query("RELEASE SAVEPOINT bulk_record");
+          if (
+            !(error instanceof RootsetError) ||
+            ![
+              "VALIDATION_FAILED",
+              "ROW_VERSION_CONFLICT",
+              "RESOURCE_NOT_FOUND",
+              "FOREIGN_KEY_CONFLICT",
+              "UNIQUE_CONFLICT",
+              "ROW_LIMIT_REACHED",
+              "AUTO_INCREMENT_EXHAUSTED",
+              "ROW_SIZE_LIMIT",
+              "PAYLOAD_TOO_LARGE",
+            ].includes(error.code)
+          )
+            throw error;
+          const details =
+            error.details && typeof error.details === "object"
+              ? (error.details as Record<string, unknown>)
+              : {};
+          issues.push({
+            index,
+            rowId: before.id,
+            code: error.code,
+            message: error.message,
+            ...(IdSchema.safeParse(details.fieldId).success
+              ? { fieldId: String(details.fieldId) }
+              : {}),
+            ...(IdSchema.safeParse(details.ruleId).success
+              ? { ruleId: String(details.ruleId) }
+              : {}),
+          });
+        }
+      }
+      check();
+      await this.assertPublication(c, actor, options.context);
+      check();
+      const result: BulkRowsPreview = {
+        action: input.action.type,
+        total: input.rows.length,
+        valid: input.rows.length - issues.length,
+        schemaVersion: plan.table.schemaVersion,
+        issues: issues.sort((a, b) => a.index - b.index),
+        sample,
+      };
+      // Simulations use native triggers; rollback also restores counters, history and registries.
+      await c.query("ROLLBACK TO SAVEPOINT bulk_preview");
+      await c.query("RELEASE SAVEPOINT bulk_preview");
+      return result;
+    });
+  }
+
+  async bulkRows(
+    actor: Actor,
+    tableId: string,
+    input: BulkRowsInput,
+    options: Pick<MutationOptions, "context">,
+    c: PoolClient,
+  ): Promise<BulkRowsResult> {
+    input = BulkRowsInputSchema.parse(input);
+    const plan = await this.bulkPlan(c, actor, tableId, input);
+    const conflict = plan.issues[0];
+    if (conflict)
+      fail(conflict.code, conflict.message, 409, {
+        index: conflict.index,
+        rowId: conflict.rowId,
+      });
+    const result = await this.mutateRows(
+      actor,
+      tableId,
+      {
+        expectedSchemaVersion: input.expectedSchemaVersion,
+        operations: plan.entries.map((entry) => entry.operation),
+        context: options.context,
+        returnRows: false,
+      },
+      c,
+    );
+    return {
+      mutationId: result.mutationId,
+      action: input.action.type,
+      affected: input.rows.length,
+      createdIds:
+        input.action.type === "duplicate" ? (result.createdIds ?? []) : [],
+      deletedIds: result.deletedIds,
+    };
+  }
+
   async mutateRows(
     a: Actor,
     tableId: string,
@@ -1649,6 +2181,7 @@ export class TableStorage {
       const mutationInput = {
         operations: input.operations,
         expectedSchemaVersion: input.expectedSchemaVersion ?? null,
+        ...(input.returnRows === false ? { returnRows: false } : {}),
         ...(repair
           ? {
               repair: {
@@ -1738,7 +2271,9 @@ export class TableStorage {
       await this.reserveExplicitIntegerValues(c, t, input.operations);
       const rows: Row[] = [];
       const deletedIds: string[] = [];
-      const returnRows = input.context?.source !== "import";
+      const createdIds: string[] = [];
+      const returnRows =
+        input.returnRows !== false && input.context?.source !== "import";
       for (const op of input.operations) {
         if (op.kind === "create") {
           const values = validateValues(t.fields, op.values);
@@ -1783,6 +2318,8 @@ export class TableStorage {
             `INSERT INTO ${tablePath(t)}(row_id,org_id${keys.length ? "," + keys.join(",") : ""}) VALUES($1,$2${params.map((_, i) => `,$${i + 3}`).join("")}) RETURNING *`,
             [newId(), a.orgId, ...params],
           );
+          if (input.returnRows === false)
+            createdIds.push(String(r.rows[0]!.row_id));
           if (returnRows) rows.push(rowFrom(r.rows[0]!, t.fields));
         } else if (op.kind === "update") {
           const rowId = id(op.rowId);
@@ -1842,6 +2379,7 @@ export class TableStorage {
         schemaVersion: t.schemaVersion,
         rows,
         deletedIds,
+        ...(input.returnRows === false ? { createdIds } : {}),
       };
       const outcomeJson = checkedOutcome(outcome);
       await this.assertPublication(c, a, input.context);
@@ -2420,6 +2958,186 @@ export class TableStorage {
       this.foreignKeys(c, (await this.table(c, a, tableId)).id),
     );
   }
+  async rowRelationships(
+    a: Actor,
+    tableId: string,
+    rowId: string,
+    input: { afterId: string | null; limit: number; expectedVersion?: string },
+    signal?: AbortSignal,
+  ): Promise<{ rowVersion: string; asOf: string; data: RowRelationship[] }> {
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 21)
+      fail("VALIDATION_FAILED", "Relationship page supports up to 20 items");
+    return this.read(
+      a,
+      async (c) => {
+        const initial = await this.table(c, a, tableId);
+        await c.query(
+          "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+          [initial.databaseId],
+        );
+        const parent = await this.table(c, a, tableId);
+        const result = await c.query<Raw>(
+          `SELECT parent_row.*,statement_timestamp() AS __as_of,coalesce((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id',k.id,'tableId',k.table_id,'tableName',k.table_name,'tableState',k.table_state,
+            'fieldIds',k.field_ids,'fieldNames',k.field_names,'referencedFieldIds',k.referenced_field_ids,
+            'count',(SELECT count(*) FROM rootset_control.foreign_key_entries e WHERE e.target_rule_id=k.referenced_rule_id AND e.target_row_id=parent_row.row_id AND e.rule_id=k.id)
+          ) ORDER BY k.id)
+          FROM (SELECT k.*,source.name AS table_name,source.state AS table_state,
+            ARRAY(SELECT f.name FROM unnest(k.field_ids) WITH ORDINALITY ids(id,position) JOIN rootset_control.fields f ON f.id=ids.id ORDER BY ids.position) AS field_names
+            FROM rootset_control.foreign_keys k JOIN rootset_control.tables source ON source.id=k.table_id
+            WHERE k.referenced_table_id=$2 AND k.state='active' AND source.state<>'deleted' AND source.database_id=$3
+            AND ($4::text IS NULL OR k.id>$4) ORDER BY k.id LIMIT $5) k
+        ),'[]'::jsonb) AS __relationships FROM ${tablePath(parent)} parent_row WHERE parent_row.row_id=$1`,
+          [id(rowId), parent.id, parent.databaseId, input.afterId, input.limit],
+        );
+        const raw =
+          result.rows[0] ??
+          fail("RESOURCE_NOT_FOUND", "Record was not found", 404);
+        const row = rowFrom(raw, parent.fields);
+        if (input.expectedVersion && input.expectedVersion !== row.version)
+          fail(
+            "ROW_VERSION_CONFLICT",
+            "The record changed. Reload it to see its current relationships.",
+            409,
+          );
+        return {
+          rowVersion: row.version,
+          asOf: iso(raw.__as_of),
+          data: (raw.__relationships as Omit<RowRelationship, "hasKey">[]).map(
+            (relationship) => ({
+              ...relationship,
+              hasKey: relationship.referencedFieldIds.every(
+                (fid) => row.values[fieldFor(parent, fid).name] !== null,
+              ),
+            }),
+          ),
+        };
+      },
+      signal,
+    );
+  }
+
+  async relatedRowFilter(
+    a: Actor,
+    tableId: string,
+    ruleId: string,
+    referencedRowId: string,
+    signal?: AbortSignal,
+  ): Promise<RelatedRowFilter> {
+    return this.read(
+      a,
+      async (c) => {
+        const initial = await this.table(c, a, tableId);
+        await c.query(
+          "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+          [initial.databaseId],
+        );
+        const source = await this.table(c, a, tableId);
+        const rule =
+          (await this.foreignKeys(c, source.id)).find(
+            (rule) => rule.id === id(ruleId),
+          ) ??
+          fail("RESOURCE_NOT_FOUND", "The relationship no longer exists", 404);
+        const parent = await this.table(c, a, rule.referencedTableId);
+        if (parent.databaseId !== source.databaseId)
+          fail("RESOURCE_NOT_FOUND", "The relationship was not found", 404);
+        const result = await c.query<Raw>(
+          `SELECT * FROM ${tablePath(parent)} WHERE row_id=$1`,
+          [id(referencedRowId)],
+        );
+        const raw =
+          result.rows[0] ??
+          fail(
+            "RESOURCE_NOT_FOUND",
+            "The referenced record no longer exists",
+            404,
+          );
+        const row = rowFrom(raw, parent.fields);
+        const filter = rule.fieldIds.map((fid, index) => {
+          fieldFor(source, fid);
+          const value =
+            row.values[fieldFor(parent, rule.referencedFieldIds[index]!).name];
+          if (
+            value === null ||
+            value === undefined ||
+            typeof value === "object"
+          )
+            fail(
+              "FOREIGN_KEY_CONFLICT",
+              "The referenced record no longer has a complete key. Reload the record or open the table to choose another filter.",
+              409,
+            );
+          return { fieldId: fid, value };
+        });
+        return {
+          filter,
+          schemaVersion: source.schemaVersion,
+          referencedTableId: parent.id,
+          referencedRowId: row.id,
+          referencedVersion: row.version,
+        };
+      },
+      signal,
+    );
+  }
+  private async buildForeignKey(
+    c: PoolClient,
+    source: TableRecord,
+    target: TableRecord,
+    key: ForeignKey,
+  ): Promise<void> {
+    const fields = key.fieldIds.map((fid) => fieldFor(source, fid));
+    const targetFields = key.referencedFieldIds.map((fid) =>
+      fieldFor(target, fid),
+    );
+    await c.query(
+      "INSERT INTO rootset_control.foreign_keys(id,org_id,table_id,field_ids,referenced_table_id,referenced_rule_id,referenced_field_ids) VALUES($1,$2,$3,$4,$5,$6,$7)",
+      [
+        key.id,
+        source.orgId,
+        source.id,
+        key.fieldIds,
+        target.id,
+        key.referencedRuleId,
+        key.referencedFieldIds,
+      ],
+    );
+    const targetTuple = this.tupleSql(targetFields);
+    const targetNotNull = targetFields
+      .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
+      .join(" AND ");
+    await c.query(
+      `INSERT INTO rootset_control.foreign_key_targets(unique_rule_id,row_id,org_id,digest,tuple) SELECT $1,row_id,org_id,rootset_control.unique_digest(${targetTuple}),${targetTuple} FROM ${tablePath(target)} source_row WHERE ${targetNotNull} ON CONFLICT(unique_rule_id,row_id) DO NOTHING`,
+      [key.referencedRuleId],
+    );
+    const sourceTuple = this.tupleSql(fields);
+    const sourceNotNull = fields
+      .map((f) => `source_row.${q(fieldColumn(f))} IS NOT NULL`)
+      .join(" AND ");
+    const joined = `FROM ${tablePath(source)} source_row LEFT JOIN rootset_control.foreign_key_targets target ON target.unique_rule_id=$1 AND target.digest=rootset_control.unique_digest(${sourceTuple}) AND target.tuple=${sourceTuple} COLLATE "C" WHERE ${sourceNotNull}`;
+    const missing = await c.query<{ row_id: string }>(
+      `SELECT source_row.row_id ${joined} AND target.row_id IS NULL ORDER BY source_row.row_id LIMIT 20`,
+      [key.referencedRuleId],
+    );
+    if (missing.rowCount)
+      fail(
+        "FOREIGN_KEY_CONFLICT",
+        "Existing rows have no matching value in the referenced table",
+        409,
+        {
+          fieldIds: key.fieldIds,
+          rowIds: missing.rows.map((r) => r.row_id),
+          reportTruncated: missing.rowCount === 20,
+        },
+      );
+    await c.query(
+      `INSERT INTO rootset_control.foreign_key_entries(rule_id,row_id,org_id,target_rule_id,target_row_id) SELECT $2,source_row.row_id,source_row.org_id,$1,target.row_id ${joined}`,
+      [key.referencedRuleId, key.id],
+    );
+    await this.installReferenceTrigger(c, source);
+    if (target.id !== source.id) await this.installReferenceTrigger(c, target);
+  }
   async createForeignKey(
     a: Actor,
     tableId: string,
@@ -2501,52 +3219,7 @@ export class TableStorage {
           referencedFieldNames: targetFields.map((f) => f.name),
           state: "active",
         };
-        await c.query(
-          "INSERT INTO rootset_control.foreign_keys(id,org_id,table_id,field_ids,referenced_table_id,referenced_rule_id,referenced_field_ids) VALUES($1,$2,$3,$4,$5,$6,$7)",
-          [
-            outcome.id,
-            a.orgId,
-            t.id,
-            outcome.fieldIds,
-            target.id,
-            rule.id,
-            rule.fieldIds,
-          ],
-        );
-        const targetTuple = this.tupleSql(targetFields);
-        const targetNotNull = targetFields
-          .map((f) => `${q(fieldColumn(f))} IS NOT NULL`)
-          .join(" AND ");
-        await c.query(
-          `INSERT INTO rootset_control.foreign_key_targets(unique_rule_id,row_id,org_id,digest,tuple) SELECT $1,row_id,org_id,rootset_control.unique_digest(${targetTuple}),${targetTuple} FROM ${tablePath(target)} source_row WHERE ${targetNotNull} ON CONFLICT(unique_rule_id,row_id) DO NOTHING`,
-          [rule.id],
-        );
-        const sourceTuple = this.tupleSql(fields);
-        const sourceNotNull = fields
-          .map((f) => `source_row.${q(fieldColumn(f))} IS NOT NULL`)
-          .join(" AND ");
-        const joined = `FROM ${tablePath(t)} source_row LEFT JOIN rootset_control.foreign_key_targets target ON target.unique_rule_id=$1 AND target.digest=rootset_control.unique_digest(${sourceTuple}) AND target.tuple=${sourceTuple} COLLATE "C" WHERE ${sourceNotNull}`;
-        const missing = await c.query<{ row_id: string }>(
-          `SELECT source_row.row_id ${joined} AND target.row_id IS NULL ORDER BY source_row.row_id LIMIT 20`,
-          [rule.id],
-        );
-        if (missing.rowCount)
-          fail(
-            "FOREIGN_KEY_CONFLICT",
-            "Existing rows have no matching value in the referenced table",
-            409,
-            {
-              fieldIds: outcome.fieldIds,
-              rowIds: missing.rows.map((r) => r.row_id),
-              reportTruncated: missing.rowCount === 20,
-            },
-          );
-        await c.query(
-          `INSERT INTO rootset_control.foreign_key_entries(rule_id,row_id,org_id,target_rule_id,target_row_id) SELECT $2,source_row.row_id,source_row.org_id,$1,target.row_id ${joined}`,
-          [rule.id, outcome.id],
-        );
-        await this.installReferenceTrigger(c, t);
-        if (target.id !== t.id) await this.installReferenceTrigger(c, target);
+        await this.buildForeignKey(c, t, target, outcome);
         await c.query(
           "UPDATE rootset_control.schema_operations SET plan=plan||jsonb_build_object('outcome',$2::jsonb) WHERE id=$1",
           [operationId, JSON.stringify(outcome)],
@@ -3325,18 +3998,84 @@ export class TableStorage {
       true,
     );
   }
+  async restoreDatabase(
+    actor: Actor,
+    input: RestoreDatabaseInput,
+    source: RestoreSource,
+    options: {
+      context: MutationContext;
+      progress?: (
+        stage: string,
+        completed: number,
+        total: number | null,
+        unit: string,
+      ) => Promise<void>;
+    },
+  ): Promise<RestoreDatabaseResult> {
+    return this.run(
+      actor,
+      (client) =>
+        restoreDatabaseSnapshot(
+          client,
+          actor,
+          { ...input, name: name(input.name) },
+          source,
+          {
+            createPhysical: (client, table) =>
+              this.createPhysical(client, table, false),
+            insertField: (client, table, field, state) =>
+              this.insertField(client, table, field, state),
+            buildRule: (client, table, rule) =>
+              this.buildRule(client, table, rule),
+            buildForeignKey: (client, table, target, rule) =>
+              this.buildForeignKey(client, table, target, rule),
+            installTrigger: (client, table) =>
+              this.installTrigger(client, table),
+            parameter,
+            progress: options.progress ?? (async () => {}),
+            publish: async (client, result) => {
+              await this.assertPublication(client, actor, options.context);
+              await this.audit(
+                client,
+                actor,
+                input.databaseId,
+                null,
+                input.databaseId,
+                "database.restore",
+                null,
+                result,
+                options.context,
+              );
+            },
+          },
+        ),
+      true,
+    );
+  }
   async snapshotTable(
     a: Actor,
     tableId: string,
     input: QuerySpec,
     c: PoolClient,
-    options: { preserveTimestampPrecision?: boolean } = {},
+    options: {
+      preserveTimestampPrecision?: boolean;
+      expectedSchemaVersion?: number;
+    } = {},
   ): Promise<{ table: TableRecord; rows: AsyncIterable<Row[]> }> {
     const t = await this.table(c, a, tableId);
     await c.query(
       "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
       [t.databaseId],
     );
+    if (
+      options.expectedSchemaVersion !== undefined &&
+      t.schemaVersion !== options.expectedSchemaVersion
+    )
+      throw new RootsetError(
+        "SCHEMA_VERSION_CONFLICT",
+        "Export schema changed before snapshot establishment",
+        409,
+      );
     const compiled = compileQuery(t.fields, { ...input, cursor: undefined });
     const timestamps = options.preserveTimestampPrecision
       ? `,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __backup_created_at,to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __backup_updated_at`
@@ -3606,3 +4345,20 @@ export class TableStorage {
 function literal(value: string): string {
   return `E'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
 }
+
+export { restoreLimits, restoredId, backupTimestamp } from "./restore.js";
+export type {
+  RestoreSource,
+  RestoreTable,
+  RestoreRow,
+  RestoreHistoryKind,
+  RestoreField,
+  RestoreUniqueRule,
+  RestoreForeignKey,
+  RestoreHistoryRecord,
+} from "./restore.js";
+
+export type {
+  RestoreDatabaseInput,
+  RestoreDatabaseResult,
+} from "./restore-database.js";

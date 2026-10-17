@@ -19,6 +19,7 @@ import {
 import { FieldTypeIcon } from "./field-type-options";
 import { Choice, Empty, Form, Loading, useConfirmation } from "./ui";
 import type { Job, SettingsPanelProps, TableSchemaResult } from "./types";
+import { Plus, Trash2 } from "../ui/icons";
 
 const EMPTY_SCHEMA: TableSchemaResult = {
   table: { name: "", schemaVersion: 1 },
@@ -83,6 +84,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
           setFormOpen(true);
         }}
       >
+        <Plus />
         Create foreign key
       </Button>
     ),
@@ -183,6 +185,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
                       }
                     }}
                   >
+                    <Trash2 />
                     Remove
                   </Button>
                 </div>
@@ -201,6 +204,7 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
             noValidate
             busy={busy || target.loading}
             submit="Create foreign key"
+            submitIcon={<Plus />}
             onCancel={() => setFormOpen(false)}
             onSubmit={async () => {
               if (
