@@ -4680,6 +4680,308 @@ export type updateForeignKeyDisplayFieldOutput = {
     foreignKeyDisplayFields?: Record<string, string>;
   };
 };
+export type listSavedViewsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type listSavedViewsOutput = {
+  data: {
+    id: string;
+    tableId: string;
+    name: string;
+    visibility: "personal" | "shared";
+    ownerUserId: string | null;
+    ownerName: string;
+    version: string;
+    schemaVersion: number;
+    canEdit: boolean;
+    canChangeVisibility: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+};
+export type getSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  viewId: string;
+};
+export type getSavedViewOutput = {
+  id: string;
+  tableId: string;
+  name: string;
+  visibility: "personal" | "shared";
+  ownerUserId: string | null;
+  ownerName: string;
+  version: string;
+  schemaVersion: number;
+  canEdit: boolean;
+  canChangeVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+  validationErrors: string[];
+};
+export type createSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  name: string;
+  visibility: "personal" | "shared";
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+};
+export type createSavedViewOutput = {
+  id: string;
+  tableId: string;
+  name: string;
+  visibility: "personal" | "shared";
+  ownerUserId: string | null;
+  ownerName: string;
+  version: string;
+  schemaVersion: number;
+  canEdit: boolean;
+  canChangeVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+  validationErrors: string[];
+};
+export type updateSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  viewId: string;
+  expectedVersion: string;
+  name?: string;
+  visibility?: "personal" | "shared";
+  definition?: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+};
+export type updateSavedViewOutput = {
+  id: string;
+  tableId: string;
+  name: string;
+  visibility: "personal" | "shared";
+  ownerUserId: string | null;
+  ownerName: string;
+  version: string;
+  schemaVersion: number;
+  canEdit: boolean;
+  canChangeVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  definition: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query: {
+      where?:
+        | {
+            field: string;
+            op:
+              | "eq"
+              | "ne"
+              | "lt"
+              | "lte"
+              | "gt"
+              | "gte"
+              | "between"
+              | "in"
+              | "isNull"
+              | "isNotNull"
+              | "prefix"
+              | "contains"
+              | "iContains"
+              | "pathExists"
+              | "pathEq"
+              | "jsonContains";
+            value?:
+              | null
+              | boolean
+              | number
+              | string
+              | unknown[]
+              | Record<string, unknown>;
+            path?: (string | number)[];
+          }
+        | { and: JsonValue[] }
+        | { or: JsonValue[] };
+      orderBy?: { field: string; direction: "asc" | "desc" }[];
+    };
+  };
+  validationErrors: string[];
+};
+export type deleteSavedViewInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  viewId: string;
+  expectedVersion: string;
+};
+export type deleteSavedViewOutput = {
+  id: string;
+  deleted: true;
+  version: string;
+};
 export type getBackupScheduleInput = { orgId: string; databaseId: string };
 export type getBackupScheduleOutput = {
   schedule: {
@@ -5230,6 +5532,31 @@ const routes = {
   updateForeignKeyDisplayField: {
     path: "/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
     method: "PUT",
+    idempotencyRequired: true,
+  },
+  listSavedViews: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  updateSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  deleteSavedView: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
+    method: "DELETE",
     idempotencyRequired: true,
   },
   getBackupSchedule: {
@@ -6068,6 +6395,56 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<updateForeignKeyDisplayFieldOutput>;
+  }
+  listSavedViews(
+    input: listSavedViewsInput,
+    options?: CallOptions,
+  ): Promise<listSavedViewsOutput> {
+    return this.call(
+      "listSavedViews",
+      input,
+      options,
+    ) as Promise<listSavedViewsOutput>;
+  }
+  getSavedView(
+    input: getSavedViewInput,
+    options?: CallOptions,
+  ): Promise<getSavedViewOutput> {
+    return this.call(
+      "getSavedView",
+      input,
+      options,
+    ) as Promise<getSavedViewOutput>;
+  }
+  createSavedView(
+    input: createSavedViewInput,
+    options?: CallOptions,
+  ): Promise<createSavedViewOutput> {
+    return this.call(
+      "createSavedView",
+      input,
+      options,
+    ) as Promise<createSavedViewOutput>;
+  }
+  updateSavedView(
+    input: updateSavedViewInput,
+    options?: CallOptions,
+  ): Promise<updateSavedViewOutput> {
+    return this.call(
+      "updateSavedView",
+      input,
+      options,
+    ) as Promise<updateSavedViewOutput>;
+  }
+  deleteSavedView(
+    input: deleteSavedViewInput,
+    options?: CallOptions,
+  ): Promise<deleteSavedViewOutput> {
+    return this.call(
+      "deleteSavedView",
+      input,
+      options,
+    ) as Promise<deleteSavedViewOutput>;
   }
   getBackupSchedule(
     input: getBackupScheduleInput,

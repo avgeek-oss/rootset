@@ -8,6 +8,7 @@ import {
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { PasswordPolicy } from "./password-policy.js";
+import { executeSavedViews } from "./saved-views.js";
 import {
   passwordSecondFactor,
   completePasskeySecondFactor,
@@ -1578,6 +1579,12 @@ export class IdentityService {
           ).rows,
         };
       }
+      case "listSavedViews":
+      case "getSavedView":
+      case "createSavedView":
+      case "updateSavedView":
+      case "deleteSavedView":
+        return executeSavedViews(client, operation, actor, input);
       case "getViewPreferences":
       case "updateViewPreferences":
       case "updateForeignKeyDisplayField": {

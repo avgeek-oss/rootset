@@ -185,7 +185,12 @@
               "api-reference/createForeignKey",
               "api-reference/deleteForeignKey",
               "api-reference/previewImportRows",
-              "api-reference/importRows"
+              "api-reference/importRows",
+              "api-reference/listSavedViews",
+              "api-reference/createSavedView",
+              "api-reference/getSavedView",
+              "api-reference/updateSavedView",
+              "api-reference/deleteSavedView"
             ]
           },
           {

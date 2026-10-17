@@ -7,6 +7,12 @@ import {
 } from "./backups";
 import { UniqueRuleConditionSchema } from "./unique-rules";
 import { ImportSourceSchema } from "./imports";
+import {
+  SavedViewDefinitionSchema,
+  SavedViewSchema,
+  SavedViewSummarySchema,
+  SavedViewVisibilitySchema,
+} from "./views";
 import { z } from "zod";
 import {
   AccountNameSchema,
@@ -1389,6 +1395,103 @@ operation(
   ViewPreferencesResultSchema,
   "Choose your display field for a foreign-key picker without changing its stored keys or other view preferences.",
   { personal: true, resource: "table", minimumRole: "viewer" },
+);
+operation(
+  "listSavedViews",
+  "list_saved_views",
+  "GET",
+  `${T}/views`,
+  ["rows:read"],
+  z.strictObject(table),
+  z.strictObject({ data: z.array(SavedViewSummarySchema).max(200) }),
+  "List your personal views and accessible shared views. Sharing a view never grants access to its table.",
+  { personal: true, minimumRole: "viewer" },
+);
+operation(
+  "getSavedView",
+  "get_saved_view",
+  "GET",
+  `${T}/views/{viewId}`,
+  ["rows:read"],
+  z.strictObject({ ...table, viewId: IdSchema }),
+  SavedViewSchema,
+  "Read an accessible saved view and its current schema validation. Invalid predicates are retained and must be corrected before executing the view.",
+  { personal: true, minimumRole: "viewer" },
+);
+operation(
+  "createSavedView",
+  "create_saved_view",
+  "POST",
+  `${T}/views`,
+  ["rows:read"],
+  z.strictObject({
+    ...table,
+    ...expected,
+    name: AccountNameSchema,
+    visibility: SavedViewVisibilitySchema,
+    definition: SavedViewDefinitionSchema,
+  }),
+  SavedViewSchema,
+  "Save your filters, sorting and column layout as a personal view. Shared views additionally require current row write authority. Each scope supports up to 100 views.",
+  { personal: true, minimumRole: "viewer", successStatus: 201 },
+);
+operation(
+  "updateSavedView",
+  "update_saved_view",
+  "PATCH",
+  `${T}/views/{viewId}`,
+  ["rows:read"],
+  z
+    .strictObject({
+      ...table,
+      ...expected,
+      viewId: IdSchema,
+      expectedVersion: VersionSchema,
+      name: AccountNameSchema.optional(),
+      visibility: SavedViewVisibilitySchema.optional(),
+      definition: SavedViewDefinitionSchema.optional(),
+    })
+    .refine(
+      (value) =>
+        value.name !== undefined ||
+        value.visibility !== undefined ||
+        value.definition !== undefined,
+      "Change a name, visibility or definition",
+    ),
+  SavedViewSchema,
+  "Update your personal view, or an owned/shared view with current write authority. Administrators can manage shared views; only its owner can make one personal. Versions reject concurrent edits.",
+  {
+    personal: true,
+    minimumRole: "viewer",
+    example: {
+      orgId: "01K6J7B8000000000000000000",
+      databaseId: "01K6J7B8000000000000000001",
+      tableId: "01K6J7B8000000000000000002",
+      viewId: "01K6J7B8000000000000000003",
+      expectedSchemaVersion: 1,
+      expectedVersion: "1",
+      name: "Needs review",
+    },
+  },
+);
+operation(
+  "deleteSavedView",
+  "delete_saved_view",
+  "DELETE",
+  `${T}/views/{viewId}`,
+  ["rows:read"],
+  z.strictObject({
+    ...table,
+    viewId: IdSchema,
+    expectedVersion: VersionSchema,
+  }),
+  z.strictObject({
+    id: IdSchema,
+    deleted: z.literal(true),
+    version: VersionSchema,
+  }),
+  "Delete an owned personal view or a shared view you can manage. Deleting a view never changes its records.",
+  { personal: true, minimumRole: "viewer" },
 );
 operation(
   "getBackupSchedule",

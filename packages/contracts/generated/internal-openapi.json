@@ -17431,6 +17431,1387 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views": {
+      "get": {
+        "operationId": "listSavedViews",
+        "tags": ["schema"],
+        "summary": "List your personal views and accessible shared views. Sharing a view never grants access to its table.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/listSavedViewsOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": true,
+        "x-rootset-mcp-tool": "rootset_list_saved_views",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000"
+        }
+      },
+      "post": {
+        "operationId": "createSavedView",
+        "tags": ["schema"],
+        "summary": "Save your filters, sorting and column layout as a personal view. Shared views additionally require current row write authority. Each scope supports up to 100 views.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["personal", "shared"]
+                  },
+                  "definition": {
+                    "type": "object",
+                    "properties": {
+                      "columnOrder": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "columnWidths": {
+                        "type": "object",
+                        "propertyNames": { "type": "string" },
+                        "additionalProperties": {
+                          "type": "number",
+                          "minimum": 40,
+                          "maximum": 2000
+                        }
+                      },
+                      "frozenColumns": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 200
+                      },
+                      "hiddenColumns": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "query": {
+                        "type": "object",
+                        "properties": {
+                          "where": {
+                            "$ref": "#/components/schemas/createSavedViewInput/$defs/__schema0"
+                          },
+                          "orderBy": {
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "direction": {
+                                  "type": "string",
+                                  "enum": ["asc", "desc"]
+                                }
+                              },
+                              "required": ["field", "direction"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "columnOrder",
+                      "columnWidths",
+                      "frozenColumns",
+                      "hiddenColumns",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "expectedSchemaVersion",
+                  "name",
+                  "visibility",
+                  "definition"
+                ],
+                "additionalProperties": false,
+                "$defs": {
+                  "__schema0": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "eq",
+                              "ne",
+                              "lt",
+                              "lte",
+                              "gt",
+                              "gte",
+                              "between",
+                              "in",
+                              "isNull",
+                              "isNotNull",
+                              "prefix",
+                              "contains",
+                              "iContains",
+                              "pathExists",
+                              "pathEq",
+                              "jsonContains"
+                            ]
+                          },
+                          "value": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "path": {
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                { "type": "string", "maxLength": 1024 },
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 2147483647
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "required": ["field", "op"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "and": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/createSavedViewInput/$defs/__schema0"
+                            }
+                          }
+                        },
+                        "required": ["and"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "or": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/createSavedViewInput/$defs/__schema0"
+                            }
+                          }
+                        },
+                        "required": ["or"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "name": "example",
+                "visibility": "personal",
+                "definition": {
+                  "columnOrder": [],
+                  "columnWidths": {},
+                  "frozenColumns": 0,
+                  "hiddenColumns": [],
+                  "query": {}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/createSavedViewOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": true,
+        "x-rootset-mcp-tool": "rootset_create_saved_view",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "expectedSchemaVersion": 1,
+          "name": "example",
+          "visibility": "personal",
+          "definition": {
+            "columnOrder": [],
+            "columnWidths": {},
+            "frozenColumns": 0,
+            "hiddenColumns": [],
+            "query": {}
+          }
+        }
+      }
+    },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}": {
+      "get": {
+        "operationId": "getSavedView",
+        "tags": ["schema"],
+        "summary": "Read an accessible saved view and its current schema validation. Invalid predicates are retained and must be corrected before executing the view.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "viewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/getSavedViewOutput" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": true,
+        "x-rootset-mcp-tool": "rootset_get_saved_view",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "viewId": "01K6J7B8000000000000000000"
+        }
+      },
+      "patch": {
+        "operationId": "updateSavedView",
+        "tags": ["schema"],
+        "summary": "Update your personal view, or an owned/shared view with current write authority. Administrators can manage shared views; only its owner can make one personal. Versions reject concurrent edits.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000001"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000002"
+          },
+          {
+            "name": "viewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000003"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "expectedVersion": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,18}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["personal", "shared"]
+                  },
+                  "definition": {
+                    "type": "object",
+                    "properties": {
+                      "columnOrder": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "columnWidths": {
+                        "type": "object",
+                        "propertyNames": { "type": "string" },
+                        "additionalProperties": {
+                          "type": "number",
+                          "minimum": 40,
+                          "maximum": 2000
+                        }
+                      },
+                      "frozenColumns": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 200
+                      },
+                      "hiddenColumns": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "query": {
+                        "type": "object",
+                        "properties": {
+                          "where": {
+                            "$ref": "#/components/schemas/updateSavedViewInput/$defs/__schema0"
+                          },
+                          "orderBy": {
+                            "maxItems": 8,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "direction": {
+                                  "type": "string",
+                                  "enum": ["asc", "desc"]
+                                }
+                              },
+                              "required": ["field", "direction"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "columnOrder",
+                      "columnWidths",
+                      "frozenColumns",
+                      "hiddenColumns",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["expectedSchemaVersion", "expectedVersion"],
+                "additionalProperties": false,
+                "$defs": {
+                  "__schema0": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "eq",
+                              "ne",
+                              "lt",
+                              "lte",
+                              "gt",
+                              "gte",
+                              "between",
+                              "in",
+                              "isNull",
+                              "isNotNull",
+                              "prefix",
+                              "contains",
+                              "iContains",
+                              "pathExists",
+                              "pathEq",
+                              "jsonContains"
+                            ]
+                          },
+                          "value": {
+                            "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                            "anyOf": [
+                              { "type": "null" },
+                              { "type": "boolean" },
+                              { "type": "number" },
+                              { "type": "string" },
+                              { "type": "array", "items": {} },
+                              { "type": "object", "additionalProperties": {} }
+                            ]
+                          },
+                          "path": {
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                { "type": "string", "maxLength": 1024 },
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 2147483647
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "required": ["field", "op"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "and": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/updateSavedViewInput/$defs/__schema0"
+                            }
+                          }
+                        },
+                        "required": ["and"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "or": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/updateSavedViewInput/$defs/__schema0"
+                            }
+                          }
+                        },
+                        "required": ["or"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "expectedVersion": "1",
+                "name": "Needs review"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/updateSavedViewOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": true,
+        "x-rootset-mcp-tool": "rootset_update_saved_view",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000001",
+          "tableId": "01K6J7B8000000000000000002",
+          "expectedSchemaVersion": 1,
+          "viewId": "01K6J7B8000000000000000003",
+          "expectedVersion": "1",
+          "name": "Needs review"
+        }
+      },
+      "delete": {
+        "operationId": "deleteSavedView",
+        "tags": ["schema"],
+        "summary": "Delete an owned personal view or a shared view you can manage. Deleting a view never changes its records.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "viewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,18}$"
+                  }
+                },
+                "required": ["expectedVersion"],
+                "additionalProperties": false
+              },
+              "example": { "expectedVersion": "1" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/deleteSavedViewOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": true,
+        "x-rootset-mcp-tool": "rootset_delete_saved_view",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "viewId": "01K6J7B8000000000000000000",
+          "expectedVersion": "1"
+        }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule": {
       "get": {
         "operationId": "getBackupSchedule",
@@ -35030,6 +36411,1252 @@
           }
         },
         "required": ["tableId", "preferences"],
+        "additionalProperties": false
+      },
+      "listSavedViewsInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": ["orgId", "databaseId", "tableId"],
+        "additionalProperties": false
+      },
+      "listSavedViewsOutput": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "tableId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+                "visibility": {
+                  "type": "string",
+                  "enum": ["personal", "shared"]
+                },
+                "ownerUserId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "ownerName": { "type": "string" },
+                "version": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,18}$"
+                },
+                "schemaVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2147483647
+                },
+                "canEdit": { "type": "boolean" },
+                "canChangeVisibility": { "type": "boolean" },
+                "createdAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                }
+              },
+              "required": [
+                "id",
+                "tableId",
+                "name",
+                "visibility",
+                "ownerUserId",
+                "ownerName",
+                "version",
+                "schemaVersion",
+                "canEdit",
+                "canChangeVisibility",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "getSavedViewInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "viewId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": ["orgId", "databaseId", "tableId", "viewId"],
+        "additionalProperties": false
+      },
+      "getSavedViewOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "visibility": { "type": "string", "enum": ["personal", "shared"] },
+          "ownerUserId": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+              { "type": "null" }
+            ]
+          },
+          "ownerName": { "type": "string" },
+          "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "canEdit": { "type": "boolean" },
+          "canChangeVisibility": { "type": "boolean" },
+          "createdAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "columnOrder": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "columnWidths": {
+                "type": "object",
+                "propertyNames": { "type": "string" },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 40,
+                  "maximum": 2000
+                }
+              },
+              "frozenColumns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "hiddenColumns": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "where": {
+                    "$ref": "#/components/schemas/getSavedViewOutput/$defs/__schema0"
+                  },
+                  "orderBy": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": ["asc", "desc"]
+                        }
+                      },
+                      "required": ["field", "direction"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "columnOrder",
+              "columnWidths",
+              "frozenColumns",
+              "hiddenColumns",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "validationErrors": {
+            "maxItems": 200,
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "id",
+          "tableId",
+          "name",
+          "visibility",
+          "ownerUserId",
+          "ownerName",
+          "version",
+          "schemaVersion",
+          "canEdit",
+          "canChangeVisibility",
+          "createdAt",
+          "updatedAt",
+          "definition",
+          "validationErrors"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "lte",
+                      "gt",
+                      "gte",
+                      "between",
+                      "in",
+                      "isNull",
+                      "isNotNull",
+                      "prefix",
+                      "contains",
+                      "iContains",
+                      "pathExists",
+                      "pathEq",
+                      "jsonContains"
+                    ]
+                  },
+                  "value": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "path": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 1024 },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "and": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/getSavedViewOutput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["and"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "or": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/getSavedViewOutput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["or"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "createSavedViewInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "visibility": { "type": "string", "enum": ["personal", "shared"] },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "columnOrder": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "columnWidths": {
+                "type": "object",
+                "propertyNames": { "type": "string" },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 40,
+                  "maximum": 2000
+                }
+              },
+              "frozenColumns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "hiddenColumns": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "where": {
+                    "$ref": "#/components/schemas/createSavedViewInput/$defs/__schema0"
+                  },
+                  "orderBy": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": ["asc", "desc"]
+                        }
+                      },
+                      "required": ["field", "direction"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "columnOrder",
+              "columnWidths",
+              "frozenColumns",
+              "hiddenColumns",
+              "query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "name",
+          "visibility",
+          "definition"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "lte",
+                      "gt",
+                      "gte",
+                      "between",
+                      "in",
+                      "isNull",
+                      "isNotNull",
+                      "prefix",
+                      "contains",
+                      "iContains",
+                      "pathExists",
+                      "pathEq",
+                      "jsonContains"
+                    ]
+                  },
+                  "value": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "path": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 1024 },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "and": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/createSavedViewInput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["and"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "or": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/createSavedViewInput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["or"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "createSavedViewOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "visibility": { "type": "string", "enum": ["personal", "shared"] },
+          "ownerUserId": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+              { "type": "null" }
+            ]
+          },
+          "ownerName": { "type": "string" },
+          "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "canEdit": { "type": "boolean" },
+          "canChangeVisibility": { "type": "boolean" },
+          "createdAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "columnOrder": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "columnWidths": {
+                "type": "object",
+                "propertyNames": { "type": "string" },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 40,
+                  "maximum": 2000
+                }
+              },
+              "frozenColumns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "hiddenColumns": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "where": {
+                    "$ref": "#/components/schemas/createSavedViewOutput/$defs/__schema0"
+                  },
+                  "orderBy": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": ["asc", "desc"]
+                        }
+                      },
+                      "required": ["field", "direction"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "columnOrder",
+              "columnWidths",
+              "frozenColumns",
+              "hiddenColumns",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "validationErrors": {
+            "maxItems": 200,
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "id",
+          "tableId",
+          "name",
+          "visibility",
+          "ownerUserId",
+          "ownerName",
+          "version",
+          "schemaVersion",
+          "canEdit",
+          "canChangeVisibility",
+          "createdAt",
+          "updatedAt",
+          "definition",
+          "validationErrors"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "lte",
+                      "gt",
+                      "gte",
+                      "between",
+                      "in",
+                      "isNull",
+                      "isNotNull",
+                      "prefix",
+                      "contains",
+                      "iContains",
+                      "pathExists",
+                      "pathEq",
+                      "jsonContains"
+                    ]
+                  },
+                  "value": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "path": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 1024 },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "and": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/createSavedViewOutput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["and"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "or": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/createSavedViewOutput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["or"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "updateSavedViewInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "viewId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "visibility": { "type": "string", "enum": ["personal", "shared"] },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "columnOrder": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "columnWidths": {
+                "type": "object",
+                "propertyNames": { "type": "string" },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 40,
+                  "maximum": 2000
+                }
+              },
+              "frozenColumns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "hiddenColumns": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "where": {
+                    "$ref": "#/components/schemas/updateSavedViewInput/$defs/__schema0"
+                  },
+                  "orderBy": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": ["asc", "desc"]
+                        }
+                      },
+                      "required": ["field", "direction"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "columnOrder",
+              "columnWidths",
+              "frozenColumns",
+              "hiddenColumns",
+              "query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "viewId",
+          "expectedVersion"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "lte",
+                      "gt",
+                      "gte",
+                      "between",
+                      "in",
+                      "isNull",
+                      "isNotNull",
+                      "prefix",
+                      "contains",
+                      "iContains",
+                      "pathExists",
+                      "pathEq",
+                      "jsonContains"
+                    ]
+                  },
+                  "value": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "path": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 1024 },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "and": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/updateSavedViewInput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["and"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "or": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/updateSavedViewInput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["or"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "updateSavedViewOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "visibility": { "type": "string", "enum": ["personal", "shared"] },
+          "ownerUserId": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+              { "type": "null" }
+            ]
+          },
+          "ownerName": { "type": "string" },
+          "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "canEdit": { "type": "boolean" },
+          "canChangeVisibility": { "type": "boolean" },
+          "createdAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "columnOrder": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "columnWidths": {
+                "type": "object",
+                "propertyNames": { "type": "string" },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 40,
+                  "maximum": 2000
+                }
+              },
+              "frozenColumns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "hiddenColumns": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "where": {
+                    "$ref": "#/components/schemas/updateSavedViewOutput/$defs/__schema0"
+                  },
+                  "orderBy": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": ["asc", "desc"]
+                        }
+                      },
+                      "required": ["field", "direction"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "columnOrder",
+              "columnWidths",
+              "frozenColumns",
+              "hiddenColumns",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "validationErrors": {
+            "maxItems": 200,
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": [
+          "id",
+          "tableId",
+          "name",
+          "visibility",
+          "ownerUserId",
+          "ownerName",
+          "version",
+          "schemaVersion",
+          "canEdit",
+          "canChangeVisibility",
+          "createdAt",
+          "updatedAt",
+          "definition",
+          "validationErrors"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "lt",
+                      "lte",
+                      "gt",
+                      "gte",
+                      "between",
+                      "in",
+                      "isNull",
+                      "isNotNull",
+                      "prefix",
+                      "contains",
+                      "iContains",
+                      "pathExists",
+                      "pathEq",
+                      "jsonContains"
+                    ]
+                  },
+                  "value": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  },
+                  "path": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 1024 },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["field", "op"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "and": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/updateSavedViewOutput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["and"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "or": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/updateSavedViewOutput/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": ["or"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "deleteSavedViewInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "viewId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "viewId",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "deleteSavedViewOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "deleted": { "type": "boolean", "const": true },
+          "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" }
+        },
+        "required": ["id", "deleted", "version"],
         "additionalProperties": false
       },
       "getBackupScheduleInput": {

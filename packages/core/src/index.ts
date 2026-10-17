@@ -380,6 +380,17 @@ export class RootsetCore {
           QuerySpecSchema.parse(input.query ?? {}),
           lexemes,
         );
+      if (
+        table &&
+        ["createSavedView", "updateSavedView"].includes(operationId) &&
+        input.definition
+      )
+        assertQueryLexemes(
+          table.fields,
+          QuerySpecSchema.parse(record(input.definition).query ?? {}),
+          lexemes,
+          ["definition", "query"],
+        );
       if (table && operationId === "createUniqueRule" && input.where)
         assertQueryLexemes(
           table.fields,
