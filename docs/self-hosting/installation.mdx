@@ -6,7 +6,7 @@ description: "Run the Rootset API, worker and UI with Docker Compose and your Po
 Rootset runs from three versioned images: **`rootset-api`** (API and migration commands), **`rootset-worker`** (background jobs) and **`rootset-web`** (UI). They share the same release version. You do not need Node.js, pnpm, GitHub Packages credentials or a local source build to run published images.
 
 <Note>
-  [Rootset 0.1.8](https://github.com/avgeek-oss/rootset/releases/tag/v0.1.8) is
+  [Rootset 0.1.9](https://github.com/avgeek-oss/rootset/releases/tag/v0.1.9) is
   available with public API, worker and UI images for Linux AMD64 and ARM64. Use
   the installation files attached to your chosen release.
 </Note>
@@ -23,11 +23,11 @@ The supplied memory caps allow 4 GiB for bundled PostgreSQL, 1 GiB for the API, 
 
 ## 1. Download the release installation files
 
-Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/rootset/releases). Replace `0.1.8` below with that version.
+Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/rootset/releases). Replace `0.1.9` below with that version.
 
 ```bash
 mkdir rootset && cd rootset
-ROOTSET_RELEASE=0.1.8
+ROOTSET_RELEASE=0.1.9
 curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/v$ROOTSET_RELEASE/compose.images.yaml" -o compose.yaml
 curl --fail --location "https://github.com/avgeek-oss/rootset/releases/download/v$ROOTSET_RELEASE/rootset.env.example" -o .env
 chmod 600 .env

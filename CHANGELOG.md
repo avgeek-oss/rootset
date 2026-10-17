@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9 (2026-10-16)
+
+- Mark foreign-key columns with an fk chip and open referenced records in a new tab, filtered by the linked values, including composite keys.
+- Add database-level Export Requests with one ZIP containing every table’s schema and CSV or JSONL data from a consistent snapshot.
+- Include ordered field definitions, unique rules and foreign keys in schema files, with row counts and file checksums in a versioned manifest.
+- Support cancellation, retry and expiring downloads with current-access checks. Keep export history in a horizontally scrollable table on mobile.
+
 ## 0.1.8 (2026-10-15)
 
 - Add automated database backups using S3-compatible storage configured on the worker, with encrypted, versioned packages and verified uploads.
