@@ -168,6 +168,8 @@
               "api-reference/createRowComment",
               "api-reference/countRowComments",
               "api-reference/deleteRowComment",
+              "api-reference/previewBulkRows",
+              "api-reference/bulkRows",
               "api-reference/mutateRows",
               "api-reference/getTableStatistics",
               "api-reference/countRows",

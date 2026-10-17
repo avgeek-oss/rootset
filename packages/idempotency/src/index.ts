@@ -55,6 +55,7 @@ export const backupMutationSet: ReadonlySet<string> = new Set([
   "testBackupDestination",
 ]);
 export const mutationSet: ReadonlySet<string> = new Set([
+  "bulkRows",
   ...backupMutationSet,
   ...identityMutationSet,
   ...jobsMutationSet,

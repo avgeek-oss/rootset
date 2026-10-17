@@ -11,3 +11,5 @@ export * from "./unique-rules";
 export * from "./backups";
 export * from "./imports";
 export * from "./views";
+
+export * from "./bulk-rows";

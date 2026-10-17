@@ -32,6 +32,12 @@ import {
   assertFieldNames,
   assertAllowedValuesBudget,
   importLimits,
+  bulkRowsLimits,
+  BulkRowsInputSchema,
+  type BulkRowsInput,
+  type BulkRowsPreview,
+  type BulkRowsIssue,
+  type BulkRowsResult,
   type ImportRow,
   type ImportIssue,
 } from "@rootset/contracts";
@@ -89,7 +95,7 @@ export interface MutationContext {
   source?: "rest" | "mcp" | "ui" | "import" | "schema" | "operator";
   jobId?: string;
   jobFence?: { jobId: string; leaseToken: string };
-  beforePublish?: () => Promise<unknown>;
+  beforePublish?: (client?: PoolClient) => Promise<unknown>;
   repair?: { reason: string; jobId: string };
 }
 export interface MutationOptions {
@@ -98,6 +104,7 @@ export interface MutationOptions {
   context?: MutationContext;
   onCommit?: (client: PoolClient, outcome: MutationResult) => Promise<void>;
   responseBudget?: number;
+  returnRows?: false;
 }
 export type RowOperation =
   | { kind: "create"; values: Record<string, JsonValue> }
@@ -113,6 +120,7 @@ export interface MutationResult {
   schemaVersion: number;
   rows: Row[];
   deletedIds: string[];
+  createdIds?: string[];
 }
 export interface SchemaOptions {
   expectedSchemaVersion: number;
@@ -528,7 +536,7 @@ export class TableStorage {
     ctx: MutationContext | undefined,
     lock = true,
   ): Promise<void> {
-    await ctx?.beforePublish?.();
+    await ctx?.beforePublish?.(c);
     const fence = ctx?.jobFence;
     if (!fence) return;
     if (ctx.jobId && ctx.jobId !== fence.jobId)
@@ -1808,6 +1816,237 @@ export class TableStorage {
     return [...issues.values()].sort((a, b) => a.line - b.line);
   }
 
+  private async bulkPlan(
+    c: PoolClient,
+    actor: Actor,
+    tableId: string,
+    input: BulkRowsInput,
+  ) {
+    let table = await this.table(c, actor, tableId);
+    await this.database(c, actor, table.databaseId);
+    await c.query(
+      "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+      [table.databaseId],
+    );
+    table = await this.table(c, actor, tableId, true);
+    this.expected(table, input.expectedSchemaVersion);
+    if (table.state !== "active")
+      fail("SCHEMA_MAINTENANCE", "Wait for table maintenance to finish", 409);
+    const found = await c.query<Raw>(
+      `SELECT * FROM ${tablePath(table)} WHERE row_id=ANY($1::varchar[]) ORDER BY row_id FOR UPDATE`,
+      [input.rows.map((row) => id(row.rowId))],
+    );
+    const rows = new Map(
+      found.rows.map((raw) => {
+        const row = rowFrom(raw, table.fields);
+        return [row.id, row] as const;
+      }),
+    );
+    const patch =
+      input.action.type === "set"
+        ? validateValues(table.fields, input.action.values, "patch")
+        : undefined;
+    const issues: BulkRowsIssue[] = [];
+    const entries: { index: number; before: Row; operation: RowOperation }[] =
+      [];
+    for (const [index, selected] of input.rows.entries()) {
+      const before = rows.get(selected.rowId);
+      if (!before || before.version !== selected.expectedVersion) {
+        issues.push({
+          index,
+          rowId: selected.rowId,
+          code: before ? "ROW_VERSION_CONFLICT" : "RESOURCE_NOT_FOUND",
+          message: before
+            ? "This record changed after it was selected. Reload the selected records and preview again."
+            : "This record no longer exists.",
+        });
+        continue;
+      }
+      const operation: RowOperation =
+        input.action.type === "set"
+          ? {
+              kind: "update",
+              rowId: before.id,
+              expectedVersion: selected.expectedVersion,
+              values: patch!,
+            }
+          : input.action.type === "delete"
+            ? {
+                kind: "delete",
+                rowId: before.id,
+                expectedVersion: selected.expectedVersion,
+              }
+            : {
+                kind: "create",
+                values: Object.fromEntries(
+                  table.fields
+                    .filter((field) => !field.autoIncrement)
+                    .map((field) => [field.name, before.values[field.name]!]),
+                ),
+              };
+      entries.push({ index, before, operation });
+    }
+    if (
+      Buffer.byteLength(
+        JSON.stringify(entries.map((entry) => entry.operation)),
+      ) +
+        4096 >
+      limits.requestBytes
+    )
+      fail(
+        "PAYLOAD_TOO_LARGE",
+        "This bulk action exceeds 8 MiB. Select fewer records.",
+        413,
+      );
+    return { table, entries, issues };
+  }
+
+  async previewBulkRows(
+    actor: Actor,
+    tableId: string,
+    input: BulkRowsInput,
+    options: { context?: MutationContext; signal?: AbortSignal } = {},
+  ): Promise<BulkRowsPreview> {
+    input = BulkRowsInputSchema.parse(input);
+    const deadline = Date.now() + limits.queryTimeoutMs;
+    const check = () => {
+      if (options.signal?.aborted)
+        fail("REQUEST_TIMEOUT", "The bulk preview was cancelled", 408);
+      if (Date.now() >= deadline)
+        fail(
+          "QUERY_TIMEOUT",
+          "The bulk preview exceeded its execution budget. Select fewer records.",
+          408,
+        );
+    };
+    return this.run(actor, async (c) => {
+      check();
+      await c.query("SAVEPOINT bulk_preview");
+      const plan = await this.bulkPlan(c, actor, tableId, input);
+      const issues = [...plan.issues];
+      const sample: BulkRowsPreview["sample"] = [];
+      let sampleBytes = 0;
+      for (const { index, before, operation } of plan.entries) {
+        check();
+        await c.query("SELECT set_config('statement_timeout',$1,true)", [
+          `${Math.max(1, deadline - Date.now())}ms`,
+        ]);
+        await c.query("SAVEPOINT bulk_record");
+        try {
+          const result = await this.mutateRows(
+            actor,
+            tableId,
+            {
+              expectedSchemaVersion: input.expectedSchemaVersion,
+              operations: [operation],
+              context: { ...options.context, beforePublish: undefined },
+            },
+            c,
+          );
+          const value = {
+            rowId: before.id,
+            before: before.values,
+            ...(result.rows[0] ? { after: result.rows[0].values } : {}),
+          };
+          const bytes = Buffer.byteLength(JSON.stringify(value));
+          if (
+            sample.length < bulkRowsLimits.sampleRows &&
+            sampleBytes + bytes <= bulkRowsLimits.sampleBytes
+          ) {
+            sample.push(value);
+            sampleBytes += bytes;
+          }
+          await c.query("RELEASE SAVEPOINT bulk_record");
+        } catch (error) {
+          await c.query("ROLLBACK TO SAVEPOINT bulk_record");
+          await c.query("RELEASE SAVEPOINT bulk_record");
+          if (
+            !(error instanceof RootsetError) ||
+            ![
+              "VALIDATION_FAILED",
+              "ROW_VERSION_CONFLICT",
+              "RESOURCE_NOT_FOUND",
+              "FOREIGN_KEY_CONFLICT",
+              "UNIQUE_CONFLICT",
+              "ROW_LIMIT_REACHED",
+              "AUTO_INCREMENT_EXHAUSTED",
+              "ROW_SIZE_LIMIT",
+              "PAYLOAD_TOO_LARGE",
+            ].includes(error.code)
+          )
+            throw error;
+          const details =
+            error.details && typeof error.details === "object"
+              ? (error.details as Record<string, unknown>)
+              : {};
+          issues.push({
+            index,
+            rowId: before.id,
+            code: error.code,
+            message: error.message,
+            ...(IdSchema.safeParse(details.fieldId).success
+              ? { fieldId: String(details.fieldId) }
+              : {}),
+            ...(IdSchema.safeParse(details.ruleId).success
+              ? { ruleId: String(details.ruleId) }
+              : {}),
+          });
+        }
+      }
+      check();
+      await this.assertPublication(c, actor, options.context);
+      check();
+      const result: BulkRowsPreview = {
+        action: input.action.type,
+        total: input.rows.length,
+        valid: input.rows.length - issues.length,
+        schemaVersion: plan.table.schemaVersion,
+        issues: issues.sort((a, b) => a.index - b.index),
+        sample,
+      };
+      // Simulations use native triggers; rollback also restores counters, history and registries.
+      await c.query("ROLLBACK TO SAVEPOINT bulk_preview");
+      await c.query("RELEASE SAVEPOINT bulk_preview");
+      return result;
+    });
+  }
+
+  async bulkRows(
+    actor: Actor,
+    tableId: string,
+    input: BulkRowsInput,
+    options: Pick<MutationOptions, "context">,
+    c: PoolClient,
+  ): Promise<BulkRowsResult> {
+    input = BulkRowsInputSchema.parse(input);
+    const plan = await this.bulkPlan(c, actor, tableId, input);
+    const conflict = plan.issues[0];
+    if (conflict)
+      fail(conflict.code, conflict.message, 409, {
+        index: conflict.index,
+        rowId: conflict.rowId,
+      });
+    const result = await this.mutateRows(
+      actor,
+      tableId,
+      {
+        expectedSchemaVersion: input.expectedSchemaVersion,
+        operations: plan.entries.map((entry) => entry.operation),
+        context: options.context,
+        returnRows: false,
+      },
+      c,
+    );
+    return {
+      mutationId: result.mutationId,
+      action: input.action.type,
+      affected: input.rows.length,
+      createdIds:
+        input.action.type === "duplicate" ? (result.createdIds ?? []) : [],
+      deletedIds: result.deletedIds,
+    };
+  }
+
   async mutateRows(
     a: Actor,
     tableId: string,
@@ -1890,6 +2129,7 @@ export class TableStorage {
       const mutationInput = {
         operations: input.operations,
         expectedSchemaVersion: input.expectedSchemaVersion ?? null,
+        ...(input.returnRows === false ? { returnRows: false } : {}),
         ...(repair
           ? {
               repair: {
@@ -1979,7 +2219,9 @@ export class TableStorage {
       await this.reserveExplicitIntegerValues(c, t, input.operations);
       const rows: Row[] = [];
       const deletedIds: string[] = [];
-      const returnRows = input.context?.source !== "import";
+      const createdIds: string[] = [];
+      const returnRows =
+        input.returnRows !== false && input.context?.source !== "import";
       for (const op of input.operations) {
         if (op.kind === "create") {
           const values = validateValues(t.fields, op.values);
@@ -2024,6 +2266,8 @@ export class TableStorage {
             `INSERT INTO ${tablePath(t)}(row_id,org_id${keys.length ? "," + keys.join(",") : ""}) VALUES($1,$2${params.map((_, i) => `,$${i + 3}`).join("")}) RETURNING *`,
             [newId(), a.orgId, ...params],
           );
+          if (input.returnRows === false)
+            createdIds.push(String(r.rows[0]!.row_id));
           if (returnRows) rows.push(rowFrom(r.rows[0]!, t.fields));
         } else if (op.kind === "update") {
           const rowId = id(op.rowId);
@@ -2083,6 +2327,7 @@ export class TableStorage {
         schemaVersion: t.schemaVersion,
         rows,
         deletedIds,
+        ...(input.returnRows === false ? { createdIds } : {}),
       };
       const outcomeJson = checkedOutcome(outcome);
       await this.assertPublication(c, a, input.context);

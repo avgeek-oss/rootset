@@ -3824,6 +3824,72 @@ export type deleteRowInput = {
   expectedVersion: string;
 };
 export type deleteRowOutput = { deleted: boolean; mutationId?: string };
+export type previewBulkRowsInput = {
+  expectedSchemaVersion: number;
+  rows: { rowId: string; expectedVersion: string }[];
+  action:
+    | {
+        type: "set";
+        values: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | { type: "duplicate" }
+    | { type: "delete" };
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type previewBulkRowsOutput = {
+  action: "set" | "duplicate" | "delete";
+  total: number;
+  valid: number;
+  schemaVersion: number;
+  issues: {
+    index: number;
+    rowId: string;
+    code: string;
+    message: string;
+    fieldId?: string;
+    ruleId?: string;
+  }[];
+  sample: {
+    rowId: string;
+    before: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+    after?: Record<
+      string,
+      null | boolean | number | string | unknown[] | Record<string, unknown>
+    >;
+  }[];
+};
+export type bulkRowsInput = {
+  expectedSchemaVersion: number;
+  rows: { rowId: string; expectedVersion: string }[];
+  action:
+    | {
+        type: "set";
+        values: Record<
+          string,
+          null | boolean | number | string | unknown[] | Record<string, unknown>
+        >;
+      }
+    | { type: "duplicate" }
+    | { type: "delete" };
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+};
+export type bulkRowsOutput = {
+  mutationId: string;
+  action: "set" | "duplicate" | "delete";
+  affected: number;
+  createdIds: string[];
+  deletedIds: string[];
+};
 export type mutateRowsInput = {
   orgId: string;
   databaseId: string;
@@ -5439,6 +5505,16 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
+  previewBulkRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/bulk/preview",
+    method: "POST",
+    idempotencyRequired: false,
+  },
+  bulkRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/bulk",
+    method: "POST",
+    idempotencyRequired: true,
+  },
   mutateRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/batch",
     method: "POST",
@@ -6244,6 +6320,22 @@ export class RootsetClient {
     options?: CallOptions,
   ): Promise<deleteRowOutput> {
     return this.call("deleteRow", input, options) as Promise<deleteRowOutput>;
+  }
+  previewBulkRows(
+    input: previewBulkRowsInput,
+    options?: CallOptions,
+  ): Promise<previewBulkRowsOutput> {
+    return this.call(
+      "previewBulkRows",
+      input,
+      options,
+    ) as Promise<previewBulkRowsOutput>;
+  }
+  bulkRows(
+    input: bulkRowsInput,
+    options?: CallOptions,
+  ): Promise<bulkRowsOutput> {
+    return this.call("bulkRows", input, options) as Promise<bulkRowsOutput>;
   }
   mutateRows(
     input: mutateRowsInput,

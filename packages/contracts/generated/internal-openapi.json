@@ -13477,6 +13477,572 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/bulk/preview": {
+      "post": {
+        "operationId": "previewBulkRows",
+        "tags": ["data"],
+        "summary": "Preview 1–200 revision-bound records for a field patch, duplication with regenerated automatic IDs, or deletion. Validate native constraints and roll back every simulated effect. Return row-specific conflicts and a bounded sample; no records or counters change.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01J00000000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01J00000000000000000000001"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01J00000000000000000000002"
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "rowId": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "expectedVersion": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,18}$"
+                        }
+                      },
+                      "required": ["rowId", "expectedVersion"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "action": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "const": "set" },
+                          "values": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "additionalProperties": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            }
+                          }
+                        },
+                        "required": ["type", "values"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "const": "duplicate" }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "const": "delete" }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["expectedSchemaVersion", "rows", "action"],
+                "additionalProperties": false
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "rows": [
+                  {
+                    "rowId": "01J00000000000000000000003",
+                    "expectedVersion": "1"
+                  }
+                ],
+                "action": {
+                  "type": "set",
+                  "values": { "NAME": "Updated name" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/previewBulkRowsOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "member",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_preview_bulk_rows",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "expectedSchemaVersion": 1,
+          "rows": [
+            { "rowId": "01J00000000000000000000003", "expectedVersion": "1" }
+          ],
+          "action": { "type": "set", "values": { "NAME": "Updated name" } },
+          "orgId": "01J00000000000000000000000",
+          "databaseId": "01J00000000000000000000001",
+          "tableId": "01J00000000000000000000002"
+        }
+      }
+    },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/bulk": {
+      "post": {
+        "operationId": "bulkRows",
+        "tags": ["data"],
+        "summary": "Apply a field patch, duplicate records with regenerated automatic IDs, or delete 1–200 selected records atomically. Recheck source revisions and schema, enforce native constraints, and replay an unchanged idempotent request without duplicating records.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01J00000000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01J00000000000000000000001"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01J00000000000000000000002"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "rowId": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "expectedVersion": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,18}$"
+                        }
+                      },
+                      "required": ["rowId", "expectedVersion"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "action": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "const": "set" },
+                          "values": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "additionalProperties": {
+                              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                              "anyOf": [
+                                { "type": "null" },
+                                { "type": "boolean" },
+                                { "type": "number" },
+                                { "type": "string" },
+                                { "type": "array", "items": {} },
+                                { "type": "object", "additionalProperties": {} }
+                              ]
+                            }
+                          }
+                        },
+                        "required": ["type", "values"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "const": "duplicate" }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "const": "delete" }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["expectedSchemaVersion", "rows", "action"],
+                "additionalProperties": false
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "rows": [
+                  {
+                    "rowId": "01J00000000000000000000003",
+                    "expectedVersion": "1"
+                  }
+                ],
+                "action": {
+                  "type": "set",
+                  "values": { "NAME": "Updated name" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/bulkRowsOutput" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "member",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_bulk_rows",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "expectedSchemaVersion": 1,
+          "rows": [
+            { "rowId": "01J00000000000000000000003", "expectedVersion": "1" }
+          ],
+          "action": { "type": "set", "values": { "NAME": "Updated name" } },
+          "orgId": "01J00000000000000000000000",
+          "databaseId": "01J00000000000000000000001",
+          "tableId": "01J00000000000000000000002"
+        }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/batch": {
       "post": {
         "operationId": "mutateRows",
@@ -33386,6 +33952,344 @@
           }
         },
         "required": ["deleted"],
+        "additionalProperties": false
+      },
+      "previewBulkRowsInput": {
+        "type": "object",
+        "properties": {
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "rows": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rowId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "expectedVersion": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,18}$"
+                }
+              },
+              "required": ["rowId", "expectedVersion"],
+              "additionalProperties": false
+            }
+          },
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "const": "set" },
+                  "values": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "additionalProperties": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    }
+                  }
+                },
+                "required": ["type", "values"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "const": "duplicate" }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "const": "delete" }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": [
+          "expectedSchemaVersion",
+          "rows",
+          "action",
+          "orgId",
+          "databaseId",
+          "tableId"
+        ],
+        "additionalProperties": false
+      },
+      "previewBulkRowsOutput": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["set", "duplicate", "delete"]
+          },
+          "total": { "type": "integer", "exclusiveMinimum": 0, "maximum": 200 },
+          "valid": { "type": "integer", "minimum": 0, "maximum": 200 },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "issues": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": { "type": "integer", "minimum": 0, "maximum": 199 },
+                "rowId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "message": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "fieldId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "ruleId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "required": ["index", "rowId", "code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "sample": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rowId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "before": {
+                  "type": "object",
+                  "propertyNames": { "type": "string" },
+                  "additionalProperties": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  }
+                },
+                "after": {
+                  "type": "object",
+                  "propertyNames": { "type": "string" },
+                  "additionalProperties": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  }
+                }
+              },
+              "required": ["rowId", "before"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "action",
+          "total",
+          "valid",
+          "schemaVersion",
+          "issues",
+          "sample"
+        ],
+        "additionalProperties": false
+      },
+      "bulkRowsInput": {
+        "type": "object",
+        "properties": {
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "rows": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rowId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "expectedVersion": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,18}$"
+                }
+              },
+              "required": ["rowId", "expectedVersion"],
+              "additionalProperties": false
+            }
+          },
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "const": "set" },
+                  "values": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "additionalProperties": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    }
+                  }
+                },
+                "required": ["type", "values"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "const": "duplicate" }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "const": "delete" }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": [
+          "expectedSchemaVersion",
+          "rows",
+          "action",
+          "orgId",
+          "databaseId",
+          "tableId"
+        ],
+        "additionalProperties": false
+      },
+      "bulkRowsOutput": {
+        "type": "object",
+        "properties": {
+          "mutationId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["set", "duplicate", "delete"]
+          },
+          "affected": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 200
+          },
+          "createdIds": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "deletedIds": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          }
+        },
+        "required": [
+          "mutationId",
+          "action",
+          "affected",
+          "createdIds",
+          "deletedIds"
+        ],
         "additionalProperties": false
       },
       "mutateRowsInput": {

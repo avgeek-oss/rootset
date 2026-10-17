@@ -15,11 +15,12 @@ import {
   type NumberLexeme,
   type JsonValue,
   type Row,
+  type BulkRowsInput,
 } from "@rootset/contracts";
 import { assertAccess } from "@rootset/access";
 import { withOrg, type Pool, type PoolClient } from "@rootset/database";
 import type { IdentityService } from "@rootset/identity";
-import { lookupMutation, mutationSet } from "@rootset/idempotency";
+import { lookupMutation, mutationSet, runMutation } from "@rootset/idempotency";
 import type {
   TableStorage,
   DatabaseRecord,
@@ -369,6 +370,12 @@ export class RootsetCore {
         typeof input.tableId === "string"
           ? await this.options.storage.getTable(actor, input.tableId)
           : undefined;
+      if (
+        table &&
+        ["previewBulkRows", "bulkRows"].includes(operationId) &&
+        record(input.action).type === "set"
+      )
+        assertValueLexemes(table.fields, lexemes, ["action", "values"]);
       if (table && ["createRow", "updateRow"].includes(operationId))
         assertValueLexemes(table.fields, lexemes);
       if (
@@ -934,6 +941,40 @@ export class RootsetCore {
           expectedVersion: str(input.expectedVersion),
         });
         return { deleted: true, mutationId: r.mutationId };
+      }
+      case "previewBulkRows":
+      case "bulkRows": {
+        const bulk: BulkRowsInput = {
+          expectedSchemaVersion: num(input.expectedSchemaVersion),
+          rows: input.rows as BulkRowsInput["rows"],
+          action: input.action as BulkRowsInput["action"],
+        };
+        const context = {
+          ...mutationOptions(input, ctx).context,
+          beforePublish: async (client?: PoolClient) => {
+            assertReadOpen(ctx);
+            await ctx.beforePublish?.();
+            const current = await this.options.identity.refreshActor(a, client);
+            assertAccess(current, { scope: "rows:write", orgId: a.orgId });
+            assertReadOpen(ctx);
+          },
+        };
+        if (id === "previewBulkRows")
+          return s.previewBulkRows(a, tableId, bulk, {
+            context,
+            signal: readSignal(ctx),
+          });
+        return withOrg(this.options.pool, a.orgId, (c) =>
+          runMutation(
+            c,
+            a,
+            id,
+            input,
+            ctx.idempotencyKey!,
+            this.options.config.keyHashSecret,
+            () => s.bulkRows(a, tableId, bulk, { context }, c),
+          ),
+        );
       }
       case "mutateRows": {
         const ops = mutations(input.mutations);

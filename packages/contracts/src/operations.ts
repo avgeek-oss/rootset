@@ -1,4 +1,9 @@
 import {
+  BulkRowsInputSchema,
+  BulkRowsPreviewSchema,
+  BulkRowsResultSchema,
+} from "./bulk-rows";
+import {
   BackupDestinationSchema,
   BackupTimingSchema,
   BackupScheduleInputSchema,
@@ -1090,6 +1095,43 @@ operation(
   }),
   deleted,
   "Delete a row with If-Match revision, remove its cell history and release live capacity.",
+);
+const bulkRowsExample = {
+  orgId: "01J00000000000000000000000",
+  databaseId: "01J00000000000000000000001",
+  tableId: "01J00000000000000000000002",
+  expectedSchemaVersion: 1,
+  rows: [{ rowId: "01J00000000000000000000003", expectedVersion: "1" }],
+  action: { type: "set", values: { NAME: "Updated name" } },
+};
+operation(
+  "previewBulkRows",
+  "preview_bulk_rows",
+  "POST",
+  `${T}/rows/bulk/preview`,
+  ["rows:write"],
+  BulkRowsInputSchema.extend(table),
+  BulkRowsPreviewSchema,
+  "Preview 1–200 revision-bound records for a field patch, duplication with regenerated automatic IDs, or deletion. Validate native constraints and roll back every simulated effect. Return row-specific conflicts and a bounded sample; no records or counters change.",
+  {
+    example: bulkRowsExample,
+    readOnly: true,
+    idempotent: true,
+    idempotencyRequired: false,
+    minimumRole: "member",
+    successStatus: 200,
+  },
+);
+operation(
+  "bulkRows",
+  "bulk_rows",
+  "POST",
+  `${T}/rows/bulk`,
+  ["rows:write"],
+  BulkRowsInputSchema.extend(table),
+  BulkRowsResultSchema,
+  "Apply a field patch, duplicate records with regenerated automatic IDs, or delete 1–200 selected records atomically. Recheck source revisions and schema, enforce native constraints, and replay an unchanged idempotent request without duplicating records.",
+  { destructive: true, example: bulkRowsExample },
 );
 const rowMutation = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("create"), values }),

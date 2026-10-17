@@ -19441,6 +19441,544 @@
     }
   },
   {
+    "name": "rootset_preview_bulk_rows",
+    "title": "previewBulkRows",
+    "description": "Preview 1–200 revision-bound records for a field patch, duplication with regenerated automatic IDs, or deletion. Validate native constraints and roll back every simulated effect. Return row-specific conflicts and a bounded sample; no records or counters change.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedSchemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "rows": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rowId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "expectedVersion": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              }
+            },
+            "required": ["rowId", "expectedVersion"],
+            "additionalProperties": false
+          }
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "const": "set" },
+                "values": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "additionalProperties": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  }
+                }
+              },
+              "required": ["type", "values"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "const": "duplicate" }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": { "type": { "type": "string", "const": "delete" } },
+              "required": ["type"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": [
+        "expectedSchemaVersion",
+        "rows",
+        "action",
+        "orgId",
+        "databaseId",
+        "tableId"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["set", "duplicate", "delete"]
+            },
+            "total": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 200
+            },
+            "valid": { "type": "integer", "minimum": 0, "maximum": 200 },
+            "schemaVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "issues": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": { "type": "integer", "minimum": 0, "maximum": 199 },
+                  "rowId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "fieldId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "ruleId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "required": ["index", "rowId", "code", "message"],
+                "additionalProperties": false
+              }
+            },
+            "sample": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rowId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "before": {
+                    "type": "object",
+                    "propertyNames": { "type": "string" },
+                    "additionalProperties": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    }
+                  },
+                  "after": {
+                    "type": "object",
+                    "propertyNames": { "type": "string" },
+                    "additionalProperties": {
+                      "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                      "anyOf": [
+                        { "type": "null" },
+                        { "type": "boolean" },
+                        { "type": "number" },
+                        { "type": "string" },
+                        { "type": "array", "items": {} },
+                        { "type": "object", "additionalProperties": {} }
+                      ]
+                    }
+                  }
+                },
+                "required": ["rowId", "before"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "action",
+            "total",
+            "valid",
+            "schemaVersion",
+            "issues",
+            "sample"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_bulk_rows",
+    "title": "bulkRows",
+    "description": "Apply a field patch, duplicate records with regenerated automatic IDs, or delete 1–200 selected records atomically. Recheck source revisions and schema, enforce native constraints, and replay an unchanged idempotent request without duplicating records.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedSchemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "rows": {
+          "minItems": 1,
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rowId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "expectedVersion": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              }
+            },
+            "required": ["rowId", "expectedVersion"],
+            "additionalProperties": false
+          }
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "const": "set" },
+                "values": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "additionalProperties": {
+                    "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                    "anyOf": [
+                      { "type": "null" },
+                      { "type": "boolean" },
+                      { "type": "number" },
+                      { "type": "string" },
+                      { "type": "array", "items": {} },
+                      { "type": "object", "additionalProperties": {} }
+                    ]
+                  }
+                }
+              },
+              "required": ["type", "values"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "const": "duplicate" }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": { "type": { "type": "string", "const": "delete" } },
+              "required": ["type"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "expectedSchemaVersion",
+        "rows",
+        "action",
+        "orgId",
+        "databaseId",
+        "tableId",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mutationId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "action": {
+              "type": "string",
+              "enum": ["set", "duplicate", "delete"]
+            },
+            "affected": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 200
+            },
+            "createdIds": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              }
+            },
+            "deletedIds": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              }
+            }
+          },
+          "required": [
+            "mutationId",
+            "action",
+            "affected",
+            "createdIds",
+            "deletedIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
     "name": "rootset_mutate_rows",
     "title": "mutateRows",
     "description": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
