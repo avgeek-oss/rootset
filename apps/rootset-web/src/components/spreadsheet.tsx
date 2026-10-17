@@ -43,6 +43,7 @@ import {
   MoreHorizontal,
   Plus,
   View,
+  Upload,
 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
@@ -80,6 +81,7 @@ import {
 import { Dialog } from "./dialog";
 import { RowComments } from "./row-comments";
 import { RecordEditor } from "./record-editor";
+import { ImportRecords } from "./import-records";
 import { useConfirmation } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { TableFilterDialog } from "./table-filter-dialog";
@@ -222,6 +224,7 @@ export function Spreadsheet({
   const [recordEditor, setRecordEditor] = useState<{ rowId?: string } | null>(
     null,
   );
+  const [importOpen, setImportOpen] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
     initialFilter.conditions,
   );
@@ -714,6 +717,26 @@ export function Spreadsheet({
     if (saving) return;
     if (draft) await submitEditor.current?.();
     action();
+  }
+  function recordsChanged(created = false) {
+    cache.current.clear();
+    sessionId.current = undefined;
+    setSelection(null);
+    onChanged();
+    void loadWindow(
+      created && !query.where && !query.orderBy?.length
+        ? "last"
+        : currentStart.current,
+    );
+  }
+  function recordAccessLost() {
+    setRecordEditor(null);
+    setImportOpen(false);
+    cache.current.clear();
+    setRows([]);
+    setWindowInfo(null);
+    setSelection(null);
+    setAccessRevoked(true);
   }
 
   function focusCell(row: number, column: number) {
@@ -1633,27 +1656,46 @@ export function Spreadsheet({
             isIconOnly
             size="lg"
             variant="secondary"
-            aria-label="Record actions"
+            aria-label="More table actions"
             isDisabled={
-              !selection || !rows[selection.row] || saving || accessRevoked
+              saving ||
+              accessRevoked ||
+              !fields.length ||
+              (!canEdit && (!selection || !rows[selection.row]))
             }
           >
             <MoreHorizontal size={20} />
           </Button>
           <Dropdown.Popover>
             <Dropdown.Menu
-              aria-label="Record actions"
+              aria-label="More table actions"
               onAction={(key) => {
                 if (key === "open" && selection && rows[selection.row])
                   void leaveEditor(() =>
                     setRecordEditor({ rowId: rows[selection.row]!.id }),
                   );
+                else if (key === "import")
+                  void leaveEditor(() => setImportOpen(true));
               }}
             >
-              <Dropdown.Item id="open" textValue="Open record">
+              <Dropdown.Item
+                id="open"
+                textValue="Open record"
+                isDisabled={!selection || !rows[selection.row]}
+              >
                 <View className="shrink-0 text-muted" />
                 Open record
               </Dropdown.Item>
+              {canEdit && (
+                <Dropdown.Item
+                  id="import"
+                  textValue="Import records"
+                  isDisabled={!writable}
+                >
+                  <Upload className="shrink-0 text-muted" />
+                  Import records
+                </Dropdown.Item>
+              )}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
@@ -1685,23 +1727,18 @@ export function Spreadsheet({
           canEdit={writable}
           onClose={() => setRecordEditor(null)}
           onSaved={(_row, created) => {
-            cache.current.clear();
-            sessionId.current = undefined;
-            onChanged();
-            void loadWindow(
-              created && !query.where && !query.orderBy?.length
-                ? "last"
-                : currentStart.current,
-            );
+            recordsChanged(created);
           }}
-          onAccessLost={() => {
-            setRecordEditor(null);
-            cache.current.clear();
-            setRows([]);
-            setWindowInfo(null);
-            setSelection(null);
-            setAccessRevoked(true);
-          }}
+          onAccessLost={recordAccessLost}
+        />
+      )}
+      {importOpen && (
+        <ImportRecords
+          target={{ orgId, databaseId, tableId: table.id }}
+          preferences={preferences}
+          onClose={() => setImportOpen(false)}
+          onImported={() => recordsChanged(true)}
+          onAccessLost={recordAccessLost}
         />
       )}
       {filterVisible && (

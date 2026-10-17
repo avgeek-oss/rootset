@@ -81,6 +81,7 @@
               "cell-history",
               "unique-rules",
               "foreign-keys",
+              "import-requests",
               "export-requests",
               "backups"
             ]
@@ -181,7 +182,9 @@
               "api-reference/deleteUniqueRule",
               "api-reference/listForeignKeys",
               "api-reference/createForeignKey",
-              "api-reference/deleteForeignKey"
+              "api-reference/deleteForeignKey",
+              "api-reference/previewImportRows",
+              "api-reference/importRows"
             ]
           },
           {

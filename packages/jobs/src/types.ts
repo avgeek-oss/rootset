@@ -83,7 +83,11 @@ export interface JobsConfig {
 export type TableInfo = TableRecord;
 export type StoragePort = Pick<
   TableStorage,
-  "getTable" | "getDatabase" | "snapshotTable"
+  | "getTable"
+  | "getDatabase"
+  | "snapshotTable"
+  | "validateImportRows"
+  | "mutateRows"
 >;
 export interface JobsOptions {
   pool: Pool;

@@ -28,7 +28,7 @@ Database exports use the normal export storage configured for the worker; backup
 
 Downloads require current access to the source table and use expiring artifact access. Keep the exported file if you need it later. CSV and JSONL serialize values according to their format; the UI's `NULL` label is not a replacement for JSON's native `null`.
 
-Exports are data downloads, not an in-app backup or restore mechanism. Rootset does not import these files through the UI.
+Use [Import Requests](/import-requests) to append a CSV or JSONL file to an existing table. Database ZIP exports include schema files for portability; the import drawer accepts individual table data files.
 
 <Screenshot
   light="/assets/screenshots/export-editor-light.png"

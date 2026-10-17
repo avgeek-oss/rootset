@@ -78,6 +78,7 @@ test(
       "0006_foreign_keys.sql",
       "0007_database_backups.sql",
       "0008_backup_schedule_lifecycle.sql",
+      "0009_import_requests.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       assert.deepEqual(
@@ -126,7 +127,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0008_backup_schedule_lifecycle.sql",
+      version: "0009_import_requests.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -262,6 +263,7 @@ test(
       "0006_foreign_keys.sql",
       "0007_database_backups.sql",
       "0008_backup_schedule_lifecycle.sql",
+      "0009_import_requests.sql",
     ])
       await writeFile(
         join(directory, name),

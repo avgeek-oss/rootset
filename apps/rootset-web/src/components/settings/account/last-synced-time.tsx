@@ -22,17 +22,12 @@ const defaults: Preferences = {
 };
 export function RelativeTimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
-    const update = () => {
-      if (document.hidden) return;
-      currentTime = Date.now();
-      for (const notify of listeners) notify();
-    };
-    const interval = setInterval(update, 30_000);
-    document.addEventListener("visibilitychange", update);
-    update();
+    const interval = setInterval(updateClock, 30_000);
+    document.addEventListener("visibilitychange", updateClock);
+    updateClock();
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", update);
+      document.removeEventListener("visibilitychange", updateClock);
     };
   }, []);
   return children;
@@ -81,7 +76,12 @@ export function RelativeTime({
 }
 function subscribeToClock(listener: () => void) {
   listeners.add(listener);
+  updateClock();
   return () => {
     listeners.delete(listener);
   };
+}
+function updateClock() {
+  currentTime = Date.now();
+  for (const notify of listeners) notify();
 }

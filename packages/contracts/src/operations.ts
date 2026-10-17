@@ -6,6 +6,7 @@ import {
   DatabaseBackupSchema,
 } from "./backups";
 import { UniqueRuleConditionSchema } from "./unique-rules";
+import { ImportSourceSchema } from "./imports";
 import { z } from "zod";
 import {
   AccountNameSchema,
@@ -1226,6 +1227,28 @@ operation(
   "Inspect a committed mutation without replaying one-time secrets.",
 );
 
+operation(
+  "previewImportRows",
+  "preview_import_rows",
+  "POST",
+  `${T}/imports/preview`,
+  ["rows:read", "rows:write"],
+  z.strictObject({ ...table, ...expected, ...ImportSourceSchema.shape }),
+  JobAcceptedSchema,
+  "Validate an append-only CSV or JSONL import, including mapping, field constraints, unique keys and foreign keys, without inserting records. The job returns a typed preview and a downloadable JSONL error report.",
+  { job: true, successStatus: 202 },
+);
+operation(
+  "importRows",
+  "import_rows",
+  "POST",
+  `${T}/imports`,
+  ["rows:read", "rows:write"],
+  z.strictObject({ ...table, ...expected, previewId: IdSchema }),
+  JobAcceptedSchema,
+  "Append a previously validated import. Each preview can start one import; retries resume committed batches without duplicating records. Current constraints and authority are checked again before publication.",
+  { job: true, successStatus: 202 },
+);
 operation(
   "exportRows",
   "export_rows",

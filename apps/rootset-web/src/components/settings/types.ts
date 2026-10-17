@@ -28,6 +28,7 @@ export type SettingsSection =
   | "fields"
   | "rules"
   | "foreign-keys"
+  | "imports"
   | "exports";
 
 export interface SettingsPanelProps {
@@ -221,6 +222,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   rules: "Unique rules",
   "foreign-keys": "Foreign keys",
   exports: "Export Requests",
+  imports: "Import Requests",
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
@@ -240,7 +242,14 @@ export function canOpenSettings(
   if (!["admin", "member", "viewer"].includes(role ?? "")) return false;
   if (ADMIN_SETTINGS.includes(section)) return role === "admin";
   if (
-    ["database", "table", "fields", "rules", "foreign-keys"].includes(section)
+    [
+      "database",
+      "table",
+      "fields",
+      "rules",
+      "foreign-keys",
+      "imports",
+    ].includes(section)
   )
     return role !== "viewer";
   return true;
@@ -251,6 +260,7 @@ export function resolveSettingsSection(
 ): SettingsSection | null {
   const aliases: Record<string, SettingsSection> = {
     "export-requests": "exports",
+    "import-requests": "imports",
     security: "passkeys",
     "2fa": "passkeys",
     keys: "api-keys",

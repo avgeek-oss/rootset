@@ -1637,3 +1637,459 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
   assert.equal(await storage.exactCount(actor, target.id), 2);
   assert.deepEqual(await read(), original);
 });
+
+test("CSV imports validate without writes, resume after a crash and admit one job per preview", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Import ${newId()}`,
+  });
+  let target = await storage.createTable(actor, database.id, {
+    name: "Append imports",
+    fields: [
+      { name: "CODE", type: "text", required: true, charLimit: 64 },
+      {
+        name: "RECORD_ID",
+        type: "integer",
+        required: true,
+        autoIncrement: true,
+      },
+      { name: "ENABLED", type: "boolean", required: true, default: false },
+    ],
+  });
+  await storage.createUniqueRule(actor, target.id, {
+    name: "Code",
+    fieldIds: [target.fields[0]!.id],
+    expectedSchemaVersion: target.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  target = await storage.getTable(actor, target.id);
+  const input = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+    format: "csv",
+    fileName: "codes.csv",
+    content:
+      "CODE\n" +
+      Array.from({ length: 1001 }, (_, index) =>
+        String(index).padStart(5, "0"),
+      ).join("\n"),
+    mapping: [{ source: "CODE", fieldId: target.fields[0]!.id }],
+  };
+  const preview = (await jobs.execute("previewImportRows", actor, input)) as {
+    jobId: string;
+  };
+  const validated = await terminal(preview.jobId);
+  assert.equal(validated.state, "succeeded");
+  assert.equal(validated.result?.invalid, 0);
+  assert.equal(validated.result?.total, 1001);
+  assert.equal(await storage.exactCount(actor, target.id), 0);
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT next_value::text FROM rootset_control.integer_counters WHERE field_id=$1",
+        [target.fields[1]!.id],
+      )
+    ).rows[0]!.next_value,
+    "1",
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS count FROM rootset_control.mutations WHERE table_id=$1",
+        [target.id],
+      )
+    ).rows[0]!.count,
+    0,
+  );
+  const request = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+    previewId: preview.jobId,
+  };
+  const started = (await jobs.execute("importRows", actor, request)) as {
+    jobId: string;
+  };
+  const repeated = (await jobs.execute("importRows", actor, request)) as {
+    jobId: string;
+  };
+  assert.equal(repeated.jobId, started.jobId);
+  let interrupted = false;
+  hook = async (point, jobId) => {
+    if (
+      point === "import.afterBatch" &&
+      jobId === started.jobId &&
+      !interrupted
+    ) {
+      interrupted = true;
+      throw new Error("Simulated crash after a committed import batch");
+    }
+  };
+  try {
+    await jobs.runOnce(actor.orgId);
+    assert.equal(await storage.exactCount(actor, target.id), 250);
+    const checkpoint = (
+      await owner.query(
+        "SELECT checkpoint,progress FROM rootset_control.jobs WHERE id=$1",
+        [started.jobId],
+      )
+    ).rows[0]!;
+    assert.equal(checkpoint.checkpoint.next, 250);
+    assert.equal(checkpoint.progress.committed, 250);
+    await owner.query(
+      "UPDATE rootset_control.jobs SET next_attempt_at=now() WHERE id=$1",
+      [started.jobId],
+    );
+    const completed = await terminal(started.jobId);
+    assert.equal(completed.state, "succeeded");
+    assert.equal(completed.result?.committed, 1001);
+  } finally {
+    hook = null;
+  }
+  assert.equal(await storage.exactCount(actor, target.id), 1001);
+  const rows = await storage.queryRows(actor, target.id, {
+    limit: 1001,
+    orderBy: [{ field: "RECORD_ID", direction: "asc" }],
+  });
+  assert.equal(rows.data[0]!.values.CODE, "00000");
+  assert.equal(rows.data[1000]!.values.CODE, "01000");
+  assert.equal(rows.data[1000]!.values.RECORD_ID, 1001);
+  assert.ok(rows.data.every((row) => row.values.ENABLED === false));
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS count FROM rootset_control.jobs WHERE kind='import' AND target_id=$1",
+        [target.id],
+      )
+    ).rows[0]!.count,
+    1,
+  );
+});
+
+test("import previews report unique and composite foreign-key errors without changing counters or records", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Import relationships ${newId()}`,
+  });
+  let parent = await storage.createTable(actor, database.id, {
+    name: "Manufacturers",
+    fields: [
+      { name: "CODE", type: "text", required: true },
+      { name: "EDITION", type: "integer", required: true },
+    ],
+  });
+  const parentRule = await storage.createUniqueRule(actor, parent.id, {
+    name: "Manufacturer key",
+    fieldIds: parent.fields.map((field) => field.id),
+    expectedSchemaVersion: parent.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  parent = await storage.getTable(actor, parent.id);
+  await storage.createRow(actor, parent.id, { CODE: "001", EDITION: 2 });
+  let target = await storage.createTable(actor, database.id, {
+    name: "Aircraft",
+    fields: [
+      { name: "NAME", type: "text", required: true },
+      { name: "MANUFACTURER", type: "text" },
+      { name: "REVISION", type: "integer" },
+    ],
+  });
+  await storage.createUniqueRule(actor, target.id, {
+    name: "Aircraft name",
+    fieldIds: [target.fields[0]!.id],
+    expectedSchemaVersion: target.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  target = await storage.getTable(actor, target.id);
+  await storage.createForeignKey(actor, target.id, {
+    fieldIds: [target.fields[1]!.id, target.fields[2]!.id],
+    referencedTableId: parent.id,
+    referencedRuleId: parentRule.id,
+    expectedSchemaVersion: target.schemaVersion,
+    expectedReferencedSchemaVersion: parent.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  target = await storage.getTable(actor, target.id);
+  await storage.createRow(actor, target.id, {
+    NAME: "existing",
+    MANUFACTURER: "001",
+    REVISION: 2,
+  });
+  const accepted = (await jobs.execute("previewImportRows", actor, {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+    format: "csv",
+    fileName: "relationships.csv",
+    content:
+      "NAME,MANUFACTURER,REVISION\nvalid,001,2\nexisting,001,2\nmissing,1,2\nvalid,001,2\nnullable,\\N,999\n",
+    mapping: target.fields.map((field) => ({
+      source: field.name,
+      fieldId: field.id,
+    })),
+  })) as { jobId: string };
+  const preview = await terminal(accepted.jobId);
+  assert.equal(preview.state, "succeeded");
+  assert.equal(preview.result?.invalid, 3);
+  const issues = preview.result!.issues as { line: number; code: string }[];
+  assert.deepEqual(
+    issues.map((issue) => [issue.line, issue.code]),
+    [
+      [3, "UNIQUE_CONFLICT"],
+      [4, "FOREIGN_KEY_CONFLICT"],
+      [5, "UNIQUE_CONFLICT"],
+    ],
+  );
+  assert.equal(await storage.exactCount(actor, target.id), 1);
+  await assert.rejects(
+    jobs.execute("importRows", actor, {
+      orgId: actor.orgId,
+      databaseId: database.id,
+      tableId: target.id,
+      expectedSchemaVersion: target.schemaVersion,
+      previewId: accepted.jobId,
+    }),
+    (error) =>
+      error instanceof RootsetError && error.code === "VALIDATION_FAILED",
+  );
+  const artifactId = String(preview.result!.reportArtifactId);
+  const metadata = await jobs.getArtifact(actor, artifactId);
+  assert.equal(metadata.kind, "import_report");
+  const download = await jobs.downloadArtifact(actor, artifactId);
+  let text = "";
+  for await (const chunk of download.stream) text += chunk.toString();
+  assert.deepEqual(
+    text
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line)),
+    issues,
+  );
+  const other = {
+    ...actor,
+    kind: "session" as const,
+    id: newId(),
+    userId: newId(),
+    role: "member" as const,
+  };
+  await assert.rejects(
+    jobs.getArtifact(other, artifactId),
+    (error) =>
+      error instanceof RootsetError && error.code === "RESOURCE_NOT_FOUND",
+  );
+});
+
+test("cancelled imports keep their committed progress and retry only the remaining records", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Import cancellation ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Cancellation",
+    fields: [{ name: "CODE", type: "integer", required: true }],
+  });
+  const base = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+  };
+  const preview = (await jobs.execute("previewImportRows", actor, {
+    ...base,
+    format: "jsonl",
+    fileName: "codes.jsonl",
+    content: Array.from({ length: 501 }, (_, index) =>
+      JSON.stringify({ source: index }),
+    ).join("\n"),
+    mapping: [{ source: "source", fieldId: target.fields[0]!.id }],
+  })) as { jobId: string };
+  assert.equal((await terminal(preview.jobId)).state, "succeeded");
+  const started = (await jobs.execute("importRows", actor, {
+    ...base,
+    previewId: preview.jobId,
+  })) as { jobId: string };
+  let cancelled = false;
+  hook = async (point, jobId) => {
+    if (
+      point === "import.afterBatch" &&
+      jobId === started.jobId &&
+      !cancelled
+    ) {
+      cancelled = true;
+      await jobs.execute("cancelJob", actor, { id: jobId });
+    }
+  };
+  try {
+    const partial = await terminal(started.jobId);
+    assert.equal(partial.state, "partially_completed");
+    assert.equal(partial.result?.committed, 250);
+    assert.equal(await storage.exactCount(actor, target.id), 250);
+  } finally {
+    hook = null;
+  }
+  await jobs.execute("retryJob", actor, { id: started.jobId });
+  const completed = await terminal(started.jobId);
+  assert.equal(completed.state, "succeeded");
+  assert.equal(completed.result?.committed, 501);
+  assert.equal(await storage.exactCount(actor, target.id), 501);
+});
+
+test("imports revalidate a changed unique key and keep a recoverable report before writing any rows", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Import race ${newId()}`,
+  });
+  let target = await storage.createTable(actor, database.id, {
+    name: "Concurrent import",
+    fields: [{ name: "CODE", type: "text", required: true, charLimit: 80 }],
+  });
+  await storage.createUniqueRule(actor, target.id, {
+    name: "Code",
+    fieldIds: [target.fields[0]!.id],
+    expectedSchemaVersion: target.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  target = await storage.getTable(actor, target.id);
+  const base = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+  };
+  const preview = (await jobs.execute("previewImportRows", actor, {
+    ...base,
+    format: "csv",
+    fileName: "race.csv",
+    content: "CODE\nfirst\nsecond\n",
+    mapping: [{ source: "CODE", fieldId: target.fields[0]!.id }],
+  })) as { jobId: string };
+  assert.equal((await terminal(preview.jobId)).result?.invalid, 0);
+  const existing = await storage.createRow(actor, target.id, { CODE: "first" });
+  const started = (await jobs.execute("importRows", actor, {
+    ...base,
+    previewId: preview.jobId,
+  })) as { jobId: string };
+  const blocked = await terminal(started.jobId);
+  assert.equal(blocked.state, "failed");
+  assert.equal(blocked.error?.code, "IMPORT_VALIDATION_FAILED");
+  assert.equal(await storage.exactCount(actor, target.id), 1);
+  const details = blocked.error!.details as { reportArtifactId: string };
+  const download = await jobs.downloadArtifact(actor, details.reportArtifactId);
+  let text = "";
+  for await (const chunk of download.stream) text += chunk.toString();
+  assert.equal(JSON.parse(text.trim()).line, 2);
+  await storage.deleteRow(actor, target.id, existing.id, {
+    expectedVersion: existing.version,
+  });
+  await jobs.execute("retryJob", actor, { id: started.jobId });
+  assert.equal((await terminal(started.jobId)).state, "succeeded");
+  assert.equal(await storage.exactCount(actor, target.id), 2);
+});
+
+test("a fully committed import reconciles after a crash even if the requester loses access", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Import outcome ${newId()}`,
+  });
+  const target = await storage.createTable(actor, database.id, {
+    name: "Outcome",
+    fields: [{ name: "CODE", type: "text", required: true }],
+  });
+  const base = {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+  };
+  const preview = (await jobs.execute("previewImportRows", actor, {
+    ...base,
+    format: "jsonl",
+    fileName: "outcome.jsonl",
+    content: '{"CODE":"once"}',
+    mapping: [{ source: "CODE", fieldId: target.fields[0]!.id }],
+  })) as { jobId: string };
+  assert.equal((await terminal(preview.jobId)).state, "succeeded");
+  const started = (await jobs.execute("importRows", actor, {
+    ...base,
+    previewId: preview.jobId,
+  })) as { jobId: string };
+  hook = async (point, jobId) => {
+    if (point === "import.afterBatch" && jobId === started.jobId) {
+      currentAccess = false;
+      throw new Error("Crash after final commit and before job completion");
+    }
+  };
+  try {
+    await jobs.runOnce(actor.orgId);
+    assert.equal(await storage.exactCount(actor, target.id), 1);
+    await jobs.runOnce(actor.orgId);
+    const record = (
+      await owner.query(
+        "SELECT state,result FROM rootset_control.jobs WHERE id=$1",
+        [started.jobId],
+      )
+    ).rows[0]!;
+    assert.equal(record.state, "succeeded");
+    assert.equal(record.result.committed, 1);
+    assert.equal(await storage.exactCount(actor, target.id), 1);
+  } finally {
+    hook = null;
+    currentAccess = true;
+  }
+});
+
+test("import validation uses conditional composite registry keys and tracks duplicates across batches", async () => {
+  const database = await storage.createDatabase(actor, {
+    name: `Conditional import ${newId()}`,
+  });
+  let target = await storage.createTable(actor, database.id, {
+    name: "Conditional keys",
+    fields: [
+      { name: "CODE", type: "text", required: true, charLimit: 4096 },
+      { name: "EDITION", type: "integer", required: true },
+      { name: "ENABLED", type: "boolean", required: true, default: false },
+    ],
+  });
+  const rule = await storage.createUniqueRule(actor, target.id, {
+    name: "Enabled code",
+    fieldIds: [target.fields[0]!.id, target.fields[1]!.id],
+    where: { field: target.fields[2]!.id, op: "eq", value: true },
+    expectedSchemaVersion: target.schemaVersion,
+    idempotencyKey: newId(),
+  });
+  assert.equal(rule.strategy, "registry");
+  target = await storage.getTable(actor, target.id);
+  await storage.createRow(actor, target.id, {
+    CODE: "existing",
+    EDITION: 1,
+    ENABLED: true,
+  });
+  const rows = Array.from({ length: 252 }, (_, index) => ({
+    CODE: `code${index}`,
+    EDITION: 1,
+    ENABLED: true,
+  }));
+  rows[1] = { CODE: "existing", EDITION: 1, ENABLED: false };
+  rows[2] = { CODE: "existing", EDITION: 1, ENABLED: true };
+  rows[251] = rows[0]!;
+  const preview = (await jobs.execute("previewImportRows", actor, {
+    orgId: actor.orgId,
+    databaseId: database.id,
+    tableId: target.id,
+    expectedSchemaVersion: target.schemaVersion,
+    format: "jsonl",
+    fileName: "conditional.jsonl",
+    content: rows.map((row) => JSON.stringify(row)).join("\n"),
+    mapping: target.fields.map((field) => ({
+      source: field.name,
+      fieldId: field.id,
+    })),
+  })) as { jobId: string };
+  const result = await terminal(preview.jobId);
+  assert.equal(result.state, "succeeded");
+  assert.equal(result.result?.invalid, 2);
+  assert.deepEqual(
+    (result.result!.issues as { line: number }[]).map((issue) => issue.line),
+    [3, 252],
+  );
+  assert.equal(await storage.exactCount(actor, target.id), 1);
+});

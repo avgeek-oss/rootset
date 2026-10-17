@@ -235,7 +235,7 @@ export const HistoryPageSchema = z.strictObject({
 export const ArtifactSchema = z.strictObject({
   id: IdSchema,
   orgId: IdSchema,
-  kind: z.literal("export"),
+  kind: z.enum(["export", "import_report"]),
   format: z.enum(["csv", "jsonl", "json", "zip"]),
   sizeBytes: z.number().int().nonnegative(),
   checksum: z.string(),

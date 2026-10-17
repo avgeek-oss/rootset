@@ -12,6 +12,7 @@ import {
   TablePropertiesIcon,
   FingerPrintIcon,
   Download01Icon,
+  Upload01Icon,
   Key01Icon,
   Link01Icon,
   Mail01Icon,
@@ -59,7 +60,7 @@ export const settingsGroups = {
         "table-danger-zone",
       ],
     },
-    { title: "Data", sections: ["exports"] },
+    { title: "Data", sections: ["imports", "exports"] },
   ],
 } satisfies Record<
   SettingsScope,
@@ -104,7 +105,9 @@ export function settingsHref(
         ? "danger-zone"
         : section === "exports" || section === "database-exports"
           ? "export-requests"
-          : section;
+          : section === "imports"
+            ? "import-requests"
+            : section;
   return `${base}/settings/${page}`;
 }
 
@@ -178,7 +181,9 @@ export function resourceRoute(path: string) {
           ? tableId
             ? "exports"
             : "database-exports"
-          : page;
+          : page === "import-requests"
+            ? "imports"
+            : page;
   return { databaseId, tableId, section };
 }
 
@@ -205,6 +210,7 @@ export const settingsIcons = {
   rules: SecurityCheckIcon,
   "foreign-keys": Link01Icon,
   exports: Download01Icon,
+  imports: Upload01Icon,
 };
 
 export function SettingsNavigation({

@@ -65,7 +65,14 @@ describe("context settings navigation", () => {
       settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["table", "fields", "rules", "foreign-keys", "exports"]);
+    ).toEqual([
+      "table",
+      "fields",
+      "rules",
+      "foreign-keys",
+      "imports",
+      "exports",
+    ]);
     expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });
   it("includes only identifiers belonging to the settings scope", () => {
@@ -87,6 +94,14 @@ describe("context settings navigation", () => {
     expect(settingsHref("exports", context)).toBe(
       "/databases/db/tables/table/settings/export-requests",
     );
+    expect(settingsHref("imports", context)).toBe(
+      "/databases/db/tables/table/settings/import-requests",
+    );
+    expect(resolveSettingsSection("import-requests")).toBe("imports");
+    expect(
+      resourceRoute("/databases/db/tables/table/settings/import-requests")
+        .section,
+    ).toBe("imports");
     expect(settingsHref("database-exports", context)).toBe(
       "/databases/db/settings/export-requests",
     );

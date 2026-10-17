@@ -14948,6 +14948,471 @@
         }
       }
     },
+    "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/preview": {
+      "post": {
+        "operationId": "previewImportRows",
+        "tags": ["schema"],
+        "summary": "Validate an append-only CSV or JSONL import, including mapping, field constraints, unique keys and foreign keys, without inserting records. The job returns a typed preview and a downloadable JSONL error report.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [
+          { "apiKey": [] },
+          { "oauth": ["rows:read", "rows:write"] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "format": { "type": "string", "enum": ["csv", "jsonl"] },
+                  "content": { "type": "string", "maxLength": 4194304 },
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "mapping": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "fieldId": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
+                      },
+                      "required": ["source", "fieldId"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "expectedSchemaVersion",
+                  "format",
+                  "content",
+                  "fileName",
+                  "mapping"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "format": "csv",
+                "content": "example",
+                "fileName": "example",
+                "mapping": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/previewImportRowsOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read", "rows:write"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": true,
+        "x-rootset-minimum-role": "member",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_preview_import_rows",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "expectedSchemaVersion": 1,
+          "format": "csv",
+          "content": "example",
+          "fileName": "example",
+          "mapping": []
+        }
+      }
+    },
+    "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports": {
+      "post": {
+        "operationId": "importRows",
+        "tags": ["schema"],
+        "summary": "Append a previously validated import. Each preview can start one import; retries resume committed batches without duplicating records. Current constraints and authority are checked again before publication.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [
+          { "apiKey": [] },
+          { "oauth": ["rows:read", "rows:write"] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSchemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "previewId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "required": ["expectedSchemaVersion", "previewId"],
+                "additionalProperties": false
+              },
+              "example": {
+                "expectedSchemaVersion": 1,
+                "previewId": "01K6J7B8000000000000000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Committed synchronous result or accepted durable job; polling is required for terminal verification.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/importRowsOutput" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read", "rows:write"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": true,
+        "x-rootset-minimum-role": "member",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_import_rows",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000",
+          "tableId": "01K6J7B8000000000000000000",
+          "expectedSchemaVersion": 1,
+          "previewId": "01K6J7B8000000000000000000"
+        }
+      }
+    },
     "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/exports": {
       "post": {
         "operationId": "exportRows",
@@ -33002,6 +33467,142 @@
         "required": ["mutationId"],
         "additionalProperties": false
       },
+      "previewImportRowsInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "format": { "type": "string", "enum": ["csv", "jsonl"] },
+          "content": { "type": "string", "maxLength": 4194304 },
+          "fileName": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "mapping": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "fieldId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "required": ["source", "fieldId"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "format",
+          "content",
+          "fileName",
+          "mapping"
+        ],
+        "additionalProperties": false
+      },
+      "previewImportRowsOutput": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "partially_completed"
+            ]
+          },
+          "statusUrl": { "type": "string" }
+        },
+        "required": ["jobId", "state", "statusUrl"],
+        "additionalProperties": false
+      },
+      "importRowsInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedSchemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "previewId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": [
+          "orgId",
+          "databaseId",
+          "tableId",
+          "expectedSchemaVersion",
+          "previewId"
+        ],
+        "additionalProperties": false
+      },
+      "importRowsOutput": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "partially_completed"
+            ]
+          },
+          "statusUrl": { "type": "string" }
+        },
+        "required": ["jobId", "state", "statusUrl"],
+        "additionalProperties": false
+      },
       "exportRowsInput": {
         "type": "object",
         "properties": {
@@ -33107,7 +33708,7 @@
             "type": "string",
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
-          "kind": { "type": "string", "const": "export" },
+          "kind": { "type": "string", "enum": ["export", "import_report"] },
           "format": {
             "type": "string",
             "enum": ["csv", "jsonl", "json", "zip"]
@@ -33205,6 +33806,12 @@
                 },
                 "kind": { "type": "string" },
                 "operationId": { "type": "string" },
+                "fileName": { "type": "string", "maxLength": 255 },
+                "previewId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "cancelRequested": { "type": "boolean" },
                 "format": { "type": "string", "enum": ["csv", "jsonl"] },
                 "state": {
                   "type": "string",
@@ -33230,6 +33837,7 @@
                   "type": "object",
                   "properties": {
                     "completed": { "type": "number", "minimum": 0 },
+                    "committed": { "type": "number", "minimum": 0 },
                     "total": { "type": "number", "minimum": 0 },
                     "unit": { "type": "string" }
                   },
@@ -33372,6 +33980,12 @@
           },
           "kind": { "type": "string" },
           "operationId": { "type": "string" },
+          "fileName": { "type": "string", "maxLength": 255 },
+          "previewId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "cancelRequested": { "type": "boolean" },
           "format": { "type": "string", "enum": ["csv", "jsonl"] },
           "state": {
             "type": "string",
@@ -33397,6 +34011,7 @@
             "type": "object",
             "properties": {
               "completed": { "type": "number", "minimum": 0 },
+              "committed": { "type": "number", "minimum": 0 },
               "total": { "type": "number", "minimum": 0 },
               "unit": { "type": "string" }
             },
@@ -33532,6 +34147,12 @@
           },
           "kind": { "type": "string" },
           "operationId": { "type": "string" },
+          "fileName": { "type": "string", "maxLength": 255 },
+          "previewId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "cancelRequested": { "type": "boolean" },
           "format": { "type": "string", "enum": ["csv", "jsonl"] },
           "state": {
             "type": "string",
@@ -33557,6 +34178,7 @@
             "type": "object",
             "properties": {
               "completed": { "type": "number", "minimum": 0 },
+              "committed": { "type": "number", "minimum": 0 },
               "total": { "type": "number", "minimum": 0 },
               "unit": { "type": "string" }
             },

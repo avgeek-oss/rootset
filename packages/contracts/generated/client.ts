@@ -4377,6 +4377,45 @@ export type getMutationOutput = {
   result?:
     null | boolean | number | string | unknown[] | Record<string, unknown>;
 };
+export type previewImportRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  format: "csv" | "jsonl";
+  content: string;
+  fileName: string;
+  mapping: { source: string; fieldId: string }[];
+};
+export type previewImportRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
+export type importRowsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  expectedSchemaVersion: number;
+  previewId: string;
+};
+export type importRowsOutput = {
+  jobId: string;
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "partially_completed";
+  statusUrl: string;
+};
 export type exportRowsInput = {
   orgId: string;
   databaseId: string;
@@ -4414,7 +4453,7 @@ export type getArtifactInput = { orgId: string; id: string };
 export type getArtifactOutput = {
   id: string;
   orgId: string;
-  kind: "export";
+  kind: "export" | "import_report";
   format: "csv" | "jsonl" | "json" | "zip";
   sizeBytes: number;
   checksum: string;
@@ -4445,6 +4484,9 @@ export type listJobsOutput = {
     orgId: string;
     kind: string;
     operationId: string;
+    fileName?: string;
+    previewId?: string;
+    cancelRequested?: boolean;
     format?: "csv" | "jsonl";
     state:
       | "queued"
@@ -4456,7 +4498,12 @@ export type listJobsOutput = {
     stage?: string;
     databaseId?: string;
     tableId?: string;
-    progress?: { completed: number; total?: number; unit?: string };
+    progress?: {
+      completed: number;
+      committed?: number;
+      total?: number;
+      unit?: string;
+    };
     createdAt: string;
     updatedAt: string;
     result?:
@@ -4481,6 +4528,9 @@ export type getJobOutput = {
   orgId: string;
   kind: string;
   operationId: string;
+  fileName?: string;
+  previewId?: string;
+  cancelRequested?: boolean;
   format?: "csv" | "jsonl";
   state:
     | "queued"
@@ -4492,7 +4542,12 @@ export type getJobOutput = {
   stage?: string;
   databaseId?: string;
   tableId?: string;
-  progress?: { completed: number; total?: number; unit?: string };
+  progress?: {
+    completed: number;
+    committed?: number;
+    total?: number;
+    unit?: string;
+  };
   createdAt: string;
   updatedAt: string;
   result?:
@@ -4514,6 +4569,9 @@ export type cancelJobOutput = {
   orgId: string;
   kind: string;
   operationId: string;
+  fileName?: string;
+  previewId?: string;
+  cancelRequested?: boolean;
   format?: "csv" | "jsonl";
   state:
     | "queued"
@@ -4525,7 +4583,12 @@ export type cancelJobOutput = {
   stage?: string;
   databaseId?: string;
   tableId?: string;
-  progress?: { completed: number; total?: number; unit?: string };
+  progress?: {
+    completed: number;
+    committed?: number;
+    total?: number;
+    unit?: string;
+  };
   createdAt: string;
   updatedAt: string;
   result?:
@@ -5083,6 +5146,16 @@ const routes = {
     path: "/v1/orgs/{orgId}/mutations/{id}",
     method: "GET",
     idempotencyRequired: false,
+  },
+  previewImportRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports/preview",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  importRows: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/imports",
+    method: "POST",
+    idempotencyRequired: true,
   },
   exportRows: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/exports",
@@ -5871,6 +5944,22 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<getMutationOutput>;
+  }
+  previewImportRows(
+    input: previewImportRowsInput,
+    options?: CallOptions,
+  ): Promise<previewImportRowsOutput> {
+    return this.call(
+      "previewImportRows",
+      input,
+      options,
+    ) as Promise<previewImportRowsOutput>;
+  }
+  importRows(
+    input: importRowsInput,
+    options?: CallOptions,
+  ): Promise<importRowsOutput> {
+    return this.call("importRows", input, options) as Promise<importRowsOutput>;
   }
   exportRows(
     input: exportRowsInput,

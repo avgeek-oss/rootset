@@ -22,6 +22,7 @@ import {
   lockOperationAdmission,
 } from "@rootset/idempotency";
 import { ArtifactStore } from "./artifacts.js";
+import { TableImports } from "./imports.js";
 import {
   databaseExport,
   tableExportRows,
@@ -89,6 +90,11 @@ function jobView(job: JobRecord): Record<string, unknown> {
     orgId: job.org_id,
     kind: job.kind,
     operationId: job.operation_id,
+    cancelRequested: job.cancel_requested,
+    ...(["import", "import_preview"].includes(job.kind)
+      ? { fileName: job.input.fileName }
+      : {}),
+    ...(job.kind === "import" ? { previewId: job.input.previewId } : {}),
     ...(job.kind === "export" ? { format: job.input.format } : {}),
     state: job.state,
     stage: job.stage,
@@ -99,6 +105,9 @@ function jobView(job: JobRecord): Record<string, unknown> {
         : {}),
     progress: {
       completed: Number(job.progress.completed ?? job.progress.committed ?? 0),
+      ...(job.progress.committed === undefined
+        ? {}
+        : { committed: job.progress.committed }),
       ...(job.progress.total === undefined
         ? {}
         : { total: job.progress.total }),
@@ -123,6 +132,7 @@ function jobView(job: JobRecord): Record<string, unknown> {
 export class JobsService {
   readonly queue: DurableQueue;
   readonly artifacts: ArtifactStore;
+  readonly imports: TableImports;
   readonly backups: DatabaseBackups;
   readonly config: JobsOptions["config"];
   readonly storage: JobsOptions["storage"];
@@ -173,6 +183,17 @@ export class JobsService {
       },
     );
     this.artifacts = new ArtifactStore(options.pool, options.config.artifacts);
+    this.imports = new TableImports(
+      this.storage,
+      this.queue,
+      this.artifacts,
+      this.config,
+      async (job) => {
+        const actor = await this.jobActor(job);
+        await this.queue.fenced(job, async () => undefined);
+        return actor;
+      },
+    );
     this.backups = new DatabaseBackups(options, this.queue);
   }
 
@@ -598,6 +619,60 @@ export class JobsService {
     idempotencyKey: string | undefined,
   ): Promise<unknown> {
     switch (operationId) {
+      case "previewImportRows":
+      case "importRows": {
+        let fileName: unknown;
+        const table = await this.storage.getTable(actor, String(input.tableId));
+        if (table.schemaVersion !== input.expectedSchemaVersion)
+          throw new RootsetError(
+            "SCHEMA_VERSION_CONFLICT",
+            "The table schema changed. Reload before validating the file",
+            409,
+          );
+        if (operationId === "importRows") {
+          await this.authorisedJob(actor, String(input.previewId));
+          const preview = await this.imports.source(
+            actor,
+            String(input.previewId),
+            table.id,
+          );
+          fileName = preview.input.fileName;
+          if (preview.input.expectedSchemaVersion !== table.schemaVersion)
+            throw new RootsetError(
+              "SCHEMA_VERSION_CONFLICT",
+              "The table schema changed. Validate the file again",
+              409,
+            );
+          if (!context.client)
+            throw new RootsetError(
+              "CONFIGURATION_INVALID",
+              "Import admission requires a transaction",
+              500,
+            );
+          await context.client.query(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+            [`rootset:import:${preview.id}`],
+          );
+          const previous = (
+            await context.client.query<JobRecord>(
+              "SELECT * FROM rootset_control.jobs WHERE org_id=$1 AND target_id=$2 AND kind='import' AND input->>'previewId'=$3",
+              [actor.orgId, table.id, preview.id],
+            )
+          ).rows[0];
+          if (previous) return accepted(previous);
+        }
+        return accepted(
+          await this.queue.enqueue(
+            actor,
+            operationId,
+            operationId === "importRows" ? "import" : "import_preview",
+            { type: "table", id: table.id },
+            { ...input, ...(fileName === undefined ? {} : { fileName }) },
+            this.requireKey(idempotencyKey),
+            context.client,
+          ),
+        );
+      }
       case "exportDatabase": {
         const database = await this.storage.getDatabase(
           actor,
@@ -778,7 +853,7 @@ export class JobsService {
         (
           await client.query<JobRecord>(
             `SELECT * FROM rootset_control.jobs
-      WHERE ($1::text IS NULL OR id>$1) AND ($2::text IS NULL OR state=$2) AND ($3::text IS NULL OR kind=$3)
+      WHERE ($1::text IS NULL OR id>$1) AND ($2::text IS NULL OR state=$2) AND ($3::text IS NULL OR kind=$3 OR ($3='import' AND kind='import_preview'))
       AND ($4::text IS NULL OR (target_type='database' AND target_id=$4)) AND ($5::text IS NULL OR (target_type='table' AND target_id=$5)) ORDER BY id ASC LIMIT $6`,
             [
               position.afterId,
@@ -816,7 +891,11 @@ export class JobsService {
   ): Promise<void> {
     await this.authorise(
       actor,
-      artifact.target_type === "database" ? "exportDatabase" : "exportRows",
+      artifact.purpose === "import_report"
+        ? "previewImportRows"
+        : artifact.target_type === "database"
+          ? "exportDatabase"
+          : "exportRows",
       artifact.target_type === "table"
         ? { tableId: artifact.target_id }
         : { databaseId: artifact.target_id },
@@ -845,7 +924,7 @@ export class JobsService {
     return {
       id: artifact.id,
       orgId: actor.orgId,
-      kind: "export",
+      kind: artifact.purpose === "import_report" ? "import_report" : "export",
       format: artifact.format,
       sizeBytes: Number(artifact.byte_length),
       checksum: artifact.checksum!,
@@ -887,6 +966,8 @@ export class JobsService {
   private async reconciledResult(
     job: JobRecord,
   ): Promise<JsonValue | undefined> {
+    if (["import", "import_preview"].includes(job.kind))
+      return this.imports.committedResult(job);
     if (backupJobKinds.includes(job.kind))
       return this.backups.committedResult(job);
     if (job.kind === "operation" && this.config.reconcileOperation) {
@@ -968,6 +1049,13 @@ export class JobsService {
     );
     heartbeat.unref();
     try {
+      if (["import", "import_preview"].includes(job.kind)) {
+        const prior = await this.imports.committedResult(job);
+        if (prior !== undefined) {
+          await this.queue.finish(job, "succeeded", prior);
+          return true;
+        }
+      }
       if (job.kind === "operation" && this.config.reconcileOperation) {
         const prior = await this.config.reconcileOperation(job);
         if (prior !== undefined) {
@@ -983,6 +1071,8 @@ export class JobsService {
       if (backupJobKinds.includes(job.kind))
         result = await this.backups.run(job);
       else if (job.kind === "export") result = await this.export(actor, job);
+      else if (["import", "import_preview"].includes(job.kind))
+        result = await this.imports.run(job);
       else if (job.kind === "operation" && this.config.executeOperation)
         result = await this.config.executeOperation(
           actor,

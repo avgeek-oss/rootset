@@ -432,6 +432,9 @@ export const JobSchema = z.strictObject({
   orgId: IdSchema,
   kind: z.string(),
   operationId: z.string(),
+  fileName: z.string().max(255).optional(),
+  previewId: IdSchema.optional(),
+  cancelRequested: z.boolean().optional(),
   format: z.enum(["csv", "jsonl"]).optional(),
   state: JobStateSchema,
   stage: z.string().optional(),
@@ -440,6 +443,7 @@ export const JobSchema = z.strictObject({
   progress: z
     .strictObject({
       completed: z.number().nonnegative(),
+      committed: z.number().nonnegative().optional(),
       total: z.number().nonnegative().optional(),
       unit: z.string().optional(),
     })

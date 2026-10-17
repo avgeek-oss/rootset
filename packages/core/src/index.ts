@@ -213,8 +213,15 @@ const asynchronous = new Set([
   "deleteField",
   "countRows",
 ]);
-const queuedFamilies = new Set(["exportRows", "exportDatabase"]);
+const queuedFamilies = new Set([
+  "exportRows",
+  "exportDatabase",
+  "previewImportRows",
+  "importRows",
+]);
 const jobOperations = new Set([
+  "previewImportRows",
+  "importRows",
   "exportRows",
   "exportDatabase",
   "getArtifact",

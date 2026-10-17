@@ -23,14 +23,18 @@ const personalAndRead = [
   "database-exports",
 ] as const;
 describe("settings role boundaries", () => {
-  it.each(["database", "table", "fields", "rules", "foreign-keys"] as const)(
-    "allows editors and administrators to %s",
-    (section) => {
-      expect(canOpenSettings(section, "member")).toBe(true);
-      expect(canOpenSettings(section, "admin")).toBe(true);
-      expect(canOpenSettings(section, "viewer")).toBe(false);
-    },
-  );
+  it.each([
+    "database",
+    "table",
+    "fields",
+    "rules",
+    "foreign-keys",
+    "imports",
+  ] as const)("allows editors and administrators to %s", (section) => {
+    expect(canOpenSettings(section, "member")).toBe(true);
+    expect(canOpenSettings(section, "admin")).toBe(true);
+    expect(canOpenSettings(section, "viewer")).toBe(false);
+  });
   it.each(management)(
     "admits only admins to %s, including direct links",
     (section) => {
@@ -48,7 +52,6 @@ describe("settings role boundaries", () => {
     },
   );
   it("removes obsolete settings navigation", () => {
-    expect(SECTION_LABELS).not.toHaveProperty("imports");
     expect(SECTION_LABELS).not.toHaveProperty("grants");
     expect(SECTION_LABELS).not.toHaveProperty("audit");
     expect(SECTION_LABELS).not.toHaveProperty("jobs");

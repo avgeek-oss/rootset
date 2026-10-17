@@ -23,6 +23,7 @@ import {
   ArrowUpRight01Icon,
   MoreHorizontalIcon,
   ViewIcon,
+  Upload01Icon,
 } from "@hugeicons/core-free-icons";
 import type { ComponentProps } from "react";
 
@@ -58,3 +59,4 @@ export const MessageSquare = makeIcon(Comment01Icon);
 export const ArrowUpRight = makeIcon(ArrowUpRight01Icon);
 export const MoreHorizontal = makeIcon(MoreHorizontalIcon);
 export const View = makeIcon(ViewIcon);
+export const Upload = makeIcon(Upload01Icon);

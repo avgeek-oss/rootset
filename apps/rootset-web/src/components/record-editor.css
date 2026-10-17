@@ -3,6 +3,9 @@
   max-width: 100vw;
   padding: 0;
 }
+.import-records-drawer {
+  width: min(960px, 100vw);
+}
 .record-editor-header {
   flex-direction: row;
   align-items: center;

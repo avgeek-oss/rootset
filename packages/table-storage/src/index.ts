@@ -31,6 +31,9 @@ import {
   assertRowBytes,
   assertFieldNames,
   assertAllowedValuesBudget,
+  importLimits,
+  type ImportRow,
+  type ImportIssue,
 } from "@rootset/contracts";
 import {
   compileQuery,
@@ -1567,6 +1570,244 @@ export class TableStorage {
         [fieldId, table.id, table.orgId, maximum],
       );
   }
+  async validateImportRows(
+    actor: Actor,
+    tableId: string,
+    input: { rows: ImportRow[]; expectedSchemaVersion: number },
+    hooks: {
+      check(): Promise<Actor>;
+      progress(completed: number): Promise<void>;
+    },
+  ): Promise<ImportIssue[]> {
+    const issues = new Map(
+      input.rows.flatMap((row) =>
+        row.issue ? [[row.line, row.issue] as const] : [],
+      ),
+    );
+    const seen = new Map<string, Set<string>>();
+    const selfTargets = new Map<string, Map<string, number>>();
+    const counters = new Map<string, bigint>();
+    for (
+      let offset = 0;
+      offset < input.rows.length;
+      offset += importLimits.batch
+    ) {
+      actor = await hooks.check();
+      await this.read(actor, async (c) => {
+        const table = await this.table(c, actor, tableId);
+        this.expected(table, input.expectedSchemaVersion);
+        if (table.state !== "active")
+          fail(
+            "SCHEMA_MAINTENANCE",
+            "Wait for table maintenance to finish",
+            409,
+          );
+        const batch = input.rows
+          .slice(offset, offset + importLimits.batch)
+          .filter((row, index) => {
+            if (row.issue) return false;
+            if (table.rowCount + offset + index >= limits.maxRows) {
+              issues.set(row.line, {
+                line: row.line,
+                code: "CAPACITY_LIMIT",
+                message: "This import would exceed this table’s row limit",
+              });
+              return false;
+            }
+            return true;
+          })
+          .map((row) => ({
+            line: row.line,
+            values: validateValues(table.fields, row.values),
+          }));
+        for (const field of table.fields.filter(
+          (field) => field.type === "integer" && field.autoIncrement,
+        )) {
+          if (!counters.has(field.id)) {
+            const counter = (
+              await c.query<{ next_value: string }>(
+                "SELECT next_value::text FROM rootset_control.integer_counters WHERE table_id=$1 AND field_id=$2",
+                [table.id, field.id],
+              )
+            ).rows[0];
+            if (!counter)
+              fail("INTERNAL_ERROR", "Auto-increment counter is missing", 500);
+            counters.set(field.id, BigInt(counter.next_value));
+          }
+          let next = counters.get(field.id)!;
+          for (const row of batch) {
+            const explicit = row.values[field.name];
+            if (typeof explicit === "number" && BigInt(explicit) >= next)
+              next = BigInt(explicit) + 1n;
+          }
+          for (const row of batch) {
+            if (Object.hasOwn(row.values, field.name)) continue;
+            if (next > BigInt(field.max ?? Number.MAX_SAFE_INTEGER)) {
+              issues.set(row.line, {
+                line: row.line,
+                field: field.name,
+                code: "AUTO_INCREMENT_EXHAUSTED",
+                message: `Auto-increment for ${field.name} has reached its maximum`,
+              });
+            } else row.values[field.name] = validateCell(field, Number(next++));
+          }
+          counters.set(field.id, next);
+        }
+        for (const row of batch) {
+          if (issues.has(row.line)) continue;
+          try {
+            assertRowBytes(table.fields, row.values);
+          } catch (error) {
+            if (!(error instanceof RootsetError)) throw error;
+            issues.set(row.line, {
+              line: row.line,
+              code: error.code,
+              message: error.message,
+            });
+          }
+        }
+        const rules = (await this.rules(c, table)).filter(
+          (rule) => rule.state === "active",
+        );
+        const foreignKeys = await this.foreignKeys(c, table.id);
+        const tuple = (
+          row: { values: Record<string, JsonValue> },
+          fields: FieldDefinition[],
+        ) => hash(fields.map((field) => row.values[field.name]));
+        const complete = (
+          row: { values: Record<string, JsonValue> },
+          fields: FieldDefinition[],
+        ) =>
+          fields.every(
+            (field) =>
+              row.values[field.name] !== null &&
+              row.values[field.name] !== undefined,
+          );
+        const candidates = (
+          rows: typeof batch,
+          sourceFields: FieldDefinition[],
+          targetFields = sourceFields,
+        ) => {
+          const params: unknown[] = [];
+          const values = rows.map((row) => {
+            params.push(row.line);
+            const cells = [`$${params.length}::integer`];
+            for (const [index, field] of sourceFields.entries()) {
+              params.push(parameter(field, row.values[field.name]!));
+              cells.push(
+                `$${params.length}::${physicalType(targetFields[index]!)}`,
+              );
+            }
+            return `(${cells.join(",")})`;
+          });
+          return {
+            params,
+            sql: `(VALUES ${values.join(",")}) AS candidate(line,${sourceFields.map((_, index) => `key_${index}`).join(",")})`,
+            match: targetFields
+              .map(
+                (field, index) =>
+                  `stored.${q(fieldColumn(field))}=candidate.key_${index}`,
+              )
+              .join(" AND "),
+          };
+        };
+        for (const rule of rules) {
+          const fields = rule.fieldIds.map((fieldId) =>
+            fieldFor(table, fieldId),
+          );
+          const condition = rule.where;
+          const matched = batch.filter((row) => {
+            if (!complete(row, fields) || issues.has(row.line)) return false;
+            if (!condition) return true;
+            const value = row.values[fieldFor(table, condition.field).name];
+            if (!("value" in condition))
+              return condition.op === "isNull"
+                ? value === null
+                : value !== null && value !== undefined;
+            if (value === null || value === undefined) return false;
+            return (
+              (canonicalJson(value) === canonicalJson(condition.value)) ===
+              (condition.op === "eq")
+            );
+          });
+          const keys = seen.get(rule.id) ?? new Set<string>();
+          seen.set(rule.id, keys);
+          for (const row of matched) {
+            const key = tuple(row, fields);
+            if (keys.has(key))
+              issues.set(row.line, {
+                line: row.line,
+                field: fields.map((field) => field.name).join(", "),
+                code: "UNIQUE_CONFLICT",
+                message: "This key is repeated in the import file",
+              });
+            keys.add(key);
+          }
+          if (!matched.length) continue;
+          const query = candidates(matched, fields);
+          const conflicts = await c.query<{ line: number }>(
+            `SELECT DISTINCT candidate.line FROM ${query.sql} JOIN ${tablePath(table)} stored ON ${query.match} WHERE ${this.conditionSql(table, rule, "stored.")}`,
+            query.params,
+          );
+          for (const conflict of conflicts.rows)
+            if (!issues.has(conflict.line))
+              issues.set(conflict.line, {
+                line: conflict.line,
+                field: fields.map((field) => field.name).join(", "),
+                code: "UNIQUE_CONFLICT",
+                message: "This key already exists in the table",
+              });
+        }
+        for (const key of foreignKeys) {
+          const fields = key.fieldIds.map((fieldId) =>
+            fieldFor(table, fieldId),
+          );
+          const target =
+            key.referencedTableId === table.id
+              ? table
+              : await this.table(c, actor, key.referencedTableId);
+          const targetFields = key.referencedFieldIds.map((fieldId) =>
+            fieldFor(target, fieldId),
+          );
+          const self = selfTargets.get(key.id) ?? new Map<string, number>();
+          if (target.id === table.id) {
+            for (const row of batch)
+              if (complete(row, targetFields)) {
+                const targetKey = tuple(row, targetFields);
+                if (!self.has(targetKey)) self.set(targetKey, row.line);
+              }
+            selfTargets.set(key.id, self);
+          }
+          const matched = batch.filter(
+            (row) => !issues.has(row.line) && complete(row, fields),
+          );
+          if (!matched.length) continue;
+          const query = candidates(matched, fields, targetFields);
+          const missing = await c.query<{ line: number }>(
+            `SELECT candidate.line FROM ${query.sql} WHERE NOT EXISTS (SELECT 1 FROM ${tablePath(target)} stored WHERE ${query.match})`,
+            query.params,
+          );
+          for (const item of missing.rows) {
+            const row = matched.find((row) => row.line === item.line)!;
+            const own =
+              target.id === table.id ? self.get(tuple(row, fields)) : undefined;
+            if (own !== undefined && own <= row.line) continue;
+            issues.set(row.line, {
+              line: row.line,
+              field: fields.map((field) => field.name).join(", "),
+              code: "FOREIGN_KEY_CONFLICT",
+              message: `No matching record exists in ${target.name}`,
+            });
+          }
+        }
+      });
+      await hooks.progress(
+        Math.min(input.rows.length, offset + importLimits.batch),
+      );
+    }
+    return [...issues.values()].sort((a, b) => a.line - b.line);
+  }
+
   async mutateRows(
     a: Actor,
     tableId: string,

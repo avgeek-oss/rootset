@@ -29,6 +29,7 @@ import {
   TableDangerZone,
 } from "./schema";
 import { ExportsSettings } from "./jobs";
+import { ImportsSettings } from "./imports";
 import { BackupScheduleSettings } from "./backups";
 import { BackupHistorySettings } from "./backup-history";
 import { ForeignKeysSettings } from "./foreign-keys";
@@ -89,6 +90,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     rules: UniqueRulesSettings,
     "foreign-keys": ForeignKeysSettings,
     exports: ExportsSettings,
+    imports: ImportsSettings,
   };
   const Component = components[activeSection];
   const tableSections = [
@@ -98,6 +100,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "rules",
     "foreign-keys",
     "exports",
+    "imports",
   ];
   const databaseSections = [
     "database",
