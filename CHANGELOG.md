@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 (2026-10-18)
+
+- Rename Foreign keys to Table relations in table settings, dialogs, messages, audit labels, restore summaries and documentation. Preserve existing API names, event IDs and links.
+- Move Data above Settings in the table sidebar.
+- Make the spreadsheet's frozen-column shadow narrower and lighter.
+
 ## 0.2.1 (2026-10-18)
 
 - Start field and view-column reordering only from the six-dot drag handle, with keyboard reordering still available on the handle. Center the handle with the column label.
