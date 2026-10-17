@@ -136,7 +136,7 @@ export function ViewColumns({
                             }
                           >
                             <Checkbox.Content
-                              className="field-visibility-checkbox min-w-11 justify-center"
+                              className="field-visibility-checkbox"
                               aria-label={`Show ${field.name}`}
                             >
                               <Checkbox.Control>
