@@ -11,6 +11,7 @@ import {
   ListObjectsV2Command,
   DeleteObjectCommand,
   PutObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { withOrg } from "@rootset/database";
 import {
@@ -18,6 +19,7 @@ import {
   RootsetError,
   RestorePreviewSchema,
   DatabaseRestoreResultSchema,
+  BackupPolicyResultSchema,
   type Actor,
   type BackupScheduleResult,
   type DatabaseBackup,
@@ -31,6 +33,7 @@ import {
   type TableRecord,
 } from "@rootset/table-storage";
 import { fieldColumn } from "../../../table-storage/src/query.js";
+import { EmailOutbox, enqueueBackupAlert } from "../../../email/src/index.js";
 import { MetadataPaging } from "../../../core/src/paging.js";
 import { isolatedDatabase } from "../../../../tools/verification/isolated-database.js";
 import { JobsService } from "../index.js";
@@ -47,6 +50,16 @@ const actor: Actor = {
   role: "admin",
   scopes: [],
 };
+const emailOutbox = new EmailOutbox(app, {
+  encryptionKey: randomBytes(32).toString("base64"),
+  baseURL: "https://rootset.test",
+  smtp: {
+    host: "127.0.0.1",
+    port: 11025,
+    secure: false,
+    from: "Rootset <backups@rootset.test>",
+  },
+});
 const key = randomBytes(32);
 const prefix = `rootset-backup-integration/${newId()}`;
 const storage = new TableStorage({
@@ -57,6 +70,9 @@ const storage = new TableStorage({
 let authorized = true;
 let hook: JobsConfig["failpoint"];
 const config: JobsConfig = {
+  notifyBackupAdministrators: (client, alert) =>
+    enqueueBackupAlert(client, emailOutbox, alert, "https://rootset.test"),
+  backupNotificationsAvailable: true,
   idempotencySecret: randomBytes(32).toString("hex"),
   metadataPaging: new MetadataPaging(randomBytes(32).toString("hex")),
   rootsetVersion: "0.1.7",
@@ -1175,6 +1191,385 @@ test("restore recovers an expired staging lease and can use a backup whose sourc
       [databaseId],
     );
   }
+});
+
+let retentionDatabase: string;
+const retainedIds: string[] = [];
+async function published(id: string) {
+  return (
+    await owner.query<{
+      id: string;
+      object_key: string;
+      storage_state: string;
+      prune_lease_until: Date | null;
+    }>(
+      "SELECT id,object_key,storage_state,prune_lease_until FROM rootset_control.database_backups WHERE id=$1",
+      [id],
+    )
+  ).rows[0]!;
+}
+async function policy(database = retentionDatabase) {
+  return BackupPolicyResultSchema.parse(
+    await execute("getDatabaseBackupPolicy", { databaseId: database }),
+  );
+}
+async function savePolicy(retentionCount: number | null, grace = 60) {
+  const current = await policy();
+  return BackupPolicyResultSchema.parse(
+    await execute("saveDatabaseBackupPolicy", {
+      databaseId: retentionDatabase,
+      expectedVersion: current.policy.version,
+      retentionCount,
+      overdueGraceMinutes: grace,
+    }),
+  );
+}
+test("retention keeps all by default, preserves the latest snapshot, pins restore packages and enforces versioned Admin policy", async () => {
+  await owner.query(
+    "UPDATE rootset_control.worker_heartbeats SET heartbeat_at=now(),backup_alert_delivery=true WHERE id=$1",
+    [workerId],
+  );
+  retentionDatabase = (
+    await storage.createDatabase(actor, { name: "Retention verification" })
+  ).id;
+  const table = await storage.createTable(actor, retentionDatabase, {
+    name: "Records",
+    fields: [{ name: "NAME", type: "text" }],
+  });
+  await storage.createRow(actor, table.id, { NAME: "Retained source" });
+  const saved = (await execute("saveBackupSchedule", {
+    databaseId: retentionDatabase,
+    expectedVersion: 0,
+    bucket,
+    prefix: `${prefix}/retention`,
+    cron: "0 0 1 1 *",
+    timezone: "UTC",
+  })) as { jobId: string };
+  assert.equal((await terminal(saved.jobId)).state, "succeeded");
+  for (let i = 0; i < 3; i++) {
+    const accepted = (await execute("runDatabaseBackup", {
+      databaseId: retentionDatabase,
+    })) as { jobId: string };
+    assert.equal((await terminal(accepted.jobId)).state, "succeeded");
+    retainedIds.push(accepted.jobId);
+  }
+  const initial = await policy();
+  assert.equal(initial.policy.retentionCount, null);
+  assert.equal(initial.emailDeliveryAvailable, true);
+  assert.equal(initial.lastSuccessful?.backupId, retainedIds[2]);
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    false,
+  );
+  const preview = await restoreRequest("previewDatabaseRestore", {
+    backupId: retainedIds[0],
+  });
+  assert.equal((await terminal(preview.jobId)).state, "succeeded");
+  const current = await policy(),
+    key = newId();
+  const input = {
+    databaseId: retentionDatabase,
+    expectedVersion: current.policy.version,
+    retentionCount: 1,
+    overdueGraceMinutes: 60,
+  };
+  const changed = await execute("saveDatabaseBackupPolicy", input, key);
+  assert.deepEqual(
+    await execute("saveDatabaseBackupPolicy", input, key),
+    changed,
+  );
+  await assert.rejects(execute("saveDatabaseBackupPolicy", input), {
+    code: "ROW_VERSION_CONFLICT",
+  });
+  await assert.rejects(
+    execute(
+      "saveDatabaseBackupPolicy",
+      { ...input, expectedVersion: current.policy.version + 1 },
+      newId(),
+      { ...actor, role: "viewer" },
+    ),
+    { status: 403 },
+  );
+  const outcomes = await Promise.all([
+    jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+  ]);
+  assert.deepEqual(outcomes.sort(), [false, true]);
+  assert.equal((await published(retainedIds[0]!)).storage_state, "available");
+  const removed = await published(retainedIds[1]!);
+  assert.equal(removed.storage_state, "pruned");
+  await assert.rejects(
+    objects.send(
+      new HeadObjectCommand({ Bucket: bucket, Key: removed.object_key }),
+    ),
+    (error) =>
+      (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+        ?.httpStatusCode === 404,
+  );
+  assert.equal((await published(retainedIds[2]!)).storage_state, "available");
+  const page = (await execute("listDatabaseBackups", {
+    databaseId: retentionDatabase,
+  })) as { data: DatabaseBackup[] };
+  assert.equal(
+    page.data.find((item) => item.id === removed.id)?.storageState,
+    "pruned",
+  );
+  await assert.rejects(
+    restoreRequest("previewDatabaseRestore", { backupId: removed.id }),
+    { code: "RESOURCE_NOT_FOUND" },
+  );
+  await owner.query(
+    "UPDATE rootset_control.jobs SET result=jsonb_set(result,'{expiresAt}',to_jsonb('2020-01-01T00:00:00.000Z'::text)) WHERE id=$1",
+    [preview.jobId],
+  );
+  const queued = await restoreRequest("previewDatabaseRestore", {
+    backupId: retainedIds[0],
+  });
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    false,
+    "a queued restore preview pins its package",
+  );
+  await jobs.queue.cancel(actor, queued.jobId);
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    true,
+  );
+  assert.equal((await published(retainedIds[0]!)).storage_state, "pruned");
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    false,
+  );
+  assert.equal((await published(retainedIds[2]!)).storage_state, "available");
+});
+test("retention retries exact-key deletion after a lost response without touching the latest snapshot or other backends", async () => {
+  await savePolicy(null);
+  const next = (await execute("runDatabaseBackup", {
+    databaseId: retentionDatabase,
+  })) as { jobId: string };
+  assert.equal((await terminal(next.jobId)).state, "succeeded");
+  const candidate = retainedIds[2]!;
+  await savePolicy(1);
+  await owner.query(
+    "UPDATE rootset_control.database_backups SET backend_id='different-backend' WHERE id=$1",
+    [candidate],
+  );
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    false,
+  );
+  await owner.query(
+    "UPDATE rootset_control.database_backups SET backend_id=$2 WHERE id=$1",
+    [candidate, jobs.backups.backendId],
+  );
+  let deleted = false;
+  hook = async (point) => {
+    if (point === "backupRetention.afterDelete") {
+      deleted = true;
+      throw Error("Lost delete response");
+    }
+  };
+  try {
+    assert.equal(
+      await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+      true,
+    );
+    assert.equal(deleted, true);
+  } finally {
+    hook = undefined;
+  }
+  const waiting = await published(candidate);
+  assert.equal(waiting.storage_state, "deleting");
+  assert.ok((await policy()).retentionError);
+  await assert.rejects(
+    restoreRequest("previewDatabaseRestore", { backupId: candidate }),
+    { code: "RESOURCE_NOT_FOUND" },
+  );
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    false,
+    "failed deletes back off",
+  );
+  await owner.query(
+    "UPDATE rootset_control.database_backups SET next_prune_at=now(),prune_lease_token=$2,prune_lease_until=now()+interval '2 minutes' WHERE id=$1",
+    [candidate, newId()],
+  );
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    false,
+    "a surviving prune lease excludes a second worker",
+  );
+  await owner.query(
+    "UPDATE rootset_control.database_backups SET prune_lease_until=now()-interval '1 second' WHERE id=$1",
+    [candidate],
+  );
+  assert.equal(
+    await jobs.backups.lifecycle.pruneOne(orgId, retentionDatabase),
+    true,
+  );
+  assert.equal((await published(candidate)).storage_state, "pruned");
+  assert.equal((await published(next.jobId)).storage_state, "available");
+  assert.equal((await policy()).lastSuccessful?.backupId, next.jobId);
+  retainedIds.push(next.jobId);
+});
+test("backup failure and overdue alerts deduplicate encrypted administrator mail, suppress revoked recipients and resolve after recovery", async () => {
+  const admins = [newId(), newId()],
+    member = newId(),
+    unverified = newId();
+  for (const [index, id] of [...admins, member, unverified].entries()) {
+    await owner.query(
+      "INSERT INTO rootset_control.users(id,name,email,email_verified) VALUES($1,$2,$3,$4)",
+      [
+        id,
+        `Backup recipient ${index}`,
+        `backup-${id.toLowerCase()}@rootset.test`,
+        id !== unverified,
+      ],
+    );
+    await owner.query(
+      "INSERT INTO rootset_control.memberships(id,org_id,user_id,role) VALUES($1,$2,$3,$4)",
+      [newId(), orgId, id, id === member ? "member" : "admin"],
+    );
+  }
+  await savePolicy(null, 5);
+  const failure = (await execute("runDatabaseBackup", {
+    databaseId: retentionDatabase,
+  })) as { jobId: string };
+  hook = async (point) => {
+    if (point === "backup.afterSnapshot")
+      throw new RootsetError(
+        "VALIDATION_FAILED",
+        "Deliberate backup failure",
+        422,
+      );
+  };
+  try {
+    assert.equal((await terminal(failure.jobId)).state, "failed");
+  } finally {
+    hook = undefined;
+  }
+  const original = (
+    await owner.query<{ completed_at: Date }>(
+      "SELECT completed_at FROM rootset_control.jobs WHERE id=$1",
+      [failure.jobId],
+    )
+  ).rows[0]!.completed_at;
+  await owner.query(
+    "UPDATE rootset_control.jobs SET completed_at=now()-interval '1 day' WHERE id=$1",
+    [failure.jobId],
+  );
+  await jobs.backups.lifecycle.checkAlerts(orgId, retentionDatabase);
+  assert.equal(
+    (await policy()).alerts.length,
+    0,
+    "upgrades do not notify about historical failures",
+  );
+  await owner.query(
+    "UPDATE rootset_control.jobs SET completed_at=$2 WHERE id=$1",
+    [failure.jobId, original],
+  );
+  await Promise.all([
+    jobs.backups.lifecycle.checkAlerts(orgId, retentionDatabase),
+    jobs.backups.lifecycle.checkAlerts(orgId, retentionDatabase),
+  ]);
+  const result = await policy();
+  assert.equal(result.alerts.length, 1);
+  assert.equal(result.alerts[0]!.kind, "failed");
+  const mail = (
+    await owner.query(
+      "SELECT * FROM rootset_control.email_outbox WHERE template='backup-failed'",
+    )
+  ).rows;
+  assert.equal(mail.length, 2);
+  assert.ok(
+    mail.every((row) => !row.payload_encrypted.includes(retentionDatabase)),
+  );
+  await owner.query(
+    "UPDATE rootset_control.memberships SET role='member' WHERE user_id=$1 AND org_id=$2",
+    [admins[1], orgId],
+  );
+  for (let i = 0; i < 3; i++) await emailOutbox.deliverNext();
+  const deliveries = (
+    await owner.query(
+      "SELECT state,last_error,payload_encrypted FROM rootset_control.email_outbox WHERE template='backup-failed' ORDER BY state",
+    )
+  ).rows;
+  assert.deepEqual(
+    deliveries.map((row) => row.state),
+    ["failed", "sent"],
+  );
+  assert.ok(deliveries.every((row) => row.payload_encrypted === ""));
+  assert.match(deliveries[0]!.last_error, /no longer requires delivery/);
+  await jobs.backups.lifecycle.checkAlerts(orgId, retentionDatabase);
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS n FROM rootset_control.email_outbox WHERE template='backup-failed'",
+      )
+    ).rows[0].n,
+    2,
+  );
+  const future = new Date(Date.now() + 7 * 60_000);
+  await owner.query(
+    "UPDATE rootset_control.backup_schedules SET cron='* * * * *',updated_at=now() WHERE database_id=$1",
+    [retentionDatabase],
+  );
+  await jobs.backups.lifecycle.checkAlerts(orgId, retentionDatabase, future);
+  await jobs.backups.lifecycle.checkAlerts(
+    orgId,
+    retentionDatabase,
+    new Date(future.getTime() + 60_000),
+  );
+  assert.equal(
+    (await policy()).alerts.filter((alert) => alert.kind === "overdue").length,
+    1,
+  );
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT count(*)::int AS n FROM rootset_control.email_outbox WHERE template='backup-overdue'",
+      )
+    ).rows[0].n,
+    1,
+  );
+  const last = retainedIds.at(-1)!;
+  const success = (
+    await owner.query(
+      "SELECT snapshot_at,completed_at FROM rootset_control.database_backups WHERE id=$1",
+      [last],
+    )
+  ).rows[0]!;
+  await owner.query(
+    "UPDATE rootset_control.database_backups SET snapshot_at=$2,completed_at=$2 WHERE id=$1",
+    [last, new Date(future.getTime() + 60_000)],
+  );
+  await jobs.backups.lifecycle.checkAlerts(
+    orgId,
+    retentionDatabase,
+    new Date(future.getTime() + 120_000),
+  );
+  assert.equal((await policy()).alerts.length, 0);
+  await emailOutbox.deliverNext();
+  assert.equal(
+    (
+      await owner.query(
+        "SELECT state FROM rootset_control.email_outbox WHERE template='backup-overdue'",
+      )
+    ).rows[0].state,
+    "failed",
+    "resolved alerts are not delivered",
+  );
+  await owner.query(
+    "UPDATE rootset_control.database_backups SET snapshot_at=$2,completed_at=$3 WHERE id=$1",
+    [last, success.snapshot_at, success.completed_at],
+  );
+  const current = (await execute("getBackupSchedule", {
+    databaseId: retentionDatabase,
+  })) as BackupScheduleResult;
+  await execute("deleteBackupSchedule", {
+    databaseId: retentionDatabase,
+    expectedVersion: current.version,
+  });
 });
 
 test("manual concurrency and durable replay do not create duplicate backups", async () => {

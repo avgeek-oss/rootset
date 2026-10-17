@@ -773,6 +773,15 @@ export class JobsService {
       case "retryJob": {
         const original = await this.authorisedJob(actor, String(input.id));
         await this.authorise(actor, original.operation_id, target(original));
+        if (restoreJobKinds.includes(original.kind)) {
+          if (!context.client)
+            throw new RootsetError(
+              "CONFIGURATION_INVALID",
+              "Restore retry requires an admission transaction",
+              500,
+            );
+          await this.restores.prepareRetry(actor, original, context.client);
+        }
         return accepted(
           await this.queue.retry(actor, original.id, context.client),
         );
@@ -1412,9 +1421,15 @@ export class JobsService {
       code: string | null = null,
     ) => {
       await this.queue.workerPool.query(
-        `INSERT INTO rootset_control.worker_heartbeats(id,state,last_error_code,backup_backend_id) VALUES($1,$2,$3,$4)
-        ON CONFLICT(id) DO UPDATE SET heartbeat_at=now(),state=excluded.state,last_error_code=excluded.last_error_code,backup_backend_id=excluded.backup_backend_id`,
-        [workerId, state, code, this.backups.backendId],
+        `INSERT INTO rootset_control.worker_heartbeats(id,state,last_error_code,backup_backend_id,backup_alert_delivery) VALUES($1,$2,$3,$4,$5)
+        ON CONFLICT(id) DO UPDATE SET heartbeat_at=now(),state=excluded.state,last_error_code=excluded.last_error_code,backup_backend_id=excluded.backup_backend_id,backup_alert_delivery=excluded.backup_alert_delivery`,
+        [
+          workerId,
+          state,
+          code,
+          this.backups.backendId,
+          this.config.backupNotificationsAvailable ?? false,
+        ],
       );
     };
     await heartbeat("starting");
@@ -1484,6 +1499,9 @@ export class JobsService {
         if (orgId && !options.signal?.aborted) {
           await activity("backup_scheduler", () =>
             this.backups.scheduleDue(orgId),
+          );
+          await activity("backup_retention_alerts", () =>
+            this.backups.lifecycle.maintain(orgId),
           );
           await activity("backup_spool_cleanup", () =>
             this.backups.cleanupTemporaryFiles(),

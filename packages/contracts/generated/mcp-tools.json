@@ -27273,6 +27273,534 @@
     }
   },
   {
+    "name": "rootset_get_database_backup_policy",
+    "title": "getDatabaseBackupPolicy",
+    "description": "Read backup retention, current failure/overdue alerts and the latest successful snapshot.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": ["orgId", "databaseId"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "policy": {
+              "type": "object",
+              "properties": {
+                "retentionCount": {
+                  "anyOf": [
+                    { "type": "integer", "minimum": 1, "maximum": 10000 },
+                    { "type": "null" }
+                  ]
+                },
+                "overdueGraceMinutes": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 1440
+                },
+                "databaseId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "retentionCount",
+                "overdueGraceMinutes",
+                "databaseId",
+                "version",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            },
+            "emailDeliveryAvailable": { "type": "boolean" },
+            "lastSuccessful": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "backupId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "snapshotAt": {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    "completedAt": {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    "bucket": { "type": "string" },
+                    "objectKey": { "type": "string" }
+                  },
+                  "required": [
+                    "backupId",
+                    "snapshotAt",
+                    "completedAt",
+                    "bucket",
+                    "objectKey"
+                  ],
+                  "additionalProperties": false
+                },
+                { "type": "null" }
+              ]
+            },
+            "alerts": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "kind": { "type": "string", "enum": ["failed", "overdue"] },
+                  "backupId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "occurrenceAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "detectedAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "notifiedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "backupId",
+                  "occurrenceAt",
+                  "detectedAt",
+                  "notifiedAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "retentionError": { "type": ["string", "null"] }
+          },
+          "required": [
+            "policy",
+            "emailDeliveryAvailable",
+            "lastSuccessful",
+            "alerts",
+            "retentionError"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_save_database_backup_policy",
+    "title": "saveDatabaseBackupPolicy",
+    "description": "Save the successful-backup retention count and overdue grace. The newest successful backup and packages needed by current restore requests remain protected.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483646
+        },
+        "retentionCount": {
+          "anyOf": [
+            { "type": "integer", "minimum": 1, "maximum": 10000 },
+            { "type": "null" }
+          ]
+        },
+        "overdueGraceMinutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 1440
+        },
+        "orgId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "databaseId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "retentionCount",
+        "overdueGraceMinutes",
+        "orgId",
+        "databaseId",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "policy": {
+              "type": "object",
+              "properties": {
+                "retentionCount": {
+                  "anyOf": [
+                    { "type": "integer", "minimum": 1, "maximum": 10000 },
+                    { "type": "null" }
+                  ]
+                },
+                "overdueGraceMinutes": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 1440
+                },
+                "databaseId": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "retentionCount",
+                "overdueGraceMinutes",
+                "databaseId",
+                "version",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            },
+            "emailDeliveryAvailable": { "type": "boolean" },
+            "lastSuccessful": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "backupId": {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    "snapshotAt": {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    "completedAt": {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    "bucket": { "type": "string" },
+                    "objectKey": { "type": "string" }
+                  },
+                  "required": [
+                    "backupId",
+                    "snapshotAt",
+                    "completedAt",
+                    "bucket",
+                    "objectKey"
+                  ],
+                  "additionalProperties": false
+                },
+                { "type": "null" }
+              ]
+            },
+            "alerts": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "kind": { "type": "string", "enum": ["failed", "overdue"] },
+                  "backupId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "occurrenceAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "detectedAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "notifiedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "backupId",
+                  "occurrenceAt",
+                  "detectedAt",
+                  "notifiedAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "retentionError": { "type": ["string", "null"] }
+          },
+          "required": [
+            "policy",
+            "emailDeliveryAvailable",
+            "lastSuccessful",
+            "alerts",
+            "retentionError"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
     "name": "rootset_get_backup_schedule",
     "title": "getBackupSchedule",
     "description": "Read the database backup schedule and worker availability.",
@@ -28068,6 +28596,20 @@
               "items": {
                 "type": "object",
                 "properties": {
+                  "storageState": {
+                    "type": "string",
+                    "enum": ["available", "deleting", "pruned"]
+                  },
+                  "prunedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "retentionError": { "type": ["string", "null"] },
                   "id": {
                     "type": "string",
                     "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -28180,6 +28722,9 @@
                   "note": { "type": ["string", "null"] }
                 },
                 "required": [
+                  "storageState",
+                  "prunedAt",
+                  "retentionError",
                   "id",
                   "jobId",
                   "kind",

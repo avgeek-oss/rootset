@@ -11,6 +11,7 @@ import {
   type DatabaseBackup,
   type Job,
 } from "@rootset/contracts";
+import { BackupHealth } from "./backup-protection";
 import { RestoreBackup } from "../restore-backup";
 import Link from "next/link";
 import { buttonVariants } from "@avgeek-oss/design-system/buttons/button";
@@ -100,6 +101,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
       <PageSelectionTitle label="Backup History" />
       <Loading {...history} retry={history.reload} />
       <div className="grid min-w-0 gap-4">
+        <BackupHealth {...props} />
         <ResourceTable
           ariaLabel="Database backups"
           items={history.data.data}
@@ -131,16 +133,27 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
               header: "Status",
               cell: (run) => (
                 <div className="grid gap-1">
-                  <Chip color={statusColor(run.state)}>
+                  <Chip
+                    color={
+                      run.storageState === "pruned" ||
+                      run.storageState === "deleting"
+                        ? "default"
+                        : statusColor(run.state)
+                    }
+                  >
                     <HugeiconsIcon
                       aria-hidden="true"
                       size={14}
                       icon={statusIcon(run.state)}
                     />
                     <Chip.Label>
-                      {run.stage === "retry_wait"
-                        ? "Retrying"
-                        : statusLabel(run.state)}
+                      {run.storageState === "pruned"
+                        ? "Pruned"
+                        : run.storageState === "deleting"
+                          ? "Removing"
+                          : run.stage === "retry_wait"
+                            ? "Retrying"
+                            : statusLabel(run.state)}
                     </Chip.Label>
                   </Chip>
                   {run.state === "running" && (
@@ -216,8 +229,11 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
               header: "Details",
               cell: (run) => (
                 <span className="block max-w-md break-words">
-                  {run.error ??
-                    run.note ??
+                  {run.retentionError ??
+                    run.error ??
+                    (run.storageState === "pruned"
+                      ? "Removed by the backup retention policy."
+                      : run.note) ??
                     (run.objectKey ? (
                       <TypographyCode className="block w-80 whitespace-normal break-all">
                         {`${run.bucket}/${run.objectKey}`}
@@ -260,6 +276,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
                   </Button>
                 ) : run.kind === "backup" &&
                   run.state === "succeeded" &&
+                  run.storageState === "available" &&
                   run.objectKey &&
                   run.checksum ? (
                   <Button

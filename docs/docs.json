@@ -156,6 +156,8 @@
               "api-reference/getDatabase",
               "api-reference/updateDatabase",
               "api-reference/deleteDatabase",
+              "api-reference/getDatabaseBackupPolicy",
+              "api-reference/saveDatabaseBackupPolicy",
               "api-reference/getBackupSchedule",
               "api-reference/saveBackupSchedule",
               "api-reference/deleteBackupSchedule",

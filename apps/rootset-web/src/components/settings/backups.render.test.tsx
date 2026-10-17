@@ -1,10 +1,15 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { createElement, type ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BackupScheduleSettings } from "./backups";
 import { BackupHistorySettings } from "./backup-history";
 import type { SettingsPanelProps } from "./types";
 
+const renderToStaticMarkup = (element: ReactElement) =>
+  renderMarkup(
+    createElement(QueryClientProvider, { client: new QueryClient() }, element),
+  );
 vi.mock("./account/last-synced-time", () => ({
   RelativeTime: ({ value, label }: { value: string; label: string }) =>
     createElement(
@@ -35,6 +40,9 @@ vi.mock("./api", () => ({
             data: ["manual", "schedule"].map((trigger) => ({
               id: `backup-run-${trigger}`,
               kind: "backup",
+              storageState: "available",
+              prunedAt: null,
+              retentionError: null,
               trigger,
               state: "succeeded",
               stage: "succeeded",

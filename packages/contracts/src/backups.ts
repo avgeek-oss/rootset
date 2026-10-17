@@ -70,6 +70,9 @@ export const BackupScheduleResultSchema = z.strictObject({
   nextRuns: z.array(CanonicalUtcDateTimeSchema),
 });
 export const DatabaseBackupSchema = z.strictObject({
+  storageState: z.enum(["available", "deleting", "pruned"]),
+  prunedAt: CanonicalUtcDateTimeSchema.nullable(),
+  retentionError: z.string().nullable(),
   id: IdSchema,
   jobId: IdSchema.nullable(),
   kind: z.enum(["backup", "destination_test", "skipped"]),

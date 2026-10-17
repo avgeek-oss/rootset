@@ -10,6 +10,10 @@ import {
   BackupScheduleResultSchema,
   DatabaseBackupSchema,
 } from "./backups";
+import {
+  BackupPolicyInputSchema,
+  BackupPolicyResultSchema,
+} from "./backup-policy";
 import { UniqueRuleConditionSchema } from "./unique-rules";
 import { ImportSourceSchema } from "./imports";
 import {
@@ -1584,6 +1588,28 @@ operation(
   }),
   "Delete an owned personal view or a shared view you can manage. Deleting a view never changes its records.",
   { personal: true, minimumRole: "viewer" },
+);
+operation(
+  "getDatabaseBackupPolicy",
+  "get_database_backup_policy",
+  "GET",
+  `${D}/backup-policy`,
+  ["backups:read"],
+  z.strictObject(database),
+  BackupPolicyResultSchema,
+  "Read backup retention, current failure/overdue alerts and the latest successful snapshot.",
+  { minimumRole: "admin" },
+);
+operation(
+  "saveDatabaseBackupPolicy",
+  "save_database_backup_policy",
+  "PUT",
+  `${D}/backup-policy`,
+  ["backups:manage"],
+  BackupPolicyInputSchema.extend(database),
+  BackupPolicyResultSchema,
+  "Save the successful-backup retention count and overdue grace. The newest successful backup and packages needed by current restore requests remain protected.",
+  { minimumRole: "admin" },
 );
 operation(
   "getBackupSchedule",

@@ -5148,6 +5148,69 @@ export type deleteSavedViewOutput = {
   deleted: true;
   version: string;
 };
+export type getDatabaseBackupPolicyInput = {
+  orgId: string;
+  databaseId: string;
+};
+export type getDatabaseBackupPolicyOutput = {
+  policy: {
+    retentionCount: number | null;
+    overdueGraceMinutes: number;
+    databaseId: string;
+    version: number;
+    updatedAt: string | null;
+  };
+  emailDeliveryAvailable: boolean;
+  lastSuccessful: {
+    backupId: string;
+    snapshotAt: string;
+    completedAt: string;
+    bucket: string;
+    objectKey: string;
+  } | null;
+  alerts: {
+    id: string;
+    kind: "failed" | "overdue";
+    backupId: string | null;
+    occurrenceAt: string;
+    detectedAt: string;
+    notifiedAt: string | null;
+  }[];
+  retentionError: unknown;
+};
+export type saveDatabaseBackupPolicyInput = {
+  expectedVersion: number;
+  retentionCount: number | null;
+  overdueGraceMinutes: number;
+  orgId: string;
+  databaseId: string;
+};
+export type saveDatabaseBackupPolicyOutput = {
+  policy: {
+    retentionCount: number | null;
+    overdueGraceMinutes: number;
+    databaseId: string;
+    version: number;
+    updatedAt: string | null;
+  };
+  emailDeliveryAvailable: boolean;
+  lastSuccessful: {
+    backupId: string;
+    snapshotAt: string;
+    completedAt: string;
+    bucket: string;
+    objectKey: string;
+  } | null;
+  alerts: {
+    id: string;
+    kind: "failed" | "overdue";
+    backupId: string | null;
+    occurrenceAt: string;
+    detectedAt: string;
+    notifiedAt: string | null;
+  }[];
+  retentionError: unknown;
+};
 export type getBackupScheduleInput = { orgId: string; databaseId: string };
 export type getBackupScheduleOutput = {
   schedule: {
@@ -5225,6 +5288,9 @@ export type listDatabaseBackupsInput = {
 };
 export type listDatabaseBackupsOutput = {
   data: {
+    storageState: "available" | "deleting" | "pruned";
+    prunedAt: string | null;
+    retentionError: unknown;
     id: string;
     jobId: string | null;
     kind: "backup" | "destination_test" | "skipped";
@@ -5777,6 +5843,16 @@ const routes = {
   deleteSavedView: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/views/{viewId}",
     method: "DELETE",
+    idempotencyRequired: true,
+  },
+  getDatabaseBackupPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  saveDatabaseBackupPolicy: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/backup-policy",
+    method: "PUT",
     idempotencyRequired: true,
   },
   getBackupSchedule: {
@@ -6717,6 +6793,26 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<deleteSavedViewOutput>;
+  }
+  getDatabaseBackupPolicy(
+    input: getDatabaseBackupPolicyInput,
+    options?: CallOptions,
+  ): Promise<getDatabaseBackupPolicyOutput> {
+    return this.call(
+      "getDatabaseBackupPolicy",
+      input,
+      options,
+    ) as Promise<getDatabaseBackupPolicyOutput>;
+  }
+  saveDatabaseBackupPolicy(
+    input: saveDatabaseBackupPolicyInput,
+    options?: CallOptions,
+  ): Promise<saveDatabaseBackupPolicyOutput> {
+    return this.call(
+      "saveDatabaseBackupPolicy",
+      input,
+      options,
+    ) as Promise<saveDatabaseBackupPolicyOutput>;
   }
   getBackupSchedule(
     input: getBackupScheduleInput,

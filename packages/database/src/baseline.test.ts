@@ -81,6 +81,7 @@ test(
       "0009_import_requests.sql",
       "0010_saved_views.sql",
       "0011_database_restores.sql",
+      "0012_backup_retention_alerts.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       assert.deepEqual(
@@ -129,7 +130,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0011_database_restores.sql",
+      version: "0012_backup_retention_alerts.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -249,9 +250,22 @@ test(
     );
     assert.equal(absent.rowCount, 0);
     const removed = await pool.query(
-      "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN('resource_grants','operator_bindings','account_audit','capacity_organisation_quotas','capacity_policy','capacity_reports','capacity_reservations','installation_settings','installation_settings_audit','backup_policies','backup_occurrences','backups','restore_provenance','restore_publications','restore_write_barriers','notification_events','notification_receipts')",
+      "SELECT tablename FROM pg_tables WHERE schemaname='rootset_control' AND tablename IN('resource_grants','operator_bindings','account_audit','capacity_organisation_quotas','capacity_policy','capacity_reports','capacity_reservations','installation_settings','installation_settings_audit','backup_occurrences','backups','restore_provenance','restore_publications','restore_write_barriers','notification_events','notification_receipts')",
     );
     assert.equal(removed.rowCount, 0);
+    for (const relation of [
+      "backup_policies",
+      "backup_alerts",
+      "restore_results",
+    ])
+      assert.notEqual(
+        (
+          await pool.query("SELECT to_regclass($1) AS relation", [
+            `rootset_control.${relation}`,
+          ])
+        ).rows[0].relation,
+        null,
+      );
 
     await writeFile(
       join(directory, "0001_baseline.sql"),
@@ -268,6 +282,7 @@ test(
       "0009_import_requests.sql",
       "0010_saved_views.sql",
       "0011_database_restores.sql",
+      "0012_backup_retention_alerts.sql",
     ])
       await writeFile(
         join(directory, name),

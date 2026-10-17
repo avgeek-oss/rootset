@@ -18,6 +18,7 @@ import {
   type RestorePreview,
 } from "@rootset/contracts";
 import type { RestoreSource } from "@rootset/table-storage";
+import { ownedBackupObject } from "./ownership.js";
 import { backupBackendId } from "./index.js";
 import { DEFAULT_BACKUP_MAX_BYTES, decryptBackupPackage } from "./format.js";
 import { openRestoreArchive } from "./restore-archive.js";
@@ -84,17 +85,36 @@ export class DatabaseRestores {
     client: PoolClient,
     actor: Actor,
     backupId: string,
+    lock = false,
   ): Promise<BackupSource> {
+    if (lock) {
+      const current = (
+        await client.query<{ database_id: string }>(
+          "SELECT database_id FROM rootset_control.database_backups WHERE id=$1 AND org_id=$2",
+          [backupId, actor.orgId],
+        )
+      ).rows[0];
+      if (!current)
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "A retained successful backup was not found",
+          404,
+        );
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        [`rootset:backup:${current.database_id}`],
+      );
+    }
     const row = (
       await client.query<BackupSource>(
-        "SELECT id,database_id,backend_id,bucket,prefix,object_key,checksum,byte_length::text,snapshot_at FROM rootset_control.database_backups WHERE id=$1 AND org_id=$2 AND kind='backup' AND published",
+        "SELECT id,database_id,backend_id,bucket,prefix,object_key,checksum,byte_length::text,snapshot_at FROM rootset_control.database_backups WHERE id=$1 AND org_id=$2 AND kind='backup' AND published AND storage_state='available'",
         [backupId, actor.orgId],
       )
     ).rows[0];
     if (!row)
       throw new RootsetError(
         "RESOURCE_NOT_FOUND",
-        "A successful managed backup was not found",
+        "A retained successful backup was not found",
         404,
       );
     if (
@@ -104,15 +124,7 @@ export class DatabaseRestores {
       BigInt(row.byte_length) > BigInt(Number.MAX_SAFE_INTEGER)
     )
       invalid("The backup publication metadata is invalid");
-    const prefix =
-      [row.prefix, row.database_id].filter(Boolean).join("/") + "/";
-    if (
-      !row.object_key.startsWith(prefix) ||
-      !/^\d{4}\/\d{2}\/\d{2}\/[0-9A-HJKMNP-TV-Z]{26}-[0-9A-HJKMNP-TV-Z]{26}\.rootset-backup$/.test(
-        row.object_key.slice(prefix.length),
-      ) ||
-      !row.object_key.slice(prefix.length).includes(`/${row.id}-`)
-    )
+    if (!ownedBackupObject(row))
       invalid("The backup object is outside its published namespace");
     return row;
   }
@@ -175,6 +187,7 @@ export class DatabaseRestores {
       context.client,
       actor,
       String(input.backupId),
+      true,
     );
     const workers = (
       await context.client.query<{ backend: string }>(
@@ -224,6 +237,22 @@ export class DatabaseRestores {
       state: job.state,
       statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}`,
     };
+  }
+  async prepareRetry(actor: Actor, job: JobRecord, client: PoolClient) {
+    this.access(actor, job.operation_id);
+    const backup = await this.source(
+      client,
+      actor,
+      String(job.input.backupId),
+      true,
+    );
+    if (
+      backup.checksum !== job.input.sourceChecksum ||
+      backup.backend_id !== job.input.backendId
+    )
+      invalid("The published backup changed. Verify it again.");
+    if (job.kind === "database_restore")
+      await this.preview(client, actor, String(job.input.previewId), backup);
   }
   async committedResult(job: JobRecord): Promise<JsonValue | undefined> {
     if (job.kind !== "database_restore" || !this.queue.authenticInput(job))

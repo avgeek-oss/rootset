@@ -20140,6 +20140,384 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-policy": {
+      "get": {
+        "operationId": "getDatabaseBackupPolicy",
+        "tags": ["databases"],
+        "summary": "Read backup retention, current failure/overdue alerts and the latest successful snapshot.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/getDatabaseBackupPolicyOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "admin",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_get_database_backup_policy",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000"
+        }
+      },
+      "put": {
+        "operationId": "saveDatabaseBackupPolicy",
+        "tags": ["databases"],
+        "summary": "Save the successful-backup retention count and overdue grace. The newest successful backup and packages needed by current restore requests remain protected.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "databaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483646
+                  },
+                  "retentionCount": {
+                    "anyOf": [
+                      { "type": "integer", "minimum": 1, "maximum": 10000 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "overdueGraceMinutes": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 1440
+                  }
+                },
+                "required": [
+                  "expectedVersion",
+                  "retentionCount",
+                  "overdueGraceMinutes"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "expectedVersion": 0,
+                "retentionCount": 1,
+                "overdueGraceMinutes": 5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/saveDatabaseBackupPolicyOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "admin",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_save_database_backup_policy",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "expectedVersion": 0,
+          "retentionCount": 1,
+          "overdueGraceMinutes": 5,
+          "orgId": "01K6J7B8000000000000000000",
+          "databaseId": "01K6J7B8000000000000000000"
+        }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule": {
       "get": {
         "operationId": "getBackupSchedule",
@@ -40092,6 +40470,334 @@
         "required": ["id", "deleted", "version"],
         "additionalProperties": false
       },
+      "getDatabaseBackupPolicyInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": ["orgId", "databaseId"],
+        "additionalProperties": false
+      },
+      "getDatabaseBackupPolicyOutput": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "object",
+            "properties": {
+              "retentionCount": {
+                "anyOf": [
+                  { "type": "integer", "minimum": 1, "maximum": 10000 },
+                  { "type": "null" }
+                ]
+              },
+              "overdueGraceMinutes": {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 1440
+              },
+              "databaseId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "updatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": [
+              "retentionCount",
+              "overdueGraceMinutes",
+              "databaseId",
+              "version",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          },
+          "emailDeliveryAvailable": { "type": "boolean" },
+          "lastSuccessful": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "backupId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "snapshotAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "completedAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "bucket": { "type": "string" },
+                  "objectKey": { "type": "string" }
+                },
+                "required": [
+                  "backupId",
+                  "snapshotAt",
+                  "completedAt",
+                  "bucket",
+                  "objectKey"
+                ],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
+          "alerts": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "kind": { "type": "string", "enum": ["failed", "overdue"] },
+                "backupId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "occurrenceAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                },
+                "detectedAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                },
+                "notifiedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "backupId",
+                "occurrenceAt",
+                "detectedAt",
+                "notifiedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "retentionError": { "type": ["string", "null"] }
+        },
+        "required": [
+          "policy",
+          "emailDeliveryAvailable",
+          "lastSuccessful",
+          "alerts",
+          "retentionError"
+        ],
+        "additionalProperties": false
+      },
+      "saveDatabaseBackupPolicyInput": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483646
+          },
+          "retentionCount": {
+            "anyOf": [
+              { "type": "integer", "minimum": 1, "maximum": 10000 },
+              { "type": "null" }
+            ]
+          },
+          "overdueGraceMinutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 1440
+          },
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "databaseId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "retentionCount",
+          "overdueGraceMinutes",
+          "orgId",
+          "databaseId"
+        ],
+        "additionalProperties": false
+      },
+      "saveDatabaseBackupPolicyOutput": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "object",
+            "properties": {
+              "retentionCount": {
+                "anyOf": [
+                  { "type": "integer", "minimum": 1, "maximum": 10000 },
+                  { "type": "null" }
+                ]
+              },
+              "overdueGraceMinutes": {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 1440
+              },
+              "databaseId": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "updatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": [
+              "retentionCount",
+              "overdueGraceMinutes",
+              "databaseId",
+              "version",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          },
+          "emailDeliveryAvailable": { "type": "boolean" },
+          "lastSuccessful": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "backupId": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "snapshotAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "completedAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                  },
+                  "bucket": { "type": "string" },
+                  "objectKey": { "type": "string" }
+                },
+                "required": [
+                  "backupId",
+                  "snapshotAt",
+                  "completedAt",
+                  "bucket",
+                  "objectKey"
+                ],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
+          "alerts": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "kind": { "type": "string", "enum": ["failed", "overdue"] },
+                "backupId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "occurrenceAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                },
+                "detectedAt": {
+                  "type": "string",
+                  "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                },
+                "notifiedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "backupId",
+                "occurrenceAt",
+                "detectedAt",
+                "notifiedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "retentionError": { "type": ["string", "null"] }
+        },
+        "required": [
+          "policy",
+          "emailDeliveryAvailable",
+          "lastSuccessful",
+          "alerts",
+          "retentionError"
+        ],
+        "additionalProperties": false
+      },
       "getBackupScheduleInput": {
         "type": "object",
         "properties": {
@@ -40474,6 +41180,20 @@
             "items": {
               "type": "object",
               "properties": {
+                "storageState": {
+                  "type": "string",
+                  "enum": ["available", "deleting", "pruned"]
+                },
+                "prunedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "retentionError": { "type": ["string", "null"] },
                 "id": {
                   "type": "string",
                   "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
@@ -40583,6 +41303,9 @@
                 "note": { "type": ["string", "null"] }
               },
               "required": [
+                "storageState",
+                "prunedAt",
+                "retentionError",
                 "id",
                 "jobId",
                 "kind",

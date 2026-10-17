@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "@rootset/database";
-import type { Actor, JsonValue } from "@rootset/contracts";
+import type { Actor, JsonValue, BackupAlertNotice } from "@rootset/contracts";
 import type { Readable } from "node:stream";
 import type { TableStorage, TableRecord } from "@rootset/table-storage";
 
@@ -30,6 +30,11 @@ export interface ArtifactConfig {
   tempDirectory?: string;
 }
 export interface JobsConfig {
+  backupNotificationsAvailable?: boolean;
+  notifyBackupAdministrators?: (
+    client: PoolClient,
+    alert: BackupAlertNotice,
+  ) => Promise<void>;
   backups?: import("./backups/index.js").BackupConfig;
   rootsetVersion?: string;
   idempotencySecret?: string;

@@ -52,6 +52,7 @@ export const queuedMutationSet: ReadonlySet<string> = new Set([
   "importRows",
 ]);
 export const backupMutationSet: ReadonlySet<string> = new Set([
+  "saveDatabaseBackupPolicy",
   "saveBackupSchedule",
   "deleteBackupSchedule",
   "runDatabaseBackup",

@@ -19,3 +19,5 @@ export * from "./exports";
 export * from "./relationships";
 
 export * from "./restores";
+
+export * from "./backup-policy";

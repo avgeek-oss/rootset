@@ -20,6 +20,7 @@ import {
   useMutation,
   useResource,
 } from "./api";
+import { BackupHealth, BackupRetentionSettings } from "./backup-protection";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { TimeZoneSelect } from "./time-zone-select";
 import { Empty, Field, Form, Loading, Section } from "./ui";
@@ -251,6 +252,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       <Loading {...job} retry={job.reload} />
       {resource.data && (
         <div className="grid min-w-0 gap-6">
+          <BackupHealth {...props} />
           {!available ? (
             <p role="status" className="settings-section-description">
               Backup storage is not configured, or no backup-enabled worker is
@@ -423,11 +425,12 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                 </p>
               )}
               <p className="settings-section-description">
-                Backups remain in your bucket until removed or expired by its
+                Saved backups follow your retention policy and any bucket
                 lifecycle rules.
               </p>
             </Form>
           </Section>
+          <BackupRetentionSettings {...props} />
         </div>
       )}
     </>

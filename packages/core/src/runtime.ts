@@ -6,6 +6,7 @@ import { OperationalObserver } from "@rootset/observability";
 import { IdentityService } from "@rootset/identity";
 import { TableStorage } from "@rootset/table-storage";
 import { JobsService } from "@rootset/jobs";
+import { enqueueBackupAlert } from "@rootset/email";
 import { OAuthService, type OAuthConfig } from "@rootset/oauth";
 import { RootsetCore } from "./index.js";
 import { loadConfig, type Config } from "./config.js";
@@ -75,6 +76,14 @@ export async function createRuntime(
         metadataPaging: paging,
         rootsetVersion: release.version,
         backups: options.worker ? config.backups : undefined,
+        backupNotificationsAvailable: Boolean(config.smtp),
+        notifyBackupAdministrators: (client, alert) =>
+          enqueueBackupAlert(
+            client,
+            identity.emailOutbox,
+            alert,
+            config.webURL ?? config.baseURL,
+          ),
         idempotencySecret: config.keyHashSecret,
         authoriseHistoryPolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
