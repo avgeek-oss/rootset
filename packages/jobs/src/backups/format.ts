@@ -180,6 +180,7 @@ export async function decryptBackupPackage(
   source: string,
   destination: string,
   key: Buffer,
+  options: { check?: () => Promise<void> } = {},
 ): Promise<void> {
   const file = await open(source, "r");
   let header: Buffer;
@@ -228,17 +229,35 @@ export async function decryptBackupPackage(
   );
   decipher.setAAD(header);
   decipher.setAuthTag(tag);
+  await options.check?.();
   const target = createWriteStream(destination, { flags: "wx", mode: 0o600 });
   let created = false;
   target.once("open", () => {
     created = true;
   });
+  let checkedBytes = 0;
+  const checked = new Transform({
+    async transform(chunk: Buffer, _encoding, callback) {
+      try {
+        checkedBytes += chunk.length;
+        if (checkedBytes >= 8 * 1024 ** 2) {
+          await options.check?.();
+          checkedBytes = 0;
+        }
+        callback(null, chunk);
+      } catch (error) {
+        callback(error as Error);
+      }
+    },
+  });
   try {
     await pipeline(
       createReadStream(source, { start: offset, end: size - TAG_BYTES - 1 }),
+      checked,
       decipher,
       target,
     );
+    await options.check?.();
   } catch (error) {
     if (created) await rm(destination, { force: true });
     throw error;
@@ -248,6 +267,7 @@ export async function decryptBackupPackage(
 export async function inspectBackupArchive(
   path: string,
   maxBytes = DEFAULT_BACKUP_MAX_BYTES,
+  options: { maxEntries?: number; check?: () => Promise<void> } = {},
 ): Promise<BackupManifest> {
   const zip = await new Promise<ZipReader>((resolve, reject) =>
     openZip(path, { lazyEntries: true }, (error, value) =>
@@ -258,8 +278,10 @@ export async function inspectBackupArchive(
   let manifest: BackupManifest | undefined;
   let total = 0;
   try {
-    for await (const entry of zipEntries(zip)) {
+    for await (const entry of backupArchiveEntries(zip)) {
+      await options.check?.();
       if (
+        files.size >= (options.maxEntries ?? 100_000) ||
         files.has(entry.fileName) ||
         entry.fileName.endsWith("/") ||
         entry.uncompressedSize > maxBytes
@@ -273,8 +295,14 @@ export async function inspectBackupArchive(
       const hash = createHash("sha256");
       let bytes = 0;
       const chunks: Buffer[] = [];
+      let checkedBytes = 0;
       for await (const chunk of stream) {
         bytes += chunk.length;
+        checkedBytes += chunk.length;
+        if (checkedBytes >= 8 * 1024 ** 2) {
+          await options.check?.();
+          checkedBytes = 0;
+        }
         total += chunk.length;
         if (total > maxBytes)
           throw new Error("Backup archive exceeds the inspection budget");
@@ -315,7 +343,9 @@ export async function inspectBackupArchive(
     zip.close();
   }
 }
-async function* zipEntries(zip: ZipReader): AsyncGenerator<Entry> {
+export async function* backupArchiveEntries(
+  zip: ZipReader,
+): AsyncGenerator<Entry> {
   for (;;) {
     const entry = await new Promise<Entry | undefined>((resolve, reject) => {
       const onEntry = (value: Entry) => {

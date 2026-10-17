@@ -4229,3 +4229,14 @@ export class TableStorage {
 function literal(value: string): string {
   return `E'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
 }
+
+export { restoreLimits, restoredId, backupTimestamp } from "./restore.js";
+export type {
+  RestoreSource,
+  RestoreTable,
+  RestoreRow,
+  RestoreHistoryKind,
+  RestoreField,
+  RestoreUniqueRule,
+  RestoreForeignKey,
+} from "./restore.js";

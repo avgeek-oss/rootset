@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect } from "vitest";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -65,6 +65,45 @@ describe("self-contained backup format", () => {
     const recovered = await inspectBackupArchive(f.archive);
     expect(recovered).toEqual(info);
     expect(recovered.files[0]!.bytes).toBeGreaterThan(0);
+  });
+  it("bounds entry inspection and removes plaintext when cancellation arrives during verification", async () => {
+    const f = await fixture();
+    await writeBackupPackage({
+      path: f.path,
+      key: f.key,
+      manifest: manifest(),
+      check: async () => {},
+      entries: [{ name: "data.json", content: content('{"value":1}') }],
+    });
+    const stopped = new Error("Verification cancelled");
+    await expect(
+      decryptBackupPackage(f.path, f.archive, f.key, {
+        check: async () => {
+          throw stopped;
+        },
+      }),
+    ).rejects.toBe(stopped);
+    await expect(access(f.archive)).rejects.toThrow();
+    let checks = 0;
+    await expect(
+      decryptBackupPackage(f.path, f.archive, f.key, {
+        check: async () => {
+          if (++checks === 2) throw stopped;
+        },
+      }),
+    ).rejects.toBe(stopped);
+    await expect(access(f.archive)).rejects.toThrow();
+    await decryptBackupPackage(f.path, f.archive, f.key);
+    await expect(
+      inspectBackupArchive(f.archive, 1024 ** 2, { maxEntries: 1 }),
+    ).rejects.toThrow();
+    await expect(
+      inspectBackupArchive(f.archive, 1024 ** 2, {
+        check: async () => {
+          throw stopped;
+        },
+      }),
+    ).rejects.toBe(stopped);
   });
   it("rejects the wrong key, altered headers, corrupted ciphertext and truncation", async () => {
     const f = await fixture();
