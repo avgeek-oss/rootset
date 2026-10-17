@@ -24,6 +24,8 @@ describe("context settings navigation", () => {
     expect(resolveSettingsSection("keys")).toBe("api-keys");
     expect(resolveSettingsSection("connections")).toBe("mcp-connections");
     expect(resolveSettingsSection("missing")).toBeNull();
+    expect(resolveSettingsSection("database-activity")).toBeNull();
+    expect(resolveSettingsSection("table-activity")).toBeNull();
   });
   it("gives every section one settings context", () => {
     const sections = Object.values(settingsGroups).flatMap((groups) =>
@@ -55,12 +57,12 @@ describe("context settings navigation", () => {
       settingsNavigationGroups("table", "viewer").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["exports", "table-activity"]);
+    ).toEqual(["exports"]);
     expect(
       settingsNavigationGroups("database", "viewer").flatMap((group) =>
         group.items.map((item) => item.id),
       ),
-    ).toEqual(["database-exports", "database-activity"]);
+    ).toEqual(["database-exports"]);
     expect(
       settingsNavigationGroups("table", "member").flatMap((group) =>
         group.items.map((item) => item.id),
@@ -72,7 +74,6 @@ describe("context settings navigation", () => {
       "foreign-keys",
       "imports",
       "exports",
-      "table-activity",
     ]);
     expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });
@@ -114,9 +115,8 @@ describe("context settings navigation", () => {
       "database-danger-zone",
       "backup-schedule",
       "backup-history",
+      "restore-requests",
       "database-exports",
-      "database-activity",
-      "table-activity",
       "table",
       "table-danger-zone",
       "fields",
@@ -144,6 +144,12 @@ describe("context settings navigation", () => {
         .flatMap((g) => g.items)
         .find((i) => i.id === "table-danger-zone")?.destructive,
     ).toBe(true);
+    const danger = settingsNavigationGroups("table", "admin", {
+      databaseId: "db",
+      tableId: "table",
+    }).at(-1);
+    expect(danger?.title).toBe("Danger Zone");
+    expect(danger?.items.map((item) => item.label)).toEqual(["Delete Table"]);
   });
   it("keeps database settings separate from table and account settings", () => {
     const groups = settingsNavigationGroups("database", "admin", {
@@ -152,18 +158,19 @@ describe("context settings navigation", () => {
     });
     expect(groups.map((group) => group.title)).toEqual([
       "Data",
-      "Backup",
+      "Backup & Restore",
       "Settings",
+      "Danger Zone",
     ]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.label)),
     ).toEqual([
       "Export Requests",
-      "Activity",
       "Backup Schedule",
-      "Backup History",
+      "Backup Attempts",
+      "Restore Attempts",
       "General",
-      "Danger Zone",
+      "Delete Database",
     ]);
     const danger = groups
       .flatMap((group) => group.items)

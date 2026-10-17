@@ -271,6 +271,42 @@ test(
       stale.issues.map((issue) => issue.code),
       ["ROW_VERSION_CONFLICT", "ROW_VERSION_CONFLICT"],
     );
+    const beforeDelete = await snapshot(table.id);
+    await assert.rejects(
+      withOrg(pool, actor.orgId, (c) =>
+        storage.bulkRows(
+          actor,
+          table.id,
+          { ...input, action: { type: "delete" } },
+          {},
+          c,
+        ),
+      ),
+      { code: "ROW_VERSION_CONFLICT" },
+    );
+    assert.deepEqual(await snapshot(table.id), beforeDelete);
+    const deleted = await withOrg(pool, actor.orgId, (c) =>
+      storage.bulkRows(
+        actor,
+        table.id,
+        {
+          ...input,
+          rows: selection(edited),
+          action: { type: "delete" },
+        },
+        {},
+        c,
+      ),
+    );
+    assert.equal(deleted.affected, 2);
+    assert.deepEqual(deleted.createdIds, []);
+    const remaining = await snapshot(table.id);
+    assert.deepEqual(
+      new Set(remaining.rows.map((row) => row.id)),
+      new Set(duplicated.createdIds),
+    );
+    assert.equal(remaining.table.rowCount, 2);
+    assert.equal(remaining.state.row_comments, "0");
   },
 );
 

@@ -157,12 +157,17 @@ async function snapshot(pool: Pool, orgId: string, tables?: string[]) {
       )
     ).rows.map((row) => row.relation);
     const rows: Record<string, unknown> = {};
-    for (const relation of tables)
+    for (const relation of tables) {
+      const value =
+        relation === "rootset_control.tables"
+          ? "to_jsonb(r)-'last_data_change_at'"
+          : "to_jsonb(r)";
       rows[relation] = (
         await client.query(
-          `SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb) AS rows FROM ${relation} r`,
+          `SELECT coalesce(jsonb_agg(${value} ORDER BY (${value})::text),'[]'::jsonb) AS rows FROM ${relation} r`,
         )
       ).rows[0].rows;
+    }
     return { tables, rows };
   });
 }
@@ -197,6 +202,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0011_database_restores.sql",
         "0012_backup_retention_alerts.sql",
         "0013_activity_job_events.sql",
+        "0014_resource_data_changes.sql",
       ]);
     } else
       assert.deepEqual(await migrate(pool), [
@@ -212,6 +218,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0011_database_restores.sql",
         "0012_backup_retention_alerts.sql",
         "0013_activity_job_events.sql",
+        "0014_resource_data_changes.sql",
       ]);
     const preservedTables = before.tables.filter(
       (name) => name !== "rootset_control.migrations",
@@ -229,8 +236,14 @@ for (const mode of ["SQL bridge", "migration runner"])
     );
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0013_activity_job_events.sql",
+      version: "0014_resource_data_changes.sql",
     });
+    const summary = (await storage.listTables(actor, table.databaseId)).find(
+      (entry) => entry.id === table.id,
+    )!;
+    assert.equal(summary.rowCount, rows.length);
+    assert.equal(summary.fieldCount, table.fields.length);
+    assert.ok(summary.lastDataChangeAt);
     assert.deepEqual(await migrate(pool), []);
     for (const row of rows) {
       const actual = await storage.getRow(actor, table.id, row.id);
@@ -312,7 +325,7 @@ test("concurrent migration hooks apply the compatibility upgrade only once", asy
   const { pool, actor } = await fixture(t);
   const before = await snapshot(pool, actor.orgId);
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  assert.deepEqual(results.map((names) => names.length).sort(), [0, 12]);
+  assert.deepEqual(results.map((names) => names.length).sort(), [0, 13]);
   assert.equal(
     (await pool.query("SELECT count(*) FROM rootset_control.migration_repairs"))
       .rows[0].count,
@@ -375,6 +388,7 @@ test("a failure after schema creation rolls back all DDL, data and ledger change
     "0011_database_restores.sql",
     "0012_backup_retention_alerts.sql",
     "0013_activity_job_events.sql",
+    "0014_resource_data_changes.sql",
   ]);
   assert.equal((await migrationStatus(pool)).complete, true);
 });

@@ -9,7 +9,7 @@ import {
 import { DragDropVerticalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useDragAndDrop } from "react-aria-components";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import type { TableField } from "./types";
 import "./field-table.css";
 
@@ -30,6 +30,7 @@ export function FieldTable({
   tableClassName?: string;
   emptyAction: ReactNode;
 }) {
+  const pendingOrder = useRef<string[] | undefined>(undefined);
   const { dragAndDropHooks } = useDragAndDrop({
     isDisabled: disabled || items.length < 2,
     getItems: (keys) =>
@@ -37,6 +38,14 @@ export function FieldTable({
         .filter((item) => keys.has(item.id))
         .map((item) => ({ "text/plain": item.name })),
     getAllowedDropOperations: () => ["move"],
+    onDragStart: () => {
+      pendingOrder.current = undefined;
+    },
+    onDragEnd: () => {
+      const ids = pendingOrder.current;
+      pendingOrder.current = undefined;
+      if (ids) void onReorder(ids);
+    },
     onReorder: (event) => {
       const remaining = items.filter((item) => !event.keys.has(item.id));
       const index = remaining.findIndex((item) => item.id === event.target.key);
@@ -47,7 +56,8 @@ export function FieldTable({
         ...items.filter((item) => event.keys.has(item.id)),
       );
       if (remaining.some((item, position) => item.id !== items[position]?.id))
-        void onReorder(remaining.map((item) => item.id));
+        // Saving disables the drag handlers, so wait for dragend to clear the drag state first.
+        pendingOrder.current = remaining.map((item) => item.id);
     },
   });
   if (items.length === 0)
@@ -96,7 +106,9 @@ export function FieldTable({
                         <Button
                           slot="drag"
                           variant="ghost"
+                          size="sm"
                           isIconOnly
+                          style={{ pointerEvents: "auto" }}
                           className="field-drag-handle"
                           aria-label={`Reorder ${field.name}`}
                           isDisabled={disabled || items.length < 2}

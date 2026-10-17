@@ -23,6 +23,14 @@ import {
 } from "./api";
 import { Choice, Empty, Form, Loading } from "./ui";
 import type { Artifact, Job, SettingsPanelProps } from "./types";
+import {
+  ArrowDownToLine,
+  RefreshCw,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Stop,
+} from "../ui/icons";
 
 interface JobAccepted {
   jobId: string;
@@ -103,7 +111,7 @@ export function ExportRequestsTable({
           header: "File format",
           cell: (request) =>
             request.format ? (
-              `${databaseLevel ? "ZIP · " : ""}${request.format.toUpperCase()}`
+              request.format.toUpperCase()
             ) : (
               <span className="field-empty">—</span>
             ),
@@ -158,6 +166,7 @@ export function ExportRequestsTable({
                   isDisabled={busy}
                   onPress={() => onDownload(request.result!.artifactId!)}
                 >
+                  <ArrowDownToLine />
                   Download
                 </Button>
               )}
@@ -167,6 +176,7 @@ export function ExportRequestsTable({
                   isDisabled={busy}
                   onPress={() => onCancel(request)}
                 >
+                  <Stop />
                   Cancel
                 </Button>
               )}
@@ -176,6 +186,7 @@ export function ExportRequestsTable({
                   isDisabled={busy}
                   onPress={() => onRetry(request)}
                 >
+                  <RefreshCw />
                   Retry
                 </Button>
               )}
@@ -243,6 +254,7 @@ export function ExportsSettings(props: SettingsPanelProps) {
           setFormOpen(true);
         }}
       >
+        <Plus />
         Create export request
       </Button>
     ),
@@ -306,6 +318,7 @@ export function ExportsSettings(props: SettingsPanelProps) {
                     setCursors((previous) => previous.slice(0, -1))
                   }
                 >
+                  <ChevronLeft />
                   Previous requests
                 </Button>
                 <Button
@@ -324,6 +337,7 @@ export function ExportsSettings(props: SettingsPanelProps) {
                   }}
                 >
                   Next requests
+                  <ChevronRight />
                 </Button>
               </div>
             )}
@@ -338,6 +352,7 @@ export function ExportsSettings(props: SettingsPanelProps) {
           <Form
             busy={mutation.busy}
             submit="Start export"
+            submitIcon={<ArrowDownToLine />}
             onCancel={() => setFormOpen(false)}
             onSubmit={async () => {
               const result = await mutation.run(

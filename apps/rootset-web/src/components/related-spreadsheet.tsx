@@ -1,6 +1,6 @@
 "use client";
+import { usePageQuery } from "./page-navigation";
 import type { ComponentProps } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Button,
   buttonVariants,
@@ -8,6 +8,7 @@ import {
 import { client } from "@rootset/web-client";
 import { IdSchema, type RelatedRowFilter } from "@rootset/contracts";
 import { Spreadsheet } from "./spreadsheet";
+import { RefreshCw } from "./ui/icons";
 
 export function RelatedSpreadsheet({
   relationshipId = null,
@@ -22,7 +23,7 @@ export function RelatedSpreadsheet({
     row = IdSchema.safeParse(referencedRowId);
   const mixed = props.linkedFilter !== null && props.linkedFilter !== undefined;
   const valid = rule.success && row.success && !mixed;
-  const relation = useQuery({
+  const relation = usePageQuery({
     queryKey: [
       "related-row-filter",
       props.table.id,
@@ -74,6 +75,7 @@ export function RelatedSpreadsheet({
         <div className="flex flex-wrap justify-center gap-3">
           {valid && (
             <Button variant="secondary" onPress={() => void relation.refetch()}>
+              <RefreshCw />
               Retry relationship
             </Button>
           )}

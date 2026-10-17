@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CanonicalUtcDateTimeSchema, IdSchema } from "./models";
+import { ActivityEventNameSchema } from "./activity-events";
 
 export const ActivityCategorySchema = z.enum([
   "records",
@@ -16,6 +17,12 @@ export const ActivityInputSchema = z
     databaseId: IdSchema.optional(),
     tableId: IdSchema.optional(),
     category: ActivityCategorySchema.optional(),
+    event: ActivityEventNameSchema.optional(),
+    actor: z.string().min(1).max(256).optional(),
+    resource: z
+      .string()
+      .regex(/^(database|table):[0-9A-HJKMNP-TV-Z]{26}$/)
+      .optional(),
     q: z.string().trim().max(200).optional(),
     from: CanonicalUtcDateTimeSchema.optional(),
     to: CanonicalUtcDateTimeSchema.optional(),
@@ -37,6 +44,7 @@ export const ActivityEventSchema = z.strictObject({
   category: ActivityCategorySchema,
   occurredAt: CanonicalUtcDateTimeSchema,
   summary: z.string(),
+  event: ActivityEventNameSchema,
   status: z.enum([
     "requested",
     "succeeded",
@@ -47,8 +55,10 @@ export const ActivityEventSchema = z.strictObject({
   ]),
   actor: z.strictObject({
     id: z.string().nullable(),
+    key: z.string(),
     kind: z.string(),
     name: z.string(),
+    avatarUrl: z.url().nullable(),
   }),
   database: resource.nullable(),
   table: resource.nullable(),
@@ -83,3 +93,25 @@ export const ActivityPageSchema = z.strictObject({
   }),
 });
 export type ActivityPage = z.infer<typeof ActivityPageSchema>;
+
+export const ActivityFilterInputSchema = z.strictObject({
+  orgId: IdSchema,
+  kind: z.enum(["actors", "resources"]),
+  q: z.string().trim().max(200).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+export const ActivityFilterOptionsSchema = z.strictObject({
+  data: z
+    .array(
+      z.strictObject({
+        value: z.string(),
+        label: z.string(),
+        kind: z.enum(["actor", "database", "table"]),
+        avatarUrl: z.url().nullable(),
+        description: z.string().nullable(),
+      }),
+    )
+    .max(100),
+  hasMore: z.boolean(),
+});
+export type ActivityFilterOptions = z.infer<typeof ActivityFilterOptionsSchema>;

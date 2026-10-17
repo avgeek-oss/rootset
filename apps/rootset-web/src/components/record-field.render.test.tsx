@@ -56,7 +56,8 @@ describe("full-record field controls", () => {
       const labelFor = html.match(/<label\b[^>]*for="([^"]+)"/)?.[1];
       expect(labelId || labelFor).toBeTruthy();
       expect(html).toContain("VALUE");
-      if (labelFor) expect(html).toContain(`id="${labelFor}"`);
+      if (type === "json") expect(html).toContain('data-code-editor="json"');
+      else if (labelFor) expect(html).toContain(`id="${labelFor}"`);
       else expect(html).toMatch(new RegExp(`aria-labelledby="[^"]*${labelId}`));
       const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(
         (match) => match[1],
@@ -67,10 +68,10 @@ describe("full-record field controls", () => {
     },
   );
 
-  it("uses multiline controls for JSON and existing long text", () => {
-    expect(render({ ...definition, type: "json" })).toMatch(
-      /<textarea\b[^>]*rows="6"/,
-    );
+  it("uses the JSON code editor and retains multiline controls for existing long text", () => {
+    const json = render({ ...definition, type: "json" });
+    expect(json).toContain('data-code-editor="json"');
+    expect(json).not.toContain("<textarea");
     expect(render({ ...definition, default: "x".repeat(81) })).toMatch(
       /<textarea\b[^>]*rows="3"/,
     );

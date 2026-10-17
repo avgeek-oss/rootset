@@ -117,7 +117,7 @@ const databasePublic = (d: DatabaseRecord) => ({
   createdAt: d.createdAt,
   updatedAt: d.updatedAt,
 });
-const tablePublic = (t: TableRecord) => ({
+const tablePublic = (t: Omit<TableRecord, "fields">) => ({
   id: t.id,
   orgId: t.orgId,
   databaseId: t.databaseId,
@@ -641,20 +641,26 @@ export class RootsetCore {
         client: ctx.client,
       });
     switch (id) {
-      case "listDatabases":
+      case "listDatabases": {
+        const request = {
+          resource: "databases",
+          limit: typeof input.limit === "number" ? input.limit : undefined,
+          cursor: typeof input.cursor === "string" ? input.cursor : undefined,
+        };
         return this.paging.paginate(
-          (await s.listDatabases(a)).map((database) => ({
-            ...databasePublic(database),
-            tableCount: database.tableCount,
-            storageBytes: database.storageBytes,
-          })),
+          (await s.listDatabases(a, this.paging.read(a, request))).map(
+            (database) => ({
+              ...databasePublic(database),
+              tableCount: database.tableCount,
+              rowCount: database.rowCount,
+              storageBytes: database.storageBytes,
+              lastDataChangeAt: database.lastDataChangeAt,
+            }),
+          ),
           a,
-          {
-            resource: "databases",
-            limit: typeof input.limit === "number" ? input.limit : undefined,
-            cursor: typeof input.cursor === "string" ? input.cursor : undefined,
-          },
+          request,
         );
+      }
       case "createDatabase":
         return databasePublic(
           await s.createDatabase(a, {
@@ -682,19 +688,25 @@ export class RootsetCore {
         );
       case "deleteDatabase":
         return s.deleteDatabase(a, databaseId, mutationOptions(input, ctx));
-      case "listTables":
+      case "listTables": {
+        const request = {
+          resource: `database:${databaseId}:tables`,
+          limit: typeof input.limit === "number" ? input.limit : undefined,
+          cursor: typeof input.cursor === "string" ? input.cursor : undefined,
+        };
         return this.paging.paginate(
-          (await s.listTables(a, databaseId)).map((table) => ({
-            ...tablePublic(table),
-            storageBytes: table.storageBytes,
-          })),
+          (await s.listTables(a, databaseId, this.paging.read(a, request))).map(
+            (table) => ({
+              ...tablePublic(table),
+              fieldCount: table.fieldCount,
+              storageBytes: table.storageBytes,
+              lastDataChangeAt: table.lastDataChangeAt,
+            }),
+          ),
           a,
-          {
-            resource: `database:${databaseId}:tables`,
-            limit: typeof input.limit === "number" ? input.limit : undefined,
-            cursor: typeof input.cursor === "string" ? input.cursor : undefined,
-          },
+          request,
         );
+      }
       case "createTable": {
         const table = await s.createTable(a, databaseId, {
           name: str(input.name),
@@ -1164,6 +1176,11 @@ export class RootsetCore {
       }
       case "listActivity":
         return this.activity.list(a, input, {
+          signal: readSignal(ctx),
+          responseBudget: ctx.responseBudget,
+        });
+      case "listActivityFilterOptions":
+        return this.activity.filters(a, input, {
           signal: readSignal(ctx),
           responseBudget: ctx.responseBudget,
         });

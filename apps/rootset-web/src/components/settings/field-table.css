@@ -6,14 +6,28 @@
 }
 .field-name-cell > span {
   overflow-wrap: anywhere;
-  font-weight: 500;
 }
-.field-drag-handle {
+.rootset-fields-table .button.button--sm.field-drag-handle {
+  position: relative;
   flex-shrink: 0;
-  min-width: 44px;
-  min-height: 44px;
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
   cursor: grab;
   touch-action: none;
+  user-select: none;
+}
+.field-drag-handle::before,
+.field-visibility-checkbox::before {
+  content: "";
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 .field-drag-handle:active {
   cursor: grabbing;
@@ -21,6 +35,20 @@
 .rootset-fields-table [data-dragging] {
   opacity: 0.5;
 }
-.rootset-fields-table .react-aria-DropIndicator[data-drop-target] {
-  outline: 2px solid var(--accent);
+.rootset-fields-table {
+  isolation: isolate;
+}
+.rootset-fields-table .react-aria-DropIndicator > td {
+  position: relative;
+  height: 0;
+}
+.rootset-fields-table .react-aria-DropIndicator[data-drop-target] > td::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: -2px;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 1;
 }

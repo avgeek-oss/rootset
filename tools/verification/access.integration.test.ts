@@ -257,6 +257,93 @@ verificationCase(
 
 verificationCase(
   {
+    id: "ACCESS-RESOURCE-PAGING-01",
+    gates: ["V1-10"],
+    scope:
+      "Database and table directory pages preserve complete summaries, active field counts and parent-bound cursors across SQL keyset windows",
+  },
+  async () => {
+    const actor = actors.viewer;
+    const parent = await runtime.storage.createDatabase(actors.admin, {
+      name: "Directory paging",
+    });
+    const expected = new Map<string, number>();
+    for (let index = 0; index < 6; index++) {
+      const table = await runtime.storage.createTable(actors.admin, parent.id, {
+        name: `Directory table ${index}`,
+        description: `Description ${index}`,
+        fields: Array.from({ length: index % 3 }, (_, field) => ({
+          name: `FIELD_${String.fromCharCode(65 + field)}`,
+          type: "text" as const,
+        })),
+      });
+      expected.set(table.id, table.fields.length);
+    }
+    const readAll = async (
+      operation: string,
+      input: Record<string, unknown>,
+    ) => {
+      const rows: Record<string, unknown>[] = [];
+      let cursor: unknown;
+      do {
+        const page = record(
+          await execute(operation, actor, {
+            ...input,
+            limit: 2,
+            ...(cursor ? { cursor } : {}),
+          }),
+        );
+        assert.ok(Array.isArray(page.data));
+        assert.ok(page.data.length <= 2);
+        rows.push(...page.data.map(record));
+        assert.equal(page.hasMore, !!page.nextCursor);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return rows;
+    };
+    const tables = await readAll("listTables", {
+      orgId,
+      databaseId: parent.id,
+    });
+    assert.deepEqual(tables.map(idOf), [...expected.keys()].sort());
+    for (const table of tables) {
+      assert.equal(table.fieldCount, expected.get(idOf(table)));
+      assert.equal(typeof table.storageBytes, "number");
+      assert.equal(table.lastDataChangeAt, null);
+    }
+    assert.ok(tables.every((table) => !Object.hasOwn(table, "fields")));
+    const databases = await readAll("listDatabases", { orgId });
+    assert.deepEqual(
+      databases.map(idOf),
+      (await runtime.storage.listDatabases(actor))
+        .map((database) => database.id)
+        .sort(),
+    );
+    assert.equal(
+      databases.find((database) => database.id === parent.id)!.tableCount,
+      6,
+    );
+    const first = record(
+      await execute("listTables", actor, {
+        orgId,
+        databaseId: parent.id,
+        limit: 2,
+      }),
+    );
+    await deny(
+      execute("listTables", actor, {
+        orgId,
+        databaseId,
+        limit: 2,
+        cursor: first.nextCursor,
+      }),
+      ["CURSOR_INVALID"],
+    );
+  },
+);
+
+verificationCase(
+  {
     id: "ACCESS-DATABASE-COUNTS-01",
     gates: ["V1-10"],
     scope:

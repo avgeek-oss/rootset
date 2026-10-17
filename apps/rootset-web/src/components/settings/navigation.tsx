@@ -6,6 +6,7 @@ import {
   Clock01Icon,
   TransactionHistoryIcon,
   DatabaseIcon,
+  DatabaseRestoreIcon,
   DatabaseSettingIcon,
   Delete02Icon,
   ColumnsThreeCogIcon,
@@ -15,6 +16,7 @@ import {
   Upload01Icon,
   Key01Icon,
   Link01Icon,
+  RowsThreeIcon,
   Mail01Icon,
   ComputerIcon,
   SecurityCheckIcon,
@@ -45,22 +47,21 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["team-api-keys"] },
   ],
   database: [
-    { title: "Data", sections: ["database-exports", "database-activity"] },
-    { title: "Backup", sections: ["backup-schedule", "backup-history"] },
-    { title: "Settings", sections: ["database", "database-danger-zone"] },
+    { title: "Data", sections: ["database-exports"] },
+    {
+      title: "Backup & Restore",
+      sections: ["backup-schedule", "backup-history", "restore-requests"],
+    },
+    { title: "Settings", sections: ["database"] },
+    { title: "Danger Zone", sections: ["database-danger-zone"] },
   ],
   table: [
     {
       title: "Settings",
-      sections: [
-        "table",
-        "fields",
-        "rules",
-        "foreign-keys",
-        "table-danger-zone",
-      ],
+      sections: ["table", "fields", "rules", "foreign-keys"],
     },
-    { title: "Data", sections: ["imports", "exports", "table-activity"] },
+    { title: "Data", sections: ["imports", "exports"] },
+    { title: "Danger Zone", sections: ["table-danger-zone"] },
   ],
 } satisfies Record<
   SettingsScope,
@@ -98,9 +99,8 @@ export function settingsHref(
     context.databaseId,
     scope === "table" ? context.tableId : null,
   );
-  const page = section.endsWith("-activity")
-    ? "activity"
-    : section === "database" || section === "table"
+  const page =
+    section === "database" || section === "table"
       ? "general"
       : section.endsWith("danger-zone")
         ? "danger-zone"
@@ -108,7 +108,11 @@ export function settingsHref(
           ? "export-requests"
           : section === "imports"
             ? "import-requests"
-            : section;
+            : section === "backup-history"
+              ? "backup-attempts"
+              : section === "restore-requests"
+                ? "restore-attempts"
+                : section;
   return `${base}/settings/${page}`;
 }
 
@@ -170,25 +174,25 @@ export function resourceRoute(path: string) {
       ? parts[settingsIndex + 1]
       : null;
   const section =
-    page === "activity"
+    page === "general"
       ? tableId
-        ? "table-activity"
-        : "database-activity"
-      : page === "general"
+        ? "table"
+        : "database"
+      : page === "danger-zone"
         ? tableId
-          ? "table"
-          : "database"
-        : page === "danger-zone"
+          ? "table-danger-zone"
+          : "database-danger-zone"
+        : page === "export-requests"
           ? tableId
-            ? "table-danger-zone"
-            : "database-danger-zone"
-          : page === "export-requests"
-            ? tableId
-              ? "exports"
-              : "database-exports"
-            : page === "import-requests"
-              ? "imports"
-              : page;
+            ? "exports"
+            : "database-exports"
+          : page === "import-requests"
+            ? "imports"
+            : page === "backup-attempts"
+              ? "backup-history"
+              : page === "restore-attempts"
+                ? "restore-requests"
+                : page;
   return { databaseId, tableId, section };
 }
 
@@ -207,9 +211,8 @@ export const settingsIcons = {
   database: DatabaseSettingIcon,
   "backup-schedule": Clock01Icon,
   "backup-history": TransactionHistoryIcon,
+  "restore-requests": DatabaseRestoreIcon,
   "database-exports": Download01Icon,
-  "database-activity": TransactionHistoryIcon,
-  "table-activity": TransactionHistoryIcon,
   "database-danger-zone": Delete02Icon,
   table: ColumnsThreeCogIcon,
   "table-danger-zone": Delete02Icon,
@@ -233,6 +236,7 @@ export function SettingsNavigation({
 }) {
   return (
     <SettingsSections
+      key={`${settingsScope(section)}:${role}`}
       section={section}
       scope={settingsScope(section)}
       role={role}
@@ -323,7 +327,14 @@ export function PageNavigation({
       ? "table"
       : "database";
   if (section && (scope === "account" || scope === "team"))
-    return <SettingsSections scope={scope} section={section} role={role} />;
+    return (
+      <SettingsSections
+        key={`${scope}:${role}`}
+        scope={scope}
+        section={section}
+        role={role}
+      />
+    );
   if (!databaseId) return null;
   const tableScope = scope === "table";
   const title = tableScope
@@ -345,7 +356,12 @@ export function PageNavigation({
             id: tableScope ? "rows" : "tables",
             label: tableScope ? "Rows" : "Tables",
             href: dataHref(databaseId, tableScope ? tableId : null),
-            icon: <HugeiconsIcon icon={TableIcon} />,
+            icon: (
+              <HugeiconsIcon
+                icon={tableScope ? RowsThreeIcon : TableIcon}
+                aria-hidden
+              />
+            ),
             badge: (tableScope
               ? table?.rowCount
               : database?.tableCount
@@ -354,6 +370,7 @@ export function PageNavigation({
         ]}
       />
       <SettingsSections
+        key={`${scope}:${role}`}
         scope={scope}
         section={section}
         role={role}

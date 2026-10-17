@@ -34,7 +34,6 @@
 }
 .record-field {
   display: grid;
-  gap: 12px;
   min-width: 0;
 }
 .record-field-heading {

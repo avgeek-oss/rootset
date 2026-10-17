@@ -1,16 +1,10 @@
 "use client";
 
+import { usePageQuery } from "../page-navigation";
 import { useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Description, Input, Label, TextField } from "@heroui/react";
-import {
-  Button,
-  buttonVariants,
-} from "@avgeek-oss/design-system/buttons/button";
-import { Chip } from "@avgeek-oss/design-system/data-display/chip";
-import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
-import { TypographyCode } from "@avgeek-oss/design-system/typography/typography";
+import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { ApiError, client } from "@rootset/web-client";
 import {
@@ -18,9 +12,9 @@ import {
   type BackupPolicyResult,
 } from "@rootset/contracts";
 import { MutationAttempt } from "../../lib/mutation-attempt";
-import { RelativeTime } from "./account/last-synced-time";
 import { Form, Section, useConfirmation } from "./ui";
 import type { SettingsPanelProps } from "./types";
+import { RefreshCw } from "../ui/icons";
 
 const policyKey = (props: SettingsPanelProps) => [
   "backup-policy",
@@ -28,7 +22,7 @@ const policyKey = (props: SettingsPanelProps) => [
   props.databaseId,
 ];
 function useBackupPolicy(props: SettingsPanelProps) {
-  return useQuery({
+  return usePageQuery({
     queryKey: policyKey(props),
     queryFn: ({ signal }) =>
       client.operation<BackupPolicyResult>(
@@ -42,104 +36,6 @@ function useBackupPolicy(props: SettingsPanelProps) {
     staleTime: 5000,
     refetchInterval: 10000,
   });
-}
-export function BackupHealth(props: SettingsPanelProps) {
-  const resource = useBackupPolicy(props);
-  const value = resource.data;
-  return (
-    <Section title="Backup health">
-      {resource.error ? (
-        <div className="grid gap-3">
-          <p role="alert">{resource.error.message}</p>
-          <Button variant="secondary" onPress={() => void resource.refetch()}>
-            Reload backup health
-          </Button>
-        </div>
-      ) : !value ? (
-        <p role="status" className="text-sm text-muted">
-          Loading backup health…
-        </p>
-      ) : (
-        <div className="grid min-w-0 gap-4">
-          <div className="grid min-w-0 gap-2">
-            <p className="font-medium">Last successful backup</p>
-            {value.lastSuccessful ? (
-              <>
-                <RelativeTime
-                  value={value.lastSuccessful.snapshotAt}
-                  label="Last successful backup"
-                />
-                <TypographyCode className="whitespace-normal break-all">{`${value.lastSuccessful.bucket}/${value.lastSuccessful.objectKey}`}</TypographyCode>
-              </>
-            ) : (
-              <p className="text-sm text-muted">No successful backup yet.</p>
-            )}
-          </div>
-          {!value.emailDeliveryAvailable && (
-            <p role="status" className="text-sm text-muted">
-              Email delivery is unavailable. Your operator can configure it on
-              the worker; backup alerts remain visible here.
-            </p>
-          )}
-          {value.retentionError && (
-            <p role="status" className="text-sm text-muted">
-              {value.retentionError}
-            </p>
-          )}
-          {value.alerts.length ? (
-            <ResourceTable
-              ariaLabel="Backup alerts"
-              items={value.alerts}
-              getRowKey={(alert) => alert.id}
-              tableClassName="min-w-lg"
-              emptyTitle="No active alerts"
-              emptyDescription="Backup status is up to date."
-              columns={[
-                {
-                  key: "type",
-                  header: "Alert",
-                  cell: (alert) => (
-                    <Chip
-                      color={alert.kind === "failed" ? "danger" : "warning"}
-                    >
-                      <Chip.Label>
-                        {alert.kind === "failed"
-                          ? "Backup failed"
-                          : "Backup overdue"}
-                      </Chip.Label>
-                    </Chip>
-                  ),
-                },
-                {
-                  key: "since",
-                  header: "Since",
-                  cell: (alert) => (
-                    <RelativeTime
-                      label="Backup alert"
-                      value={alert.occurrenceAt}
-                    />
-                  ),
-                },
-              ]}
-            />
-          ) : (
-            <p className="text-sm text-muted">No active backup alerts.</p>
-          )}
-          {props.section !== "backup-history" && (
-            <Link
-              className={buttonVariants({
-                variant: "secondary",
-                className: "w-fit",
-              })}
-              href={`/databases/${props.databaseId}/settings/backup-history`}
-            >
-              Open Backup History
-            </Link>
-          )}
-        </div>
-      )}
-    </Section>
-  );
 }
 export function BackupRetentionSettings(props: SettingsPanelProps) {
   const resource = useBackupPolicy(props);
@@ -308,6 +204,7 @@ function RetentionForm({
               isDisabled={busy}
               onPress={() => void reloadPolicy()}
             >
+              <RefreshCw />
               Reload policy
             </Button>
           )

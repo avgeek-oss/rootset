@@ -106,10 +106,19 @@ export class RootsetClient {
     options: Omit<RequestOptions, "method" | "body"> = {},
   ): Promise<T> {
     const operation = getOperation(operationId);
-    const parsed = operation.inputSchema.parse(input) as Record<
-      string,
-      unknown
-    >;
+    const checkedInput = operation.inputSchema.safeParse(input);
+    if (!checkedInput.success)
+      throw new ApiError(400, {
+        code: "VALIDATION_FAILED",
+        message:
+          "The request could not be validated. Reload the page and try again.",
+        details: {
+          issues: checkedInput.error.issues
+            .slice(0, 20)
+            .map(({ code, path }) => ({ code, path })),
+        },
+      });
+    const parsed = checkedInput.data as Record<string, unknown>;
     const body = { ...parsed };
     const path = operation.path
       .replace(/^\/v1/, "")
@@ -146,7 +155,19 @@ export class RootsetClient {
       headers,
       ...(operation.httpMethod !== "GET" ? { body } : {}),
     });
-    return operation.outputSchema.parse(result) as T;
+    const checkedOutput = operation.outputSchema.safeParse(result);
+    if (!checkedOutput.success)
+      throw new ApiError(200, {
+        code: "INVALID_RESPONSE",
+        message:
+          "Rootset returned an unexpected response. Reload the page and try again.",
+        details: {
+          issues: checkedOutput.error.issues
+            .slice(0, 20)
+            .map(({ code, path }) => ({ code, path })),
+        },
+      });
+    return checkedOutput.data as T;
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {

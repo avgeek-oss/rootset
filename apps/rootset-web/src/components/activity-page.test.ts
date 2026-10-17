@@ -7,8 +7,15 @@ const event: ActivityEvent = {
   category: "records",
   occurredAt: "2026-10-17T00:00:00.000Z",
   summary: "Records changed",
+  event: "records.changed",
   status: "succeeded",
-  actor: { id: null, kind: "system", name: "Rootset worker" },
+  actor: {
+    id: null,
+    key: "system:rootset-worker",
+    kind: "system",
+    name: "Rootset worker",
+    avatarUrl: null,
+  },
   database: { id: "db", name: "Aircraft", state: "active" },
   table: { id: "table", name: "Models", state: "active" },
   rowId: "row",
@@ -34,7 +41,15 @@ describe("activity resource navigation", () => {
     ).toBe("/databases/db/settings/export-requests");
     expect(
       activityHref({ ...event, destination: "backup-history", table: null }),
-    ).toBe("/databases/db/settings/backup-history");
+    ).toBe("/databases/db/settings/backup-attempts");
+    expect(
+      activityHref({
+        ...event,
+        category: "restores",
+        destination: "backup-history",
+        table: null,
+      }),
+    ).toBe("/databases/db/settings/restore-attempts");
   });
   it("suppresses unavailable and deleted targets instead of opening unrelated data", () => {
     for (const patch of [

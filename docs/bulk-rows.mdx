@@ -1,33 +1,33 @@
 ---
 title: "Bulk record actions"
-description: "Select records, review a field update, duplication or deletion, and apply the whole selection together."
+description: "Select records and atomically set field values, duplicate rows or confirm deletion."
 ---
 
 Use the checkboxes beside the row numbers to select records. Press Space on a focused checkbox, or use Shift to select a range. **Select loaded records** checks the records currently loaded in the grid. A selection supports up to 200 records; filter the table or choose a smaller group for larger operations.
 
 Record checkboxes are separate from the cell ranges used for copying and pasting. A selection follows record IDs across loaded windows. Changing filters, sorting or the table’s field definitions clears it.
 
+When records are selected, their count and bulk actions replace the view controls in the top toolbar. The bottom actions stay hidden until the selection is cleared. Right-click a selected row for the same bulk actions; individual-cell menus are unavailable while records are selected.
+
 ## Set a field value
 
 Select **Set value**, choose a field and enter its new value. Hidden fields are available too. The controls follow the field type, including choices, NULL, numbers, booleans, dates and JSON. Foreign-key pickers select the actual referenced values; a composite link updates all its key parts together.
 
-Select **Preview changes** to validate the selection and review current and new values. Editing the value invalidates that preview. Select **Update records** after reviewing it.
+Select **Update records** to validate and apply the value to every selected record. There is no separate preview step.
 
 ## Duplicate records
 
-Select **Duplicate** to copy the selected field values into new records. Automatic integer IDs are generated again. Stored NULLs, empty text, zero and false are copied as supplied values.
+Select **Duplicate rows** to open the duplication drawer, then choose **Duplicate records** to copy the selected field values into new records. Automatic integer IDs are generated again. Stored NULLs, empty text, zero and false are copied as supplied values. Foreign-key links are copied; comments and cell history are not.
 
-Unique rules still apply. Duplication can be blocked when a non-generated key already exists. The preview identifies those conflicts before applying the selection.
+Unique rules still apply. Duplication can be blocked when a non-generated key already exists. If any copy fails validation, none are saved. After the drawer closes, the new records replace the originals in the selection.
 
 ## Delete records
 
-Select **Delete** to review the records to remove. The final **Delete records** action names the selected count. Deletion removes the selected records, comments and retained cell history and cannot be undone.
+Select **Delete rows** to open a confirmation dialog. Confirm **Delete records** to remove the selection. Deletion removes the selected records, comments and retained cell history and cannot be undone.
 
-## Review conflicts and concurrent changes
+## Conflicts and concurrent changes
 
-The preview validates every selected record and shows a sample of up to ten records. Large values can reduce the sample size; the total and validation counts still cover the whole selection. Conflict tables identify each affected record by its selection order and stable ID, along with the field and reason when available.
-
-Apply commits the selection together. If any selected revision, field constraint, unique rule or foreign key no longer matches, the action fails without applying a valid prefix. Your entered values stay in the panel. Select **Reload records**, then preview again with the refreshed revisions. Reloading keeps the values you entered.
+Each action commits the selection together. If any selected revision, field constraint, unique rule or foreign key no longer matches, the action fails without saving part of the selection. Your entered values stay in the panel. Select **Reload records**, then retry with the refreshed revisions. Reloading keeps the values you entered.
 
 Closing asks before discarding entered values. A failed request keeps its draft. Retry an unchanged interrupted action in the same panel to reuse its request key and recover an already saved result.
 
@@ -35,4 +35,4 @@ Closing asks before discarding entered values. A failed request keeps its draft.
 
 [previewBulkRows](/api-reference/previewBulkRows) and [bulkRows](/api-reference/bulkRows) require current write access, an expected schema version and an explicit list of row IDs with their expected revisions. Actions are `set`, `duplicate` or `delete`. A `set` action accepts a typed patch, including all parts of a composite foreign key. Duplication reads the source values on the server.
 
-The preview rolls back its simulated mutations, including automatic-ID counters, history and uniqueness participation. Apply requires an idempotency key. Reuse that key only for an unchanged request; it returns the original identifiers without repeating the operation. Current authority is checked before both a mutation and a replay.
+The API preview rolls back its simulated mutations, including automatic-ID counters, history and uniqueness participation. Apply requires an idempotency key. Reuse that key only for an unchanged request; it returns the original identifiers without repeating the operation. Current authority is checked before both a mutation and a replay.

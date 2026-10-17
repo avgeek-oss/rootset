@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import {
@@ -10,29 +10,22 @@ import {
   createDateTimeFormatter,
   isTimeZone,
   type BackupScheduleResult,
-  type DatabaseBackup,
 } from "@rootset/contracts";
 import {
   databasePath,
+  describeError,
   organisationPath,
   performAction,
-  readRaw,
+  showSettingsError,
   useMutation,
   useResource,
 } from "./api";
-import { BackupHealth, BackupRetentionSettings } from "./backup-protection";
+import { BackupRetentionSettings } from "./backup-protection";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { TimeZoneSelect } from "./time-zone-select";
 import { Empty, Field, Form, Loading, Section } from "./ui";
 import type { Job, SettingsPanelProps } from "./types";
-
-interface BackupPage {
-  data: DatabaseBackup[];
-  nextCursor: string | null;
-}
-const EMPTY_PAGE: BackupPage = { data: [], nextCursor: null };
-const loadHistory = (path: string, signal?: AbortSignal) =>
-  readRaw<BackupPage>(path, signal);
+import { Trash2 } from "../ui/icons";
 const isActive = (state: string) => state === "queued" || state === "running";
 
 export function BackupScheduleSettings(props: SettingsPanelProps) {
@@ -47,11 +40,6 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     path ? `${path}/backup-schedule` : undefined,
     null,
   );
-  const history = useResource<BackupPage>(
-    path ? `${path}/backups?limit=25` : undefined,
-    EMPTY_PAGE,
-    loadHistory,
-  );
   const [bucket, setBucket] = useState("");
   const [prefix, setPrefix] = useState("");
   const [cron, setCron] = useState("0 2 * * *");
@@ -63,26 +51,18 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
   const [formError, setFormError] = useState<string>();
   const [preview, setPreview] = useState<string[]>([]);
   const [previewRequested, setPreviewRequested] = useState(false);
-  const [previewError, setPreviewError] = useState<string>();
-  const [pending, setPending] = useState<{
-    id: string;
-    kind: "save" | "backup";
-  }>();
+  const [pending, setPending] = useState<string>();
   const initialized = useRef(false);
   const completed = useRef(new Set<string>());
   const mutation = useMutation();
   const job = useResource<Job | null>(
-    pending ? `${organisationPath(props.orgId)}/jobs/${pending.id}` : undefined,
+    pending ? `${organisationPath(props.orgId)}/jobs/${pending}` : undefined,
     null,
   );
   const available = resource.data?.worker.available ?? false;
   const matches = resource.data?.worker.matchesSchedule ?? false;
-  const hasActiveBackup =
-    history.data.data.some(
-      (run) => run.kind === "backup" && isActive(run.state),
-    ) || pending?.kind === "backup";
-  const saving = pending?.kind === "save";
-  useEffect(() => {
+  const saving = Boolean(pending);
+  useLayoutEffect(() => {
     if (!resource.data || initialized.current) return;
     initialized.current = true;
     const saved = resource.data.schedule;
@@ -97,8 +77,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
   }, [resource.data]);
   useEffect(() => {
     const id = resource.data?.pendingSaveJobId;
-    if (id && !pending && !completed.current.has(id))
-      setPending({ id, kind: "save" });
+    if (id && !pending && !completed.current.has(id)) setPending(id);
   }, [resource.data?.pendingSaveJobId, pending]);
   useEffect(() => {
     if (!path) return;
@@ -106,50 +85,24 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
     return () => clearInterval(timer);
   }, [path, resource.reload]);
   useEffect(() => {
-    if (
-      !pending &&
-      !history.data.data.some((run) => isActive(run.state)) &&
-      !resource.data?.schedule
-    )
-      return;
-    const timer = setInterval(
-      () => {
-        history.reload();
-        if (pending) job.reload();
-      },
-      pending || history.data.data.some((run) => isActive(run.state))
-        ? 2000
-        : 10000,
-    );
+    if (!pending) return;
+    const timer = setInterval(job.reload, 2000);
     return () => clearInterval(timer);
-  }, [
-    pending,
-    history.data.data,
-    history.reload,
-    job.reload,
-    resource.data?.schedule,
-  ]);
+  }, [pending, job.reload]);
   useEffect(() => {
-    if (!pending || job.data?.id !== pending.id || isActive(job.data.state))
+    if (!pending || job.data?.id !== pending || isActive(job.data.state))
       return;
-    completed.current.add(pending.id);
+    completed.current.add(pending);
     setPending(undefined);
-    history.reload();
     resource.reload();
     if (job.data.state === "succeeded") {
-      if (pending.kind === "save") {
-        const saved = BackupScheduleResultSchema.parse(job.data.result);
-        resource.replace(saved);
-        setVersion(saved.version);
-        setBucket(saved.schedule!.bucket);
-        setPrefix(saved.schedule!.prefix);
-        setPreview(saved.nextRuns);
-      }
-      toast.success(
-        pending.kind === "save"
-          ? "Backup schedule saved."
-          : "Database backup completed.",
-      );
+      const saved = BackupScheduleResultSchema.parse(job.data.result);
+      resource.replace(saved);
+      setVersion(saved.version);
+      setBucket(saved.schedule!.bucket);
+      setPrefix(saved.schedule!.prefix);
+      setPreview(saved.nextRuns);
+      toast.success("Backup schedule saved.");
       setFormError(undefined);
     } else {
       const message =
@@ -160,7 +113,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       setFormError(message);
       toast.danger(message);
     }
-  }, [pending, job.data, history.reload, resource.reload]);
+  }, [pending, job.data, resource.reload]);
   useEffect(() => {
     if (!previewRequested || !props.databaseId) return;
     let current = true;
@@ -168,9 +121,10 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       const checked = BackupTimingSchema.safeParse({ cron, timezone });
       if (!checked.success) {
         setPreview([]);
-        setPreviewError(undefined);
         setFieldErrors((errors) => ({
           ...errors,
+          cron: "",
+          timezone: "",
           ...Object.fromEntries(
             checked.error.issues.map((issue) => [
               String(issue.path[0]),
@@ -188,17 +142,23 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
         .then((result) => {
           if (current) {
             setPreview(result.nextRuns);
-            setPreviewError(undefined);
+            setFieldErrors((errors) => ({
+              ...errors,
+              cron: "",
+              timezone: "",
+            }));
           }
         })
         .catch((error: unknown) => {
           if (current) {
             setPreview([]);
-            setPreviewError(
-              error instanceof Error
-                ? error.message
-                : "Enter a valid schedule and timezone.",
-            );
+            const detail = describeError(error);
+            if (detail.code === "VALIDATION_FAILED")
+              setFieldErrors((errors) => ({
+                ...errors,
+                cron: detail.message,
+              }));
+            else showSettingsError(detail);
           }
         });
     }, 350);
@@ -207,61 +167,31 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       clearTimeout(timer);
     };
   }, [cron, timezone, input, previewRequested, props.databaseId]);
-  const actions = useMemo(
-    () => (
-      <Button
-        isDisabled={
-          !available ||
-          !matches ||
-          !resource.data?.schedule?.testedAt ||
-          mutation.busy ||
-          saving ||
-          hasActiveBackup
-        }
-        onPress={async () => {
-          const result = await mutation.run(() =>
-            performAction<{ jobId: string }>("runDatabaseBackup", input),
-          );
-          if (result.ok) {
-            setPending({ id: result.value.jobId, kind: "backup" });
-            history.reload();
-          }
-        }}
-      >
-        Back up now
-      </Button>
-    ),
-    [
-      available,
-      matches,
-      resource.data?.schedule?.testedAt,
-      mutation.busy,
-      saving,
-      hasActiveBackup,
-      input,
-    ],
-  );
   const clearError = (name: string) =>
     setFieldErrors((errors) => ({ ...errors, [name]: "" }));
   if (!path) return <Empty>Select a database to manage backups.</Empty>;
   return (
     <>
-      <PageSelectionTitle label="Backup Schedule" actions={actions} />
+      <PageSelectionTitle label="Backup Schedule" />
       <Loading {...resource} retry={resource.reload} />
-      <Loading {...history} retry={history.reload} />
       <Loading {...job} retry={job.reload} />
       {resource.data && (
-        <div className="grid min-w-0 gap-6">
-          <BackupHealth {...props} />
+        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
           {!available ? (
-            <p role="status" className="settings-section-description">
+            <p
+              role="status"
+              className="settings-section-description col-span-full"
+            >
               Backup storage is not configured, or no backup-enabled worker is
               online. Your operator can configure S3-compatible storage on the
               Rootset worker.
             </p>
           ) : (
             !matches && (
-              <p role="status" className="settings-section-description">
+              <p
+                role="status"
+                className="settings-section-description col-span-full"
+              >
                 The worker’s backup configuration changed. Save this schedule
                 again to verify the destination.
               </p>
@@ -287,8 +217,8 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                         "Backup schedule deleted.",
                       );
                       if (result.ok) {
-                        if (pending?.kind === "save") {
-                          completed.current.add(pending.id);
+                        if (pending) {
+                          completed.current.add(pending);
                           setPending(undefined);
                         }
                         resource.replace(result.value);
@@ -301,10 +231,10 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                         setPreviewRequested(false);
                         setFieldErrors({});
                         setFormError(undefined);
-                        history.reload();
                       }
                     }}
                   >
+                    <Trash2 />
                     Delete schedule
                   </Button>
                 )
@@ -338,9 +268,13 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                   }),
                 );
                 if (result.ok) {
-                  setPending({ id: result.value.jobId, kind: "save" });
-                  history.reload();
-                } else setFormError(result.error.message);
+                  setPending(result.value.jobId);
+                } else if (result.error.code === "VALIDATION_FAILED")
+                  setFieldErrors((errors) => ({
+                    ...errors,
+                    cron: result.error.message,
+                  }));
+                else setFormError(result.error.message);
               }}
             >
               <Field
@@ -370,11 +304,22 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                   Verifying the destination before saving the schedule…
                 </p>
               )}
+              <TimeZoneSelect
+                value={timezone}
+                onChange={(value) => {
+                  setTimezone(value);
+                  setPreview([]);
+                  clearError("timezone");
+                  setPreviewRequested(true);
+                }}
+                error={fieldErrors.timezone}
+              />
               <Field
                 label="Cron schedule"
                 value={cron}
                 onChange={(value) => {
                   setCron(value);
+                  setPreview([]);
                   clearError("cron");
                 }}
                 onBlur={() => setPreviewRequested(true)}
@@ -382,52 +327,31 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                 error={fieldErrors.cron}
                 description="Five fields: minute, hour, day, month, weekday. For example, 0 2 * * * runs daily at 02:00."
               />
-              <TimeZoneSelect
-                value={timezone}
-                onChange={(value) => {
-                  setTimezone(value);
-                  clearError("timezone");
-                  setPreviewRequested(true);
-                }}
-                error={fieldErrors.timezone}
-              />
-              {previewError ? (
-                <p role="alert" className="settings-section-description">
-                  {previewError}
-                </p>
-              ) : (
-                preview.length > 0 &&
-                isTimeZone(timezone) && (
-                  <div className="grid gap-2">
-                    <p className="font-medium">Schedule preview</p>
-                    <ol className="list-inside list-decimal space-y-1 text-muted tabular-nums">
-                      {preview.map((at) => (
-                        <li key={at}>
-                          {
-                            createDateTimeFormatter({
-                              dateFormat:
-                                props.preferences?.dateFormat ??
-                                "year-month-day",
-                              timeFormat:
-                                props.preferences?.timeFormat ?? "24-hour",
-                              timeZone: timezone,
-                            })(at).dateTime
-                          }
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )
+              {preview.length > 0 && isTimeZone(timezone) && (
+                <div className="grid gap-2">
+                  <p className="font-medium">Schedule preview</p>
+                  <ol className="list-inside list-decimal space-y-1 text-muted tabular-nums">
+                    {preview.map((at) => (
+                      <li key={at}>
+                        {
+                          createDateTimeFormatter({
+                            dateFormat:
+                              props.preferences?.dateFormat ?? "year-month-day",
+                            timeFormat:
+                              props.preferences?.timeFormat ?? "24-hour",
+                            timeZone: timezone,
+                          })(at).dateTime
+                        }
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               )}
               {formError && (
                 <p role="alert" className="settings-section-description">
                   {formError}
                 </p>
               )}
-              <p className="settings-section-description">
-                Saved backups follow your retention policy and any bucket
-                lifecycle rules.
-              </p>
             </Form>
           </Section>
           <BackupRetentionSettings {...props} />

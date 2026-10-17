@@ -22,3 +22,4 @@ export * from "./restores";
 
 export * from "./backup-policy";
 export * from "./activity";
+export * from "./activity-events";

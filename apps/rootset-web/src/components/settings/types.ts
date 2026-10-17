@@ -21,9 +21,8 @@ export type SettingsSection =
   | "database"
   | "backup-schedule"
   | "backup-history"
+  | "restore-requests"
   | "database-exports"
-  | "database-activity"
-  | "table-activity"
   | "database-danger-zone"
   | "table-danger-zone"
   | "table"
@@ -216,13 +215,12 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
   mcp: "MCP Guide",
   database: "General",
   "backup-schedule": "Backup Schedule",
-  "backup-history": "Backup History",
+  "backup-history": "Backup Attempts",
+  "restore-requests": "Restore Attempts",
   "database-exports": "Export Requests",
-  "database-activity": "Activity",
-  "table-activity": "Activity",
-  "database-danger-zone": "Danger Zone",
+  "database-danger-zone": "Delete Database",
   table: "General",
-  "table-danger-zone": "Danger Zone",
+  "table-danger-zone": "Delete Table",
   fields: "Fields",
   rules: "Unique rules",
   "foreign-keys": "Foreign keys",
@@ -233,6 +231,7 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "backup-schedule",
   "backup-history",
+  "restore-requests",
   "team-api-keys",
   "organisation",
   "members",

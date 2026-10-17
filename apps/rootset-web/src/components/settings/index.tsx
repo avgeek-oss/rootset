@@ -32,7 +32,7 @@ import { ExportsSettings } from "./jobs";
 import { ImportsSettings } from "./imports";
 import { BackupScheduleSettings } from "./backups";
 import { BackupHistorySettings } from "./backup-history";
-import { ActivitySettings } from "../activity-page";
+import { RestoreRequestsSettings } from "./restore-requests";
 import { ForeignKeysSettings } from "./foreign-keys";
 import { DatabaseSettings, DatabaseDangerZone } from "./database";
 import {
@@ -83,9 +83,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
     database: DatabaseSettings,
     "backup-schedule": BackupScheduleSettings,
     "backup-history": BackupHistorySettings,
+    "restore-requests": RestoreRequestsSettings,
     "database-exports": ExportsSettings,
-    "database-activity": ActivitySettings,
-    "table-activity": ActivitySettings,
     "database-danger-zone": DatabaseDangerZone,
     table: TableSettings,
     "table-danger-zone": TableDangerZone,
@@ -97,7 +96,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
   };
   const Component = components[activeSection];
   const tableSections = [
-    "table-activity",
     "table",
     "table-danger-zone",
     "fields",
@@ -107,11 +105,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
     "imports",
   ];
   const databaseSections = [
-    "database-activity",
     "database",
     "database-danger-zone",
     "backup-schedule",
     "backup-history",
+    "restore-requests",
     "database-exports",
   ];
   const content =

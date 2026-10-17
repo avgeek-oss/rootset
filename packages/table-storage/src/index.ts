@@ -65,6 +65,10 @@ function renamedValues(
 }
 
 export type FieldInput = Omit<FieldDefinition, "id">;
+interface ResourcePage {
+  afterId: string | null;
+  limit: number;
+}
 type FieldChanges = Partial<FieldInput> & { clearDefault?: boolean };
 export interface DatabaseRecord {
   id: string;
@@ -607,6 +611,12 @@ export class TableStorage {
       [t.id, "active"],
     );
     return {
+      ...this.tableRecord(t),
+      fields: fs.rows.map((x) => x.definition),
+    };
+  }
+  private tableRecord(t: Raw): Omit<TableRecord, "fields"> {
+    return {
       id: String(t.id),
       orgId: String(t.org_id),
       databaseId: String(t.database_id),
@@ -620,7 +630,6 @@ export class TableStorage {
       state: String(t.state),
       createdAt: iso(t.created_at),
       updatedAt: iso(t.updated_at),
-      fields: fs.rows.map((x) => x.definition),
     };
   }
   private async barrier(c: PoolClient, databaseId: string): Promise<void> {
@@ -870,27 +879,41 @@ export class TableStorage {
   }
   async listDatabases(
     a: Actor,
+    page?: ResourcePage,
   ): Promise<
-    (DatabaseRecord & { tableCount: number; storageBytes: number })[]
+    (DatabaseRecord & {
+      tableCount: number;
+      rowCount: number;
+      storageBytes: number;
+      lastDataChangeAt: string | null;
+    })[]
   > {
     return this.run(a, async (c) => {
       const r = await c.query<Raw>(
-        `SELECT d.*,
-          (SELECT count(*) FROM rootset_control.tables t
-           WHERE t.database_id=d.id AND t.org_id=d.org_id
-             AND t.state IN ('active','maintenance')) AS table_count,
-          (SELECT COALESCE(sum(pg_total_relation_size(to_regclass(format('%I.%I', d.schema_name, t.physical_name)))), 0)
-           FROM rootset_control.tables t
-           WHERE t.database_id=d.id AND t.org_id=d.org_id
-             AND t.state IN ('active','maintenance')) AS storage_bytes
-         FROM rootset_control.databases d
-         WHERE d.org_id=$1 AND d.state='active' ORDER BY d.created_at,d.id`,
-        [a.orgId],
+        `SELECT d.*,summary.*
+         FROM (
+           SELECT * FROM rootset_control.databases
+           WHERE org_id=$1 AND state='active' AND ($2::varchar IS NULL OR id>$2)
+           ORDER BY id LIMIT $3
+         ) d
+         CROSS JOIN LATERAL (
+           SELECT count(*) FILTER (WHERE t.state IN ('active','maintenance')) AS table_count,
+             COALESCE(sum(t.row_count) FILTER (WHERE t.state IN ('active','maintenance')),0) AS row_count,
+             max(t.last_data_change_at) AS last_data_change_at,
+             COALESCE(sum(pg_total_relation_size(to_regclass(format('%I.%I',d.schema_name,t.physical_name))))
+               FILTER (WHERE t.state IN ('active','maintenance')),0) AS storage_bytes
+           FROM rootset_control.tables t WHERE t.database_id=d.id AND t.org_id=d.org_id
+         ) summary
+         ORDER BY d.id`,
+        [a.orgId, page?.afterId ?? null, page ? page.limit + 1 : null],
       );
       return r.rows.map((d) => ({
         ...this.databaseRecord(d),
         tableCount: Number(d.table_count),
+        rowCount: Number(d.row_count),
         storageBytes: Number(d.storage_bytes),
+        lastDataChangeAt:
+          d.last_data_change_at == null ? null : iso(d.last_data_change_at),
       }));
     });
   }
@@ -1158,19 +1181,39 @@ export class TableStorage {
   async listTables(
     a: Actor,
     databaseId: string,
-  ): Promise<(TableRecord & { storageBytes: number })[]> {
+    page?: ResourcePage,
+  ): Promise<
+    (Omit<TableRecord, "fields"> & {
+      storageBytes: number;
+      fieldCount: number;
+      lastDataChangeAt: string | null;
+    })[]
+  > {
     return this.run(a, async (c) => {
       const d = await this.database(c, a, databaseId);
-      const r = await c.query<{ id: string; storage_bytes: string }>(
-        "SELECT id, COALESCE(pg_total_relation_size(to_regclass(format('%I.%I', $3::text, physical_name))), 0)::text AS storage_bytes FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2 AND state IN ('active','maintenance') ORDER BY created_at,id",
-        [d.id, a.orgId, d.schemaName],
+      const r = await c.query<Raw>(
+        `SELECT t.*,$3::text AS schema_name,
+          COALESCE(pg_total_relation_size(to_regclass(format('%I.%I',$3::text,t.physical_name))),0)::text AS storage_bytes,
+          (SELECT count(*) FROM rootset_control.fields f WHERE f.org_id=$2 AND f.table_id=t.id AND f.state='active') AS field_count
+         FROM (
+           SELECT * FROM rootset_control.tables WHERE database_id=$1 AND org_id=$2 AND state IN ('active','maintenance')
+             AND ($4::varchar IS NULL OR id>$4) ORDER BY id LIMIT $5
+         ) t ORDER BY t.id`,
+        [
+          d.id,
+          a.orgId,
+          d.schemaName,
+          page?.afterId ?? null,
+          page ? page.limit + 1 : null,
+        ],
       );
-      return Promise.all(
-        r.rows.map(async (t) => ({
-          ...(await this.table(c, a, t.id)),
-          storageBytes: Number(t.storage_bytes),
-        })),
-      );
+      return r.rows.map((t) => ({
+        ...this.tableRecord(t),
+        storageBytes: Number(t.storage_bytes),
+        fieldCount: Number(t.field_count),
+        lastDataChangeAt:
+          t.last_data_change_at == null ? null : iso(t.last_data_change_at),
+      }));
     });
   }
   async getTable(a: Actor, tableId: string): Promise<TableRecord> {

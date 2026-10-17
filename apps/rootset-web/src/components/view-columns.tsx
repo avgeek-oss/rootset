@@ -10,6 +10,7 @@ import { FieldTable } from "./settings/field-table";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { useConfirmation } from "./settings/ui";
 import "./record-editor.css";
+import { Check } from "./ui/icons";
 
 export function ViewColumns({
   fields,
@@ -32,7 +33,6 @@ export function ViewColumns({
   const confirmation = useConfirmation();
   const closing = useRef(false);
   const dirty = JSON.stringify(initial) !== JSON.stringify(draft);
-  const visible = fields.length - draft.hiddenColumns.length;
   async function close() {
     if (closing.current) return;
     closing.current = true;
@@ -90,10 +90,6 @@ export function ViewColumns({
                 }}
               >
                 <Drawer.Body className="record-editor-body">
-                  <p className="text-sm text-muted">
-                    {visible} of {fields.length} columns visible. Drag to change
-                    their order.
-                  </p>
                   <FieldTable
                     ariaLabel="View columns"
                     tableClassName="min-w-sm"
@@ -140,7 +136,7 @@ export function ViewColumns({
                             }
                           >
                             <Checkbox.Content
-                              className="min-h-11 min-w-11 justify-center"
+                              className="field-visibility-checkbox min-w-11 justify-center"
                               aria-label={`Show ${field.name}`}
                             >
                               <Checkbox.Control>
@@ -158,7 +154,8 @@ export function ViewColumns({
                     Cancel
                   </Button>
                   <Button type="submit" isDisabled={!dirty}>
-                    Apply columns
+                    <Check />
+                    Save changes
                   </Button>
                 </Drawer.Footer>
               </form>

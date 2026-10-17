@@ -101,6 +101,7 @@
               "api-reference/revokeTeamKey",
               "api-reference/getSecurityStatus",
               "api-reference/listActivity",
+              "api-reference/listActivityFilterOptions",
               "api-reference/getMutation",
               "api-reference/getUsage",
               "api-reference/getViewPreferences",

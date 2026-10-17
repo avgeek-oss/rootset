@@ -36,7 +36,13 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { formatCellValue } from "./cells";
 import { RecordField } from "./record-field";
 import { FieldTypeIcon } from "./settings/field-type-options";
-import { Link, MoreHorizontal } from "./ui/icons";
+import {
+  Link,
+  MoreHorizontal,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+} from "./ui/icons";
 
 export function RecordForeignKey({
   target,
@@ -536,6 +542,7 @@ export function RecordForeignKey({
                 variant="secondary"
                 onPress={() => void options.refetch()}
               >
+                <RefreshCw />
                 Retry loading records
               </Button>
             ) : null}
@@ -559,6 +566,7 @@ export function RecordForeignKey({
                     setPrevious(previous.slice(0, -1));
                   }}
                 >
+                  <ChevronLeft />
                   Previous
                 </Button>
                 <span className="text-xs text-muted tabular-nums">
@@ -581,6 +589,7 @@ export function RecordForeignKey({
                   }}
                 >
                   Next
+                  <ChevronRight />
                 </Button>
               </div>
             )}
@@ -601,6 +610,7 @@ export function RecordForeignKey({
             size="sm"
             onPress={() => void (schema.isError ? schema : selected).refetch()}
           >
+            <RefreshCw />
             Retry loading link
           </Button>
         </div>

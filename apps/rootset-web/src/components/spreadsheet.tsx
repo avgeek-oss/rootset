@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageQuery } from "./page-navigation";
 import {
   useCallback,
   useEffect,
@@ -7,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type RefObject,
   type ReactNode,
 } from "react";
@@ -20,6 +20,7 @@ import {
   type DataGridHandle,
   type CellKeyDownArgs,
   type CellKeyboardEvent,
+  type ColumnWidths,
 } from "react-data-grid";
 import {
   keepPreviousData,
@@ -48,6 +49,13 @@ import {
   View,
   Upload,
   ArrowDownToLine,
+  Pencil,
+  RefreshCw,
+  Check,
+  Copy,
+  Hide,
+  SortAscending,
+  SortDescending,
 } from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
@@ -70,6 +78,7 @@ import {
   type TableSchemaResult,
 } from "@rootset/contracts";
 import { mergeScrollWindow } from "../lib/scroll-window";
+import { fillGridColumnWidths } from "../lib/grid-column-widths";
 import { rowResultCount, type RowResultCount } from "../lib/row-result-count";
 import { RowWindowCache } from "../lib/window-cache";
 import { parseTsvCells, type TsvCell } from "../lib/clipboard";
@@ -94,10 +103,15 @@ import { RecordEditor } from "./record-editor";
 import { ImportRecords } from "./import-records";
 import { ExportView } from "./export-view";
 import { SavedViewsToolbar } from "./saved-views";
+import { SpreadsheetLoading } from "./spreadsheet-loading";
 import { ViewColumns } from "./view-columns";
 import { BulkRows } from "./bulk-rows";
 import { GridCheckbox, RecordSelectionCell } from "./grid-checkbox";
-import { selectRecords, type SelectedRecord } from "../lib/row-selection";
+import {
+  loadRecordSelection,
+  selectRecords,
+  type SelectedRecord,
+} from "../lib/row-selection";
 import {
   linkedViewQuery,
   resolvedViewLayout,
@@ -150,13 +164,7 @@ const placeholderRows: PlaceholderRow[] = Array.from(
 function isPlaceholderRow(row: GridRow): row is PlaceholderRow {
   return "placeholderIndex" in row;
 }
-function subscribeGridSize(change: () => void) {
-  const media = window.matchMedia("(max-width: 639px)");
-  media.addEventListener("change", change);
-  return () => media.removeEventListener("change", change);
-}
-const smallGrid = () => window.matchMedia("(max-width: 639px)").matches;
-const serverGrid = () => false;
+const rowHeight = 32;
 const windowLimit = 200;
 
 const preferencesEmpty = {
@@ -192,17 +200,12 @@ export function Spreadsheet({
   onChanged: () => void;
 }) {
   const router = useRouter();
-  const rowHeight = useSyncExternalStore(
-    subscribeGridSize,
-    smallGrid,
-    serverGrid,
-  )
-    ? 48
-    : 32;
   const systemColumns = canEdit ? 2 : 1;
   const [selectedRecords, setSelectedRecords] = useState(
     new Map<string, SelectedRecord>(),
   );
+  const hasSelectedRecords = selectedRecords.size > 0;
+  const createdSelectionAbort = useRef<AbortController | null>(null);
   const [bulkAction, setBulkAction] = useState<{
     action: BulkRowsInput["action"]["type"];
     records: SelectedRecord[];
@@ -210,12 +213,12 @@ export function Spreadsheet({
   const tablePath = resourcePath(orgId, databaseId, table.id);
   const queryClient = useQueryClient();
   const confirmation = useConfirmation();
-  const schema = useQuery({
+  const schema = usePageQuery({
     queryKey: ["schema", table.id],
     queryFn: ({ signal }) =>
       client.request<TableSchemaResult>(`${tablePath}/schema`, { signal }),
   });
-  const view = useQuery({
+  const view = usePageQuery({
     queryKey: ["view-preferences", table.id],
     queryFn: ({ signal }) =>
       client.operation<{ preferences: typeof preferencesEmpty }>(
@@ -226,7 +229,7 @@ export function Spreadsheet({
   });
   const parsedViewId = IdSchema.safeParse(savedViewId);
   const viewId = parsedViewId.success ? parsedViewId.data : null;
-  const namedView = useQuery({
+  const namedView = usePageQuery({
     queryKey: ["saved-view", table.id, viewId],
     queryFn: ({ signal }) =>
       client.operation<SavedView>(
@@ -244,32 +247,131 @@ export function Spreadsheet({
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const [loadedSavedView, setLoadedSavedView] = useState<SavedView>();
-  const [viewReady, setViewReady] = useState(!savedViewId);
+  const [initialFilter] = useState(() => readLinkedTableFilter(linkedFilter));
+  const initialDefinition =
+    namedView.data && schema.data
+      ? resolveSavedViewDefinition(
+          namedView.data.definition,
+          schema.data.fields,
+        ).definition
+      : null;
+  const initialQuery: QuerySpec = {
+    limit: windowLimit,
+    ...linkedViewQuery(initialDefinition?.query ?? {}, initialFilter.where),
+  };
+  const initialFilters = savedViewFilterState(
+    initialQuery.where,
+    schema.data?.fields ?? [],
+  );
+  const initialViewReady =
+    !schema.isPending &&
+    !view.isPending &&
+    (!savedViewId || Boolean(initialDefinition));
+  let initialQueryValid = !initialFilter.error;
+  if (initialQueryValid && schema.data) {
+    try {
+      stableViewQuery(initialQuery, schema.data.fields);
+    } catch {
+      initialQueryValid = false;
+    }
+  }
+  const initialReadFinished = useRef(false);
+  useEffect(() => {
+    initialReadFinished.current = true;
+  }, []);
+  const initialWindow = usePageQuery(
+    {
+      queryKey: [
+        "initial-row-window",
+        orgId,
+        databaseId,
+        table.id,
+        schema.data?.table.schemaVersion,
+        initialQuery,
+      ],
+      queryFn: async ({ signal }) => {
+        const response = await client.request<WindowResult>(
+          `/tables/${table.id}/windows/query`,
+          {
+            method: "POST",
+            body: { orgId, databaseId, query: initialQuery, position: "first" },
+            signal,
+          },
+        );
+        if (response.schemaVersion !== schema.data?.table.schemaVersion) {
+          const refreshed = await schema.refetch();
+          if (refreshed.error) throw refreshed.error;
+        }
+        return response;
+      },
+      enabled:
+        !initialReadFinished.current &&
+        initialViewReady &&
+        initialQueryValid &&
+        Boolean(schema.data?.fields.length),
+      staleTime: Infinity,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+    { fresh: true },
+  );
+  const [loadedSavedView, setLoadedSavedView] = useState<SavedView | undefined>(
+    namedView.data,
+  );
+  const [viewReady, setViewReady] = useState(initialViewReady);
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [viewPrefs, setViewPrefs] = useState(preferencesEmpty);
-  const latestViewPrefs = useRef(preferencesEmpty);
+  const [viewPrefs, setViewPrefs] = useState(
+    initialDefinition ?? view.data?.preferences ?? preferencesEmpty,
+  );
+  const latestViewPrefs = useRef(viewPrefs);
   const mounted = useRef(true);
   const viewSaveToast = useRef<string | undefined>(undefined);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [initialFilter] = useState(() => readLinkedTableFilter(linkedFilter));
+  const [rows, setRows] = useState<Row[]>(initialWindow.data?.data ?? []);
   const [linkedFilterError, setLinkedFilterError] = useState(
     initialFilter.error,
   );
-  const [query, setQuery] = useState<QuerySpec>({
-    limit: windowLimit,
-    ...(initialFilter.where ? { where: initialFilter.where } : {}),
-  });
-  const [windowStart, setWindowStart] = useState(0);
-  const [windowInfo, setWindowInfo] = useState<WindowResult | null>(null);
+  const [query, setQuery] = useState<QuerySpec>(initialQuery);
+  const [windowStart, setWindowStart] = useState(
+    initialWindow.data?.window?.start ?? 0,
+  );
+  const [windowInfo, setWindowInfo] = useState<WindowResult | null>(
+    initialWindow.data ?? null,
+  );
+  const initialWindowApplied = useRef(Boolean(initialWindow.data));
   const [filteredCount, setFilteredCount] = useState<{
     filter: string;
     value: RowResultCount | null;
-  } | null>(null);
-  const [displayedNavigation, setDisplayedNavigation] = useState("");
+  } | null>(() =>
+    initialQuery.where && initialWindow.data
+      ? {
+          filter: JSON.stringify(initialQuery.where),
+          value: rowResultCount(
+            {
+              start: initialWindow.data.window?.start ?? 0,
+              length: initialWindow.data.data.length,
+              hasMore: initialWindow.data.page.hasMore,
+              total: initialWindow.data.window?.total,
+              estimate: initialWindow.data.window?.estimatedTotal,
+            },
+            null,
+          ),
+        }
+      : null,
+  );
+  const [displayedNavigation, setDisplayedNavigation] = useState(
+    initialWindow.data
+      ? JSON.stringify({
+          where: initialQuery.where,
+          orderBy: initialQuery.orderBy,
+        })
+      : "",
+  );
   const [loading, setLoading] = useState(false);
   const [accessRevoked, setAccessRevoked] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    initialWindow.error?.message ?? null,
+  );
   const [announcement, setAnnouncement] = useState("");
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [draft, setDraft] = useState<CellDraft | null>(null);
@@ -296,6 +398,7 @@ export function Spreadsheet({
     errors: string[];
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
+  const [tableActionsOpen, setTableActionsOpen] = useState(false);
   const [recordEditor, setRecordEditor] = useState<{
     rowId?: string;
     focusFieldId?: string;
@@ -303,28 +406,57 @@ export function Spreadsheet({
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
-    initialFilter.conditions,
+    initialFilters.conditions,
   );
-  const [advancedFilter, setAdvancedFilter] = useState<FilterNode>();
-  const [filterCombination, setFilterCombination] =
-    useState<FilterCombination>("and");
+  const [advancedFilter, setAdvancedFilter] = useState<FilterNode | undefined>(
+    initialFilters.advanced,
+  );
+  const [filterCombination, setFilterCombination] = useState<FilterCombination>(
+    initialFilters.combination,
+  );
   const [contextMenu, setContextMenu] = useState<{
     row?: Row;
     field?: FieldDefinition;
+    selectedRows?: true;
   } | null>(null);
   const contextAnchor = useRef<Element | null>(null);
+  const [columnMenu, setColumnMenu] = useState<FieldDefinition | null>(null);
+  const columnAnchor = useRef<Element | null>(null);
+  useEffect(() => {
+    setContextMenu(null);
+    setColumnMenu(null);
+    setTableActionsOpen(false);
+  }, [selectedRecords]);
   const gridRef = useRef<DataGridHandle>(null);
   const bulkFocus = useRef(false);
   useLayoutEffect(() => {
     if (!bulkFocus.current || loading || bulkAction || accessRevoked) return;
     bulkFocus.current = false;
+    const firstSelected = rows.findIndex((row) => selectedRecords.has(row.id));
     gridRef.current?.setActivePosition(
-      { rowIdx: rows.length ? 0 : -1, idx: 0 },
+      {
+        rowIdx: firstSelected >= 0 ? firstSelected : rows.length ? 0 : -1,
+        idx: 0,
+      },
       { shouldFocus: true },
     );
-  }, [rows, loading, bulkAction, accessRevoked]);
+    if (firstSelected >= 0)
+      gridRef.current?.scrollToCell({ rowIdx: firstSelected });
+  }, [rows, loading, bulkAction, accessRevoked, selectedRecords]);
 
-  const gridContainer = useRef<HTMLDivElement>(null);
+  const [gridContainer, setGridContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [gridWidth, setGridWidth] = useState(0);
+  useLayoutEffect(() => {
+    const grid = gridContainer?.querySelector<HTMLElement>('[role="grid"]');
+    if (!grid) return;
+    const measure = () => setGridWidth(grid.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [gridContainer]);
   const resizingColumn = useRef(false);
   const resizeScrollLimit = useRef<number | null>(null);
   function releaseResizeSpace(grid: HTMLElement) {
@@ -339,12 +471,13 @@ export function Spreadsheet({
   }
   const scrollOffset = useRef<number | null>(null);
   const fetchingWindow = useRef(false);
-  const tailCursor = useRef<string | null>(null);
-  const hasNextWindow = useRef(false);
+  const tailCursor = useRef<string | null>(
+    initialWindow.data?.page.nextCursor ?? null,
+  );
+  const hasNextWindow = useRef(initialWindow.data?.page.hasMore ?? false);
   useLayoutEffect(() => {
     if (scrollOffset.current === null) return;
-    const grid =
-      gridContainer.current?.querySelector<HTMLElement>('[role="grid"]');
+    const grid = gridRef.current?.element;
     if (grid) grid.scrollTop = scrollOffset.current;
     scrollOffset.current = null;
   }, [rows]);
@@ -367,7 +500,9 @@ export function Spreadsheet({
   );
   const abort = useRef<AbortController | null>(null);
   const copyAbort = useRef<AbortController | null>(null);
-  const sessionId = useRef<string | undefined>(undefined);
+  const sessionId = useRef<string | undefined>(
+    initialWindow.data?.window?.sessionId,
+  );
   const cellAttempt = useRef(new MutationAttempt());
   const pasteAttempt = useRef(new MutationAttempt());
   const undoAttempt = useRef(new MutationAttempt());
@@ -380,8 +515,8 @@ export function Spreadsheet({
   } | null>(null);
   const previousFilter = useRef("");
   const previousSchemaVersion = useRef<number | undefined>(undefined);
-  const currentStart = useRef(0);
-  const currentRows = useRef<Row[]>([]);
+  const currentStart = useRef(windowStart);
+  const currentRows = useRef<Row[]>(rows);
   const currentSelection = useRef<CellSelection | null>(null);
   const recordAccessLost = useCallback(() => {
     setRecordEditor(null);
@@ -389,7 +524,9 @@ export function Spreadsheet({
     setExportOpen(false);
     setBulkAction(null);
     setSelectedRecords(new Map());
+    createdSelectionAbort.current?.abort();
     setDiscussion(null);
+    setColumnMenu(null);
     setHistory(null);
     setDraft(null);
     cache.current.clear();
@@ -553,11 +690,14 @@ export function Spreadsheet({
   }, [tablePath, schema.data?.table.schemaVersion, accessRevoked, canEdit]);
 
   useEffect(() => {
-    if (!savedViewId && view.data && !viewSave.hasPending) {
-      latestViewPrefs.current = view.data.preferences;
-      setViewPrefs(view.data.preferences);
+    if (!savedViewId && !viewSave.hasPending) {
+      if (view.data) {
+        latestViewPrefs.current = view.data.preferences;
+        setViewPrefs(view.data.preferences);
+      }
+      if (view.isSuccess || view.isError) setViewReady(true);
     }
-  }, [view.data, viewSave, savedViewId]);
+  }, [view.data, view.isSuccess, view.isError, viewSave, savedViewId]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -735,8 +875,7 @@ export function Spreadsheet({
             )
           : { rows: response.data, start, offset: 0, trimmed: 0 };
         if (direction) {
-          const grid =
-            gridContainer.current?.querySelector<HTMLElement>('[role="grid"]');
+          const grid = gridRef.current?.element;
           scrollOffset.current = Math.max(
             0,
             (grid?.scrollTop ?? 0) + merged.offset * rowHeight,
@@ -809,6 +948,7 @@ export function Spreadsheet({
         setAnnouncement(
           `Loaded ${response.data.length} rows starting at row ${start + 1}. Results are live.`,
         );
+        return merged.rows;
       } catch (failure) {
         if (failure instanceof ApiError && failure.code === "CURSOR_INVALID") {
           sessionId.current = undefined;
@@ -852,6 +992,12 @@ export function Spreadsheet({
       where: query.where,
       orderBy: query.orderBy,
     });
+    if (initialWindowApplied.current) {
+      initialWindowApplied.current = false;
+      previousFilter.current = navigationQuery;
+      previousSchemaVersion.current = schema.data?.table.schemaVersion;
+      return () => abort.current?.abort();
+    }
     const sameNavigation =
       previousFilter.current === navigationQuery &&
       previousSchemaVersion.current === schema.data?.table.schemaVersion;
@@ -884,17 +1030,49 @@ export function Spreadsheet({
     if (draft && (await submitEditor.current?.()) !== true) return;
     action();
   }
-  function recordsChanged(created = false) {
+  async function recordsChanged(created = false, createdIds: string[] = []) {
+    createdSelectionAbort.current?.abort();
+    const controller = new AbortController();
+    createdSelectionAbort.current = controller;
     cache.current.clear();
     sessionId.current = undefined;
     setSelection(null);
     setSelectedRecords(new Map());
     onChanged();
-    void loadWindow(
+    const loaded = await loadWindow(
       created && !query.where && !query.orderBy?.length
         ? "last"
         : currentStart.current,
     );
+    if (!createdIds.length || controller.signal.aborted) return;
+    try {
+      if (!loaded) throw new Error("The table could not be reloaded.");
+      const selected = await loadRecordSelection(
+        createdIds,
+        loaded,
+        (rowId) =>
+          client.operation<Row>(
+            "getRow",
+            {
+              orgId,
+              databaseId,
+              tableId: table.id,
+              rowId,
+            },
+            { signal: controller.signal },
+          ),
+        controller.signal,
+      );
+      bulkFocus.current = true;
+      setSelectedRecords(selected);
+    } catch (failure) {
+      if (controller.signal.aborted) return;
+      if (failure instanceof ApiError && [401, 403].includes(failure.status))
+        recordAccessLost();
+      toast.danger(
+        "The records were duplicated, but the new selection could not be loaded. Reload the table to select them.",
+      );
+    }
   }
 
   function updateLayout(next: ViewLayout) {
@@ -937,6 +1115,7 @@ export function Spreadsheet({
 
   function changeRecordSelection(keys: Set<string>) {
     if (!writable || saving || loading) return;
+    createdSelectionAbort.current?.abort();
     void leaveEditor(() => {
       try {
         setSelectedRecords(selectRecords(selectedRecords, keys, rows));
@@ -955,8 +1134,35 @@ export function Spreadsheet({
       setBulkAction({ action, records: [...selectedRecords.values()] }),
     );
   }
+  function openRecordContextMenu(
+    row: Row,
+    columnKey: string,
+    anchor: Element | null,
+  ) {
+    setColumnMenu(null);
+    if (
+      !anchor ||
+      saving ||
+      accessRevoked ||
+      (hasSelectedRecords && !selectedRecords.has(row.id))
+    ) {
+      setContextMenu(null);
+      return;
+    }
+    contextAnchor.current = anchor;
+    setContextMenu(
+      hasSelectedRecords
+        ? { selectedRows: true }
+        : {
+            row,
+            field: fields.find((field) => field.id === columnKey),
+          },
+    );
+  }
   useEffect(() => {
     setSelectedRecords(new Map());
+    createdSelectionAbort.current?.abort();
+    return () => createdSelectionAbort.current?.abort();
   }, [queryDigest, schema.data?.table.schemaVersion, canEdit]);
 
   function focusCell(row: number, column: number) {
@@ -1216,15 +1422,11 @@ export function Spreadsheet({
     ) {
       event.preventDefault();
       event.preventGridDefault();
-      contextAnchor.current =
+      const anchor =
         event.target instanceof Element
           ? event.target.closest('[role="gridcell"]')
           : null;
-      setContextMenu(
-        column.key === "__row_number"
-          ? { row }
-          : { row, field: fields.find((field) => field.id === column.key) },
-      );
+      openRecordContextMenu(row, column.key, anchor);
     } else if (
       (event.ctrlKey || event.metaKey) &&
       event.key.toLowerCase() === "c"
@@ -1595,6 +1797,59 @@ export function Spreadsheet({
     });
   }
 
+  function applySortColumns(columns: SortColumn[]) {
+    if (columns.length > limits.querySorts) {
+      toast.danger(`Sort by at most ${limits.querySorts} columns.`);
+      return;
+    }
+    void leaveEditor(() => {
+      setSelection(null);
+      setQuery((current) => ({
+        limit: windowLimit,
+        ...(current.where ? { where: current.where } : {}),
+        ...(columns.length
+          ? {
+              orderBy: columns.map((sort) => ({
+                field: sort.columnKey,
+                direction: sort.direction === "ASC" ? "asc" : "desc",
+              })),
+            }
+          : {}),
+      }));
+    });
+  }
+
+  function openColumnMenu(target: EventTarget) {
+    if (!(target instanceof Element)) return false;
+    const header = target.closest('[role="columnheader"]');
+    const field = fields.find(
+      (field) =>
+        field.id ===
+        header?.querySelector("[data-field-id]")?.getAttribute("data-field-id"),
+    );
+    if (!header || !field || saving || accessRevoked || hasSelectedRecords)
+      return false;
+    void leaveEditor(() => {
+      setContextMenu(null);
+      columnAnchor.current = header;
+      setColumnMenu(field);
+    });
+    return true;
+  }
+
+  const columnSort = columnMenu
+    ? query.orderBy?.find(
+        (sort) =>
+          sort.field === columnMenu.id || sort.field === columnMenu.name,
+      )
+    : undefined;
+  const columnSortLabel =
+    columnSort?.direction === "asc"
+      ? "Sort descending"
+      : columnSort?.direction === "desc"
+        ? "Reset sort"
+        : "Sort ascending";
+
   function renderEditor(onClose?: () => void) {
     return draft ? (
       <div
@@ -1649,6 +1904,35 @@ export function Spreadsheet({
   const editingRow = draft
     ? rows.findIndex((row) => row.id === draft.row.id)
     : -1;
+  const rowNumberWidth = Math.max(
+    80,
+    String(Math.max(table.rowCount, windowStart + rows.length)).length * 9 + 48,
+    query.where
+      ? table.rowCount.toLocaleString(preferences.locale).length * 8 + 64
+      : 0,
+  );
+  const fittedColumnWidths = useMemo<ColumnWidths>(() => {
+    const widths = fillGridColumnWidths(
+      fields.map(
+        (field) =>
+          layout.columnWidths[field.id] ??
+          (field.type === "date-time"
+            ? 340
+            : field.type === "json"
+              ? 240
+              : field.type === "date"
+                ? 200
+                : 180),
+      ),
+      gridWidth - rowNumberWidth - (canEdit ? 48 : 0),
+    );
+    return new Map(
+      fields.map((field, index) => [
+        field.id,
+        { type: "measured", width: widths[index]! },
+      ]),
+    );
+  }, [fields, layout.columnWidths, gridWidth, rowNumberWidth, canEdit]);
   const gridColumns: Column<GridRow>[] = [
     ...(canEdit
       ? [
@@ -1716,14 +2000,7 @@ export function Spreadsheet({
           )}
         </span>
       ),
-      width: Math.max(
-        80,
-        String(Math.max(table.rowCount, windowStart + rows.length)).length * 9 +
-          48,
-        query.where
-          ? table.rowCount.toLocaleString(preferences.locale).length * 8 + 64
-          : 0,
-      ),
+      width: rowNumberWidth,
       cellClass: "row-number-cell",
       frozen: true,
       resizable: false,
@@ -1772,6 +2049,7 @@ export function Spreadsheet({
         <Tooltip delay={250} closeDelay={0}>
           <Tooltip.Trigger
             tabIndex={-1}
+            data-field-id={field.id}
             className="inline-flex w-full min-w-0 max-w-full items-center gap-1.5 align-middle"
           >
             <FieldTypeIcon type={field.type} size={14} />
@@ -1799,15 +2077,7 @@ export function Spreadsheet({
         </Tooltip>
       ),
       sortable: field.type !== "json" && !accessRevoked && !saving,
-      width:
-        layout.columnWidths[field.id] ??
-        (field.type === "date-time"
-          ? 340
-          : field.type === "json"
-            ? 240
-            : field.type === "date"
-              ? 200
-              : 180),
+      width: fittedColumnWidths.get(field.id)!.width,
       // Data Grid cannot span frozen and scrolling columns in the same cell.
       frozen: !filteredEmpty && index < layout.frozenColumns,
       maxWidth: 2000,
@@ -1935,7 +2205,7 @@ export function Spreadsheet({
         onSaved={(saved, kind) => {
           if (kind === "create" || (kind === "update" && linkedFilter))
             navigateView(saved.id, true);
-          else if (kind === "rename") setLoadedSavedView(saved);
+          else if (kind === "manage") setLoadedSavedView(saved);
           else applySavedView(saved);
         }}
         onDeleted={() => navigateView(null, true)}
@@ -1945,50 +2215,52 @@ export function Spreadsheet({
           if (result.data) applySavedView(result.data);
         }}
         onReloadFields={reloadViewFields}
+        selectionActions={
+          canEdit && selectedRecords.size > 0 ? (
+            <>
+              <span className="shrink-0 text-sm font-medium tabular-nums italic">
+                {selectedRecords.size.toLocaleString(preferences.locale)}{" "}
+                {selectedRecords.size === 1 ? "row" : "rows"} selected
+              </span>
+              <div className="ml-auto flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <Button
+                  variant="secondary"
+                  aria-label="Set value"
+                  className="max-sm:size-9 max-sm:min-w-9 max-sm:px-0"
+                  isDisabled={!writable || saving}
+                  onPress={() => openBulk("set")}
+                >
+                  <Pencil />
+                  <span className="max-sm:hidden">Set value</span>
+                </Button>
+                <Button
+                  variant="secondary"
+                  aria-label="Duplicate rows"
+                  className="max-sm:size-9 max-sm:min-w-9 max-sm:px-0"
+                  isDisabled={!writable || saving}
+                  onPress={() => openBulk("duplicate")}
+                >
+                  <Copy />
+                  <span className="max-sm:hidden">Duplicate rows</span>
+                </Button>
+                <Button
+                  variant="danger"
+                  aria-label="Delete rows"
+                  className="max-sm:size-9 max-sm:min-w-9 max-sm:px-0"
+                  isDisabled={!writable || saving}
+                  onPress={() => openBulk("delete")}
+                >
+                  <Trash2 />
+                  <span className="max-sm:hidden">Delete rows</span>
+                </Button>
+              </div>
+            </>
+          ) : undefined
+        }
       />
-      {canEdit && selectedRecords.size > 0 && (
-        <div
-          role="toolbar"
-          aria-label="Selected record actions"
-          className="flex min-w-0 flex-wrap items-center gap-2 border-b border-separator px-4 py-3 sm:px-6"
-        >
-          <span className="mr-auto text-sm tabular-nums">
-            {selectedRecords.size.toLocaleString(preferences.locale)} selected
-          </span>
-          <Button
-            variant="secondary"
-            isDisabled={!writable || saving}
-            onPress={() => openBulk("set")}
-          >
-            Set value
-          </Button>
-          <Button
-            variant="secondary"
-            isDisabled={!writable || saving}
-            onPress={() => openBulk("duplicate")}
-          >
-            Duplicate
-          </Button>
-          <Button
-            variant="danger"
-            isDisabled={!writable || saving}
-            onPress={() => openBulk("delete")}
-          >
-            Delete
-          </Button>
-          <Button
-            variant="secondary"
-            isDisabled={saving}
-            onPress={() => setSelectedRecords(new Map())}
-          >
-            Clear selection
-          </Button>
-        </div>
-      )}
       {bulkAction && (
         <BulkRows
           target={{ orgId, databaseId, tableId: table.id }}
-          tableName={table.name}
           selected={bulkAction.records}
           action={bulkAction.action}
           preferences={preferences}
@@ -2001,7 +2273,10 @@ export function Spreadsheet({
                 bulkAction.records.map((record) => record.rowId),
               );
             setBulkAction(null);
-            recordsChanged(result.action === "duplicate");
+            void recordsChanged(
+              result.action === "duplicate",
+              result.createdIds,
+            );
           }}
           onSelectionReload={(records) =>
             setSelectedRecords(
@@ -2045,14 +2320,22 @@ export function Spreadsheet({
         className="table-floating-actions"
         role="toolbar"
         aria-label="Table actions"
+        data-hidden={hasSelectedRecords || undefined}
+        aria-hidden={hasSelectedRecords}
+        inert={hasSelectedRecords}
       >
-        <Dropdown>
+        <Dropdown
+          isOpen={tableActionsOpen && !hasSelectedRecords}
+          onOpenChange={setTableActionsOpen}
+        >
           <Button
             isIconOnly
             size="lg"
             variant="secondary"
             aria-label="More table actions"
-            isDisabled={saving || accessRevoked || !allFields.length}
+            isDisabled={
+              hasSelectedRecords || saving || accessRevoked || !allFields.length
+            }
           >
             <MoreHorizontal size={20} />
           </Button>
@@ -2111,6 +2394,7 @@ export function Spreadsheet({
           conditions={filterConditions}
           combination={filterCombination}
           isDisabled={
+            hasSelectedRecords ||
             !allFields.length ||
             !viewReady ||
             Boolean(unavailableView) ||
@@ -2122,7 +2406,9 @@ export function Spreadsheet({
         {canEdit && (
           <Button
             size="lg"
-            isDisabled={!writable || !allFields.length || saving}
+            isDisabled={
+              hasSelectedRecords || !writable || !allFields.length || saving
+            }
             onPress={() => void leaveEditor(() => setRecordEditor({}))}
           >
             <Plus size={20} />
@@ -2226,10 +2512,12 @@ export function Spreadsheet({
                 variant="secondary"
                 onPress={() => void namedView.refetch()}
               >
+                <RefreshCw />
                 Retry
               </Button>
             )}
             <Button onPress={() => navigateView(null)}>
+              <View />
               Open default view
             </Button>
           </div>
@@ -2247,12 +2535,14 @@ export function Spreadsheet({
               void loadWindow();
             }}
           >
+            <RefreshCw />
             Check access again
           </Button>
         </div>
       ) : schema.isPending || !viewReady ? (
-        <div className="grid-skeleton" role="status"></div>
-      ) : queryProblem || linkedFilterError ? (
+        <SpreadsheetLoading />
+      ) : schema.isError && !schema.data ? null : queryProblem ||
+        linkedFilterError ? (
         <div className="empty-state" role="alert">
           <h2>Review the view’s filters or sorting</h2>
           <p>{queryProblem ?? linkedFilterError}</p>
@@ -2271,15 +2561,23 @@ export function Spreadsheet({
               : "An admin can define this table’s fields before you enter data."}
           </p>
           {canManage && (
-            <Button onPress={() => onSettings("fields")}>Add a field</Button>
+            <Button onPress={() => onSettings("fields")}>
+              <Plus />
+              Add a field
+            </Button>
           )}
         </div>
+      ) : !windowInfo ? (
+        error ? null : (
+          <SpreadsheetLoading />
+        )
       ) : (
         <>
           <div className="sr-only" id="grid-instructions">
             Double-click a cell to edit. Right-click for cell actions. Arrow
             keys navigate; Enter or F2 edits; Tab moves across columns; Escape
-            cancels. Hold Shift to select a rectangle. Times are UTC. Date-times
+            cancels. Right-click a column title or press Shift-F10 for column
+            actions. Hold Shift to select a rectangle. Times are UTC. Date-times
             display in {preferences.timezone}. Command-Z or Control-Z undoes the
             last saved cell change. Undo is available during this table session.
             {copying && (
@@ -2289,7 +2587,24 @@ export function Spreadsheet({
           <div
             className="grid-container"
             aria-busy={loading}
-            ref={gridContainer}
+            ref={setGridContainer}
+            onContextMenu={(event) => {
+              if (hasSelectedRecords || openColumnMenu(event.target))
+                event.preventDefault();
+            }}
+            onKeyDownCapture={(event) => {
+              if (
+                (event.key === "ContextMenu" ||
+                  (event.shiftKey && event.key === "F10")) &&
+                ((hasSelectedRecords &&
+                  event.target instanceof Element &&
+                  event.target.closest('[role="columnheader"]')) ||
+                  openColumnMenu(event.target))
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
             onPointerDownCapture={(event) => {
               const target = event.target;
               if (
@@ -2344,6 +2659,9 @@ export function Spreadsheet({
             <DataGrid
               ref={gridRef}
               columns={gridColumns}
+              columnWidths={fittedColumnWidths}
+              // Resizing saves preferences below; viewport sizing supplies the displayed widths.
+              onColumnWidthsChange={() => {}}
               rows={gridRows}
               rowKeyGetter={(row) => row.id}
               rowClass={(row) =>
@@ -2362,30 +2680,7 @@ export function Spreadsheet({
                 columnKey: sort.field,
                 direction: sort.direction === "asc" ? "ASC" : "DESC",
               }))}
-              onSortColumnsChange={(columns) => {
-                if (columns.length > limits.querySorts) {
-                  toast.danger(`Sort by at most ${limits.querySorts} columns.`);
-                  return;
-                }
-                void leaveEditor(() => {
-                  setSelection(null);
-                  setQuery((current) => ({
-                    limit: windowLimit,
-                    ...(current.where ? { where: current.where } : {}),
-                    ...(columns.length
-                      ? {
-                          orderBy: columns.map((sort) => ({
-                            field: sort.columnKey,
-                            direction:
-                              sort.direction === "ASC"
-                                ? ("asc" as const)
-                                : ("desc" as const),
-                          })),
-                        }
-                      : {}),
-                  }));
-                });
-              }}
+              onSortColumnsChange={applySortColumns}
               defaultColumnOptions={{
                 resizable:
                   (savedViewId ? viewReady : view.isSuccess) && !accessRevoked,
@@ -2447,19 +2742,13 @@ export function Spreadsheet({
                 event.preventGridDefault();
                 if (isPlaceholderRow(row)) return;
                 const anchor = event.currentTarget;
+                if (hasSelectedRecords) {
+                  openRecordContextMenu(row, column.key, anchor);
+                  return;
+                }
                 leaveEditor(() => {
                   focusCell(rowIdx, column.idx - systemColumns);
-                  contextAnchor.current = anchor;
-                  setContextMenu(
-                    column.key === "__row_number"
-                      ? { row }
-                      : {
-                          row,
-                          field: fields.find(
-                            (field) => field.id === column.key,
-                          ),
-                        },
-                  );
+                  openRecordContextMenu(row, column.key, anchor);
                 });
               }}
               onActivePositionChange={({ rowIdx, column, row }) => {
@@ -2526,85 +2815,261 @@ export function Spreadsheet({
       <div className="sr-only" role="status" aria-live="polite">
         {announcement}
       </div>
-      {contextMenu && (
+      {contextMenu &&
+        (contextMenu.selectedRows
+          ? hasSelectedRecords
+          : !hasSelectedRecords) && (
+          <Dropdown
+            isOpen
+            onOpenChange={(open) => {
+              if (!open) setContextMenu(null);
+            }}
+          >
+            <Dropdown.Popover
+              triggerRef={contextAnchor}
+              placement="bottom start"
+            >
+              <Dropdown.Menu
+                aria-label={
+                  contextMenu.selectedRows
+                    ? "Selected row actions"
+                    : contextMenu.field
+                      ? "Cell actions"
+                      : "Row actions"
+                }
+                autoFocus="first"
+                onAction={(key) => {
+                  const current = contextMenu;
+                  setContextMenu(null);
+                  if (current.selectedRows) {
+                    if (
+                      key === "set" ||
+                      key === "duplicate" ||
+                      key === "delete"
+                    )
+                      openBulk(key);
+                    return;
+                  }
+                  if (hasSelectedRecords) return;
+                  if (key === "open" && current.row)
+                    void leaveEditor(() =>
+                      setRecordEditor({ rowId: current.row!.id }),
+                    );
+                  else if (key === "comments" && current.row)
+                    setDiscussion({
+                      rowId: current.row.id,
+                      rowNumber:
+                        windowStart +
+                        rows.findIndex((row) => row.id === current.row!.id) +
+                        1,
+                      isOpen: true,
+                    });
+                  else if (
+                    key === "duplicate" &&
+                    current.row &&
+                    writable &&
+                    !saving
+                  )
+                    setBulkAction({
+                      action: "duplicate",
+                      records: [
+                        {
+                          rowId: current.row.id,
+                          expectedVersion: current.row.version,
+                        },
+                      ],
+                    });
+                  else if (
+                    key === "null" &&
+                    current.row &&
+                    current.field &&
+                    !current.field.required &&
+                    writable
+                  )
+                    void setCellNull(current.row, current.field);
+                  else if (key === "history" && current.row && current.field)
+                    setHistory({ row: current.row, field: current.field });
+                  else if (key === "delete" && current.row)
+                    void deleteRow(current.row);
+                }}
+              >
+                {contextMenu.selectedRows ? (
+                  <>
+                    <Dropdown.Item
+                      id="set"
+                      textValue="Set value"
+                      isDisabled={!writable || saving}
+                    >
+                      <Pencil className="shrink-0 text-muted" />
+                      Set value
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      id="duplicate"
+                      textValue="Duplicate rows"
+                      isDisabled={!writable || saving}
+                    >
+                      <Copy className="shrink-0 text-muted" />
+                      Duplicate rows
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      id="delete"
+                      textValue="Delete rows"
+                      variant="danger"
+                      isDisabled={!writable || saving}
+                    >
+                      <Trash2 className="shrink-0 text-danger" />
+                      <span className="text-danger">Delete rows</span>
+                    </Dropdown.Item>
+                  </>
+                ) : (
+                  <>
+                    <Dropdown.Item
+                      id="open"
+                      textValue="Open record"
+                      isDisabled={!contextMenu.row || saving}
+                    >
+                      <View className="shrink-0 text-muted" />
+                      Open record
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      id="comments"
+                      textValue="Open comments"
+                      isDisabled={
+                        !contextMenu.row ||
+                        saving ||
+                        accessRevoked ||
+                        staleResults
+                      }
+                    >
+                      <MessageSquare className="shrink-0 text-muted" />
+                      Open comments
+                    </Dropdown.Item>
+                    {canEdit && (
+                      <Dropdown.Item
+                        id="duplicate"
+                        textValue="Duplicate row"
+                        isDisabled={!contextMenu.row || !writable || saving}
+                      >
+                        <Copy className="shrink-0 text-muted" />
+                        Duplicate row
+                      </Dropdown.Item>
+                    )}
+                    {contextMenu.field ? (
+                      <>
+                        <Dropdown.Item
+                          id="null"
+                          textValue="Set to NULL"
+                          isDisabled={
+                            !writable || saving || contextMenu.field.required
+                          }
+                        >
+                          <Eraser className="shrink-0 text-muted" />
+                          Set to NULL
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                          id="history"
+                          textValue="View cell history"
+                        >
+                          <History className="shrink-0 text-muted" />
+                          View cell history
+                        </Dropdown.Item>
+                        {writable && (
+                          <Dropdown.Item
+                            id="delete"
+                            textValue="Delete row"
+                            variant="danger"
+                            isDisabled={saving}
+                          >
+                            <Trash2 className="shrink-0 text-danger" />
+                            <span className="text-danger">Delete row</span>
+                          </Dropdown.Item>
+                        )}
+                      </>
+                    ) : (
+                      <Dropdown.Item
+                        id="delete"
+                        textValue="Delete row"
+                        variant="danger"
+                        isDisabled={!writable || saving}
+                      >
+                        <Trash2 className="shrink-0 text-danger" />
+                        <span className="text-danger">Delete row</span>
+                      </Dropdown.Item>
+                    )}
+                  </>
+                )}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        )}
+      {columnMenu && (
         <Dropdown
           isOpen
           onOpenChange={(open) => {
-            if (!open) setContextMenu(null);
+            if (!open) setColumnMenu(null);
           }}
         >
-          <Dropdown.Popover triggerRef={contextAnchor} placement="bottom start">
+          <Dropdown.Popover triggerRef={columnAnchor} placement="bottom start">
             <Dropdown.Menu
-              aria-label={contextMenu.field ? "Cell actions" : "Row actions"}
+              aria-label={`${columnMenu.name} column actions`}
               autoFocus="first"
               onAction={(key) => {
-                const current = contextMenu;
-                setContextMenu(null);
-                if (key === "open" && current.row)
+                const field = columnMenu;
+                setColumnMenu(null);
+                if (key === "hide")
                   void leaveEditor(() =>
-                    setRecordEditor({ rowId: current.row!.id }),
+                    updateLayout({
+                      ...layout,
+                      hiddenColumns: [...layout.hiddenColumns, field.id],
+                    }),
                   );
-                else if (
-                  key === "null" &&
-                  current.row &&
-                  current.field &&
-                  !current.field.required &&
-                  writable
-                )
-                  void setCellNull(current.row, current.field);
-                else if (key === "history" && current.row && current.field)
-                  setHistory({ row: current.row, field: current.field });
-                else if (key === "delete" && current.row)
-                  void deleteRow(current.row);
+                else if (key === "sort") {
+                  const orderBy = query.orderBy ?? [];
+                  const isField = (sort: (typeof orderBy)[number]) =>
+                    sort.field === field.id || sort.field === field.name;
+                  const next = { field: field.id, direction: "asc" as const };
+                  const sorts = !columnSort
+                    ? [...orderBy, next]
+                    : columnSort.direction === "asc"
+                      ? orderBy.map((sort) =>
+                          isField(sort)
+                            ? { ...sort, direction: "desc" as const }
+                            : sort,
+                        )
+                      : orderBy.filter((sort) => !isField(sort));
+                  applySortColumns(
+                    sorts.map((sort) => ({
+                      columnKey: sort.field,
+                      direction: sort.direction === "asc" ? "ASC" : "DESC",
+                    })),
+                  );
+                }
               }}
             >
               <Dropdown.Item
-                id="open"
-                textValue="Open record"
-                isDisabled={!contextMenu.row || saving}
+                id="hide"
+                textValue="Hide column"
+                isDisabled={saving || accessRevoked}
               >
-                <View className="shrink-0 text-muted" />
-                Open record
+                <Hide className="shrink-0 text-muted" />
+                Hide column
               </Dropdown.Item>
-              {contextMenu.field ? (
-                <>
-                  <Dropdown.Item
-                    id="null"
-                    textValue="Set to NULL"
-                    isDisabled={
-                      !writable || saving || contextMenu.field.required
-                    }
-                  >
-                    <Eraser className="shrink-0 text-muted" />
-                    Set to NULL
-                  </Dropdown.Item>
-                  <Dropdown.Item id="history" textValue="View cell history">
-                    <History className="shrink-0 text-muted" />
-                    View cell history
-                  </Dropdown.Item>
-                  {writable && (
-                    <Dropdown.Item
-                      id="delete"
-                      textValue="Delete row"
-                      variant="danger"
-                      isDisabled={saving}
-                    >
-                      <Trash2 className="shrink-0 text-danger" />
-                      <span className="text-danger">Delete row</span>
-                    </Dropdown.Item>
-                  )}
-                </>
-              ) : (
-                <Dropdown.Item
-                  id="delete"
-                  textValue="Delete row"
-                  variant="danger"
-                  isDisabled={!writable || saving}
-                >
-                  <Trash2 className="shrink-0 text-danger" />
-                  <span className="text-danger">Delete row</span>
-                </Dropdown.Item>
-              )}
+              <Dropdown.Item
+                id="sort"
+                textValue={columnSortLabel}
+                isDisabled={
+                  columnMenu.type === "json" || saving || accessRevoked
+                }
+              >
+                {columnSort?.direction === "asc" ? (
+                  <SortDescending className="shrink-0 text-muted" />
+                ) : columnSort?.direction === "desc" ? (
+                  <Eraser className="shrink-0 text-muted" />
+                ) : (
+                  <SortAscending className="shrink-0 text-muted" />
+                )}
+                {columnSortLabel}
+              </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
@@ -2661,6 +3126,7 @@ export function Spreadsheet({
             isDisabled={saving || pastePreview.errors.length > 0}
             onPress={() => void confirmPaste()}
           >
+            <Check />
             {saving ? "Committing…" : "Commit paste"}
           </Button>
         </Dialog>

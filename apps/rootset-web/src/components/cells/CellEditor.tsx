@@ -18,6 +18,7 @@ import {
   type CellDraft,
 } from "./drafts";
 import { CellInput } from "./CellInput";
+import { Code, Save } from "../ui/icons";
 
 export interface CellEditorProps {
   field: FieldDefinition;
@@ -140,6 +141,16 @@ export function CellEditor({
       }}
       onBlur={(event) => {
         const next = event.relatedTarget;
+        if (field.type === "json" && !next) {
+          requestAnimationFrame(() => {
+            if (
+              formRef.current &&
+              !formRef.current.contains(document.activeElement)
+            )
+              void submit();
+          });
+          return;
+        }
         if (
           next instanceof Element &&
           next.closest(
@@ -148,6 +159,21 @@ export function CellEditor({
         )
           return;
         void submit();
+      }}
+      onKeyDownCapture={(event) => {
+        if (field.type !== "json" || event.nativeEvent.isComposing) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!busy) {
+            cancelled.current = true;
+            onCancel();
+          }
+        } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          event.stopPropagation();
+          void submit();
+        }
       }}
       onKeyDown={(event) => {
         event.stopPropagation();
@@ -182,7 +208,11 @@ export function CellEditor({
           !event.ctrlKey &&
           !event.metaKey &&
           !(event.target instanceof HTMLButtonElement) &&
-          !(expanded && event.target instanceof HTMLTextAreaElement)
+          !(
+            expanded &&
+            (field.type === "json" ||
+              event.target instanceof HTMLTextAreaElement)
+          )
         ) {
           event.preventDefault();
           void submit();
@@ -219,6 +249,7 @@ export function CellEditor({
                 }
               }}
             >
+              <Code />
               Format
             </Button>
           )}
@@ -234,6 +265,7 @@ export function CellEditor({
             Cancel
           </Button>
           <Button size="sm" type="submit" isDisabled={busy}>
+            <Save />
             {busy ? "Saving…" : "Save"}
           </Button>
         </div>

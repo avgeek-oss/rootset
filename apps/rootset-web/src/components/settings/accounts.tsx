@@ -1,9 +1,9 @@
 "use client";
 
+import { usePageQuery } from "../page-navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   InviteMemberDialog,
   MembersTable,
@@ -27,6 +27,7 @@ import { organisationPath, useResource, write } from "./api";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { RelativeTime } from "./account/last-synced-time";
 import type { Organisation, SettingsPanelProps } from "./types";
+import { Pencil, Trash2, ChevronLeft, ChevronRight } from "../ui/icons";
 
 const client = new RootsetClient();
 type Member = z.infer<typeof MemberSchema>;
@@ -67,7 +68,7 @@ export function MembersSettings(props: SettingsPanelProps) {
   ]);
   const memberCursor = memberCursors.at(-1);
   const inviteCursor = inviteCursors.at(-1);
-  const members = useQuery({
+  const members = usePageQuery({
     queryKey: ["team-members", props.orgId, memberCursor],
     queryFn: ({ signal }) =>
       client.operation<Page<Member>>(
@@ -80,7 +81,7 @@ export function MembersSettings(props: SettingsPanelProps) {
         { signal },
       ),
   });
-  const invitations = useQuery({
+  const invitations = usePageQuery({
     queryKey: ["team-invitations", props.orgId, inviteCursor],
     queryFn: ({ signal }) =>
       client.operation<Page<Invitation>>(
@@ -187,6 +188,7 @@ export function MembersSettings(props: SettingsPanelProps) {
               isDisabled={busy}
               onPress={() => setEditing(member)}
             >
+              <Pencil />
               Edit
             </Button>
             <Button
@@ -194,6 +196,7 @@ export function MembersSettings(props: SettingsPanelProps) {
               isDisabled={busy}
               onPress={() => setRemoving(member)}
             >
+              <Trash2 />
               Remove
             </Button>
           </>
@@ -231,6 +234,7 @@ export function MembersSettings(props: SettingsPanelProps) {
                   isDisabled={busy}
                   onPress={() => setRevoking(invitation)}
                 >
+                  <Trash2 />
                   Revoke
                 </Button>
               )}
@@ -346,6 +350,7 @@ function PageButtons({
         isDisabled={disabled || cursors.length === 1}
         onPress={() => setCursors(cursors.slice(0, -1))}
       >
+        <ChevronLeft />
         Previous
       </Button>
       <Button
@@ -356,6 +361,7 @@ function PageButtons({
         }}
       >
         Next
+        <ChevronRight />
       </Button>
     </nav>
   );

@@ -1,26 +1,26 @@
 "use client";
 
+import { usePageQuery } from "./page-navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { Input, Label, TextField } from "@heroui/react";
 import {
   ApplicationPage,
   AppShell,
-  QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
-import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  ArrowUpRight01Icon,
-  RefreshIcon,
+  Calendar01Icon,
+  Calendar03Icon,
+  Calendar04Icon,
+  Clock01Icon,
   Search01Icon,
   TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
 import { client } from "@rootset/web-client";
+import { activityEventCatalog } from "@rootset/contracts";
 import type {
   ActivityCategory,
   ActivityEvent,
@@ -30,11 +30,13 @@ import {
   RelativeTime,
   RelativeTimeProvider,
 } from "./settings/account/last-synced-time";
-import { PageSelectionTitle } from "./settings/account/page-selection-title";
 import { Choice } from "./settings/ui";
+import { AuditLogFilter, type AuditFilterValue } from "./audit-log-filter";
+import { AuditActorIcon } from "./audit-actor-icon";
+import { AuditEventIcon } from "./audit-event-icon";
+import { AuditLogError } from "./audit-log-error";
 import { dataHref, settingsHref } from "./settings/navigation";
-import type { SettingsPanelProps } from "./settings/types";
-import { statusColor, statusLabel } from "./settings/status";
+import { ChevronLeft, ChevronRight } from "./ui/icons";
 
 const categoryLabels: Record<ActivityCategory, string> = {
   records: "Records",
@@ -44,6 +46,12 @@ const categoryLabels: Record<ActivityCategory, string> = {
   backups: "Backups",
   restores: "Restores",
 };
+const timeOptions = [
+  { value: "all", label: "Any time", icon: Clock01Icon },
+  { value: "1", label: "Past 24 hours", icon: Calendar01Icon },
+  { value: "7", label: "Past 7 days", icon: Calendar03Icon },
+  { value: "30", label: "Past 30 days", icon: Calendar04Icon },
+];
 export function activityHref(event: ActivityEvent): string | null {
   if (
     !event.destination ||
@@ -64,26 +72,21 @@ export function activityHref(event: ActivityEvent): string | null {
     case "imports":
     case "exports":
       return event.table ? settingsHref(event.destination, context) : null;
+    case "backup-history":
+      return settingsHref(
+        event.category === "restores" ? "restore-requests" : "backup-history",
+        context,
+      );
     default:
       return settingsHref(event.destination, context);
   }
 }
 
-export function ActivitySettings(props: SettingsPanelProps) {
-  return (
-    <ActivityContents
-      orgId={props.orgId}
-      databaseId={props.databaseId}
-      tableId={props.section === "table-activity" ? props.tableId : undefined}
-      embedded
-    />
-  );
-}
-export function ActivityPage({ orgId }: { orgId: string }) {
+export function AuditLogsPage({ orgId }: { orgId: string }) {
   return (
     <AppShell.Content variant="broad" className="pt-0 sm:pt-0">
       <ApplicationPage
-        title="Activity"
+        title="Audit Logs"
         breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}
         titleContent={
           <span className="inline-flex items-center gap-2">
@@ -93,32 +96,22 @@ export function ActivityPage({ orgId }: { orgId: string }) {
               className="shrink-0"
               aria-hidden
             />
-            Activity
+            Audit Logs
           </span>
         }
       >
         <RelativeTimeProvider>
-          <ActivityContents orgId={orgId} />
+          <AuditLogsContents orgId={orgId} />
         </RelativeTimeProvider>
       </ApplicationPage>
     </AppShell.Content>
   );
 }
 
-function ActivityContents({
-  orgId,
-  databaseId,
-  tableId,
-  embedded = false,
-}: {
-  orgId: string;
-  databaseId?: string;
-  tableId?: string;
-  embedded?: boolean;
-}) {
-  const [draft, setDraft] = useState("");
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+function AuditLogsContents({ orgId }: { orgId: string }) {
+  const [event, setEvent] = useState<AuditFilterValue | null>(null);
+  const [actor, setActor] = useState<AuditFilterValue | null>(null);
+  const [resource, setResource] = useState<AuditFilterValue | null>(null);
   const [window, setWindow] = useState("all");
   const [revision, setRevision] = useState(0);
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
@@ -132,15 +125,14 @@ function ActivityContents({
   );
   const input = {
     orgId,
-    ...(databaseId ? { databaseId } : {}),
-    ...(tableId ? { tableId } : {}),
-    ...(search ? { q: search } : {}),
-    ...(category === "all" ? {} : { category }),
+    ...(event ? { event: event.value } : {}),
+    ...(actor ? { actor: actor.value } : {}),
+    ...(resource ? { resource: resource.value } : {}),
     ...(from ? { from } : {}),
     limit: 25,
     cursor: cursors[page],
   };
-  const activity = useQuery({
+  const activity = usePageQuery({
     queryKey: ["activity", input, revision],
     queryFn: ({ signal }) =>
       client.operation<ActivityResult>("listActivity", input, { signal }),
@@ -153,109 +145,108 @@ function ActivityContents({
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSearch(draft.trim());
     reset();
     setRevision((value) => value + 1);
   }
-  function refresh() {
-    reset();
-    setRevision((value) => value + 1);
-  }
-  const categories = activity.data?.availableCategories ?? [];
+  const categories = activity.data?.availableCategories;
+  const filtered = event || actor || resource || window !== "all";
   const data = activity.data?.data ?? [];
   return (
     <div className="grid min-w-0 gap-5">
-      {embedded && <PageSelectionTitle label="Activity" />}
-      <p className="text-sm text-muted">
-        Record changes, schema changes and background requests you can access.
-        Search by activity, person, resource or import file.
-      </p>
       <form
         onSubmit={submit}
         role="search"
-        aria-label="Activity search"
-        className="flex min-w-0 flex-wrap items-end gap-3"
+        aria-label="Audit log search"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
       >
-        <TextField
-          className="min-w-0 flex-1 basis-60"
-          value={draft}
-          onChange={setDraft}
-        >
-          <Label>Search activity</Label>
-          <Input
-            variant={embedded ? "secondary" : "primary"}
-            className="text-base"
-            maxLength={200}
-            placeholder="Activity, person or resource"
-          />
-        </TextField>
-        <Button type="submit" variant="secondary">
-          <HugeiconsIcon icon={Search01Icon} size={16} aria-hidden />
-          Search
-        </Button>
-        <div className="min-w-40 flex-1 basis-40">
-          <Choice
-            label="Type"
-            value={category}
+        <div className="col-start-1 min-w-0 lg:col-start-auto">
+          <AuditLogFilter
+            orgId={orgId}
+            kind="events"
+            value={event}
+            categories={categories}
             onChange={(value) => {
-              setCategory(value);
+              setEvent(value);
               reset();
             }}
-            options={[
-              { value: "all", label: "All activity" },
-              ...categories.map((value) => ({
-                value,
-                label: categoryLabels[value],
-              })),
-            ]}
           />
         </div>
-        <div className="min-w-40 flex-1 basis-40">
+        <div className="col-start-1 min-w-0 lg:col-start-auto">
+          <AuditLogFilter
+            orgId={orgId}
+            kind="resources"
+            value={resource}
+            onChange={(value) => {
+              setResource(value);
+              reset();
+            }}
+          />
+        </div>
+        <div className="col-start-1 min-w-0 lg:col-start-auto">
+          <AuditLogFilter
+            orgId={orgId}
+            kind="actors"
+            value={actor}
+            onChange={(value) => {
+              setActor(value);
+              reset();
+            }}
+          />
+        </div>
+        <div className="col-start-1 min-w-0 lg:col-start-auto">
           <Choice
             label="When"
+            hideLabel
             value={window}
             onChange={(value) => {
               setWindow(value);
               reset();
             }}
-            options={[
-              { value: "all", label: "Any time" },
-              { value: "1", label: "Past 24 hours" },
-              { value: "7", label: "Past 7 days" },
-              { value: "30", label: "Past 30 days" },
-            ]}
+            options={timeOptions.map(({ value, label, icon }) => ({
+              value,
+              label,
+              icon: (
+                <HugeiconsIcon
+                  icon={icon}
+                  size={16}
+                  className="shrink-0"
+                  aria-hidden
+                />
+              ),
+            }))}
           />
         </div>
         <Button
-          variant="secondary"
-          onPress={refresh}
+          type="submit"
+          variant="primary"
+          className="col-start-2 row-start-4 size-9 shrink-0 rounded-field lg:col-start-auto lg:row-start-auto"
+          isIconOnly
+          aria-label="Search audit logs"
           isDisabled={activity.isFetching}
         >
-          <HugeiconsIcon icon={RefreshIcon} size={16} aria-hidden />
-          Refresh
+          <HugeiconsIcon icon={Search01Icon} size={16} aria-hidden />
         </Button>
       </form>
       {activity.isError ? (
-        <QueryError
-          message={activity.error.message}
+        <AuditLogError
+          error={activity.error}
+          message="Audit logs could not be loaded."
           onRetry={() => void activity.refetch()}
         />
-      ) : activity.isFetching ? (
+      ) : activity.isPending ? (
         <QueryLoading />
       ) : (
         <>
           <ResourceTable
-            ariaLabel="Activity"
+            ariaLabel="Audit logs"
             items={data}
             getRowKey={(event) => event.id}
             tableClassName="min-w-4xl"
             emptyTitle={
-              search || category !== "all" || window !== "all"
-                ? "No matching activity"
-                : "No activity yet"
+              filtered ? "No matching audit logs" : "No audit logs yet"
             }
             emptyDescription={
-              search || category !== "all" || window !== "all"
+              filtered
                 ? "Try a different search or filter."
                 : "Changes and background requests will appear here."
             }
@@ -269,47 +260,30 @@ function ActivityContents({
               },
               {
                 key: "activity",
-                header: "Activity",
+                header: "Event",
                 cell: (event) => (
-                  <div className="grid gap-1">
-                    <span>{event.summary}</span>
-                    <span className="text-xs text-muted">
-                      {event.affectedRows !== null
-                        ? `${event.affectedRows.toLocaleString()} ${event.affectedRows === 1 ? "record" : "records"}`
-                        : categoryLabels[event.category]}
+                  <div className="flex min-w-48 items-start gap-2">
+                    <span className="mt-0.5">
+                      <AuditEventIcon
+                        icon={activityEventCatalog[event.event]!.icon}
+                      />
                     </span>
-                    {event.fileName && (
-                      <span className="max-w-64 break-words text-xs text-muted">
-                        {event.fileName}
+                    <div className="grid gap-1">
+                      <span>{event.summary}</span>
+                      <span className="text-xs text-muted">
+                        {event.affectedRows !== null
+                          ? `${event.affectedRows.toLocaleString()} ${event.affectedRows === 1 ? "record" : "records"}`
+                          : categoryLabels[event.category]}
                       </span>
-                    )}
+                      {event.fileName && (
+                        <span className="max-w-64 break-words text-xs text-muted">
+                          {event.fileName}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ),
               },
-              {
-                key: "status",
-                header: "Status",
-                cell: (event) => (
-                  <Chip
-                    color={
-                      event.status === "resolved"
-                        ? "success"
-                        : event.status === "requested"
-                          ? "default"
-                          : statusColor(event.status)
-                    }
-                  >
-                    <Chip.Label>
-                      {event.status === "requested"
-                        ? "Requested"
-                        : event.status === "resolved"
-                          ? "Resolved"
-                          : statusLabel(event.status)}
-                    </Chip.Label>
-                  </Chip>
-                ),
-              },
-              { key: "actor", header: "By", cell: (event) => event.actor.name },
               {
                 key: "resource",
                 header: "Resource",
@@ -319,28 +293,27 @@ function ActivityContents({
                     event.table?.name ??
                     event.database?.name ??
                     "Unavailable resource";
+                  const resourceType = event.table
+                    ? "Table"
+                    : event.database
+                      ? "Database"
+                      : null;
                   return (
                     <div className="grid gap-1">
                       {href ? (
                         <Link
                           href={href}
-                          className="inline-flex w-fit items-center gap-1 text-accent underline-offset-4 hover:underline"
+                          className="w-fit text-accent underline-offset-4 hover:underline"
                           aria-label={`Open ${label}${event.rowId ? " record" : ""}`}
                         >
-                          <span>{label}</span>
-                          <HugeiconsIcon
-                            icon={ArrowUpRight01Icon}
-                            size={16}
-                            className="shrink-0"
-                            aria-hidden
-                          />
+                          {label}
                         </Link>
                       ) : (
                         <span>{label}</span>
                       )}
-                      {event.table && event.database && (
+                      {resourceType && (
                         <span className="text-xs text-muted">
-                          {event.database.name}
+                          {resourceType}
                         </span>
                       )}
                       {(event.database?.state === "deleted" ||
@@ -356,6 +329,22 @@ function ActivityContents({
                   );
                 },
               },
+              {
+                key: "actor",
+                header: "Actor",
+                cell: (event) => (
+                  <div className="flex min-w-40 items-center gap-2">
+                    <AuditActorIcon
+                      kind={event.actor.kind}
+                      name={event.actor.name}
+                      avatarUrl={event.actor.avatarUrl}
+                    />
+                    <span className="min-w-0 break-words">
+                      {event.actor.name}
+                    </span>
+                  </div>
+                ),
+              },
             ]}
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -369,6 +358,7 @@ function ActivityContents({
                 isDisabled={page === 0}
                 onPress={() => setPage((value) => value - 1)}
               >
+                <ChevronLeft />
                 Previous
               </Button>
               <Button
@@ -387,6 +377,7 @@ function ActivityContents({
                 }}
               >
                 Next
+                <ChevronRight />
               </Button>
             </div>
           </div>

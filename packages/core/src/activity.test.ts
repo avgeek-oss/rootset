@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import {
   ActivityPageSchema,
+  ActivityFilterOptionsSchema,
+  activityEventCatalog,
   newId,
   RootsetError,
   type Actor,
@@ -106,6 +109,20 @@ test(
         );
         return id;
       };
+      const filters = async (
+        kind: "actors" | "resources",
+        input: Record<string, unknown> = {},
+        actor = admin,
+        context = {},
+      ) =>
+        ActivityFilterOptionsSchema.parse(
+          await runtime.core.execute(
+            "listActivityFilterOptions",
+            actor,
+            { orgId, kind, ...input },
+            context,
+          ),
+        );
       const importId = await job("importRows"),
         otherJob = await job("exportRows", other),
         exportId = await job("exportView");
@@ -138,10 +155,22 @@ test(
           "INSERT INTO rootset_control.backup_policies(org_id,database_id) VALUES($1,$2)",
           [orgId, database.id],
         );
+        const failedBackupId = newId();
         await c.query(
-          "INSERT INTO rootset_control.backup_alerts(id,org_id,database_id,kind,occurrence_at) VALUES($1,$2,$3,'overdue',now()-interval '2 hours')",
-          [newId(), orgId, database.id],
+          "INSERT INTO rootset_control.database_backups(id,org_id,database_id,kind,trigger,scheduled_at,bucket,prefix,backend_id) VALUES($1,$2,$3,'backup','manual',now(),'backups','','test')",
+          [failedBackupId, orgId, database.id],
         );
+        for (const kind of ["overdue", "failed"])
+          await c.query(
+            "INSERT INTO rootset_control.backup_alerts(id,org_id,database_id,kind,backup_id,occurrence_at,resolved_at) VALUES($1,$2,$3,$4,$5,now()-interval '2 hours',now())",
+            [
+              newId(),
+              orgId,
+              database.id,
+              kind,
+              kind === "failed" ? failedBackupId : null,
+            ],
+          );
         for (const operation of [
           "database.backup_policy.update",
           "database.restore",
@@ -177,6 +206,18 @@ test(
           assert.equal(mutation[0]!.rowId, record.id);
           assert.equal(mutation[0]!.destination, "record");
           assert.equal(mutation[0]!.actor.name, "member author");
+          const avatarHash = createHash("sha256")
+            .update(`${member.userId!.toLowerCase()}@example.test`)
+            .digest("hex");
+          assert.equal(
+            mutation[0]!.actor.avatarUrl,
+            `https://www.gravatar.com/avatar/${avatarHash}?s=160&d=404&r=g`,
+          );
+          assert.equal(
+            page.data.find((event) => event.id.startsWith("a:"))!.actor
+              .avatarUrl,
+            null,
+          );
           assert.deepEqual(
             page.data
               .filter((event) => event.jobId === importId)
@@ -184,19 +225,48 @@ test(
               .sort(),
             ["failed", "requested", "requested", "succeeded"],
           );
+          assert.deepEqual(
+            page.data
+              .filter((event) => event.jobId === importId)
+              .map((event) => event.summary)
+              .sort(),
+            [
+              "Record import completed",
+              "Record import failed",
+              "Record import requested",
+              "Record import requested",
+            ],
+          );
+          assert.deepEqual(
+            page.data
+              .filter((event) => event.id.startsWith("a:"))
+              .map((event) => event.summary)
+              .sort(),
+            [
+              "Backup failure detected",
+              "Backup failure resolved",
+              "Backup overdue detected",
+              "Backup overdue resolved",
+            ],
+          );
           const publicJson = JSON.stringify(page);
+          for (const event of page.data) {
+            assert.equal(
+              activityEventCatalog[event.event]!.label,
+              event.summary,
+            );
+            assert.ok(activityEventCatalog[event.event]!.icon);
+          }
           assert.ok(
             !/hidden-|example.test|scopes|input_digest|operatorRepair|private-view/.test(
               publicJson,
             ),
           );
-          assert.equal(
-            page.data.find(
-              (event) =>
-                event.jobId === exportId && event.status === "cancelled",
-            )!.destination,
-            "exports",
-          );
+          const cancelled = page.data.find(
+            (event) => event.jobId === exportId && event.status === "cancelled",
+          )!;
+          assert.equal(cancelled.destination, "exports");
+          assert.equal(cancelled.summary, "View export cancelled");
         },
       );
       await t.test(
@@ -210,6 +280,20 @@ test(
           assert.ok(
             searched.data.every((event) => event.fileName === "aircraft.csv"),
           );
+          for (const summary of [
+            "Record import requested",
+            "Record import completed",
+            "Record import failed",
+            "View export cancelled",
+            "Backup overdue detected",
+            "Backup overdue resolved",
+            "Backup failure detected",
+            "Backup failure resolved",
+          ]) {
+            const matches = await list({ q: summary });
+            assert.ok(matches.data.length, summary);
+            assert.ok(matches.data.every((event) => event.summary === summary));
+          }
           assert.ok(
             (await list({ q: "member author", category: "records" })).data
               .length,
@@ -282,6 +366,233 @@ test(
           });
         },
       );
+      await t.test("partial completion is a searchable event", async () => {
+        const partialId = await job("importRows");
+        await withOrg(fixture.app, orgId, (c) =>
+          c.query(
+            "UPDATE rootset_control.jobs SET state='partially_completed',completed_at=now() WHERE id=$1",
+            [partialId],
+          ),
+        );
+        const page = await list({ q: "Record import partially completed" });
+        assert.equal(page.data.length, 1);
+        assert.equal(page.data[0]!.jobId, partialId);
+        assert.equal(page.data[0]!.status, "partially_completed");
+        assert.equal(
+          page.data[0]!.summary,
+          "Record import partially completed",
+        );
+      });
+      await t.test(
+        "exact event, actor and resource filters apply before pagination and combine",
+        async () => {
+          const input = {
+            event: "job.importRows.queued",
+            actor: `user:${member.userId}`,
+            resource: `table:${table.id}`,
+            limit: 1,
+          };
+          const first = await list(input);
+          assert.equal(first.data.length, 1);
+          assert.equal(first.hasMore, true);
+          const second = await list({ ...input, cursor: first.nextCursor });
+          assert.notEqual(first.data[0]!.id, second.data[0]!.id);
+          for (const event of [...first.data, ...second.data]) {
+            assert.equal(event.event, input.event);
+            assert.equal(event.actor.key, input.actor);
+            assert.equal(event.table?.id, table.id);
+          }
+          assert.equal(
+            (await list({ ...input, actor: `user:${admin.userId}` })).data
+              .length,
+            0,
+          );
+          const dbOnly = await list({ resource: `database:${database.id}` });
+          assert.ok(dbOnly.data.length);
+          assert.ok(
+            dbOnly.data.every(
+              (event) => !event.table && event.database?.id === database.id,
+            ),
+          );
+          const secondSession = newId();
+          await fixture.owner.query(
+            "INSERT INTO rootset_control.sessions(id,user_id,token,expires_at,authenticated_at) VALUES($1,$2,$3,now()+interval '1 day',now())",
+            [secondSession, member.userId, newId()],
+          );
+          await runtime.storage.createRow(
+            { ...member, id: secondSession },
+            table.id,
+            { NAME: "another session", COUNT: 2 },
+          );
+          const samePerson = await list({
+            actor: `user:${member.userId}`,
+            category: "records",
+          });
+          assert.equal(samePerson.data.length, 2);
+          assert.deepEqual(
+            new Set(samePerson.data.map((event) => event.actor.id)),
+            new Set([member.id, secondSession]),
+          );
+        },
+      );
+      await t.test(
+        "filter options cover retained history beyond the event page without disclosing inaccessible events",
+        async () => {
+          const actors = await filters("actors");
+          assert.ok(
+            actors.data.some(
+              (option) => option.value === `user:${other.userId}`,
+            ),
+          );
+          const memberActors = await filters("actors", {}, member);
+          assert.ok(
+            memberActors.data.some(
+              (option) => option.value === `user:${member.userId}`,
+            ),
+          );
+          assert.ok(
+            memberActors.data.every(
+              (option) =>
+                option.value !== `user:${other.userId}` &&
+                option.value !== "automation",
+            ),
+          );
+          const resources = await filters("resources");
+          const lastDatabase = await runtime.storage.createDatabase(admin, {
+            name: "Zulu database",
+          });
+          const databasesFirst = await filters("resources", { limit: 2 });
+          assert.equal(databasesFirst.data.length, 2);
+          assert.ok(
+            databasesFirst.data.every((option) => option.kind === "database"),
+          );
+          assert.equal(
+            databasesFirst.data[1]!.value,
+            `database:${lastDatabase.id}`,
+          );
+          assert.equal(databasesFirst.hasMore, true);
+          assert.ok(
+            resources.data.some(
+              (option) =>
+                option.value === `table:${table.id}` &&
+                option.kind === "table" &&
+                option.description === "Activity database",
+            ),
+          );
+          assert.ok(
+            resources.data.some(
+              (option) =>
+                option.value === `database:${database.id}` &&
+                option.kind === "database",
+            ),
+          );
+          assert.equal((await filters("actors", { limit: 1 })).hasMore, true);
+          const search = await filters("actors", {
+            q: "admin author",
+            limit: 1,
+          });
+          assert.equal(search.data[0]!.value, `user:${admin.userId}`);
+          assert.equal(search.hasMore, false);
+          assert.equal(
+            (await filters("resources", { q: "Aircraft" })).data[0]!.value,
+            `table:${table.id}`,
+          );
+          assert.ok(
+            (await filters("resources", { q: "Activity database" })).data.some(
+              (option) => option.value === `table:${table.id}`,
+            ),
+          );
+          assert.equal(
+            (await filters("actors", { q: "hidden-job-payload" })).data.length,
+            0,
+          );
+          assert.ok(!/example.test|hidden-/.test(JSON.stringify(actors)));
+          await assert.rejects(
+            filters("actors", {}, admin, { responseBudget: 10 }),
+            { code: "RESULT_TOO_LARGE" },
+          );
+          const abort = new AbortController();
+          abort.abort();
+          await assert.rejects(
+            filters("resources", {}, admin, { signal: abort.signal }),
+            { code: "REQUEST_TIMEOUT" },
+          );
+        },
+      );
+      await t.test(
+        "automation actors share one filter before users and retain their provenance without avatar URLs",
+        async () => {
+          const automationOwner = await person("member");
+          await fixture.owner.query(
+            "UPDATE rootset_control.users SET name='Zulu automation' WHERE id=$1",
+            [automationOwner.userId],
+          );
+          await withOrg(fixture.app, orgId, (c) =>
+            c.query(
+              "INSERT INTO rootset_control.resource_history(org_id,database_id,resource_id,operation,actor,context) VALUES($1,$2,$2,'database.backup.prune',$3,'{}')",
+              [
+                orgId,
+                database.id,
+                {
+                  kind: "operator",
+                  id: "backup-retention",
+                  userId: automationOwner.userId,
+                },
+              ],
+            ),
+          );
+          const first = await filters("actors", { limit: 1 });
+          assert.deepEqual(first.data, [
+            {
+              value: "automation",
+              label: "Automation",
+              kind: "actor",
+              avatarUrl: null,
+              description: "automation",
+            },
+          ]);
+          assert.equal(first.hasMore, true);
+          const automation = await filters("actors", { q: "Automation" });
+          assert.deepEqual(automation.data, first.data);
+          assert.equal(automation.hasMore, false);
+          const automated = await list({ actor: "automation" });
+          assert.deepEqual(
+            new Set(automated.data.map((event) => event.actor.kind)),
+            new Set(["operator", "system"]),
+          );
+          assert.ok(
+            automated.data.every(
+              (event) =>
+                event.actor.key === "automation" &&
+                event.actor.name === "Automation" &&
+                event.actor.avatarUrl === null,
+            ),
+          );
+          const automatedPage = await list({ actor: "automation", limit: 1 });
+          assert.equal(automatedPage.hasMore, true);
+          const nextAutomatedPage = await list({
+            actor: "automation",
+            limit: 1,
+            cursor: automatedPage.nextCursor,
+          });
+          assert.equal(nextAutomatedPage.data[0]!.actor.key, "automation");
+          assert.notEqual(
+            automatedPage.data[0]!.id,
+            nextAutomatedPage.data[0]!.id,
+          );
+          assert.equal(
+            (await list({ actor: `user:${automationOwner.userId}` })).data
+              .length,
+            0,
+          );
+          const events = await list({ event: "database.backup.prune" });
+          assert.equal(events.data.length, 1);
+          assert.equal(events.data[0]!.actor.name, "Automation");
+          assert.equal(events.data[0]!.actor.id, "backup-retention");
+          assert.equal(events.data[0]!.actor.kind, "operator");
+          assert.equal(events.data[0]!.actor.avatarUrl, null);
+        },
+      );
       await t.test(
         "microsecond ties, newer writes, cursor tamper and all principal/filter bindings",
         async () => {
@@ -316,6 +627,9 @@ test(
             { limit: 3 },
             { q: "Aircraft" },
             { category: "imports" },
+            { event: "job.importRows.queued" },
+            { actor: `user:${member.userId}` },
+            { resource: `table:${table.id}` },
             { tableId: table.id },
             { from: "2020-01-01T00:00:00.000Z" },
           ])
@@ -407,6 +721,11 @@ test(
             expectedSchemaVersion: table.schemaVersion,
           });
           const page = await list({ tableId: table.id });
+          assert.ok(
+            (await filters("resources")).data.some(
+              (option) => option.value === `table:${table.id}`,
+            ),
+          );
           assert.equal(page.scope.table?.state, "deleted");
           assert.ok(page.data.length);
           assert.ok(

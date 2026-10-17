@@ -49,6 +49,7 @@ import { ActionButton } from "./page-parts";
 import { RelativeTime } from "./last-synced-time";
 import { McpClientLogo } from "./mcp-client-logo";
 import { mcpClientConfigurations } from "./mcp-client-configurations";
+import { Check } from "../../ui/icons";
 
 type ApiKey = {
   id: string;
@@ -428,6 +429,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
                   setRevealed(null);
                 }}
               >
+                <Check />
                 Done
               </Button>
             </Modal.Body>

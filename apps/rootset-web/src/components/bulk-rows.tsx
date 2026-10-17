@@ -5,15 +5,11 @@ import { I18nProvider } from "react-aria-components";
 import { Label, ListBox, Select } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Drawer } from "@avgeek-oss/design-system/overlays/drawer";
-import {
-  ResourceTable,
-  type ResourceTableColumn,
-} from "@avgeek-oss/design-system/patterns/resource-table";
+import { Modal } from "@avgeek-oss/design-system/overlays/modal";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { ApiError, client } from "@rootset/web-client";
 import type {
   BulkRowsInput,
-  BulkRowsPreview,
   BulkRowsResult,
   FieldDefinition,
   Preferences,
@@ -32,12 +28,11 @@ import { RecordField } from "./record-field";
 import { RecordForeignKey } from "./record-foreign-key";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { useConfirmation } from "./settings/ui";
-import { formatCellValue } from "./cells";
+import { RefreshCw, Trash2, Copy, Pencil } from "./ui/icons";
 import "./record-editor.css";
 
 interface Props {
   target: { orgId: string; databaseId: string; tableId: string };
-  tableName: string;
   selected: SelectedRecord[];
   action: BulkRowsInput["action"]["type"];
   preferences: Preferences;
@@ -58,6 +53,7 @@ function bulkDraft(fields: FieldDefinition[], timeZone: string): RecordDraft {
   );
 }
 export function BulkRows(props: Props) {
+  const [records, setRecords] = useState(props.selected);
   const schema = useQuery({
     queryKey: ["bulk-rows-schema", props.target.tableId],
     queryFn: ({ signal }) =>
@@ -72,13 +68,11 @@ export function BulkRows(props: Props) {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
-  const [busy, setBusy] = useState<"preview" | "apply" | "reload" | null>(null);
+  const [busy, setBusy] = useState<"apply" | "reload" | null>(null);
   const [dirty, setDirty] = useState(false);
   const pending = useRef(false),
     closing = useRef(false);
-  const stop = useRef<AbortController | null>(null);
   const confirmation = useConfirmation();
-  useEffect(() => () => stop.current?.abort(), []);
   useEffect(() => {
     if (
       schema.error instanceof ApiError &&
@@ -94,7 +88,7 @@ export function BulkRows(props: Props) {
         !dirty ||
         (await confirmation.confirm(
           "Discard bulk changes?",
-          "The values you entered and this preview will be discarded.",
+          "The field values you entered will be discarded.",
           "Discard changes",
         ))
       )
@@ -108,70 +102,103 @@ export function BulkRows(props: Props) {
       ? "Set field values"
       : props.action === "duplicate"
         ? "Duplicate records"
-        : "Delete records";
+        : "Delete records?";
+  const deleting = props.action === "delete";
+  const Header = deleting ? Modal.Header : Drawer.Header;
+  const Heading = deleting ? Modal.Heading : Drawer.Heading;
+  const CloseTrigger = deleting ? Modal.CloseTrigger : Drawer.CloseTrigger;
+  const Body = deleting ? Modal.Body : Drawer.Body;
+  const content = (
+    <>
+      <Header className={deleting ? "mb-4" : "record-editor-header"}>
+        <div>
+          <Heading>{heading}</Heading>
+          <p className="text-sm text-muted tabular-nums">
+            {records.length.toLocaleString(props.preferences.locale)}{" "}
+            {records.length === 1 ? "record selected" : "records selected"}
+          </p>
+        </div>
+        <CloseTrigger
+          aria-label="Close bulk action"
+          isDisabled={Boolean(busy)}
+        />
+      </Header>
+      {schema.isPending ? (
+        <Body className={deleting ? undefined : "record-editor-body"}>
+          <p role="status">Loading fields…</p>
+        </Body>
+      ) : schema.isError && !schema.data ? (
+        <Body className={deleting ? "space-y-4" : "record-editor-body"}>
+          <p role="alert">{schema.error.message}</p>
+          <Button variant="secondary" onPress={() => void schema.refetch()}>
+            <RefreshCw />
+            Retry loading fields
+          </Button>
+        </Body>
+      ) : schema.data ? (
+        <I18nProvider locale={props.preferences.locale}>
+          <BulkForm
+            {...props}
+            selected={records}
+            onSelectionReload={(next) => {
+              setRecords(next);
+              props.onSelectionReload(next);
+            }}
+            schema={schema.data}
+            busy={busy}
+            onBusy={(value) => {
+              pending.current = Boolean(value);
+              setBusy(value);
+            }}
+            onDirty={setDirty}
+            onRequestClose={() => void close()}
+            onReloadSchema={async () => {
+              const result = await schema.refetch();
+              if (result.error) throw result.error;
+              return result.data!;
+            }}
+          />
+        </I18nProvider>
+      ) : null}
+    </>
+  );
   return (
     <>
-      <Drawer
-        isOpen
-        onOpenChange={(open) => {
-          if (!open) void close();
-        }}
-      >
-        <Drawer.Backdrop
-          isDismissable={false}
-          isKeyboardDismissDisabled={Boolean(busy)}
+      {deleting ? (
+        <Modal
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) void close();
+          }}
         >
-          <Drawer.Content placement="right">
-            <Drawer.Dialog className="record-editor-drawer">
-              <Drawer.Header className="record-editor-header">
-                <div>
-                  <Drawer.Heading>{heading}</Drawer.Heading>
-                  <p className="text-sm text-muted">{props.tableName}</p>
-                </div>
-                <Drawer.CloseTrigger
-                  aria-label="Close bulk action"
-                  isDisabled={Boolean(busy)}
-                />
-              </Drawer.Header>
-              {schema.isPending ? (
-                <Drawer.Body className="record-editor-body">
-                  <p role="status">Loading fields…</p>
-                </Drawer.Body>
-              ) : schema.isError && !schema.data ? (
-                <Drawer.Body className="record-editor-body">
-                  <p role="alert">{schema.error.message}</p>
-                  <Button
-                    variant="secondary"
-                    onPress={() => void schema.refetch()}
-                  >
-                    Retry loading fields
-                  </Button>
-                </Drawer.Body>
-              ) : schema.data ? (
-                <I18nProvider locale={props.preferences.locale}>
-                  <BulkForm
-                    {...props}
-                    schema={schema.data}
-                    busy={busy}
-                    onBusy={(value) => {
-                      pending.current = Boolean(value);
-                      setBusy(value);
-                    }}
-                    onDirty={setDirty}
-                    onRequestClose={() => void close()}
-                    onReloadSchema={async () => {
-                      const result = await schema.refetch();
-                      if (result.error) throw result.error;
-                      return result.data!;
-                    }}
-                    stop={stop}
-                  />
-                </I18nProvider>
-              ) : null}
-            </Drawer.Dialog>
-          </Drawer.Content>
-        </Drawer.Backdrop>
-      </Drawer>
+          <Modal.Backdrop
+            isDismissable={false}
+            isKeyboardDismissDisabled={Boolean(busy)}
+          >
+            <Modal.Container placement="center">
+              <Modal.Dialog role="alertdialog">{content}</Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      ) : (
+        <Drawer
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) void close();
+          }}
+        >
+          <Drawer.Backdrop
+            isDismissable={false}
+            isKeyboardDismissDisabled={Boolean(busy)}
+          >
+            <Drawer.Content placement="right">
+              <Drawer.Dialog className="record-editor-drawer">
+                {content}
+              </Drawer.Dialog>
+            </Drawer.Content>
+          </Drawer.Backdrop>
+        </Drawer>
+      )}
       {confirmation.dialog}
     </>
   );
@@ -179,15 +206,14 @@ export function BulkRows(props: Props) {
 function BulkForm(
   props: Props & {
     schema: TableSchemaResult;
-    busy: "preview" | "apply" | "reload" | null;
-    onBusy(value: "preview" | "apply" | "reload" | null): void;
+    busy: "apply" | "reload" | null;
+    onBusy(value: "apply" | "reload" | null): void;
     onDirty(value: boolean): void;
     onRequestClose(): void;
     onReloadSchema(): Promise<TableSchemaResult>;
-    stop: React.RefObject<AbortController | null>;
   },
 ) {
-  const [records, setRecords] = useState(props.selected);
+  const records = props.selected;
   const [fieldId, setFieldId] = useState(
     () =>
       props.schema.fields.find(
@@ -201,16 +227,12 @@ function BulkForm(
   );
   const [drafts, setDrafts] = useState(initialDrafts);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [preview, setPreview] = useState<BulkRowsPreview | null>(null);
   const [needsReload, setNeedsReload] = useState(false);
   const [status, setStatus] = useState("");
   const lock = useRef(false),
     attempt = useRef(new MutationAttempt());
   const form = useRef<HTMLFormElement>(null),
     focusAfterBusy = useRef<string | null>(null);
-  const previewInput = useRef<BulkRowsInput | null>(null);
-  const statusElement = useRef<HTMLParagraphElement>(null);
-  const focusStatus = useRef(false);
   const field = props.schema.fields.find((field) => field.id === fieldId);
   const rule = props.schema.foreignKeys.find((rule) =>
     rule.fieldIds.includes(fieldId),
@@ -230,12 +252,6 @@ function BulkForm(
       focusAfterBusy.current = null;
     }
   }, [props.busy, errors]);
-  useEffect(() => {
-    if (!props.busy && focusStatus.current) {
-      focusStatus.current = false;
-      statusElement.current?.focus();
-    }
-  }, [props.busy, status]);
   function focusField(id: string) {
     if (id === "$submit" || id === "$reload") {
       form.current
@@ -250,20 +266,15 @@ function BulkForm(
         ?.fieldIds[0] ?? id;
     const target =
       form.current?.querySelector<HTMLElement>(
-        `[data-field-id="${first}"] :is(input,textarea,[role="spinbutton"],[data-slot="select-trigger"])`,
+        `[data-field-id="${first}"] :is(input,textarea,[contenteditable="true"][role="textbox"],[role="spinbutton"],[data-slot="select-trigger"])`,
       ) ??
       form.current?.querySelector<HTMLElement>("[data-field-select] button");
     target?.focus();
   }
-  function invalidate() {
-    setPreview(null);
-    previewInput.current = null;
-    setStatus("");
-  }
   function change(patch: RecordDraft) {
     setDrafts((current) => ({ ...current, ...patch }));
     setErrors({});
-    invalidate();
+    setStatus("");
   }
   function payload(): BulkRowsInput | null {
     if (props.action !== "set")
@@ -331,69 +342,26 @@ function BulkForm(
         : "The bulk action could not be completed.",
     );
   }
-  async function prepare() {
-    if (lock.current || !records.length || !props.canEdit || needsReload)
-      return;
-    let input: BulkRowsInput | null;
-    try {
-      input = payload();
-    } catch (error) {
-      failure(error);
-      return;
-    }
-    if (!input) return;
-    lock.current = true;
-    props.onBusy("preview");
-    setPreview(null);
-    setStatus("");
-    const controller = new AbortController();
-    props.stop.current = controller;
-    try {
-      const result = await client.operation<BulkRowsPreview>(
-        "previewBulkRows",
-        { ...props.target, ...input },
-        { signal: controller.signal },
-      );
-      if (controller.signal.aborted) return;
-      setPreview(result);
-      previewInput.current = input;
-      if (
-        result.issues.some((issue) =>
-          ["ROW_VERSION_CONFLICT", "RESOURCE_NOT_FOUND"].includes(issue.code),
-        )
-      )
-        setNeedsReload(true);
-      focusStatus.current = true;
-      setStatus(
-        result.issues.length
-          ? `${result.issues.length} ${result.issues.length === 1 ? "record has a conflict" : "records have conflicts"}. No records have been changed.`
-          : `Preview ready for ${result.total} ${result.total === 1 ? "record" : "records"}. No records have been changed.`,
-      );
-    } catch (error) {
-      if (!controller.signal.aborted) failure(error);
-      else {
-        focusStatus.current = true;
-        setStatus("Preview canceled. No records have been changed.");
-      }
-    } finally {
-      props.stop.current = null;
-      lock.current = false;
-      props.onBusy(null);
-    }
-  }
   async function apply() {
     if (
       lock.current ||
       !props.canEdit ||
       needsReload ||
-      !preview ||
-      preview.issues.length ||
-      !previewInput.current
+      !records.length ||
+      props.schema.table.state !== "active"
     )
       return;
+    let actionInput: BulkRowsInput | null;
+    try {
+      actionInput = payload();
+    } catch (error) {
+      failure(error);
+      return;
+    }
+    if (!actionInput) return;
     lock.current = true;
     props.onBusy("apply");
-    const input = { ...props.target, ...previewInput.current };
+    const input = { ...props.target, ...actionInput };
     try {
       const result = await client.operation<BulkRowsResult>("bulkRows", input, {
         idempotencyKey: attempt.current.forInput(input),
@@ -404,14 +372,7 @@ function BulkForm(
         `${result.action === "duplicate" ? "Duplicated" : result.action === "delete" ? "Deleted" : "Updated"} ${result.affected.toLocaleString(props.preferences.locale)} ${result.affected === 1 ? "record" : "records"}`,
       );
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.status < 500 &&
-        error.status !== 408 &&
-        error.status !== 429
-      )
-        invalidate();
-      else setStatus("");
+      setStatus("");
       failure(error);
     } finally {
       lock.current = false;
@@ -422,7 +383,7 @@ function BulkForm(
     if (lock.current) return;
     lock.current = true;
     props.onBusy("reload");
-    invalidate();
+    setStatus("");
     try {
       await props.onReloadSchema();
       const next: SelectedRecord[] = [];
@@ -447,15 +408,18 @@ function BulkForm(
             throw result.reason;
         }
       }
-      setRecords(next);
       props.onSelectionReload(next);
       setNeedsReload(false);
       setErrors({});
-      invalidate();
+      focusAfterBusy.current = "$submit";
       setStatus(
         next.length
-          ? "Selected records reloaded. Your entered values are kept. Preview again before applying."
-          : "These records no longer exist. Close this panel and select records again.",
+          ? props.action === "duplicate"
+            ? "Selected records reloaded. You can duplicate them now."
+            : props.action === "set"
+              ? "Selected records reloaded. Your entered values are kept. You can update them now."
+              : "Selected records reloaded. Confirm deletion to delete them."
+          : "These records no longer exist. Close this dialog and select records again.",
       );
     } catch (error) {
       failure(error);
@@ -464,6 +428,9 @@ function BulkForm(
       props.onBusy(null);
     }
   }
+  const deleting = props.action === "delete";
+  const Body = deleting ? Modal.Body : Drawer.Body;
+  const Footer = deleting ? Modal.Footer : Drawer.Footer;
   return (
     <form
       ref={form}
@@ -473,21 +440,18 @@ function BulkForm(
       aria-busy={Boolean(props.busy)}
       onSubmit={(event) => {
         event.preventDefault();
-        void (preview && !preview.issues.length ? apply() : prepare());
+        void apply();
       }}
-      onKeyDown={(event) => {
+      onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
           event.preventDefault();
+          event.stopPropagation();
           if (event.repeat) return;
-          void (preview && !preview.issues.length ? apply() : prepare());
+          void apply();
         }
       }}
     >
-      <Drawer.Body className="record-editor-body">
-        <p className="tabular-nums">
-          {records.length.toLocaleString(props.preferences.locale)}{" "}
-          {records.length === 1 ? "record selected" : "records selected"}.
-        </p>
+      <Body className={deleting ? "space-y-4" : "record-editor-body"}>
         {props.action === "set" ? (
           <>
             <Select
@@ -499,7 +463,7 @@ function BulkForm(
                 if (typeof id === "string") {
                   setFieldId(id);
                   setErrors({});
-                  invalidate();
+                  setStatus("");
                 }
               }}
             >
@@ -571,11 +535,30 @@ function BulkForm(
               )
             )}
           </>
+        ) : props.action === "duplicate" ? (
+          <ul className="list-disc space-y-2 pl-5 text-sm text-muted">
+            <li>
+              Each selected record creates a new record in this table. Your
+              original records stay unchanged.
+            </li>
+            <li>
+              Field values and foreign key links are copied. Auto-increment
+              fields receive newly generated values.
+            </li>
+            <li>Comments and cell history are not copied.</li>
+            <li>
+              Every copy must pass field validation, foreign key checks and
+              unique rules. A copied unique value can prevent duplication.
+            </li>
+            <li>
+              Choose Duplicate to create the copies. If any copy fails
+              validation, none are saved.
+            </li>
+          </ul>
         ) : (
           <p className="text-sm text-muted">
-            {props.action === "duplicate"
-              ? "Copy the selected records into new records. Automatic IDs will be generated again. Existing unique rules still apply."
-              : "Delete the selected records and their history and comments. This cannot be undone."}
+            Delete the selected records and their history and comments. This
+            cannot be undone.
           </p>
         )}
         {!props.canEdit && (
@@ -590,26 +573,12 @@ function BulkForm(
           </p>
         )}
         {status && (
-          <p
-            ref={statusElement}
-            tabIndex={-1}
-            role="status"
-            className="text-sm text-muted"
-          >
+          <p role="status" className="text-sm text-muted">
             {status}
           </p>
         )}
-        {preview && (
-          <BulkPreview
-            preview={preview}
-            fields={props.action === "set" ? fields : props.schema.fields}
-            records={records}
-            schema={props.schema}
-            preferences={props.preferences}
-          />
-        )}
-      </Drawer.Body>
-      <Drawer.Footer className="record-editor-footer">
+      </Body>
+      <Footer className={deleting ? "mt-5" : "record-editor-footer"}>
         {(needsReload || props.schema.table.state !== "active") && (
           <Button
             variant="secondary"
@@ -617,32 +586,21 @@ function BulkForm(
             data-reload-records
             onPress={() => void reload()}
           >
+            <RefreshCw />
             Reload records
           </Button>
         )}
-        {props.busy === "preview" ? (
-          <Button
-            variant="secondary"
-            onPress={() => props.stop.current?.abort()}
-          >
-            Stop preview
-          </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            isDisabled={Boolean(props.busy)}
-            onPress={props.onRequestClose}
-          >
-            Cancel
-          </Button>
-        )}
+        <Button
+          variant="secondary"
+          autoFocus={deleting}
+          isDisabled={Boolean(props.busy)}
+          onPress={props.onRequestClose}
+        >
+          Cancel
+        </Button>
         <Button
           type="submit"
-          variant={
-            preview && !preview.issues.length && props.action === "delete"
-              ? "danger"
-              : "primary"
-          }
+          variant={deleting ? "danger" : "primary"}
           isPending={Boolean(props.busy)}
           isDisabled={
             Boolean(props.busy) ||
@@ -652,196 +610,18 @@ function BulkForm(
             props.schema.table.state !== "active"
           }
         >
+          {deleting ? (
+            <Trash2 />
+          ) : props.action === "duplicate" ? (
+            <Copy />
+          ) : (
+            <Pencil />
+          )}
           {props.busy === "reload"
             ? "Reloading…"
-            : preview && !preview.issues.length
-              ? `${props.action === "delete" ? "Delete" : props.action === "duplicate" ? "Duplicate" : "Update"} ${records.length.toLocaleString(props.preferences.locale)} ${records.length === 1 ? "record" : "records"}`
-              : "Preview changes"}
+            : `${deleting ? "Delete" : props.action === "duplicate" ? "Duplicate" : "Update"} ${records.length.toLocaleString(props.preferences.locale)} ${records.length === 1 ? "record" : "records"}`}
         </Button>
-      </Drawer.Footer>
+      </Footer>
     </form>
-  );
-}
-function BulkPreview({
-  preview,
-  fields,
-  preferences,
-  records,
-  schema,
-}: {
-  schema: TableSchemaResult;
-  records: SelectedRecord[];
-  preview: BulkRowsPreview;
-  fields: FieldDefinition[];
-  preferences: Preferences;
-}) {
-  const format = (
-    field: FieldDefinition,
-    value: Row["values"][string] | undefined,
-  ) => (
-    <span className="block max-w-56 truncate">
-      {formatCellValue(field, value ?? null, {
-        timeZone: preferences.timezone,
-        locale: preferences.locale,
-        dateFormat: preferences.dateFormat,
-        timeFormat: preferences.timeFormat,
-      })}
-    </span>
-  );
-  const recordIndex = new Map(records.map((row, index) => [row.rowId, index]));
-  const patchRows = preview.sample.flatMap((row) =>
-    fields.map((field) => ({
-      id: `${row.rowId}:${field.id}`,
-      row,
-      field,
-      index: recordIndex.get(row.rowId)!,
-    })),
-  );
-  return (
-    <div className="min-w-0 space-y-4">
-      {preview.issues.length > 0 && (
-        <ResourceTable
-          ariaLabel="Bulk action conflicts"
-          items={preview.issues}
-          getRowKey={(issue) => issue.rowId}
-          tableClassName="min-w-md"
-          emptyTitle="No conflicts"
-          emptyDescription=""
-          columns={[
-            {
-              key: "record",
-              header: "Record",
-              cell: (issue) => (
-                <div>
-                  <span className="tabular-nums">
-                    Selection {issue.index + 1}
-                  </span>
-                  <code className="block max-w-28 truncate text-xs">
-                    {issue.rowId}
-                  </code>
-                </div>
-              ),
-            },
-            {
-              key: "field",
-              header: "Field",
-              cell: (issue) =>
-                recordErrorFields(issue, schema)
-                  .map(
-                    (id) =>
-                      schema.fields.find((field) => field.id === id)?.name,
-                  )
-                  .filter(Boolean)
-                  .join(", ") || "—",
-            },
-            {
-              key: "message",
-              header: "Conflict",
-              cell: (issue) => {
-                const names = recordErrorFields(issue, schema)
-                  .map(
-                    (id) =>
-                      schema.fields.find((field) => field.id === id)?.name,
-                  )
-                  .filter(Boolean);
-                const message =
-                  issue.code === "UNIQUE_CONFLICT" && names.length
-                    ? names.length === 1
-                      ? `This ${names[0]} value would duplicate another record.`
-                      : `This combination of ${names.join(", ")} already exists.`
-                    : issue.message;
-                return <span className="block max-w-sm">{message}</span>;
-              },
-            },
-          ]}
-        />
-      )}
-      <p className="text-sm text-muted tabular-nums">
-        Showing {preview.sample.length} of {preview.total} selected records.{" "}
-        {preview.valid} {preview.valid === 1 ? "record passes" : "records pass"}{" "}
-        validation.{" "}
-        {preview.issues.length > 0
-          ? "Resolve conflicts and preview again before applying."
-          : "Review the values before applying."}
-      </p>
-      {preview.action === "set" ? (
-        <ResourceTable
-          ariaLabel="Bulk value preview"
-          items={patchRows}
-          getRowKey={(item) => item.id}
-          tableClassName="min-w-md"
-          emptyTitle="No records to preview"
-          emptyDescription="Resolve the conflicts above and preview again."
-          columns={[
-            {
-              key: "record",
-              header: "Record",
-              cell: (item) => (
-                <div>
-                  <span className="tabular-nums">
-                    Selection {item.index + 1}
-                  </span>
-                  <code className="block max-w-28 truncate text-xs">
-                    {item.row.rowId}
-                  </code>
-                </div>
-              ),
-            },
-            { key: "field", header: "Field", cell: (item) => item.field.name },
-            {
-              key: "before",
-              header: "Current value",
-              cell: (item) =>
-                format(item.field, item.row.before[item.field.name]!),
-            },
-            {
-              key: "after",
-              header: "New value",
-              cell: (item) =>
-                format(item.field, item.row.after?.[item.field.name]),
-            },
-          ]}
-        />
-      ) : (
-        <ResourceTable
-          ariaLabel="Selected record preview"
-          items={preview.sample}
-          getRowKey={(row) => row.rowId}
-          tableClassName="min-w-md"
-          emptyTitle="No records to preview"
-          emptyDescription="Resolve the conflicts above and preview again."
-          columns={[
-            {
-              key: "record",
-              header: "Record",
-              cell: (row) => (
-                <div>
-                  <span className="tabular-nums">
-                    Selection {recordIndex.get(row.rowId)! + 1}
-                  </span>
-                  <code className="block max-w-28 truncate text-xs">
-                    {row.rowId}
-                  </code>
-                </div>
-              ),
-            } as ResourceTableColumn<BulkRowsPreview["sample"][number]>,
-            ...fields.map(
-              (
-                field,
-              ): ResourceTableColumn<BulkRowsPreview["sample"][number]> => ({
-                key: field.id,
-                header: field.name,
-                cell: (row) =>
-                  preview.action === "duplicate" && field.autoIncrement ? (
-                    <span className="text-muted italic">Generated</span>
-                  ) : (
-                    format(field, (row.after ?? row.before)[field.name]!)
-                  ),
-              }),
-            ),
-          ]}
-        />
-      )}
-    </div>
   );
 }

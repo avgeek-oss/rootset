@@ -351,6 +351,16 @@ test(
     const restored = await storage.getTable(actor, tableId);
     assert.equal(restored.schemaVersion, 8);
     assert.equal(restored.rowCount, 2);
+    const summary = (await storage.listTables(actor, input.databaseId)).find(
+      (entry) => entry.id === tableId,
+    )!;
+    assert.equal(summary.fieldCount, fields.length);
+    assert.ok(summary.lastDataChangeAt && summary.lastDataChangeAt > stamp);
+    const databaseSummary = (await storage.listDatabases(actor)).find(
+      (entry) => entry.id === input.databaseId,
+    )!;
+    assert.equal(databaseSummary.rowCount, 2);
+    assert.equal(databaseSummary.lastDataChangeAt, summary.lastDataChangeAt);
     assert.ok(
       restored.fields.every((field, index) => field.id !== fields[index]!.id),
     );

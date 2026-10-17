@@ -13,7 +13,7 @@ import {
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { FilterTree } from "./filter-tree";
-import { Filter, Plus, Trash2 } from "./ui/icons";
+import { Filter, Plus, Trash2, Pencil, Eraser, Check } from "./ui/icons";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import {
   buildTableFilter,
@@ -208,6 +208,7 @@ export function TableFilterDialog({
                       variant="secondary"
                       onPress={() => setReplacing(true)}
                     >
+                      <Pencil />
                       Replace filter
                     </Button>
                   </div>
@@ -397,12 +398,14 @@ export function TableFilterDialog({
                 isDisabled={!value.length && !advancedWhere}
                 onPress={onClear}
               >
+                <Eraser />
                 Clear all filters
               </Button>
               <Button variant="secondary" onPress={onClose}>
                 Cancel
               </Button>
               <Button type="submit" form={formId} isDisabled={!replacing}>
+                <Check />
                 Apply
               </Button>
             </Modal.Footer>

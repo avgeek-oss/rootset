@@ -9,6 +9,49 @@ import {
 } from "./index";
 
 describe("browser transport", () => {
+  it("reports stale audit filter input without exposing the validation enum dump", async () => {
+    const fetcher = vi.fn();
+    const transport = new RootsetClient({ fetch: fetcher });
+    const error = await transport
+      .operation("listActivity", {
+        orgId: "01M4Z29DYW3NBAVHB1QS52RYAS",
+        event: "old-client-event",
+      })
+      .catch((error) => error);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      code: "VALIDATION_FAILED",
+      message:
+        "The request could not be validated. Reload the page and try again.",
+      details: { issues: [{ code: "invalid_value", path: ["event"] }] },
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("normalizes invalid operation responses without including response values or schema dumps", async () => {
+    const transport = new RootsetClient({
+      baseUrl: "/v1",
+      fetch: vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ data: [{ event: "private-response-value" }] }),
+            { status: 200 },
+          ),
+        ),
+    });
+    const error = await transport
+      .operation("listActivity", { orgId: "01M4Z29DYW3NBAVHB1QS52RYAS" })
+      .catch((error) => error);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      code: "INVALID_RESPONSE",
+      message:
+        "Rootset returned an unexpected response. Reload the page and try again.",
+      details: { issues: expect.any(Array) },
+    });
+    expect(JSON.stringify(error)).not.toContain("private-response-value");
+    expect(JSON.stringify(error)).not.toContain("job.exportView");
+  });
   it("builds API-hosted browser artifact downloads and rejects path substitution", () => {
     const orgId = "01K6DVWSFS9MR156YW1H5XZ440";
     const artifactId = "01K6DVWSFS9MR156YW1H5XZ441";

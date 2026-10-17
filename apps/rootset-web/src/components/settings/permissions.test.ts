@@ -4,6 +4,7 @@ import { canOpenSettings, SECTION_LABELS } from "./types";
 const management = [
   "backup-schedule",
   "backup-history",
+  "restore-requests",
   "organisation",
   "members",
   "team-api-keys",

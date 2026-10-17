@@ -27,7 +27,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .row-comment-trigger:hover {
-    background: var(--surface-secondary);
+    background: color-mix(in oklab, var(--accent) 12%, var(--background));
   }
 }
 .row-comments-drawer {

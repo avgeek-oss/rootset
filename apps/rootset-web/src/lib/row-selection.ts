@@ -24,3 +24,22 @@ export function selectRecords(
   }
   return selected;
 }
+
+export async function loadRecordSelection(
+  ids: readonly string[],
+  loaded: readonly Pick<Row, "id" | "version">[],
+  readRow: (id: string) => Promise<Pick<Row, "id" | "version">>,
+  signal: AbortSignal,
+): Promise<Map<string, SelectedRecord>> {
+  const rows = new Map(loaded.map((row) => [row.id, row]));
+  const missing = ids.filter((id) => !rows.has(id));
+  for (let offset = 0; offset < missing.length; offset += 4) {
+    signal.throwIfAborted();
+    const next = await Promise.all(
+      missing.slice(offset, offset + 4).map(readRow),
+    );
+    for (const row of next) rows.set(row.id, row);
+  }
+  signal.throwIfAborted();
+  return selectRecords(new Map(), new Set(ids), [...rows.values()]);
+}

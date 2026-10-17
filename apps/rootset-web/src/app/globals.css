@@ -337,10 +337,29 @@ h1 {
   display: flex;
   gap: 12px;
   z-index: 3;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 180ms var(--ease-out),
+    visibility 0s;
+}
+.table-floating-actions[data-hidden] {
+  opacity: 0;
+  transform: translateY(8px);
+  visibility: hidden;
+  pointer-events: none;
+  transition-duration: 140ms, 140ms, 0s;
+  transition-delay: 0s, 0s, 140ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .table-floating-actions {
+    transition: none;
+  }
 }
 .table-floating-actions .button {
   border-radius: 9999px;
-  box-shadow: var(--overlay-shadow);
+  box-shadow: none;
 }
 .table-filter-count {
   min-width: 20px;
@@ -429,6 +448,8 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  margin-inline-start: 6px;
+  flex-shrink: 0;
 }
 .empty-filter-message {
   color: var(--muted);
@@ -442,11 +463,21 @@ h1 {
   height: 100%;
   overflow-anchor: none;
   --rdg-color-scheme: light;
+  --rdg-background-color: var(--background);
+  --rdg-color: var(--foreground);
+  --rdg-header-background-color: var(--background);
+  --rdg-border-color: var(--separator);
+  --rdg-row-hover-background-color: var(--surface-secondary);
   --rdg-selection-width: 1px;
   --rdg-selection-color: var(--accent);
   --rdg-row-selected-background-color: color-mix(
     in oklab,
     var(--accent) 6%,
+    var(--rdg-background-color)
+  );
+  --rdg-row-selected-hover-background-color: color-mix(
+    in oklab,
+    var(--accent) 10%,
     var(--rdg-background-color)
   );
   border-block-start: 0;
@@ -558,17 +589,6 @@ h1 {
   justify-content: center;
   gap: 15px;
   padding: 30px;
-}
-.grid-skeleton {
-  flex: 1;
-  padding: 30px;
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--rs-canvas),
-    var(--rs-canvas) 35px,
-    var(--rs-border) 36px
-  );
-  color: var(--rs-muted);
 }
 .error-message,
 .danger-text {
@@ -749,6 +769,7 @@ h1 {
 .cell-input option[value="null"] {
   color: var(--rs-muted);
   font-style: italic;
+  font-weight: 500;
 }
 .cell-input option:not([value="null"]) {
   color: var(--rs-text);
@@ -757,11 +778,13 @@ h1 {
 .cell-input.null-value::placeholder {
   color: var(--rs-muted);
   font-style: italic;
+  font-weight: 500;
   opacity: 1;
 }
 .rootset-grid .null-value,
-.rootset-grid .null-value::placeholder {
-  color: color-mix(in oklab, var(--rs-muted) 70%, transparent);
+.rootset-grid .null-value::placeholder,
+.rootset-fields-table .null-value {
+  color: color-mix(in oklab, var(--rs-muted) 30%, transparent);
 }
 .inline-cell-editor:has(.inline-cell-form--expand-up) {
   top: auto;

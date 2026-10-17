@@ -30,6 +30,7 @@ verificationCase(
         "0011_database_restores.sql",
         "0012_backup_retention_alerts.sql",
         "0013_activity_job_events.sql",
+        "0014_resource_data_changes.sql",
       ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();

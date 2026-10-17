@@ -24,6 +24,7 @@ import { getLocalDateTimeCandidates } from "./cells/temporal";
 import { Choice } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { MoreHorizontal } from "./ui/icons";
+import { JsonEditor } from "./json-editor";
 
 export function RecordField({
   field,
@@ -68,7 +69,14 @@ export function RecordField({
     (field.type === "text" && !field.allowedValues);
   const heading = (
     <div className="record-field-heading">
-      <Label id={labelId}>
+      <Label
+        id={labelId}
+        onClick={
+          field.type === "json"
+            ? () => document.getElementById(`${id}-json`)?.focus()
+            : undefined
+        }
+      >
         <span className="record-field-label">
           <FieldTypeIcon type={field.type} size={18} />
           {label}
@@ -291,6 +299,25 @@ export function RecordField({
         {description}
       </TimeField>
     );
+  } else if (field.type === "json") {
+    control = (
+      <div className="grid min-w-0 gap-1">
+        <JsonEditor
+          id={`${id}-json`}
+          label={label}
+          labelledBy={labelId}
+          describedBy={description ? `${id}-description` : undefined}
+          value={isNull ? "" : draft.text}
+          onChange={changeText}
+          isNull={isNull}
+          disabled={disabled}
+          readOnly={readOnly}
+          required={Boolean(field.required)}
+          invalid={invalid}
+        />
+        {description && <div id={`${id}-description`}>{description}</div>}
+      </div>
+    );
   } else {
     control = (
       <TextField
@@ -303,10 +330,10 @@ export function RecordField({
             setExpanded(true);
         }}
       >
-        {expanded && (field.type === "text" || field.type === "json") ? (
+        {expanded && field.type === "text" ? (
           <TextArea
             variant="secondary"
-            rows={field.type === "json" ? 6 : 3}
+            rows={3}
             className={nullClass}
             placeholder={draft.mode === "null" ? "NULL" : undefined}
             autoComplete="off"

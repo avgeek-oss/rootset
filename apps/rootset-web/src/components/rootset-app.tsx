@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { lazy, useEffect, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { version as rootsetVersion } from "../../../../package.json";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import { Input, Label, TextField } from "@heroui/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
+import {
+  PageNavigation as PageTransition,
+  usePageQuery,
+} from "./page-navigation";
 import { DatabasesPage } from "./databases-page";
 import { RootsetLogo } from "./rootset-logo";
 import { TablesPage } from "./tables-page";
+import { SpreadsheetLoading } from "./spreadsheet-loading";
 import {
   client,
   ApiError,
@@ -73,23 +78,33 @@ import {
   Message01Icon,
   TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
+import {
+  LogOut,
+  RefreshCw,
+  Database as DatabaseSymbol,
+  Plus,
+} from "./ui/icons";
 
-const AuthScreen = dynamic(() =>
-  import("./auth-screen").then((module) => module.AuthScreen),
+const AuthScreen = lazy(() =>
+  import("./auth-screen").then((module) => ({ default: module.AuthScreen })),
 );
-const EmailChangeConfirmation = dynamic(() =>
-  import("./email-change-confirmation").then(
-    (module) => module.EmailChangeConfirmation,
-  ),
+const EmailChangeConfirmation = lazy(() =>
+  import("./email-change-confirmation").then((module) => ({
+    default: module.EmailChangeConfirmation,
+  })),
 );
-const Spreadsheet = dynamic(() =>
-  import("./related-spreadsheet").then((module) => module.RelatedSpreadsheet),
+const Spreadsheet = lazy(() =>
+  import("./related-spreadsheet").then((module) => ({
+    default: module.RelatedSpreadsheet,
+  })),
 );
-const SettingsPanel = dynamic(() =>
-  import("./settings").then((module) => module.SettingsPanel),
+const SettingsPanel = lazy(() =>
+  import("./settings").then((module) => ({ default: module.SettingsPanel })),
 );
-const ActivityPage = dynamic(() =>
-  import("./activity-page").then((module) => module.ActivityPage),
+const AuditLogsPage = lazy(() =>
+  import("./activity-page").then((module) => ({
+    default: module.AuditLogsPage,
+  })),
 );
 
 const repositoryUrl = "https://github.com/avgeek-oss/rootset";
@@ -114,6 +129,17 @@ const defaultPreferences = {
 export function RootsetApp() {
   const path = usePathname();
   const parameters = useSearchParams();
+  return (
+    <PageTransition location={`${path}?${parameters.toString()}`}>
+      {(location) => <RootsetPage location={location} />}
+    </PageTransition>
+  );
+}
+
+function RootsetPage({ location: routeLocation }: { location: string }) {
+  const separator = routeLocation.indexOf("?");
+  const path = routeLocation.slice(0, separator);
+  const parameters = new URLSearchParams(routeLocation.slice(separator + 1));
   const router = useRouter();
   const sidebar = usePersistentAppSidebar("rootset:sidebar-open");
   const { themeMode, isHydrated, setThemeMode } = useTheme();
@@ -123,9 +149,13 @@ export function RootsetApp() {
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
   const route = resourceRoute(path);
-  const activityPage = path === "/activity";
-  const databaseId = route.databaseId ?? parameters.get("databaseId");
-  const tableId = route.tableId ?? parameters.get("tableId");
+  const auditLogsPage = path === "/audit-logs";
+  const databaseId = auditLogsPage
+    ? null
+    : (route.databaseId ?? parameters.get("databaseId"));
+  const tableId = auditLogsPage
+    ? null
+    : (route.tableId ?? parameters.get("tableId"));
   const teamSection = path.startsWith("/team-settings/")
     ? path.split("/")[2]
     : null;
@@ -142,21 +172,21 @@ export function RootsetApp() {
             : null);
   const settings = resolveSettingsSection(section ?? null);
   const needsResources =
-    !activityPage &&
+    !auditLogsPage &&
     (!settings || !["account", "team"].includes(settingsScope(settings)));
   useEffect(() => {
-    if (!activityPage && parameters.has("databaseId"))
+    if (!auditLogsPage && parameters.has("databaseId"))
       router.replace(
         settings
           ? settingsHref(settings, { databaseId, tableId })
           : dataHref(databaseId, tableId),
       );
-  }, [parameters, router, settings, databaseId, tableId, activityPage]);
+  }, [parameters, router, settings, databaseId, tableId, auditLogsPage]);
   const [create, setCreate] = useState<"database" | "table" | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const createAttempt = useRef(new MutationAttempt());
-  const setup = useQuery({
+  const setup = usePageQuery({
     queryKey: ["setup"],
     queryFn: ({ signal }) =>
       publicClient.request<{ claimed: boolean; verified: boolean }>("/setup", {
@@ -164,14 +194,14 @@ export function RootsetApp() {
       }),
     staleTime: 60_000,
   });
-  const context = useQuery({
+  const context = usePageQuery({
     queryKey: ["context"],
     queryFn: ({ signal }) => client.request<Context>("/context", { signal }),
     enabled: setup.data?.claimed === true,
     retry: false,
   });
   const orgId = context.data?.organisation?.id;
-  const databases = useQuery({
+  const databases = usePageQuery({
     queryKey: ["databases", orgId],
     queryFn: async ({ signal }) =>
       unwrapData(
@@ -183,7 +213,7 @@ export function RootsetApp() {
     enabled: !!orgId && needsResources,
   });
   const selectedDatabaseId = databaseId ?? null;
-  const tables = useQuery({
+  const tables = usePageQuery({
     queryKey: ["tables", orgId, selectedDatabaseId],
     queryFn: async ({ signal }) =>
       unwrapData(
@@ -352,6 +382,7 @@ export function RootsetApp() {
             void authClient.signOut().then(() => location.assign("/login"))
           }
         >
+          <LogOut />
           Sign out
         </Button>
       </main>
@@ -401,7 +432,10 @@ export function RootsetApp() {
           <h1>Account context could not be loaded</h1>
           <p role="alert">{context.error.message}</p>
         </div>
-        <Button onPress={() => void context.refetch()}>Retry</Button>
+        <Button onPress={() => void context.refetch()}>
+          <RefreshCw />
+          Retry
+        </Button>
       </main>
     );
   if (navigationError)
@@ -410,6 +444,7 @@ export function RootsetApp() {
         <h1>The linked settings could not be opened</h1>
         <p role="alert">{navigationError}</p>
         <Button onPress={() => location.assign("/")}>
+          <DatabaseSymbol />
           Return to databases
         </Button>
       </main>
@@ -427,6 +462,7 @@ export function RootsetApp() {
             void authClient.signOut().then(() => location.assign("/login"))
           }
         >
+          <LogOut />
           Sign out
         </Button>
       </main>
@@ -470,7 +506,7 @@ export function RootsetApp() {
     />
   );
   const resourceScope =
-    !activityPage &&
+    !auditLogsPage &&
     (!settings || ["database", "table"].includes(settingsScope(settings)));
   return (
     <RouteProvider pathname={path} navigate={(href) => router.push(href)}>
@@ -518,6 +554,7 @@ export function RootsetApp() {
               config={{
                 accessibleLabel: "Primary navigation",
                 homeHref: "/",
+                brandVersion: rootsetVersion,
                 brand: {
                   id: "rootset",
                   accessibleLabel: "Rootset home",
@@ -539,11 +576,11 @@ export function RootsetApp() {
                       },
                       {
                         kind: "link",
-                        id: "activity",
-                        label: "Activity",
-                        href: "/activity",
+                        id: "audit-logs",
+                        label: "Audit Logs",
+                        href: "/audit-logs",
                         icon: TransactionHistoryIcon,
-                        activePath: activityPage ? path : "/activity",
+                        activePath: auditLogsPage ? path : "/audit-logs",
                       },
                     ],
                   },
@@ -672,8 +709,8 @@ export function RootsetApp() {
         >
           <AppShellBreadcrumb
             items={
-              activityPage
-                ? [{ label: "Rootset", href: "/" }, { label: "Activity" }]
+              auditLogsPage
+                ? [{ label: "Rootset", href: "/" }, { label: "Audit Logs" }]
                 : resourceBreadcrumbs({
                     databaseId: selectedDatabaseId,
                     databaseName: database?.name,
@@ -683,8 +720,8 @@ export function RootsetApp() {
                   })
             }
             title={
-              activityPage
-                ? "Activity"
+              auditLogsPage
+                ? "Audit Logs"
                 : settings
                   ? SECTION_LABELS[settings]
                   : (table?.name ??
@@ -699,8 +736,8 @@ export function RootsetApp() {
                   {mutationError}
                 </p>
               )}
-              {activityPage ? (
-                <ActivityPage
+              {auditLogsPage ? (
+                <AuditLogsPage
                   key={`${orgId}:${context.data.principal.role}`}
                   orgId={orgId!}
                 />
@@ -754,11 +791,14 @@ export function RootsetApp() {
                   onSettings={(section) =>
                     openSettings(section as SettingsSection)
                   }
-                  onChanged={() =>
+                  onChanged={() => {
                     void queryClient.invalidateQueries({
                       queryKey: ["tables", orgId, selectedDatabaseId],
-                    })
-                  }
+                    });
+                    void queryClient.invalidateQueries({
+                      queryKey: ["databases", orgId],
+                    });
+                  }}
                 />
               ) : selectedDatabaseId && database && !selectedTableId ? (
                 <TablesPage
@@ -775,7 +815,7 @@ export function RootsetApp() {
                 />
               ) : databases.isPending ||
                 (selectedDatabaseId && tables.isPending) ? (
-                <div className="grid-skeleton" role="status"></div>
+                <SpreadsheetLoading />
               ) : (
                 <section className="empty-state">
                   <HugeiconsIcon
@@ -803,6 +843,7 @@ export function RootsetApp() {
                     <Button
                       onPress={() => setCreate(database ? "table" : "database")}
                     >
+                      <Plus />
                       {database ? "Create table" : "Create database"}
                     </Button>
                   )}
@@ -846,6 +887,7 @@ export function RootsetApp() {
                 Cancel
               </Button>
               <Button type="submit" isDisabled={pending}>
+                <Plus />
                 {pending ? "Creating…" : `Create ${create}`}
               </Button>
             </footer>

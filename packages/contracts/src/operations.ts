@@ -23,7 +23,12 @@ import {
   SavedViewVisibilitySchema,
 } from "./views";
 import { z } from "zod";
-import { ActivityInputSchema, ActivityPageSchema } from "./activity";
+import {
+  ActivityInputSchema,
+  ActivityPageSchema,
+  ActivityFilterInputSchema,
+  ActivityFilterOptionsSchema,
+} from "./activity";
 import {
   AccountNameSchema,
   CanonicalUtcDateTimeSchema,
@@ -1292,6 +1297,16 @@ operation(
   ActivityInputSchema,
   ActivityPageSchema,
   "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
+);
+operation(
+  "listActivityFilterOptions",
+  "list_activity_filter_options",
+  "GET",
+  `${O}/activity/filters`,
+  ["history:read"],
+  ActivityFilterInputSchema,
+  ActivityFilterOptionsSchema,
+  "Find actors or resources in permitted audit history, independently of event pagination. Narrow the search when more matches are available.",
 );
 operation(
   "queryHistory",

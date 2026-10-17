@@ -1,11 +1,8 @@
 "use client";
 
+import { usePageQuery } from "../page-navigation";
 import { useMemo, useRef, useState } from "react";
-import {
-  keepPreviousData,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
@@ -23,6 +20,15 @@ import {
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { RelativeTime } from "./account/last-synced-time";
 import type { SettingsPanelProps } from "./types";
+import {
+  Upload,
+  RefreshCw,
+  View,
+  ArrowDownToLine,
+  Stop,
+  ChevronLeft,
+  ChevronRight,
+} from "../ui/icons";
 
 export function ImportsSettings(props: SettingsPanelProps) {
   const [drawer, setDrawer] = useState<{ previewId?: string } | null>(null);
@@ -37,7 +43,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
     databaseId: props.databaseId!,
     tableId: props.tableId!,
   };
-  const requests = useQuery({
+  const requests = usePageQuery({
     queryKey: ["import-requests", target.tableId, cursor],
     queryFn: ({ signal }) =>
       client.operation<{ data: Job[]; nextCursor: string | null }>(
@@ -56,7 +62,12 @@ export function ImportsSettings(props: SettingsPanelProps) {
     placeholderData: keepPreviousData,
   });
   const actions = useMemo(
-    () => <Button onPress={() => setDrawer({})}>Import records</Button>,
+    () => (
+      <Button onPress={() => setDrawer({})}>
+        <Upload />
+        Import records
+      </Button>
+    ),
     [],
   );
   async function action(operation: string, job: Job) {
@@ -111,6 +122,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
             className="justify-self-start"
             onPress={() => void requests.refetch()}
           >
+            <RefreshCw />
             Retry loading imports
           </Button>
         </div>
@@ -183,6 +195,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
                         isDisabled={busy || requests.isPlaceholderData}
                         onPress={() => setDrawer({ previewId: job.id })}
                       >
+                        <View />
                         Review
                       </Button>
                     )}
@@ -193,6 +206,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
                         isDisabled={busy || requests.isPlaceholderData}
                         onPress={() => void download(report)}
                       >
+                        <ArrowDownToLine />
                         Error report
                       </Button>
                     )}
@@ -207,6 +221,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
                         }
                         onPress={() => void action("cancelJob", job)}
                       >
+                        <Stop />
                         Stop
                       </Button>
                     ) : ["failed", "partially_completed", "cancelled"].includes(
@@ -218,6 +233,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
                         isDisabled={busy || requests.isPlaceholderData}
                         onPress={() => void action("retryJob", job)}
                       >
+                        <RefreshCw />
                         Retry
                       </Button>
                     ) : null}
@@ -238,6 +254,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
               setPrevious((current) => current.slice(0, -1));
             }}
           >
+            <ChevronLeft />
             Previous
           </Button>
           <Button
@@ -249,6 +266,7 @@ export function ImportsSettings(props: SettingsPanelProps) {
             }}
           >
             Next
+            <ChevronRight />
           </Button>
         </div>
       )}

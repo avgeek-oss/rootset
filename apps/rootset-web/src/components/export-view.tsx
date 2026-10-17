@@ -19,7 +19,7 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { Choice } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { FilterTree } from "./filter-tree";
-import { ArrowDownToLine, Columns3 } from "./ui/icons";
+import { ArrowDownToLine, Columns3, RefreshCw } from "./ui/icons";
 import "./record-editor.css";
 
 interface Props {
@@ -227,6 +227,7 @@ export function ExportView(props: Props) {
                           variant="secondary"
                           onPress={() => void job.refetch()}
                         >
+                          <RefreshCw />
                           Reload request
                         </Button>
                       </>
@@ -404,6 +405,7 @@ export function ExportView(props: Props) {
                 </Button>
                 {!accepted && (
                   <Button ref={submit} type="submit" isPending={busy}>
+                    <ArrowDownToLine />
                     Start export
                   </Button>
                 )}

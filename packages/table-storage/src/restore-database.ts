@@ -261,7 +261,7 @@ export async function restoreDatabaseSnapshot(
       invalid("staged records do not match the manifest");
     table.rowCount = original.rowCount;
     await client.query(
-      "UPDATE rootset_control.tables SET row_count=$2 WHERE id=$1",
+      "UPDATE rootset_control.tables SET row_count=$2,last_data_change_at=CASE WHEN $2::bigint>0 THEN clock_timestamp() ELSE NULL END WHERE id=$1",
       [table.id, table.rowCount],
     );
     for (const counter of original.counters) {

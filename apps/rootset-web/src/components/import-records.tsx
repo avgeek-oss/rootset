@@ -6,6 +6,8 @@ import { Label, ListBox, Select } from "@heroui/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
+import { Attributes } from "@avgeek-oss/design-system/data-display/attributes";
+import { Widget } from "@avgeek-oss/design-system/data-display/widget";
 import { Drawer } from "@avgeek-oss/design-system/overlays/drawer";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { FileUpload } from "@avgeek-oss/design-system/patterns/file-upload";
@@ -33,6 +35,13 @@ import { formatCellValue } from "./cells";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { useConfirmation } from "./settings/ui";
 import { statusColor, statusIcon, statusLabel } from "./settings/status";
+import {
+  RefreshCw,
+  Upload,
+  ArrowDownToLine,
+  Stop,
+  ShieldCheck,
+} from "./ui/icons";
 import "./record-editor.css";
 
 interface ImportTarget {
@@ -189,6 +198,7 @@ export function ImportRecords(props: ImportRecordsProps) {
                     variant="secondary"
                     onPress={() => void schema.refetch()}
                   >
+                    <RefreshCw />
                     Retry loading fields
                   </Button>
                 </Drawer.Body>
@@ -258,6 +268,8 @@ function ImportForm({
     validation.data?.state === "succeeded"
       ? ImportPreviewResultSchema.parse(validation.data.result)
       : null;
+  const recordCount =
+    source?.parsed.rows.length ?? preview?.total ?? job?.progress?.total;
   const readOnly = schema.table.state !== "active";
   useEffect(
     () => onDirty(Boolean(source && !previewId)),
@@ -406,6 +418,7 @@ function ImportForm({
         )}
         {!source && !previewId ? (
           <FileUpload
+            className="border-0 p-0"
             accept=".csv,.jsonl,.ndjson,text/csv,application/x-ndjson,application/jsonl"
             maxSizeBytes={importLimits.sourceBytes}
             label="Choose a CSV or JSONL file"
@@ -436,9 +449,6 @@ function ImportForm({
                   preview?.fileName ??
                   job?.fileName ??
                   "Import file"}
-                {source
-                  ? ` · ${source.parsed.rows.length.toLocaleString()} ${source.parsed.rows.length === 1 ? "record" : "records"}`
-                  : ""}
               </p>
               {!active && !importId && (
                 <Button
@@ -451,16 +461,29 @@ function ImportForm({
                     setPreviewId(null);
                   }}
                 >
+                  <Upload />
                   Choose another file
                 </Button>
               )}
             </div>
+            {recordCount !== undefined && (
+              <Widget aria-label="Import attributes">
+                <Widget.Content>
+                  <Attributes variant="embedded" columns={1}>
+                    <Attributes.Item label="Records">
+                      <span className="tabular-nums">
+                        {recordCount.toLocaleString()}
+                      </span>
+                    </Attributes.Item>
+                  </Attributes>
+                </Widget.Content>
+              </Widget>
+            )}
             {source && !importId && (
               <section
                 className="grid min-w-0 gap-3"
                 aria-label="Column mapping"
               >
-                <h3 className="text-sm font-medium">Column mapping</h3>
                 <ResourceTable
                   ariaLabel="Import column mapping"
                   emptyTitle="No readable columns"
@@ -617,6 +640,7 @@ function ImportForm({
                       )
                     }
                   >
+                    <ArrowDownToLine />
                     Download error report
                   </Button>
                 )}
@@ -636,6 +660,7 @@ function ImportForm({
                     void (importId ? importing : validation).refetch()
                   }
                 >
+                  <RefreshCw />
                   Retry loading request
                 </Button>
               </p>
@@ -734,6 +759,7 @@ function ImportForm({
               });
             }}
           >
+            <RefreshCw />
             Reload fields
           </Button>
         )}
@@ -750,6 +776,7 @@ function ImportForm({
               void perform("cancelJob", { orgId: target.orgId, id: job!.id })
             }
           >
+            <Stop />
             Stop request
           </Button>
         ) : failed ? (
@@ -759,6 +786,7 @@ function ImportForm({
               void perform("retryJob", { orgId: target.orgId, id: importId })
             }
           >
+            <RefreshCw />
             Retry import
           </Button>
         ) : complete ? null : (
@@ -774,6 +802,7 @@ function ImportForm({
               Boolean(preview?.invalid)
             }
           >
+            {preview ? <Upload /> : <ShieldCheck />}
             {busy
               ? "Submitting…"
               : preview

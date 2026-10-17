@@ -184,10 +184,11 @@ async function openEditor(page: Page, key: string): Promise<Locator> {
   const gridFont = await page
     .getByRole("grid")
     .evaluate((element) => getComputedStyle(element).fontSize);
-  await expect(dialog.locator(".cell-input").first()).toHaveCSS(
-    "font-size",
-    gridFont,
-  );
+  await expect(
+    dialog
+      .locator('.cell-input, [contenteditable="true"][role="textbox"]')
+      .first(),
+  ).toHaveCSS("font-size", gridFont);
   if (key === "JSON") {
     await expect(
       dialog.getByRole("button", { name: "Format", exact: true }),
@@ -228,7 +229,10 @@ async function fillAndSave(
 }
 
 async function submitEditor(editor: Locator) {
-  await editor.locator(".cell-input").first().press("ControlOrMeta+Enter");
+  await editor
+    .locator('.cell-input, [contenteditable="true"][role="textbox"]')
+    .first()
+    .press("ControlOrMeta+Enter");
 }
 
 async function saveResponse(page: Page, action: () => Promise<void>) {

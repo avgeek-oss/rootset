@@ -22,7 +22,7 @@ import {
 } from "../../lib/unique-rule-condition";
 import { allowedValueLabel } from "../../lib/field-choices";
 import { operatorLabels } from "../../lib/table-filters";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   ResourceName,
   ResourceTable,
@@ -30,7 +30,7 @@ import {
 import { Dialog } from "../dialog";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { TooltipText } from "@avgeek-oss/design-system/overlays/tooltip";
-import { Check } from "../ui/icons";
+import { Check, Trash2, Plus, Pencil, View } from "../ui/icons";
 import { FieldTable } from "./field-table";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { fieldConstraints } from "./field-constraints";
@@ -95,9 +95,11 @@ export function TableSettings(props: SettingsPanelProps) {
     props.onChanged?.();
   });
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  useEffect(() => {
+  const [name, setName] = useState(schema.data.table.name);
+  const [description, setDescription] = useState(
+    schema.data.table.description ?? "",
+  );
+  useLayoutEffect(() => {
     setName(schema.data.table.name);
     setDescription(schema.data.table.description ?? "");
   }, [schema.data]);
@@ -176,6 +178,7 @@ export function TableDangerZone(props: SettingsPanelProps) {
               );
           }}
         >
+          <Trash2 />
           Delete table
         </Button>
       </Section>
@@ -213,6 +216,7 @@ export function FieldForm({
     <Form
       busy={busy}
       submit={field ? "Preview and apply changes" : "Add field"}
+      submitIcon={field ? <View /> : <Plus />}
       noValidate
       onCancel={onCancel}
       onSubmit={async () => {
@@ -321,6 +325,7 @@ export function FieldForm({
                       )
                     }
                   >
+                    <Trash2 />
                     Remove
                   </Button>
                 </div>
@@ -340,6 +345,7 @@ export function FieldForm({
                   patch("allowedValues", [...value.allowedValues, ""])
                 }
               >
+                <Plus />
                 Add choice
               </Button>
             </div>
@@ -544,6 +550,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
           setFormOpen(true);
         }}
       >
+        <Plus />
         Add field
       </Button>
     ),
@@ -671,7 +678,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                 <ResourceName
                   name={field.name}
                   description={
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="flex items-center gap-1.5">
                       <FieldTypeIcon type={field.type} size={14} />
                       {field.type}
                     </span>
@@ -737,6 +744,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                       setFormOpen(true);
                     }}
                   >
+                    <Pencil />
                     Edit
                   </Button>
                   <Button
@@ -773,6 +781,7 @@ export function FieldsSettings(props: SettingsPanelProps) {
                       }
                     }}
                   >
+                    <Trash2 />
                     Remove
                   </Button>
                 </div>
@@ -884,6 +893,7 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
           setFormOpen(true);
         }}
       >
+        <Plus />
         Create unique rule
       </Button>
     ),
@@ -990,6 +1000,7 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                         }
                       }}
                     >
+                      <Trash2 />
                       Remove
                     </Button>
                   </div>
@@ -1008,6 +1019,7 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
             noValidate
             busy={busy}
             submit="Create unique rule"
+            submitIcon={<Plus />}
             onCancel={() => setFormOpen(false)}
             onSubmit={async () => {
               if (!fieldIds.length) {

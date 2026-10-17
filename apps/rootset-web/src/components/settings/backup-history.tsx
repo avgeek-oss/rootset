@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "@avgeek-oss/design-system/overlays/toast";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
@@ -8,13 +9,10 @@ import { TypographyCode } from "@avgeek-oss/design-system/typography/typography"
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   createDateTimeFormatter,
+  type BackupScheduleResult,
   type DatabaseBackup,
-  type Job,
 } from "@rootset/contracts";
-import { BackupHealth } from "./backup-protection";
 import { RestoreBackup } from "../restore-backup";
-import Link from "next/link";
-import { buttonVariants } from "@avgeek-oss/design-system/buttons/button";
 import { formatStorageBytes } from "../../lib/format-storage";
 import {
   databasePath,
@@ -28,20 +26,14 @@ import { RelativeTime } from "./account/last-synced-time";
 import { PageSelectionTitle } from "./account/page-selection-title";
 import { statusColor, statusIcon, statusLabel } from "./status";
 import { Empty, Loading } from "./ui";
-import type { SettingsPanelProps } from "./types";
+import type { Job, SettingsPanelProps } from "./types";
+import { Backup, Restore, ChevronLeft, ChevronRight, Stop } from "../ui/icons";
 
 interface BackupPage {
   data: DatabaseBackup[];
   nextCursor: string | null;
 }
 const EMPTY_PAGE: BackupPage = { data: [], nextCursor: null };
-interface RestorePage {
-  data: Job[];
-  nextCursor: string | null;
-}
-const EMPTY_RESTORES: RestorePage = { data: [], nextCursor: null };
-const loadRestores = (path: string, signal?: AbortSignal) =>
-  readRaw<RestorePage>(path, signal);
 const loadHistory = (path: string, signal?: AbortSignal) =>
   readRaw<BackupPage>(path, signal);
 const isActive = (state: string) => state === "queued" || state === "running";
@@ -52,26 +44,34 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
     : undefined;
   const [cursors, setCursors] = useState<string[]>([""]);
   const [page, setPage] = useState(0);
-  const history = useResource<BackupPage>(
-    path
+  const schedule = useResource<BackupScheduleResult | null>(
+    path ? `${path}/backup-schedule` : undefined,
+    null,
+  );
+  const latest = useResource<BackupPage>(
+    path ? `${path}/backups?limit=25` : undefined,
+    EMPTY_PAGE,
+    loadHistory,
+  );
+  const older = useResource<BackupPage>(
+    path && page > 0
       ? `${path}/backups?limit=25${cursors[page] ? `&cursor=${encodeURIComponent(cursors[page]!)}` : ""}`
       : undefined,
     EMPTY_PAGE,
     loadHistory,
   );
+  const history = page === 0 ? latest : older;
+  const [pendingJobId, setPendingJobId] = useState<string>();
+  const starting = useRef(false);
+  const job = useResource<Job | null>(
+    pendingJobId
+      ? `${organisationPath(props.orgId)}/jobs/${pendingJobId}`
+      : undefined,
+    null,
+  );
   const [selected, setSelected] = useState<{
     backupId: string;
-    initialJob?: Job;
   } | null>(null);
-  const [restoreCursors, setRestoreCursors] = useState<string[]>([""]);
-  const [restorePage, setRestorePage] = useState(0);
-  const restores = useResource<RestorePage>(
-    props.databaseId
-      ? `${organisationPath(props.orgId)}/jobs?databaseId=${props.databaseId}&kind=database_restore&order=desc&limit=25${restoreCursors[restorePage] ? `&cursor=${encodeURIComponent(restoreCursors[restorePage]!)}` : ""}`
-      : undefined,
-    EMPTY_RESTORES,
-    loadRestores,
-  );
   const mutation = useMutation();
   const format = useMemo(
     () =>
@@ -82,32 +82,105 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
       }),
     [props.preferences],
   );
-  const hasActiveRun = history.data.data.some((run) => isActive(run.state));
-  const hasActiveRestore = restores.data.data.some((run) =>
-    isActive(run.state),
+  const hasActiveRun = latest.data.data.some((run) => isActive(run.state));
+  const hasActiveBackup = latest.data.data.some(
+    (run) => run.kind === "backup" && isActive(run.state),
   );
   useEffect(() => {
-    const timer = setInterval(restores.reload, hasActiveRestore ? 2000 : 10000);
+    if (!path) return;
+    const timer = setInterval(
+      latest.reload,
+      hasActiveRun || pendingJobId ? 2000 : 10000,
+    );
     return () => clearInterval(timer);
-  }, [restores.reload, hasActiveRestore]);
+  }, [path, latest.reload, hasActiveRun, pendingJobId]);
   useEffect(() => {
-    if (!path || page !== 0) return;
-    const timer = setInterval(history.reload, hasActiveRun ? 2000 : 10000);
+    if (!path) return;
+    const timer = setInterval(schedule.reload, 10000);
     return () => clearInterval(timer);
-  }, [path, page, history.reload, hasActiveRun]);
-  if (!path) return <Empty>Select a database to view backup history.</Empty>;
+  }, [path, schedule.reload]);
+  useEffect(() => {
+    if (!pendingJobId) return;
+    const timer = setInterval(job.reload, 2000);
+    return () => clearInterval(timer);
+  }, [pendingJobId, job.reload]);
+  useEffect(() => {
+    if (
+      !pendingJobId ||
+      job.data?.id !== pendingJobId ||
+      isActive(job.data.state)
+    )
+      return;
+    starting.current = false;
+    setPendingJobId(undefined);
+    latest.reload();
+    schedule.reload();
+    if (job.data.state === "succeeded")
+      toast.success("Database backup completed.");
+    else
+      toast.danger(
+        typeof job.data.error === "string"
+          ? job.data.error
+          : (job.data.error?.message ??
+              "The database backup did not complete."),
+      );
+  }, [pendingJobId, job.data, latest.reload, schedule.reload]);
+  const canStartBackup = Boolean(
+    path &&
+    !schedule.loading &&
+    !schedule.error &&
+    !latest.loading &&
+    !latest.error &&
+    schedule.data?.worker.available &&
+    schedule.data.worker.matchesSchedule &&
+    schedule.data.schedule?.testedAt &&
+    !schedule.data.pendingSaveJobId &&
+    !mutation.busy &&
+    !hasActiveBackup &&
+    !pendingJobId,
+  );
+  const actions = useMemo(
+    () => (
+      <Button
+        isDisabled={!canStartBackup}
+        onPress={async () => {
+          if (!canStartBackup || starting.current) return;
+          starting.current = true;
+          const result = await mutation.run(() =>
+            performAction<{ jobId: string }>("runDatabaseBackup", {
+              orgId: props.orgId,
+              databaseId: props.databaseId,
+            }),
+          );
+          if (result.ok) {
+            setPendingJobId(result.value.jobId);
+            setCursors([""]);
+            setPage(0);
+            latest.reload();
+          } else starting.current = false;
+        }}
+      >
+        <Backup />
+        Back up now
+      </Button>
+    ),
+    [canStartBackup, props.orgId, props.databaseId, latest.reload],
+  );
+  if (!path) return <Empty>Select a database to view backup attempts.</Empty>;
   return (
     <>
-      <PageSelectionTitle label="Backup History" />
-      <Loading {...history} retry={history.reload} />
+      <PageSelectionTitle label="Backup Attempts" actions={actions} />
+      <Loading {...latest} retry={latest.reload} />
+      {page > 0 && <Loading {...older} retry={older.reload} />}
+      <Loading {...schedule} retry={schedule.reload} />
+      <Loading {...job} retry={job.reload} />
       <div className="grid min-w-0 gap-4">
-        <BackupHealth {...props} />
         <ResourceTable
-          ariaLabel="Database backups"
+          ariaLabel="Database backup attempts"
           items={history.data.data}
           getRowKey={(run) => run.id}
           tableClassName="min-w-5xl"
-          emptyTitle="No backups yet"
+          emptyTitle="No backup attempts yet"
           emptyDescription="Save a backup schedule to start creating database snapshots."
           columns={[
             {
@@ -121,7 +194,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
               key: "kind",
               header: "Type",
               cell: (run) => (
-                <Chip>
+                <Chip color={run.trigger === "manual" ? "warning" : "accent"}>
                   <Chip.Label>
                     {run.trigger === "manual" ? "Manual" : "Scheduled"}
                   </Chip.Label>
@@ -197,6 +270,8 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
             {
               key: "size",
               header: "Size",
+              headerClassName: "min-w-32",
+              className: "min-w-32",
               cell: (run) =>
                 run.sizeBytes === null ? (
                   <span className="text-muted">—</span>
@@ -227,15 +302,17 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
             {
               key: "details",
               header: "Details",
+              headerClassName: "min-w-lg",
+              className: "min-w-lg",
               cell: (run) => (
-                <span className="block max-w-md break-words">
+                <span className="block max-w-2xl break-words">
                   {run.retentionError ??
                     run.error ??
                     (run.storageState === "pruned"
                       ? "Removed by the backup retention policy."
                       : run.note) ??
                     (run.objectKey ? (
-                      <TypographyCode className="block w-80 whitespace-normal break-all">
+                      <TypographyCode className="block whitespace-normal break-all">
                         {`${run.bucket}/${run.objectKey}`}
                       </TypographyCode>
                     ) : run.kind === "destination_test" ? (
@@ -272,6 +349,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
                       if (result.ok) history.reload();
                     }}
                   >
+                    <Stop />
                     Cancel
                   </Button>
                 ) : run.kind === "backup" &&
@@ -283,6 +361,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
                     variant="secondary"
                     onPress={() => setSelected({ backupId: run.id })}
                   >
+                    <Restore />
                     Restore
                   </Button>
                 ) : (
@@ -297,6 +376,7 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
             isDisabled={page === 0 || history.loading}
             onPress={() => setPage((value) => value - 1)}
           >
+            <ChevronLeft />
             Newer
           </Button>
           <Button
@@ -311,137 +391,15 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
             }}
           >
             Older
+            <ChevronRight />
           </Button>
         </div>
-        <section
-          className="grid min-w-0 gap-4"
-          aria-labelledby="restore-requests-heading"
-        >
-          <h2 id="restore-requests-heading" className="text-lg font-medium">
-            Restore requests
-          </h2>
-          <Loading {...restores} retry={restores.reload} />
-          <ResourceTable
-            ariaLabel="Database restore requests"
-            items={restores.data.data}
-            getRowKey={(run) => run.id}
-            tableClassName="min-w-2xl"
-            emptyTitle="No restore requests"
-            emptyDescription="Choose Restore on a successful backup to verify its contents."
-            columns={[
-              {
-                key: "created",
-                header: "Requested",
-                cell: (run) => (
-                  <RelativeTime
-                    label="Restore requested"
-                    value={run.createdAt}
-                  />
-                ),
-              },
-              {
-                key: "type",
-                header: "Type",
-                cell: (run) =>
-                  run.kind === "database_restore_preview"
-                    ? "Verification"
-                    : "Restore",
-              },
-              {
-                key: "status",
-                header: "Status",
-                cell: (run) => (
-                  <Chip color={statusColor(run.state)}>
-                    <Chip.Label>{statusLabel(run.state)}</Chip.Label>
-                  </Chip>
-                ),
-              },
-              {
-                key: "progress",
-                header: "Progress",
-                cell: (run) => (
-                  <span className="text-sm text-muted">
-                    {run.error?.message ??
-                      (isActive(run.state)
-                        ? statusLabel(run.stage ?? run.state)
-                        : run.state === "succeeded"
-                          ? "Completed"
-                          : "—")}
-                  </span>
-                ),
-              },
-              {
-                key: "actions",
-                header: "Actions",
-                headerClassName: "text-right",
-                cell: (run) => {
-                  const result = run.result;
-                  const databaseId =
-                    result &&
-                    typeof result === "object" &&
-                    !Array.isArray(result) &&
-                    typeof result.databaseId === "string"
-                      ? result.databaseId
-                      : null;
-                  return (
-                    <div className="flex justify-end gap-2">
-                      {databaseId && (
-                        <Link
-                          href={`/databases/${databaseId}`}
-                          className={buttonVariants({ variant: "secondary" })}
-                        >
-                          Open database
-                        </Link>
-                      )}
-                      {run.backupId && (
-                        <Button
-                          variant="secondary"
-                          onPress={() =>
-                            setSelected({
-                              backupId: run.backupId!,
-                              initialJob: run,
-                            })
-                          }
-                        >
-                          View request
-                        </Button>
-                      )}
-                    </div>
-                  );
-                },
-              },
-            ]}
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              isDisabled={restorePage === 0 || restores.loading}
-              onPress={() => setRestorePage((value) => value - 1)}
-            >
-              Newer requests
-            </Button>
-            <Button
-              variant="secondary"
-              isDisabled={!restores.data.nextCursor || restores.loading}
-              onPress={() => {
-                setRestoreCursors((values) => [
-                  ...values.slice(0, restorePage + 1),
-                  restores.data.nextCursor!,
-                ]);
-                setRestorePage((value) => value + 1);
-              }}
-            >
-              Older requests
-            </Button>
-          </div>
-        </section>
       </div>
       {selected && (
         <RestoreBackup
-          key={selected.initialJob?.id ?? selected.backupId}
+          key={selected.backupId}
           orgId={props.orgId}
           backupId={selected.backupId}
-          initialJob={selected.initialJob}
           destination={(() => {
             const run = history.data.data.find(
               (run) => run.id === selected.backupId,
@@ -452,10 +410,8 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
           })()}
           onClose={() => {
             setSelected(null);
-            restores.reload();
           }}
           onRestored={() => {
-            restores.reload();
             props.onChanged?.();
           }}
           onAccessLost={() => {

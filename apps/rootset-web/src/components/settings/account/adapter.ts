@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { usePageQuery } from "../../page-navigation";
 import { identityRequest } from "../../../lib/identity-request";
 import { registerWebAuthnPasskey } from "../../../lib/passkeys";
 import { authClient } from "../../../lib/auth-client";
@@ -168,7 +168,7 @@ async function loadAccount(path: string): Promise<unknown> {
 }
 
 export function useApiQuery<T>(path: string | null) {
-  const query = useQuery<T>({
+  const query = usePageQuery<T>({
     queryKey: ["account-settings", path],
     queryFn: async () => {
       try {

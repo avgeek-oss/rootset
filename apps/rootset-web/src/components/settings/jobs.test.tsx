@@ -48,7 +48,7 @@ describe("export request history", () => {
     expect(failed).toContain(">Retry<");
     expect(failed).not.toContain(">Download<");
   });
-  it("shows database ZIP format and table counts in the shared table", () => {
+  it("shows database table data format and table counts in the shared table", () => {
     const html = render(
       [
         request("succeeded", {
@@ -58,7 +58,7 @@ describe("export request history", () => {
       ],
       true,
     );
-    for (const text of ["ZIP · JSONL", "Tables", "Rows", "30", "Download"])
+    for (const text of ["JSONL", "Tables", "Rows", "30", "Download"])
       expect(html).toContain(text);
     expect(html).toContain("<table");
     expect(html).toContain(">3<");

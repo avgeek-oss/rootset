@@ -6,6 +6,7 @@ import type { CellDraft } from "./drafts";
 import { allowedValueLabel } from "../../lib/field-choices";
 import { ChevronDown } from "../ui/icons";
 import { getLocalDateTimeCandidates } from "./temporal";
+import { JsonEditor } from "../json-editor";
 
 export function CellInput({
   field,
@@ -63,7 +64,14 @@ export function CellInput({
   return (
     <>
       {!inline && (
-        <label htmlFor={id}>
+        <label
+          htmlFor={id}
+          onClick={
+            field.type === "json"
+              ? () => document.getElementById(id)?.focus()
+              : undefined
+          }
+        >
           {field.name}
           {field.required ? " *" : ""}
         </label>
@@ -122,10 +130,24 @@ export function CellInput({
           </select>
           <ChevronDown size={14} />
         </div>
-      ) : ["text", "uri", "url", "image", "json"].includes(field.type) ? (
+      ) : field.type === "json" ? (
+        <JsonEditor
+          id={id}
+          label={field.name}
+          describedBy={describedBy}
+          value={draft.isNull ? "" : draft.text}
+          isNull={draft.isNull}
+          onChange={changeText}
+          disabled={disabled}
+          invalid={invalid}
+          required={Boolean(field.required)}
+          autoFocus={autoFocus}
+          inline={inline}
+        />
+      ) : ["text", "uri", "url", "image"].includes(field.type) ? (
         <textarea
           {...common}
-          rows={field.type === "json" || expanded ? 8 : inline ? 1 : 2}
+          rows={expanded ? 8 : inline ? 1 : 2}
           value={draft.isNull ? "" : draft.text}
           placeholder={draft.isNull ? "NULL" : undefined}
           onChange={(event) => changeText(event.target.value)}

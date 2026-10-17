@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dropdown,
+  Description,
   Input,
   Label,
   ListBox,
@@ -30,9 +31,27 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { savedViewPath } from "../lib/saved-view-state";
 import { Dialog } from "./dialog";
 import { Form, useConfirmation } from "./settings/ui";
-import { Columns3, MoreHorizontal, View } from "./ui/icons";
+import {
+  Columns3,
+  MoreHorizontal,
+  View,
+  RefreshCw,
+  Save,
+  Plus,
+  Copy,
+  Settings,
+  Eraser,
+  Trash2,
+} from "./ui/icons";
 
-type SaveKind = "create" | "update" | "rename";
+type SaveKind = "create" | "update" | "manage";
+type ViewEditorSnapshot = {
+  definition: SavedViewDefinition;
+  schemaVersion: number;
+} & (
+  | { kind: "create"; selected?: SavedView }
+  | { kind: "manage"; selected: SavedView }
+);
 interface Target {
   orgId: string;
   databaseId: string;
@@ -59,14 +78,10 @@ interface SavedViewsProps {
   onReloadFields(): Promise<number | null>;
   onAccessLost(): void;
   loading: boolean;
+  selectionActions?: ReactNode;
 }
 export function SavedViewsToolbar(props: SavedViewsProps) {
-  const [editor, setEditor] = useState<{
-    kind: "create" | "rename";
-    definition: SavedViewDefinition;
-    selected?: SavedView;
-    schemaVersion: number;
-  } | null>(null);
+  const [editor, setEditor] = useState<ViewEditorSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [schemaConflict, setSchemaConflict] = useState(false);
@@ -116,18 +131,25 @@ export function SavedViewsToolbar(props: SavedViewsProps) {
     setEditor(null);
     props.onSaved(view, kind);
   }
-  function openEditor(kind: "create" | "rename") {
+  function openEditor(kind: ViewEditorSnapshot["kind"]) {
     if (busy || props.disabled) return;
-    if (kind === "rename" && !props.selected?.canEdit) return;
-    if (kind === "create") {
-      const result = SavedViewDefinitionSchema.safeParse(props.definition);
-      if (!result.success) {
-        toast.danger(
-          result.error.issues[0]?.message ??
-            "Check the view’s filters and layout.",
-        );
-        return;
-      }
+    if (kind === "manage") {
+      if (!props.selected?.canEdit) return;
+      setEditor({
+        kind,
+        definition: props.definition,
+        selected: props.selected,
+        schemaVersion: props.schemaVersion,
+      });
+      return;
+    }
+    const result = SavedViewDefinitionSchema.safeParse(props.definition);
+    if (!result.success) {
+      toast.danger(
+        result.error.issues[0]?.message ??
+          "Check the view’s filters and layout.",
+      );
+      return;
     }
     setEditor({
       kind,
@@ -278,189 +300,232 @@ export function SavedViewsToolbar(props: SavedViewsProps) {
   return (
     <>
       <div
-        className="flex min-w-0 flex-wrap items-center gap-3 border-b border-separator px-4 py-3 sm:px-6"
+        className={`flex min-w-0 items-center gap-3 border-b border-separator px-4 py-4 ${props.selectionActions ? "flex-nowrap" : "flex-wrap"}`}
         role="toolbar"
-        aria-label="View actions"
+        aria-label={
+          props.selectionActions ? "Selected row actions" : "View actions"
+        }
       >
-        <Select
-          className="min-w-0 max-w-xs flex-1"
-          value={props.viewId ?? "default"}
-          isDisabled={busy}
-          onChange={(id) => {
-            if (typeof id === "string")
-              props.onNavigate(id === "default" ? null : id);
-          }}
-        >
-          <Label className="sr-only">View</Label>
-          <Select.Trigger>
-            <View className="shrink-0 text-muted" />
-            <Select.Value className="min-w-0 flex-1">
-              <span className="truncate">{label}</span>
-            </Select.Value>
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover className="flex w-(--trigger-width) min-w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden">
-            <Autocomplete.Filter
-              filter={(text, search) =>
-                text
-                  .toLocaleLowerCase()
-                  .includes(search.trim().toLocaleLowerCase())
-              }
-            >
-              <SearchField
-                aria-label="Search views"
-                variant="secondary"
-                className="shrink-0 px-2 pt-2 pb-2"
-              >
-                <SearchField.Group>
-                  <SearchField.SearchIcon />
-                  <SearchField.Input
-                    className="text-base sm:text-sm"
-                    placeholder="Search views…"
-                    maxLength={120}
-                    autoComplete="off"
-                    spellCheck={false}
-                    autoFocus={
-                      typeof window !== "undefined" &&
-                      window.matchMedia("(pointer: fine)").matches
-                    }
-                  />
-                  <SearchField.ClearButton aria-label="Clear view search" />
-                </SearchField.Group>
-              </SearchField>
-              <ListBox
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-                renderEmptyState={() => "No matching views"}
-              >
-                <ListBox.Item id="default" textValue="Default view">
-                  Default view
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                {missing && (
-                  <ListBox.Item id={props.viewId!} textValue={label} isDisabled>
-                    {label}
-                  </ListBox.Item>
-                )}
-                {items.map((view) => (
-                  <ListBox.Item
-                    key={view.id}
-                    id={view.id}
-                    textValue={`${view.name} ${view.visibility}`}
-                  >
-                    <span className="flex min-w-0 flex-1 items-center gap-3">
-                      <span className="truncate">{view.name}</span>
-                      <span className="ml-auto shrink-0 text-xs text-muted">
-                        {view.visibility === "shared" ? "Shared" : "Personal"}
-                      </span>
-                    </span>
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Autocomplete.Filter>
-            {views.isPending && (
-              <p role="status" className="px-3 py-2 text-sm text-muted">
-                Loading views…
-              </p>
-            )}
-            {views.isError && (
-              <Button
-                slot={null}
-                variant="secondary"
-                onPress={() => void views.refetch()}
-              >
-                Retry loading views
-              </Button>
-            )}
-          </Select.Popover>
-        </Select>
-        {props.selected?.canEdit && props.dirty && (
-          <Button
-            isPending={busy}
-            isDisabled={busy || props.disabled || conflict || schemaConflict}
-            onPress={() => void save()}
-          >
-            Save changes
-          </Button>
-        )}
-        <Button
-          variant="secondary"
-          isIconOnly
-          aria-label="Columns"
-          isDisabled={busy || props.disabled}
-          onPress={props.onColumns}
-        >
-          <Columns3 />
-        </Button>
-        <Dropdown>
-          <Button
-            variant="secondary"
-            isIconOnly
-            aria-label="View options"
-            isDisabled={busy}
-          >
-            <MoreHorizontal />
-          </Button>
-          <Dropdown.Popover>
-            <Dropdown.Menu
-              aria-label="View options"
-              onAction={(key) => {
-                if (key === "new") openEditor("create");
-                else if (key === "rename") openEditor("rename");
-                else if (key === "copy") void copyLink();
-                else if (key === "delete") void remove();
-                else if (key === "clear-filters") props.onClearFilters();
-                else if (key === "clear-sorting") props.onClearSorting();
+        {props.selectionActions ?? (
+          <>
+            <Select
+              className="min-w-0 max-w-xs flex-1"
+              value={props.viewId ?? "default"}
+              isDisabled={busy}
+              onChange={(id) => {
+                if (typeof id === "string")
+                  props.onNavigate(id === "default" ? null : id);
               }}
             >
-              <Dropdown.Item id="new" isDisabled={props.disabled}>
-                Save as new view
-              </Dropdown.Item>
-              {props.selected && (
-                <Dropdown.Item id="copy" isDisabled={props.disabled}>
-                  Copy view link
-                </Dropdown.Item>
-              )}
-              {props.selected?.canEdit && (
-                <Dropdown.Item id="rename" isDisabled={props.disabled}>
-                  Rename or share view
-                </Dropdown.Item>
-              )}
-              {props.hasFilters && (
-                <Dropdown.Item id="clear-filters">Clear filters</Dropdown.Item>
-              )}
-              {props.hasSorting && (
-                <Dropdown.Item id="clear-sorting">Clear sorting</Dropdown.Item>
-              )}
-              {props.selected?.canEdit && (
-                <Dropdown.Item id="delete" variant="danger">
-                  Delete view
-                </Dropdown.Item>
-              )}
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
-        {conflict && (
-          <Button
-            variant="secondary"
-            isDisabled={busy}
-            onPress={() => void reload()}
-          >
-            Reload saved view
-          </Button>
-        )}
-        {schemaConflict && (
-          <Button
-            variant="secondary"
-            isDisabled={busy}
-            onPress={() =>
-              void props.onReloadFields().then((version) => {
-                if (version) setSchemaConflict(false);
-              })
-            }
-          >
-            Reload fields
-          </Button>
+              <Label className="sr-only">View</Label>
+              <Select.Trigger className="items-center gap-2">
+                <View className="shrink-0 text-muted" />
+                <Select.Value className="min-w-0 flex-1">
+                  <span className="truncate">{label}</span>
+                </Select.Value>
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover className="flex w-(--trigger-width) min-w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden">
+                <Autocomplete.Filter
+                  filter={(text, search) =>
+                    text
+                      .toLocaleLowerCase()
+                      .includes(search.trim().toLocaleLowerCase())
+                  }
+                >
+                  <SearchField
+                    aria-label="Search views"
+                    variant="secondary"
+                    className="shrink-0 px-2 pt-2 pb-2"
+                  >
+                    <SearchField.Group>
+                      <SearchField.SearchIcon />
+                      <SearchField.Input
+                        className="text-base sm:text-sm"
+                        placeholder="Search views…"
+                        maxLength={120}
+                        autoComplete="off"
+                        spellCheck={false}
+                        autoFocus={
+                          typeof window !== "undefined" &&
+                          window.matchMedia("(pointer: fine)").matches
+                        }
+                      />
+                      <SearchField.ClearButton aria-label="Clear view search" />
+                    </SearchField.Group>
+                  </SearchField>
+                  <ListBox
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                    renderEmptyState={() => "No matching views"}
+                  >
+                    <ListBox.Item id="default" textValue="Default view">
+                      Default view
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    {missing && (
+                      <ListBox.Item
+                        id={props.viewId!}
+                        textValue={label}
+                        isDisabled
+                      >
+                        {label}
+                      </ListBox.Item>
+                    )}
+                    {items.map((view) => (
+                      <ListBox.Item
+                        key={view.id}
+                        id={view.id}
+                        textValue={`${view.name} ${view.visibility}`}
+                      >
+                        <span className="flex min-w-0 flex-1 items-center gap-3">
+                          <span className="truncate">{view.name}</span>
+                          <span className="ml-auto shrink-0 text-xs text-muted">
+                            {view.visibility === "shared"
+                              ? "Shared"
+                              : "Personal"}
+                          </span>
+                        </span>
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Autocomplete.Filter>
+                {views.isPending && (
+                  <p role="status" className="px-3 py-2 text-sm text-muted">
+                    Loading views…
+                  </p>
+                )}
+                {views.isError && (
+                  <Button
+                    slot={null}
+                    variant="secondary"
+                    onPress={() => void views.refetch()}
+                  >
+                    <RefreshCw />
+                    Retry loading views
+                  </Button>
+                )}
+              </Select.Popover>
+            </Select>
+            {props.selected?.canEdit && props.dirty && (
+              <Button
+                isPending={busy}
+                isDisabled={
+                  busy || props.disabled || conflict || schemaConflict
+                }
+                onPress={() => void save()}
+              >
+                <Save />
+                Save changes
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              isDisabled={busy || props.disabled}
+              onPress={props.onColumns}
+            >
+              <Columns3 />
+              Columns
+            </Button>
+            <Dropdown>
+              <Button
+                variant="secondary"
+                isIconOnly
+                aria-label="View options"
+                isDisabled={busy}
+              >
+                <MoreHorizontal />
+              </Button>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  aria-label="View options"
+                  onAction={(key) => {
+                    if (key === "new") openEditor("create");
+                    else if (key === "manage") openEditor("manage");
+                    else if (key === "copy") void copyLink();
+                    else if (key === "delete") void remove();
+                    else if (key === "clear-filters") props.onClearFilters();
+                    else if (key === "clear-sorting") props.onClearSorting();
+                  }}
+                >
+                  <Dropdown.Item
+                    id="new"
+                    textValue="Save as new view"
+                    isDisabled={props.disabled}
+                  >
+                    <Save className="shrink-0 text-muted" />
+                    Save as new view
+                  </Dropdown.Item>
+                  {props.selected && (
+                    <Dropdown.Item
+                      id="copy"
+                      textValue="Copy view link"
+                      isDisabled={props.disabled}
+                    >
+                      <Copy className="shrink-0 text-muted" />
+                      Copy view link
+                    </Dropdown.Item>
+                  )}
+                  {props.selected?.canEdit && (
+                    <Dropdown.Item
+                      id="manage"
+                      textValue="Manage view"
+                      isDisabled={props.disabled}
+                    >
+                      <Settings className="shrink-0 text-muted" />
+                      Manage view
+                    </Dropdown.Item>
+                  )}
+                  {props.hasFilters && (
+                    <Dropdown.Item id="clear-filters" textValue="Clear filters">
+                      <Eraser className="shrink-0 text-muted" />
+                      Clear filters
+                    </Dropdown.Item>
+                  )}
+                  {props.hasSorting && (
+                    <Dropdown.Item id="clear-sorting" textValue="Clear sorting">
+                      <Eraser className="shrink-0 text-muted" />
+                      Clear sorting
+                    </Dropdown.Item>
+                  )}
+                  {props.selected?.canEdit && (
+                    <Dropdown.Item
+                      id="delete"
+                      textValue="Delete view"
+                      variant="danger"
+                    >
+                      <Trash2 className="shrink-0 text-danger" />
+                      Delete view
+                    </Dropdown.Item>
+                  )}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+            {conflict && (
+              <Button
+                variant="secondary"
+                isDisabled={busy}
+                onPress={() => void reload()}
+              >
+                <RefreshCw />
+                Reload saved view
+              </Button>
+            )}
+            {schemaConflict && (
+              <Button
+                variant="secondary"
+                isDisabled={busy}
+                onPress={() =>
+                  void props.onReloadFields().then((version) => {
+                    if (version) setSchemaConflict(false);
+                  })
+                }
+              >
+                <RefreshCw />
+                Reload fields
+              </Button>
+            )}
+          </>
         )}
       </div>
       {editor && (
@@ -484,24 +549,21 @@ function ViewEditor({
   onComplete,
   onReloadFields,
 }: Pick<SavedViewsProps, "target" | "canShare" | "onReloadFields"> & {
-  snapshot: {
-    kind: "create" | "rename";
-    definition: SavedViewDefinition;
-    selected?: SavedView;
-    schemaVersion: number;
-  };
+  snapshot: ViewEditorSnapshot;
   onClose(): void;
   onComplete(view: SavedView, kind: SaveKind): Promise<void>;
 }) {
-  const [name, setName] = useState(
-    snapshot.kind === "rename"
-      ? snapshot.selected!.name
+  const initialName =
+    snapshot.kind === "manage"
+      ? snapshot.selected.name
       : snapshot.selected
         ? `${snapshot.selected.name.slice(0, 115)} copy`
-        : "",
-  );
+        : "";
+  const initialVisibility =
+    snapshot.kind === "manage" ? snapshot.selected.visibility : "personal";
+  const [name, setName] = useState(initialName);
   const [visibility, setVisibility] = useState<"personal" | "shared">(
-    snapshot.kind === "rename" ? snapshot.selected!.visibility : "personal",
+    initialVisibility,
   );
   const [schemaVersion, setSchemaVersion] = useState(snapshot.schemaVersion);
   const [busy, setBusy] = useState(false);
@@ -520,14 +582,6 @@ function ViewEditor({
     }
   }, [busy]);
   const confirmation = useConfirmation();
-  const initialName =
-    snapshot.kind === "rename"
-      ? snapshot.selected!.name
-      : snapshot.selected
-        ? `${snapshot.selected.name.slice(0, 115)} copy`
-        : "";
-  const initialVisibility =
-    snapshot.kind === "rename" ? snapshot.selected!.visibility : "personal";
   async function close() {
     if (lock.current || closing.current) return;
     closing.current = true;
@@ -563,8 +617,8 @@ function ViewEditor({
       ...(snapshot.kind === "create"
         ? { definition: snapshot.definition }
         : {
-            viewId: snapshot.selected!.id,
-            expectedVersion: snapshot.selected!.version,
+            viewId: snapshot.selected.id,
+            expectedVersion: snapshot.selected.version,
           }),
     };
     try {
@@ -598,9 +652,7 @@ function ViewEditor({
   return (
     <>
       <Dialog
-        title={
-          snapshot.kind === "create" ? "Save view" : "Rename or share view"
-        }
+        title={snapshot.kind === "create" ? "Save view" : "Manage view"}
         onClose={() => void close()}
         closeDisabled={busy}
       >
@@ -608,6 +660,7 @@ function ViewEditor({
           noValidate
           busy={busy}
           submit={snapshot.kind === "create" ? "Create view" : "Save changes"}
+          submitIcon={snapshot.kind === "create" ? <Plus /> : <Save />}
           submitDisabled={schemaConflict || viewConflict}
           onSubmit={submit}
           onCancel={() => void close()}
@@ -646,8 +699,8 @@ function ViewEditor({
             disabledKeys={!canShare ? ["shared"] : []}
             isDisabled={
               busy ||
-              (snapshot.kind === "rename" &&
-                !snapshot.selected?.canChangeVisibility)
+              (snapshot.kind === "manage" &&
+                !snapshot.selected.canChangeVisibility)
             }
           >
             <Label>Visibility</Label>
@@ -690,12 +743,12 @@ function ViewEditor({
                 </ListBox.Item>
               </ListBox>
             </Select.Popover>
+            <Description>
+              {visibility === "shared"
+                ? "People with access to this table can use this view. Sharing a view does not grant access to its data."
+                : "Only you can use this view."}
+            </Description>
           </Select>
-          <p className="text-sm text-muted">
-            {visibility === "shared"
-              ? "People with access to this table can use this view. Sharing a view does not grant access to its data."
-              : "Only you can use this view."}
-          </p>
           {schemaConflict && (
             <Button
               variant="secondary"
@@ -708,6 +761,7 @@ function ViewEditor({
                 }
               }}
             >
+              <RefreshCw />
               Reload fields
             </Button>
           )}

@@ -37,7 +37,7 @@ export function RelativeTime({
   label,
   value,
 }: {
-  display?: "stacked" | "relative";
+  display?: "stacked" | "relative" | "compact";
   label: string;
   value?: string;
 }) {
@@ -63,14 +63,24 @@ export function RelativeTime({
   return (
     <TooltipText
       as="time"
-      tooltip={preferences.timezone}
+      tooltip={
+        display === "compact"
+          ? `${absolute} ${preferences.timezone}`
+          : preferences.timezone
+      }
       placement="left"
       aria-label={`${label}: ${absolute} ${preferences.timezone}${relative ? `, ${relative}` : ""}`}
-      className={`${tableCellStackClassName} whitespace-nowrap tabular-nums`}
+      className={`${display === "compact" ? "" : tableCellStackClassName} whitespace-nowrap tabular-nums`}
       dateTime={value}
     >
-      <span aria-hidden={!relative}>{relative ?? "\u00a0"}</span>
-      <TableCellDescription>{absolute}</TableCellDescription>
+      {display === "compact" ? (
+        (relative ?? "—")
+      ) : (
+        <>
+          <span aria-hidden={!relative}>{relative ?? "\u00a0"}</span>
+          <TableCellDescription>{absolute}</TableCellDescription>
+        </>
+      )}
     </TooltipText>
   );
 }

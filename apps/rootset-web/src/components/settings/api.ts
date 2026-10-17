@@ -1,8 +1,10 @@
 "use client";
 
 import { RootsetClient, browserApiOrigin } from "@rootset/web-client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePageQuery } from "../page-navigation";
 import { resolveSettingsOperation } from "./requests";
 
 const client = new RootsetClient({
@@ -142,43 +144,38 @@ export function useResource<T>(
   initial: T,
   load: (path: string, signal?: AbortSignal) => Promise<T> = read,
 ) {
-  const [data, setData] = useState(initial);
-  const [loading, setLoading] = useState(Boolean(path));
-  const [error, setError] = useState<SettingsError>();
-  const [revision, setRevision] = useState(0);
-  const previousPath = useRef(path);
-  const reload = useCallback(() => setRevision((value) => value + 1), []);
+  const queryClient = useQueryClient();
+  const query = usePageQuery<T>({
+    queryKey: ["settings-resource", path],
+    queryFn: ({ signal }) => load(path!, signal),
+    enabled: Boolean(path),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const reload = useCallback(() => {
+    if (path) void query.refetch();
+  }, [path, query.refetch]);
+  const replace = useCallback(
+    (next: SetStateAction<T>) => {
+      queryClient.setQueryData<T>(["settings-resource", path], (previous) =>
+        typeof next === "function"
+          ? (next as (value: T) => T)(previous ?? initial)
+          : next,
+      );
+    },
+    [queryClient, path, initial],
+  );
   useEffect(() => {
     window.addEventListener("rootset:account-refresh", reload);
     return () => window.removeEventListener("rootset:account-refresh", reload);
   }, [reload]);
-  useEffect(() => {
-    if (previousPath.current !== path) {
-      setData(initial);
-      previousPath.current = path;
-    }
-    if (!path) {
-      setLoading(false);
-      return;
-    }
-    const abort = new AbortController();
-    setLoading(true);
-    setError(undefined);
-    load(path, abort.signal)
-      .then((value) => {
-        if (abort.signal.aborted) return;
-        setData(value);
-        setLoading(false);
-      })
-      .catch((reason) => {
-        if (!abort.signal.aborted) {
-          setError(describeError(reason));
-          setLoading(false);
-        }
-      });
-    return () => abort.abort();
-  }, [path, revision, load]);
-  return { data, loading, error, reload, replace: setData };
+  return {
+    data: query.data ?? initial,
+    loading: Boolean(path) && query.isFetching,
+    error: query.error ? describeError(query.error) : undefined,
+    reload,
+    replace,
+  };
 }
 
 export type MutationResult<T> =

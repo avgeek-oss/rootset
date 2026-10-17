@@ -18,6 +18,14 @@ import { MutationAttempt } from "../lib/mutation-attempt";
 import { Field, useConfirmation } from "./settings/ui";
 import { RelativeTime } from "./settings/account/last-synced-time";
 import { statusLabel } from "./settings/status";
+import {
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Stop,
+  ShieldCheck,
+  Restore,
+} from "./ui/icons";
 import "./record-editor.css";
 
 interface Props {
@@ -114,7 +122,7 @@ export function RestoreBackup(props: Props) {
         restoreId ||
         (await confirmation.confirm(
           "Discard database name?",
-          "Your entered name will be discarded. Any queued request continues in Backup History.",
+          "Your entered name will be discarded. Any queued request continues in Restore Attempts.",
           "Discard name",
         ))
       )
@@ -267,6 +275,7 @@ export function RestoreBackup(props: Props) {
                         variant="secondary"
                         onPress={() => void current.refetch()}
                       >
+                        <RefreshCw />
                         Reload request
                       </Button>
                     </div>
@@ -373,6 +382,7 @@ export function RestoreBackup(props: Props) {
                             isDisabled={page === 0}
                             onPress={() => setPage((value) => value - 1)}
                           >
+                            <ChevronLeft />
                             Previous tables
                           </Button>
                           <Button
@@ -383,6 +393,7 @@ export function RestoreBackup(props: Props) {
                             onPress={() => setPage((value) => value + 1)}
                           >
                             Next tables
+                            <ChevronRight />
                           </Button>
                         </div>
                       )}
@@ -408,7 +419,7 @@ export function RestoreBackup(props: Props) {
                     <p className="text-sm text-muted">
                       The new database stays hidden until every validation
                       passes. Closing this panel leaves the request running in
-                      Backup History.
+                      Restore Attempts.
                     </p>
                   )}
                 </Drawer.Body>
@@ -426,6 +437,7 @@ export function RestoreBackup(props: Props) {
                       isDisabled={busy}
                       onPress={() => void submit("cancelJob")}
                     >
+                      <Stop />
                       Cancel request
                     </Button>
                   )}
@@ -435,6 +447,7 @@ export function RestoreBackup(props: Props) {
                       isDisabled={busy}
                       onPress={verifyAgain}
                     >
+                      <ShieldCheck />
                       Verify again
                     </Button>
                   )}
@@ -445,6 +458,7 @@ export function RestoreBackup(props: Props) {
                       isDisabled={busy}
                       onPress={() => void submit("retryJob")}
                     >
+                      <RefreshCw />
                       Retry restore
                     </Button>
                   )}
@@ -455,6 +469,7 @@ export function RestoreBackup(props: Props) {
                       variant="primary"
                       isPending={busy}
                     >
+                      {summary && !expired ? <Restore /> : <ShieldCheck />}
                       {summary && !expired
                         ? "Restore into new database"
                         : "Verify backup"}
@@ -467,6 +482,7 @@ export function RestoreBackup(props: Props) {
                       isDisabled={busy}
                       onPress={verifyAgain}
                     >
+                      <ShieldCheck />
                       Verify backup again
                     </Button>
                   )}

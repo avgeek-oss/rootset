@@ -18,8 +18,8 @@ import {
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { RecordField } from "./record-field";
 import { RecordForeignKey } from "./record-foreign-key";
-import { RecordRelationships } from "./record-relationships";
 import { useConfirmation } from "./settings/ui";
+import { RefreshCw, Save, Plus } from "./ui/icons";
 import "./record-editor.css";
 
 interface RecordTarget {
@@ -147,6 +147,7 @@ export function RecordEditor(props: RecordEditorProps) {
                     variant="secondary"
                     onPress={() => void record.refetch()}
                   >
+                    <RefreshCw />
                     Retry loading record
                   </Button>
                 </Drawer.Body>
@@ -222,7 +223,7 @@ function RecordForm({
         ?.fieldIds[0] ?? id;
     form.current
       ?.querySelector<HTMLElement>(
-        `[data-field-id="${focusId}"] :is(input,textarea,[role="spinbutton"],[data-slot="select-trigger"])`,
+        `[data-field-id="${focusId}"] :is(input,textarea,[contenteditable="true"][role="textbox"],[role="spinbutton"],[data-slot="select-trigger"])`,
       )
       ?.focus();
   }, [busy, reloading, schema.foreignKeys, errors]);
@@ -237,7 +238,7 @@ function RecordForm({
     const firstField =
       !readOnly && window.matchMedia("(pointer: fine)").matches
         ? container?.querySelector<HTMLElement>(
-            'input:not([type="hidden"]):not([readonly]):not([disabled]),textarea:not([readonly]):not([disabled]),[role="spinbutton"]:not([aria-disabled="true"]),[data-slot="select-trigger"]:not([disabled])',
+            'input:not([type="hidden"]):not([readonly]):not([disabled]),textarea:not([readonly]):not([disabled]),[contenteditable="true"][role="textbox"],[role="spinbutton"]:not([aria-disabled="true"]),[data-slot="select-trigger"]:not([disabled])',
           )
         : null;
     (
@@ -290,7 +291,7 @@ function RecordForm({
       toast.danger(`${field.name}: ${result.errors[invalid]}`);
       form.current
         ?.querySelector<HTMLElement>(
-          `[data-field-id="${focusId}"] :is(input,textarea,[role="spinbutton"],[data-slot="select-trigger"])`,
+          `[data-field-id="${focusId}"] :is(input,textarea,[contenteditable="true"][role="textbox"],[role="spinbutton"],[data-slot="select-trigger"])`,
         )
         ?.focus();
       return;
@@ -358,9 +359,10 @@ function RecordForm({
         event.preventDefault();
         void submit();
       }}
-      onKeyDown={(event) => {
+      onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
           event.preventDefault();
+          event.stopPropagation();
           void submit();
         }
       }}
@@ -412,16 +414,6 @@ function RecordForm({
             />
           );
         })}
-        {row && (
-          <RecordRelationships
-            target={target}
-            rowId={row.id}
-            version={row.version}
-            disabled={busy || reloading}
-            onAccessLost={onAccessLost}
-            onReloadRecord={onReload}
-          />
-        )}
       </Drawer.Body>
       <Drawer.Footer className="record-editor-footer">
         {needsReload && (
@@ -430,6 +422,7 @@ function RecordForm({
             isDisabled={busy || reloading}
             onPress={onReload}
           >
+            <RefreshCw />
             Reload record
           </Button>
         )}
@@ -449,6 +442,7 @@ function RecordForm({
               Boolean(row && !dirty)
             }
           >
+            {row ? <Save /> : <Plus />}
             {busy ? "Saving…" : row ? "Save changes" : "Add record"}
           </Button>
         )}
