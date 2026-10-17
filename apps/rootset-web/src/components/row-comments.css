@@ -4,7 +4,7 @@
 .row-number-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 4px;
   height: 100%;
 }
 .row-comment-trigger {
@@ -14,6 +14,7 @@
   width: 32px;
   height: 100%;
   flex-shrink: 0;
+  margin-inline-start: auto;
   color: var(--muted);
   cursor: pointer;
   touch-action: manipulation;

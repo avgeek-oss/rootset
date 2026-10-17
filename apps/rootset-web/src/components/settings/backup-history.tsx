@@ -7,6 +7,7 @@ import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { ResourceTable } from "@avgeek-oss/design-system/patterns/resource-table";
 import { TypographyCode } from "@avgeek-oss/design-system/typography/typography";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { TriangleAlertIcon } from "lucide-react";
 import {
   createDateTimeFormatter,
   type BackupScheduleResult,
@@ -306,6 +307,13 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
               className: "min-w-lg",
               cell: (run) => (
                 <span className="block max-w-2xl break-words">
+                  {(run.retentionError ?? run.error) && (
+                    <TriangleAlertIcon
+                      size={16}
+                      aria-hidden="true"
+                      className="mr-1.5 inline-block align-text-bottom text-danger"
+                    />
+                  )}
                   {run.retentionError ??
                     run.error ??
                     (run.storageState === "pruned"

@@ -60,6 +60,33 @@ export function FieldTable({
         pendingOrder.current = remaining.map((item) => item.id);
     },
   });
+  // React Aria's row-level handlers must still receive the handle's drag lifecycle.
+  const useDraggableItem = dragAndDropHooks.useDraggableItem;
+  const handleDragAndDropHooks = {
+    ...dragAndDropHooks,
+    useDraggableItem: useDraggableItem
+      ? function useHandleDraggableItem(
+          ...args: Parameters<typeof useDraggableItem>
+        ): ReturnType<typeof useDraggableItem> {
+          const { dragProps, dragButtonProps } = useDraggableItem(...args);
+          return {
+            dragProps: {
+              ...dragProps,
+              draggable: false,
+              onDragStart(event) {
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest("[data-field-drag-handle]")
+                )
+                  dragProps.onDragStart?.(event);
+                else event.preventDefault();
+              },
+            },
+            dragButtonProps,
+          };
+        }
+      : undefined,
+  };
   if (items.length === 0)
     return (
       <ResourceTable
@@ -78,7 +105,7 @@ export function FieldTable({
         <Table.Content
           aria-label={ariaLabel}
           className={`rootset-fields-table ${tableClassName}`}
-          dragAndDropHooks={dragAndDropHooks}
+          dragAndDropHooks={handleDragAndDropHooks}
           keyboardNavigationBehavior="arrow"
         >
           <Table.Header>
@@ -103,22 +130,27 @@ export function FieldTable({
                   >
                     {index === 0 ? (
                       <div className="field-name-cell">
-                        <Button
-                          slot="drag"
-                          variant="ghost"
-                          size="sm"
-                          isIconOnly
-                          style={{ pointerEvents: "auto" }}
-                          className="field-drag-handle"
-                          aria-label={`Reorder ${field.name}`}
-                          isDisabled={disabled || items.length < 2}
+                        <div
+                          data-field-drag-handle
+                          draggable={!disabled && items.length > 1}
                         >
-                          <HugeiconsIcon
-                            icon={DragDropVerticalIcon}
-                            size={16}
-                            aria-hidden="true"
-                          />
-                        </Button>
+                          <Button
+                            slot="drag"
+                            variant="ghost"
+                            size="sm"
+                            isIconOnly
+                            style={{ pointerEvents: "auto" }}
+                            className="field-drag-handle"
+                            aria-label={`Reorder ${field.name}`}
+                            isDisabled={disabled || items.length < 2}
+                          >
+                            <HugeiconsIcon
+                              icon={DragDropVerticalIcon}
+                              size={16}
+                              aria-hidden="true"
+                            />
+                          </Button>
+                        </div>
                         {column.cell(field)}
                       </div>
                     ) : (

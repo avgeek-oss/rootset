@@ -7,6 +7,11 @@
 .field-name-cell > span {
   overflow-wrap: anywhere;
 }
+.field-name-cell > [data-field-drag-handle] {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 .rootset-fields-table .button.button--sm.field-drag-handle {
   position: relative;
   flex-shrink: 0;
