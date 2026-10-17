@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-10-18)
 
 - Start field and view-column reordering only from the six-dot drag handle, with keyboard reordering still available on the handle. Center the handle with the column label.
 - Keep spreadsheet comment controls at the right edge of a compact row-number column, with space between the number and icon.
