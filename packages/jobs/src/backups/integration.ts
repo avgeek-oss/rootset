@@ -54,9 +54,9 @@ const emailOutbox = new EmailOutbox(app, {
   encryptionKey: randomBytes(32).toString("base64"),
   baseURL: "https://rootset.test",
   smtp: {
-    host: "127.0.0.1",
-    port: 11025,
-    secure: false,
+    host: process.env.ROOTSET_SMTP_HOST ?? "127.0.0.1",
+    port: Number(process.env.ROOTSET_SMTP_PORT ?? 11025),
+    secure: process.env.ROOTSET_SMTP_SECURE === "true",
     from: "Rootset <backups@rootset.test>",
   },
 });
