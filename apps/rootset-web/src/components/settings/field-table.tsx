@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useDragAndDrop } from "react-aria-components";
 import type { ReactNode } from "react";
 import type { TableField } from "./types";
+import "./field-table.css";
 
 export function FieldTable({
   items,
@@ -18,11 +19,15 @@ export function FieldTable({
   disabled,
   onReorder,
   emptyAction,
+  ariaLabel = "Fields",
+  tableClassName = "min-w-4xl",
 }: {
   items: TableField[];
   columns: ResourceTableColumn<TableField>[];
   disabled: boolean;
-  onReorder: (ids: string[]) => Promise<void>;
+  onReorder: (ids: string[]) => void | Promise<void>;
+  ariaLabel?: string;
+  tableClassName?: string;
   emptyAction: ReactNode;
 }) {
   const { dragAndDropHooks } = useDragAndDrop({
@@ -48,7 +53,7 @@ export function FieldTable({
   if (items.length === 0)
     return (
       <ResourceTable
-        ariaLabel="Fields"
+        ariaLabel={ariaLabel}
         items={items}
         columns={columns}
         getRowKey={(field) => field.id}
@@ -61,8 +66,8 @@ export function FieldTable({
     <Table>
       <Table.ScrollContainer>
         <Table.Content
-          aria-label="Fields"
-          className="rootset-fields-table min-w-4xl"
+          aria-label={ariaLabel}
+          className={`rootset-fields-table ${tableClassName}`}
           dragAndDropHooks={dragAndDropHooks}
           keyboardNavigationBehavior="arrow"
         >

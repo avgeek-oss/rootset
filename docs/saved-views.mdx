@@ -1,0 +1,33 @@
+---
+title: "Saved views"
+description: "Save named personal or shared filters, sorting and column layouts without changing records."
+---
+
+Use the **View** selector above the spreadsheet to open a saved view or return to **Default view**. Search by name or visibility. A view’s link opens the same table, filters and column layout for anyone who can access that view.
+
+## Create a view
+
+Apply filters, select column headings to sort, resize columns, and open **Columns** to choose visible columns or drag their six-dot handles to reorder them. Reordering also works with the keyboard: focus a drag handle, press Enter, use the arrow keys to choose a position, then press Enter again.
+
+Select **View options → Save as new view**, enter a name and choose visibility:
+
+- **Personal** is available only to you. Anyone who can read the table can create personal views.
+- **Shared** is available to people who can read this table. Members and administrators with write access can create shared views. Sharing does not grant access to the table’s records.
+
+A table supports up to 100 personal views per person and 100 shared views. Names are unique without regard to case within your personal views or the table’s shared views.
+
+## Change or share a view
+
+Changes to a named view stay local until you select **Save changes**. **Rename or share view** changes its name or visibility while keeping any unsaved local filters and layout. A shared view’s owner or an administrator with write access can edit or delete it. Only its owner can change its visibility. Other readers can adjust the view locally and save their own copy.
+
+**Copy view link** copies a stable link. Deleting a view removes the saved configuration; its records stay in the table. Switching views asks before discarding unsaved view changes. If someone else updates the saved view, Rootset keeps your draft and requires an explicit reload before another save.
+
+The default view’s column layout saves automatically as your personal preference. Named views do not overwrite it. Foreign-key display-field choices remain personal and are not shared as part of a view.
+
+## Filters and schema changes
+
+Views keep filters and sorting by stable field IDs, so renaming a field preserves their meaning. New fields append to the column layout. Removed fields disappear from the layout. If a filter or sort uses a removed field or an unsupported condition, Rootset blocks record loading until you correct or clear it. An unavailable or private view also blocks loading; select **Open default view** to choose the complete table explicitly.
+
+Grouped conditions are shown as a tree. Select **Replace filter** to build a new set of conditions; the existing groups remain applied until you select **Apply**. Canceling preserves them.
+
+A link containing both a view and a linked-record filter applies both restrictions. Selecting another view explicitly opens that selected view without the previous linked-record restriction. Saved views never store pagination cursors, row limits, permissions or credentials.

@@ -5,7 +5,11 @@ import { Badge } from "@heroui/react";
 import { PreviewTrigger } from "react-aria-components";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Popover } from "@avgeek-oss/design-system/overlays/popover";
-import { parseStrictJson, type FieldDefinition } from "@rootset/contracts";
+import {
+  parseStrictJson,
+  type FieldDefinition,
+  type FilterNode,
+} from "@rootset/contracts";
 import {
   needsFilterValue,
   operatorLabels,
@@ -13,6 +17,7 @@ import {
   type FilterCondition,
 } from "../lib/table-filters";
 import { FieldTypeIcon } from "./settings/field-type-options";
+import { FilterTree, filterPredicateCount } from "./filter-tree";
 import { Filter } from "./ui/icons";
 
 function filterValue(condition: FilterCondition): string {
@@ -30,6 +35,7 @@ function filterValue(condition: FilterCondition): string {
 export function TableFilterButton({
   fields,
   conditions,
+  advancedWhere,
   combination,
   isDisabled,
   isEditing,
@@ -37,6 +43,7 @@ export function TableFilterButton({
 }: {
   fields: readonly FieldDefinition[];
   conditions: readonly FilterCondition[];
+  advancedWhere?: FilterNode;
   combination: FilterCombination;
   isDisabled: boolean;
   isEditing: boolean;
@@ -45,7 +52,9 @@ export function TableFilterButton({
   const headingId = useId();
   const descriptionId = useId();
   const [isOpen, setIsOpen] = useState(false);
-  const count = conditions.length;
+  const count = advancedWhere
+    ? filterPredicateCount(advancedWhere)
+    : conditions.length;
   return (
     <PreviewTrigger
       delay={2000}
@@ -104,39 +113,45 @@ export function TableFilterButton({
                 : "Match this condition"}
           </p>
         </div>
-        {count > 0 && (
-          <ul
-            className="table-filter-preview-list"
-            tabIndex={0}
-            aria-label="Applied filter conditions"
-          >
-            {conditions.map((condition) => {
-              const field = fields.find(
-                (entry) => entry.id === condition.fieldId,
-              );
-              return (
-                <li key={condition.id}>
-                  <div className="table-filter-preview-field">
-                    {field && <FieldTypeIcon type={field.type} size={14} />}
-                    <span>{field?.name ?? "Removed field"}</span>
-                  </div>
-                  {condition.operator.startsWith("path") && (
-                    <code className="table-filter-preview-path">
-                      {condition.path}
-                    </code>
-                  )}
-                  <div className="table-filter-preview-condition">
-                    <span>{operatorLabels[condition.operator]}</span>
-                    {needsFilterValue(condition.operator) && (
-                      <span className="table-filter-preview-value">
-                        {filterValue(condition)}
-                      </span>
+        {advancedWhere ? (
+          <div className="max-h-72 overflow-auto p-3">
+            <FilterTree where={advancedWhere} fields={fields} />
+          </div>
+        ) : (
+          count > 0 && (
+            <ul
+              className="table-filter-preview-list"
+              tabIndex={0}
+              aria-label="Applied filter conditions"
+            >
+              {conditions.map((condition) => {
+                const field = fields.find(
+                  (entry) => entry.id === condition.fieldId,
+                );
+                return (
+                  <li key={condition.id}>
+                    <div className="table-filter-preview-field">
+                      {field && <FieldTypeIcon type={field.type} size={14} />}
+                      <span>{field?.name ?? "Removed field"}</span>
+                    </div>
+                    {condition.operator.startsWith("path") && (
+                      <code className="table-filter-preview-path">
+                        {condition.path}
+                      </code>
                     )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                    <div className="table-filter-preview-condition">
+                      <span>{operatorLabels[condition.operator]}</span>
+                      {needsFilterValue(condition.operator) && (
+                        <span className="table-filter-preview-value">
+                          {filterValue(condition)}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )
         )}
       </Popover.Content>
     </PreviewTrigger>

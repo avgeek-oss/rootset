@@ -39,6 +39,7 @@
               "fields",
               "rows",
               "filters",
+              "saved-views",
               "cell-history",
               "unique-rules",
               "foreign-keys",

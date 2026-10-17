@@ -24,6 +24,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
 import { Chip } from "@avgeek-oss/design-system/data-display/chip";
 import { toast } from "@avgeek-oss/design-system/overlays/toast";
@@ -48,6 +49,11 @@ import {
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
+  IdSchema,
+  RootsetError,
+  stableViewQuery,
+  resolveSavedViewDefinition,
+  type SavedView,
   type FilterNode,
   type ForeignKey,
   type FieldDefinition,
@@ -82,6 +88,18 @@ import { Dialog } from "./dialog";
 import { RowComments } from "./row-comments";
 import { RecordEditor } from "./record-editor";
 import { ImportRecords } from "./import-records";
+import { SavedViewsToolbar } from "./saved-views";
+import { ViewColumns } from "./view-columns";
+import {
+  linkedViewQuery,
+  resolvedViewLayout,
+  savedViewDirty,
+  savedViewFilterState,
+  savedViewPath,
+  viewDefinition,
+  visibleViewFields,
+  type ViewLayout,
+} from "../lib/saved-view-state";
 import { useConfirmation } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { TableFilterDialog } from "./table-filter-dialog";
@@ -142,6 +160,7 @@ export function Spreadsheet({
   canEdit,
   canManage,
   linkedFilter = null,
+  savedViewId = null,
   onSettings,
   onChanged,
 }: {
@@ -152,9 +171,11 @@ export function Spreadsheet({
   canEdit: boolean;
   canManage: boolean;
   linkedFilter?: string | null;
+  savedViewId?: string | null;
   onSettings: (section: string) => void;
   onChanged: () => void;
 }) {
+  const router = useRouter();
   const tablePath = resourcePath(orgId, databaseId, table.id);
   const queryClient = useQueryClient();
   const confirmation = useConfirmation();
@@ -172,6 +193,29 @@ export function Spreadsheet({
         { signal },
       ),
   });
+  const parsedViewId = IdSchema.safeParse(savedViewId);
+  const viewId = parsedViewId.success ? parsedViewId.data : null;
+  const namedView = useQuery({
+    queryKey: ["saved-view", table.id, viewId],
+    queryFn: ({ signal }) =>
+      client.operation<SavedView>(
+        "getSavedView",
+        {
+          orgId,
+          databaseId,
+          tableId: table.id,
+          viewId,
+        },
+        { signal },
+      ),
+    enabled: Boolean(savedViewId && viewId),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const [loadedSavedView, setLoadedSavedView] = useState<SavedView>();
+  const [viewReady, setViewReady] = useState(!savedViewId);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [viewPrefs, setViewPrefs] = useState(preferencesEmpty);
   const latestViewPrefs = useRef(preferencesEmpty);
   const mounted = useRef(true);
@@ -229,6 +273,7 @@ export function Spreadsheet({
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
     initialFilter.conditions,
   );
+  const [advancedFilter, setAdvancedFilter] = useState<FilterNode>();
   const [filterCombination, setFilterCombination] =
     useState<FilterCombination>("and");
   const [contextMenu, setContextMenu] = useState<{
@@ -363,10 +408,66 @@ export function Spreadsheet({
     !staleResults &&
     !error;
   const gridRows: GridRow[] = rows.length ? rows : placeholderRows;
-  const fields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
+  const allFields = useMemo(() => schema.data?.fields ?? [], [schema.data]);
+  const layout = useMemo(
+    () => resolvedViewLayout(allFields, viewPrefs),
+    [allFields, viewPrefs],
+  );
+  const fields = useMemo(
+    () => visibleViewFields(allFields, layout),
+    [allFields, layout],
+  );
+  const currentViewDefinition = viewDefinition(layout, query);
+  const viewDirty = Boolean(
+    loadedSavedView &&
+    savedViewDirty(
+      currentViewDefinition,
+      loadedSavedView.definition,
+      allFields,
+    ),
+  );
+  const queryProblem = useMemo(() => {
+    if (!schema.data || !viewReady) return null;
+    try {
+      stableViewQuery(query, allFields);
+      return null;
+    } catch (failure) {
+      if (!(failure instanceof RootsetError)) throw failure;
+      return failure.message;
+    }
+  }, [queryDigest, allFields, viewReady, schema.data]);
+  const unavailableView = savedViewId && (!viewId || namedView.isError);
+  const rowsBlocked =
+    !viewReady || Boolean(unavailableView || linkedFilterError || queryProblem);
+  function applySavedView(saved: SavedView) {
+    const definition = resolveSavedViewDefinition(
+      saved.definition,
+      allFields,
+    ).definition;
+    const nextQuery = {
+      limit: windowLimit,
+      ...linkedViewQuery(definition.query, initialFilter.where),
+    };
+    const filter = savedViewFilterState(nextQuery.where, allFields);
+    setLoadedSavedView(saved);
+    latestViewPrefs.current = definition;
+    setViewPrefs(definition);
+    setQuery(nextQuery);
+    setFilterConditions(filter.conditions);
+    setFilterCombination(filter.combination);
+    setAdvancedFilter(filter.advanced);
+    setViewReady(true);
+    setSelection(null);
+    setDraft(null);
+  }
+  useEffect(() => {
+    if (savedViewId && !viewReady && namedView.data && schema.data)
+      applySavedView(namedView.data);
+  }, [savedViewId, viewReady, namedView.data, schema.data]);
+
   const fieldNames = useMemo(
-    () => new Map(fields.map((field) => [field.id, field.name])),
-    [fields],
+    () => new Map(allFields.map((field) => [field.id, field.name])),
+    [allFields],
   );
   const foreignKeysByField = useMemo(() => {
     const byField = new Map<string, ForeignKey[]>();
@@ -382,6 +483,7 @@ export function Spreadsheet({
   const writable =
     canEdit &&
     !accessRevoked &&
+    !rowsBlocked &&
     !staleResults &&
     (!windowInfo ||
       windowInfo.schemaVersion === schema.data?.table.schemaVersion) &&
@@ -393,11 +495,11 @@ export function Spreadsheet({
   }, [tablePath, schema.data?.table.schemaVersion, accessRevoked, canEdit]);
 
   useEffect(() => {
-    if (view.data && !viewSave.hasPending) {
+    if (!savedViewId && view.data && !viewSave.hasPending) {
       latestViewPrefs.current = view.data.preferences;
       setViewPrefs(view.data.preferences);
     }
-  }, [view.data, viewSave]);
+  }, [view.data, viewSave, savedViewId]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -481,7 +583,7 @@ export function Spreadsheet({
       cursor?: string | null,
       direction?: "next" | "previous",
     ) => {
-      if (linkedFilterError) return;
+      if (rowsBlocked) return;
       if (direction && fetchingWindow.current) return;
       fetchingWindow.current = true;
       abort.current?.abort();
@@ -685,7 +787,7 @@ export function Spreadsheet({
       queryDigest,
       orgId,
       databaseId,
-      linkedFilterError,
+      rowsBlocked,
     ],
   );
 
@@ -702,7 +804,15 @@ export function Spreadsheet({
     const position = sameNavigation ? currentStart.current : 0;
     previousFilter.current = navigationQuery;
     previousSchemaVersion.current = schema.data?.table.schemaVersion;
-    if (schema.data) void loadWindow(position);
+    if (rowsBlocked) {
+      abort.current?.abort();
+      fetchingWindow.current = false;
+      currentRows.current = [];
+      setRows([]);
+      setWindowInfo(null);
+      setSelection(null);
+      setLoading(false);
+    } else if (schema.data) void loadWindow(position);
     return () => abort.current?.abort();
   }, [loadWindow, schema.data?.table.schemaVersion]);
 
@@ -716,7 +826,7 @@ export function Spreadsheet({
   useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
   async function leaveEditor(action: () => void) {
     if (saving) return;
-    if (draft) await submitEditor.current?.();
+    if (draft && (await submitEditor.current?.()) !== true) return;
     action();
   }
   function recordsChanged(created = false) {
@@ -730,7 +840,7 @@ export function Spreadsheet({
         : currentStart.current,
     );
   }
-  function recordAccessLost() {
+  const recordAccessLost = useCallback(() => {
     setRecordEditor(null);
     setImportOpen(false);
     cache.current.clear();
@@ -738,6 +848,45 @@ export function Spreadsheet({
     setWindowInfo(null);
     setSelection(null);
     setAccessRevoked(true);
+    abort.current?.abort();
+  }, []);
+
+  function updateLayout(next: ViewLayout) {
+    const resolved = resolvedViewLayout(allFields, next);
+    latestViewPrefs.current = resolved;
+    setViewPrefs(resolved);
+    setSelection(null);
+    if (!savedViewId) viewSave.schedule(resolved);
+  }
+  function navigateView(id: string | null, discardConfirmed = false) {
+    void leaveEditor(async () => {
+      if (
+        !discardConfirmed &&
+        viewDirty &&
+        !(await confirmation.confirm(
+          "Discard view changes?",
+          "Your unsaved filters and column layout will be discarded.",
+          "Discard changes",
+        ))
+      )
+        return;
+      router.push(savedViewPath(databaseId, table.id, id));
+    });
+  }
+  async function reloadViewFields() {
+    const result = await schema.refetch();
+    if (result.error) {
+      toast.danger(result.error.message);
+      return null;
+    }
+    if (!result.data) return null;
+    const next = resolvedViewLayout(
+      result.data.fields,
+      latestViewPrefs.current,
+    );
+    latestViewPrefs.current = next;
+    setViewPrefs(next);
+    return result.data.table.schemaVersion;
   }
 
   function focusCell(row: number, column: number) {
@@ -1360,13 +1509,15 @@ export function Spreadsheet({
     combination: FilterCombination,
     where: FilterNode | undefined,
   ) {
-    leaveEditor(() => {
+    void leaveEditor(() => {
+      const stable = stableViewQuery(where ? { where } : {}, allFields).where;
+      setAdvancedFilter(undefined);
       setLinkedFilterError(undefined);
       setError(null);
       setQuery((current) => ({
         limit: windowLimit,
         ...(current.orderBy ? { orderBy: current.orderBy } : {}),
-        ...(where ? { where } : {}),
+        ...(stable ? { where: stable } : {}),
       }));
       setFilterConditions(conditions);
       setFilterCombination(combination);
@@ -1536,7 +1687,7 @@ export function Spreadsheet({
       ),
       sortable: field.type !== "json" && !accessRevoked && !saving,
       width:
-        viewPrefs.columnWidths[field.id] ??
+        layout.columnWidths[field.id] ??
         (field.type === "date-time"
           ? 340
           : field.type === "json"
@@ -1545,7 +1696,7 @@ export function Spreadsheet({
               ? 200
               : 180),
       // Data Grid cannot span frozen and scrolling columns in the same cell.
-      frozen: !filteredEmpty && index < viewPrefs.frozenColumns,
+      frozen: !filteredEmpty && index < layout.frozenColumns,
       maxWidth: 2000,
       colSpan: (args) =>
         filteredEmpty &&
@@ -1638,6 +1789,60 @@ export function Spreadsheet({
 
   return (
     <section className="spreadsheet-pane" aria-label={table.name}>
+      <SavedViewsToolbar
+        target={{ orgId, databaseId, tableId: table.id }}
+        schemaVersion={schema.data?.table.schemaVersion ?? table.schemaVersion}
+        viewId={savedViewId}
+        selected={loadedSavedView}
+        definition={currentViewDefinition}
+        dirty={viewDirty}
+        loading={!viewReady && !unavailableView}
+        onAccessLost={recordAccessLost}
+        canShare={canEdit && !accessRevoked}
+        disabled={
+          !schema.data ||
+          !viewReady ||
+          Boolean(unavailableView) ||
+          accessRevoked ||
+          saving
+        }
+        hasFilters={Boolean(query.where || linkedFilterError)}
+        hasSorting={Boolean(query.orderBy?.length)}
+        onNavigate={navigateView}
+        onColumns={() => void leaveEditor(() => setColumnsOpen(true))}
+        onClearFilters={() => applyFilters([], "and", undefined)}
+        onClearSorting={() =>
+          void leaveEditor(() =>
+            setQuery((current) => ({
+              limit: windowLimit,
+              ...(current.where ? { where: current.where } : {}),
+            })),
+          )
+        }
+        onSaved={(saved, kind) => {
+          if (kind === "create" || (kind === "update" && linkedFilter))
+            navigateView(saved.id, true);
+          else if (kind === "rename") setLoadedSavedView(saved);
+          else applySavedView(saved);
+        }}
+        onDeleted={() => navigateView(null, true)}
+        onReload={async () => {
+          const result = await namedView.refetch();
+          if (result.error) throw result.error;
+          if (result.data) applySavedView(result.data);
+        }}
+        onReloadFields={reloadViewFields}
+      />
+      {columnsOpen && (
+        <ViewColumns
+          fields={allFields}
+          value={layout}
+          tableName={table.name}
+          onApply={updateLayout}
+          onClose={() => setColumnsOpen(false)}
+        />
+      )}
+
       {discussion && (
         <RowComments
           key={discussion.rowId}
@@ -1672,7 +1877,7 @@ export function Spreadsheet({
             isDisabled={
               saving ||
               accessRevoked ||
-              !fields.length ||
+              !allFields.length ||
               (!canEdit && (!selection || !rows[selection.row]))
             }
           >
@@ -1712,17 +1917,23 @@ export function Spreadsheet({
           </Dropdown.Popover>
         </Dropdown>
         <TableFilterButton
-          fields={fields}
+          fields={allFields}
+          advancedWhere={advancedFilter}
           conditions={filterConditions}
           combination={filterCombination}
-          isDisabled={!fields.length || saving}
+          isDisabled={
+            !allFields.length ||
+            !viewReady ||
+            Boolean(unavailableView) ||
+            saving
+          }
           isEditing={filterVisible}
           onPress={() => leaveEditor(() => setFilterVisible(true))}
         />
         {canEdit && (
           <Button
             size="lg"
-            isDisabled={!writable || !fields.length || saving}
+            isDisabled={!writable || !allFields.length || saving}
             onPress={() => void leaveEditor(() => setRecordEditor({}))}
           >
             <Plus size={20} />
@@ -1756,7 +1967,8 @@ export function Spreadsheet({
       )}
       {filterVisible && (
         <TableFilterDialog
-          fields={fields}
+          fields={allFields}
+          advancedWhere={advancedFilter}
           value={filterConditions}
           combination={filterCombination}
           onApply={applyFilters}
@@ -1790,7 +2002,30 @@ export function Spreadsheet({
           the schema job finishes.
         </p>
       )}
-      {accessRevoked ? (
+      {unavailableView ? (
+        <div className="empty-state" role="alert">
+          <View size={30} />
+          <h2>View unavailable</h2>
+          <p>
+            {!viewId
+              ? "This view link is invalid."
+              : (namedView.error?.message ?? "This view could not be opened.")}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {viewId && (
+              <Button
+                variant="secondary"
+                onPress={() => void namedView.refetch()}
+              >
+                Retry
+              </Button>
+            )}
+            <Button onPress={() => navigateView(null)}>
+              Open default view
+            </Button>
+          </div>
+        </div>
+      ) : accessRevoked ? (
         <div className="empty-state">
           <h2>Table access changed</h2>
           <p>
@@ -1806,9 +2041,18 @@ export function Spreadsheet({
             Check access again
           </Button>
         </div>
-      ) : schema.isPending ? (
+      ) : schema.isPending || !viewReady ? (
         <div className="grid-skeleton" role="status"></div>
-      ) : !fields.length ? (
+      ) : queryProblem || linkedFilterError ? (
+        <div className="empty-state" role="alert">
+          <h2>Review the view’s filters or sorting</h2>
+          <p>{queryProblem ?? linkedFilterError}</p>
+          <p>
+            No records have been loaded. Correct or clear the affected
+            conditions to continue.
+          </p>
+        </div>
+      ) : !allFields.length ? (
         <div className="empty-state">
           <Columns3 size={30} />
           <h2>{canManage ? "Define this table’s fields" : "No fields yet"}</h2>
@@ -1929,7 +2173,8 @@ export function Spreadsheet({
                 });
               }}
               defaultColumnOptions={{
-                resizable: view.isSuccess && !accessRevoked,
+                resizable:
+                  (savedViewId ? viewReady : view.isSuccess) && !accessRevoked,
               }}
               onScroll={(event) => {
                 releaseResizeSpace(event.currentTarget);
@@ -2032,14 +2277,14 @@ export function Spreadsheet({
               onColumnResize={(column, width) => {
                 if (!fields.some((field) => field.id === column.key)) return;
                 const next = {
-                  ...latestViewPrefs.current,
+                  ...resolvedViewLayout(allFields, latestViewPrefs.current),
                   columnWidths: {
-                    ...latestViewPrefs.current.columnWidths,
+                    ...resolvedViewLayout(allFields, latestViewPrefs.current)
+                      .columnWidths,
                     [column.key]: width,
                   },
                 };
-                latestViewPrefs.current = next;
-                viewSave.schedule(next);
+                updateLayout(next);
               }}
               renderers={{
                 renderRow: (key, props) => (

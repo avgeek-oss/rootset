@@ -1,0 +1,26 @@
+.field-name-cell {
+  display: flex;
+  align-items: center;
+  min-width: 160px;
+  gap: 16px;
+}
+.field-name-cell > span {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.field-drag-handle {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: grab;
+  touch-action: none;
+}
+.field-drag-handle:active {
+  cursor: grabbing;
+}
+.rootset-fields-table [data-dragging] {
+  opacity: 0.5;
+}
+.rootset-fields-table .react-aria-DropIndicator[data-drop-target] {
+  outline: 2px solid var(--accent);
+}

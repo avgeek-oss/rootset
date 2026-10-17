@@ -245,6 +245,7 @@ export function Form({
   busy,
   onSubmit,
   submit = "Save changes",
+  submitDisabled = false,
   onCancel,
   noValidate = false,
 }: {
@@ -253,12 +254,13 @@ export function Form({
   busy: boolean;
   onSubmit: () => void | Promise<void>;
   submit?: string;
+  submitDisabled?: boolean;
   onCancel?: () => void;
   noValidate?: boolean;
 }) {
   function submitForm(event: FormEvent) {
     event.preventDefault();
-    if (!busy) void onSubmit();
+    if (!busy && !submitDisabled) void onSubmit();
   }
   return (
     <form
@@ -274,7 +276,11 @@ export function Form({
             Cancel
           </Button>
         )}
-        <Button type="submit" isPending={busy} isDisabled={busy}>
+        <Button
+          type="submit"
+          isPending={busy}
+          isDisabled={busy || submitDisabled}
+        >
           {busy ? "Working…" : submit}
         </Button>
         {actions}

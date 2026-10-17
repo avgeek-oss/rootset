@@ -7,7 +7,7 @@ import { Screenshot } from "/snippets/oss/screenshot.jsx";
 
 Open a database and select **Create Table** at the top right. Give the table a name and optional description. Open **Settings → Fields** to define its columns.
 
-Each table card shows the row count. Opening a table shows its spreadsheet; the secondary sidebar provides **General**, **Fields**, **Unique rules**, **Danger Zone** and **Export Requests**.
+Each table card shows the row count. Opening a table shows its spreadsheet; the secondary sidebar provides **General**, **Fields**, **Unique rules**, **Foreign keys**, **Danger Zone**, **Import Requests** and **Export Requests**.
 
 ## General settings
 
@@ -19,7 +19,7 @@ An Admin can delete a table from **Danger Zone**. This removes the table, rows, 
 
 ## Populate a table
 
-[Create rows through REST](/api-guide#create-a-row) or MCP. The browser edits records already present in the table; it does not have an Add row or import form.
+Select **Add record** to create a record, or use [Import Requests](/import-requests) to append CSV or JSONL records. REST and MCP support the same typed validation. Use [saved views](/saved-views) to keep named filters, sorting and column layouts.
 
 <Screenshot
   light="/assets/screenshots/tables-light.png"
