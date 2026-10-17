@@ -19,6 +19,7 @@
     "@heroui/styles": "catalog:",
     "@hugeicons/core-free-icons": "4.3.0",
     "@hugeicons/react": "1.1.10",
+    "@internationalized/date": "3.12.4",
     "@rootset/contracts": "workspace:*",
     "@rootset/observability": "workspace:*",
     "@rootset/web-client": "workspace:*",

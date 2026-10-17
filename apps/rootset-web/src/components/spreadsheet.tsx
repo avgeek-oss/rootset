@@ -34,7 +34,16 @@ import {
   ResourceTable,
 } from "@avgeek-oss/design-system/patterns/resource-table";
 import { Dropdown, Tooltip } from "@heroui/react";
-import { Columns3, Eraser, History, Trash2, MessageSquare } from "./ui/icons";
+import {
+  Columns3,
+  Eraser,
+  History,
+  Trash2,
+  MessageSquare,
+  MoreHorizontal,
+  Plus,
+  View,
+} from "./ui/icons";
 import { client, ApiError, resourcePath } from "@rootset/web-client";
 import {
   limits,
@@ -70,6 +79,7 @@ import {
 } from "../lib/foreign-key-navigation";
 import { Dialog } from "./dialog";
 import { RowComments } from "./row-comments";
+import { RecordEditor } from "./record-editor";
 import { useConfirmation } from "./settings/ui";
 import { FieldTypeIcon } from "./settings/field-type-options";
 import { TableFilterDialog } from "./table-filter-dialog";
@@ -209,6 +219,9 @@ export function Spreadsheet({
     errors: string[];
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
+  const [recordEditor, setRecordEditor] = useState<{ rowId?: string } | null>(
+    null,
+  );
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
     initialFilter.conditions,
   );
@@ -1615,6 +1628,35 @@ export function Spreadsheet({
         role="toolbar"
         aria-label="Table actions"
       >
+        <Dropdown>
+          <Button
+            isIconOnly
+            size="lg"
+            variant="secondary"
+            aria-label="Record actions"
+            isDisabled={
+              !selection || !rows[selection.row] || saving || accessRevoked
+            }
+          >
+            <MoreHorizontal size={20} />
+          </Button>
+          <Dropdown.Popover>
+            <Dropdown.Menu
+              aria-label="Record actions"
+              onAction={(key) => {
+                if (key === "open" && selection && rows[selection.row])
+                  void leaveEditor(() =>
+                    setRecordEditor({ rowId: rows[selection.row]!.id }),
+                  );
+              }}
+            >
+              <Dropdown.Item id="open" textValue="Open record">
+                <View className="shrink-0 text-muted" />
+                Open record
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
         <TableFilterButton
           fields={fields}
           conditions={filterConditions}
@@ -1623,7 +1665,45 @@ export function Spreadsheet({
           isEditing={filterVisible}
           onPress={() => leaveEditor(() => setFilterVisible(true))}
         />
+        {canEdit && (
+          <Button
+            size="lg"
+            isDisabled={!writable || !fields.length || saving}
+            onPress={() => void leaveEditor(() => setRecordEditor({}))}
+          >
+            <Plus size={20} />
+            Add record
+          </Button>
+        )}
       </div>
+      {recordEditor && (
+        <RecordEditor
+          target={{ orgId, databaseId, tableId: table.id }}
+          tableName={table.name}
+          rowId={recordEditor.rowId}
+          preferences={preferences}
+          canEdit={writable}
+          onClose={() => setRecordEditor(null)}
+          onSaved={(_row, created) => {
+            cache.current.clear();
+            sessionId.current = undefined;
+            onChanged();
+            void loadWindow(
+              created && !query.where && !query.orderBy?.length
+                ? "last"
+                : currentStart.current,
+            );
+          }}
+          onAccessLost={() => {
+            setRecordEditor(null);
+            cache.current.clear();
+            setRows([]);
+            setWindowInfo(null);
+            setSelection(null);
+            setAccessRevoked(true);
+          }}
+        />
+      )}
       {filterVisible && (
         <TableFilterDialog
           fields={fields}
@@ -1946,7 +2026,11 @@ export function Spreadsheet({
               onAction={(key) => {
                 const current = contextMenu;
                 setContextMenu(null);
-                if (
+                if (key === "open" && current.row)
+                  void leaveEditor(() =>
+                    setRecordEditor({ rowId: current.row!.id }),
+                  );
+                else if (
                   key === "null" &&
                   current.row &&
                   current.field &&
@@ -1960,6 +2044,14 @@ export function Spreadsheet({
                   void deleteRow(current.row);
               }}
             >
+              <Dropdown.Item
+                id="open"
+                textValue="Open record"
+                isDisabled={!contextMenu.row || saving}
+              >
+                <View className="shrink-0 text-muted" />
+                Open record
+              </Dropdown.Item>
               {contextMenu.field ? (
                 <>
                   <Dropdown.Item
