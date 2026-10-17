@@ -1,9 +1,9 @@
 ---
-title: "Foreign keys"
+title: "Table relations"
 description: "Validate values against a unique key in another table in the same database."
 ---
 
-Open **Settings → Foreign keys** in the table that stores the reference, then select **Create foreign key**.
+Open **Settings → Table relations** in the table that stores the reference, then select **Create table relation**.
 
 1. Choose the referenced table in the same database.
 2. Choose one of its active unique rules that applies to **All rows**.
@@ -13,19 +13,19 @@ For example, make `Airlines.ALLIANCE_CODE` reference the unique `Alliances.CODE`
 
 ## Validation and changes
 
-Rootset validates existing rows before activating the foreign key. A missing reference fails the operation without changing rows, activating a rule, or incrementing the schema version. Correct the reported rows and submit a new request.
+Rootset validates existing rows before activating the table relation. A missing reference fails the operation without changing rows, activating a rule, or incrementing the schema version. Correct the reported rows and submit a new request.
 
 After activation, PostgreSQL enforces references for UI, REST, MCP, batch, import and repair writes. If any local field in a composite reference is NULL, that row does not require a match. Required fields still reject NULL through their field definition.
 
 Referenced values cannot be changed or deleted while rows use them. Update or remove those references first. Rootset never automatically cascades changes or deletes. Batch mutations run in order and roll back together on a violation.
 
-Renaming a field or table preserves the link. Remove dependent foreign keys before changing linked field types, deleting linked fields or tables, or removing the referenced unique rule. Deleting the whole database removes its internal links with its data. A table can reference itself.
+Renaming a field or table preserves the link. Remove dependent table relations before changing linked field types, deleting linked fields or tables, or removing the referenced unique rule. Deleting the whole database removes its internal links with its data. A table can reference itself.
 
-Removing a foreign key leaves existing records in place and stops validation for future writes. A table supports up to sixteen foreign keys.
+Removing a table relation leaves existing records in place and stops validation for future writes. A table supports up to sixteen table relations.
 
 ## Choose a linked record
 
-The record drawer provides a searchable picker for each foreign key. Double-click a linked spreadsheet cell, or select it and press F2, to open the record drawer at that relationship. Search by a label or a typed key. The picker shows the display label alongside the actual stored key; choosing a composite key updates all its local fields together.
+The record drawer provides a searchable picker for each table relation. Double-click a linked spreadsheet cell, or select it and press F2, to open the record drawer at that relationship. Search by a label or a typed key. The picker shows the display label alongside the actual stored key; choosing a composite key updates all its local fields together.
 
 Open the relationship’s options menu to choose a **Display field**. This personal choice is remembered across sessions and devices without changing record values or another person’s view. Rootset uses a text field as the initial label when one is available. Record reads and searches require current access to the referenced table. Searches and alphabetical result pages contain at most 50 records, with Previous and Next controls; selecting a NULL label does not turn a non-NULL key into NULL.
 

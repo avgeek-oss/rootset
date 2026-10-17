@@ -21,8 +21,8 @@ export const schemaActions: ActivityAction[] = [
   ["fields.reorder", "Fields reordered", "table"],
   ["rule.create", "Unique rule created", "table"],
   ["rule.delete", "Unique rule deleted", "table"],
-  ["foreign-key.create", "Foreign key created", "table"],
-  ["foreign-key.delete", "Foreign key deleted", "table"],
+  ["foreign-key.create", "Table relation created", "table"],
+  ["foreign-key.delete", "Table relation deleted", "table"],
 ].map(([operation, label, destination]) => ({
   operation: operation!,
   label: label!,
@@ -133,8 +133,8 @@ export const jobActions: ActivityAction[] = [
     ["reorderFields", "Field reordering"],
     ["createUniqueRule", "Unique rule creation"],
     ["deleteUniqueRule", "Unique rule deletion"],
-    ["createForeignKey", "Foreign key creation"],
-    ["deleteForeignKey", "Foreign key deletion"],
+    ["createForeignKey", "Table relation creation"],
+    ["deleteForeignKey", "Table relation deletion"],
     ["deleteDatabase", "Database deletion"],
   ].map(([operation, label]): ActivityAction => ({
     operation: operation!,

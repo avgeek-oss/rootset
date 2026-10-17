@@ -68,12 +68,12 @@ describe("context settings navigation", () => {
         group.items.map((item) => item.id),
       ),
     ).toEqual([
+      "imports",
+      "exports",
       "table",
       "fields",
       "rules",
       "foreign-keys",
-      "imports",
-      "exports",
     ]);
     expect(settingsNavigationGroups("account", "unknown")).toEqual([]);
   });

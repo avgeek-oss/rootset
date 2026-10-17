@@ -503,8 +503,8 @@ h1 {
 /* RDG exposes frozen shadows as direct children with sticky inline offsets. */
 .rootset-grid > div[style*="inset-inline-start"],
 .rootset-grid > div[style*="inset-inline-end"] {
-  width: 6px;
-  filter: opacity(0.35);
+  width: 4px;
+  filter: opacity(0.2);
 }
 .rootset-grid .cell-boolean-true {
   color: var(--accent);

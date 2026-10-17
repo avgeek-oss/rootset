@@ -370,7 +370,7 @@ export function RestoreBackup(props: Props) {
                           },
                           {
                             key: "keys",
-                            header: "Foreign keys",
+                            header: "Table relations",
                             cell: (table) => table.foreignKeys.toLocaleString(),
                           },
                         ]}
