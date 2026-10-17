@@ -205,6 +205,17 @@ function RecordForm({
   const attempt = useRef(new MutationAttempt());
   const form = useRef<HTMLFormElement>(null);
   const readOnly = !canEdit || schema.table.state !== "active";
+  useEffect(() => {
+    const firstField =
+      !readOnly && window.matchMedia("(pointer: fine)").matches
+        ? form.current?.querySelector<HTMLElement>(
+            'input:not([type="hidden"]):not([readonly]):not([disabled]),textarea:not([readonly]):not([disabled]),[role="spinbutton"]:not([aria-disabled="true"]),[data-slot="select-trigger"]:not([disabled])',
+          )
+        : null;
+    (
+      firstField ?? form.current?.closest<HTMLElement>('[role="dialog"]')
+    )?.focus();
+  }, [readOnly]);
   const dirty = Object.keys(drafts).some((id) => {
     const before = initial[id]!;
     const after = drafts[id]!;
