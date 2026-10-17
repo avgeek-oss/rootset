@@ -27,6 +27,7 @@ import { MoreHorizontal } from "./ui/icons";
 
 export function RecordField({
   field,
+  label = field.name,
   draft,
   onChange,
   creating,
@@ -37,6 +38,7 @@ export function RecordField({
   readOnly,
 }: {
   field: FieldDefinition;
+  label?: string;
   draft: RecordFieldDraft;
   onChange: (draft: RecordFieldDraft) => void;
   creating: boolean;
@@ -69,7 +71,7 @@ export function RecordField({
       <Label id={labelId}>
         <span className="record-field-label">
           <FieldTypeIcon type={field.type} size={18} />
-          {field.name}
+          {label}
           {field.required && (
             <span aria-hidden="true" className="text-danger">
               *

@@ -38,6 +38,7 @@
               "tables",
               "fields",
               "rows",
+              "bulk-rows",
               "filters",
               "saved-views",
               "cell-history",

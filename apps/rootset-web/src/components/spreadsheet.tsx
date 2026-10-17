@@ -7,11 +7,13 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type RefObject,
   type ReactNode,
 } from "react";
 import {
   DataGrid,
+  SelectColumn,
   Row as DataGridRow,
   type Column,
   type SortColumn,
@@ -54,6 +56,7 @@ import {
   stableViewQuery,
   resolveSavedViewDefinition,
   type SavedView,
+  type BulkRowsInput,
   type FilterNode,
   type ForeignKey,
   type FieldDefinition,
@@ -90,6 +93,9 @@ import { RecordEditor } from "./record-editor";
 import { ImportRecords } from "./import-records";
 import { SavedViewsToolbar } from "./saved-views";
 import { ViewColumns } from "./view-columns";
+import { BulkRows } from "./bulk-rows";
+import { GridCheckbox, RecordSelectionCell } from "./grid-checkbox";
+import { selectRecords, type SelectedRecord } from "../lib/row-selection";
 import {
   linkedViewQuery,
   resolvedViewLayout,
@@ -142,9 +148,15 @@ const placeholderRows: PlaceholderRow[] = Array.from(
 function isPlaceholderRow(row: GridRow): row is PlaceholderRow {
   return "placeholderIndex" in row;
 }
-const rowHeight = 32;
+function subscribeGridSize(change: () => void) {
+  const media = window.matchMedia("(max-width: 639px)");
+  media.addEventListener("change", change);
+  return () => media.removeEventListener("change", change);
+}
+const smallGrid = () => window.matchMedia("(max-width: 639px)").matches;
+const serverGrid = () => false;
 const windowLimit = 200;
-const systemColumns = 1;
+
 const preferencesEmpty = {
   columnOrder: [] as string[],
   columnWidths: {} as Record<string, number>,
@@ -176,6 +188,21 @@ export function Spreadsheet({
   onChanged: () => void;
 }) {
   const router = useRouter();
+  const rowHeight = useSyncExternalStore(
+    subscribeGridSize,
+    smallGrid,
+    serverGrid,
+  )
+    ? 48
+    : 32;
+  const systemColumns = canEdit ? 2 : 1;
+  const [selectedRecords, setSelectedRecords] = useState(
+    new Map<string, SelectedRecord>(),
+  );
+  const [bulkAction, setBulkAction] = useState<{
+    action: BulkRowsInput["action"]["type"];
+    records: SelectedRecord[];
+  } | null>(null);
   const tablePath = resourcePath(orgId, databaseId, table.id);
   const queryClient = useQueryClient();
   const confirmation = useConfirmation();
@@ -282,6 +309,16 @@ export function Spreadsheet({
   } | null>(null);
   const contextAnchor = useRef<Element | null>(null);
   const gridRef = useRef<DataGridHandle>(null);
+  const bulkFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!bulkFocus.current || loading || bulkAction || accessRevoked) return;
+    bulkFocus.current = false;
+    gridRef.current?.setActivePosition(
+      { rowIdx: rows.length ? 0 : -1, idx: 0 },
+      { shouldFocus: true },
+    );
+  }, [rows, loading, bulkAction, accessRevoked]);
+
   const gridContainer = useRef<HTMLDivElement>(null);
   const resizingColumn = useRef(false);
   const resizeScrollLimit = useRef<number | null>(null);
@@ -341,6 +378,21 @@ export function Spreadsheet({
   const currentStart = useRef(0);
   const currentRows = useRef<Row[]>([]);
   const currentSelection = useRef<CellSelection | null>(null);
+  const recordAccessLost = useCallback(() => {
+    setRecordEditor(null);
+    setImportOpen(false);
+    setBulkAction(null);
+    setSelectedRecords(new Map());
+    setDiscussion(null);
+    setHistory(null);
+    setDraft(null);
+    cache.current.clear();
+    setRows([]);
+    setWindowInfo(null);
+    setSelection(null);
+    setAccessRevoked(true);
+    abort.current?.abort();
+  }, []);
   const viewSave: DebouncedSave<typeof preferencesEmpty> = useMemo(
     () =>
       new DebouncedSave<typeof preferencesEmpty>(
@@ -761,12 +813,7 @@ export function Spreadsheet({
           failure instanceof ApiError &&
           [401, 403, 404].includes(failure.status)
         ) {
-          cache.current.clear();
-          setRows([]);
-          setWindowInfo(null);
-          setSelection(null);
-          setAccessRevoked(true);
-          setDraft(null);
+          recordAccessLost();
         }
         if (!(failure instanceof Error && failure.name === "AbortError"))
           setError(
@@ -788,6 +835,8 @@ export function Spreadsheet({
       orgId,
       databaseId,
       rowsBlocked,
+      rowHeight,
+      recordAccessLost,
     ],
   );
 
@@ -833,6 +882,7 @@ export function Spreadsheet({
     cache.current.clear();
     sessionId.current = undefined;
     setSelection(null);
+    setSelectedRecords(new Map());
     onChanged();
     void loadWindow(
       created && !query.where && !query.orderBy?.length
@@ -840,16 +890,6 @@ export function Spreadsheet({
         : currentStart.current,
     );
   }
-  const recordAccessLost = useCallback(() => {
-    setRecordEditor(null);
-    setImportOpen(false);
-    cache.current.clear();
-    setRows([]);
-    setWindowInfo(null);
-    setSelection(null);
-    setAccessRevoked(true);
-    abort.current?.abort();
-  }, []);
 
   function updateLayout(next: ViewLayout) {
     const resolved = resolvedViewLayout(allFields, next);
@@ -888,6 +928,30 @@ export function Spreadsheet({
     setViewPrefs(next);
     return result.data.table.schemaVersion;
   }
+
+  function changeRecordSelection(keys: Set<string>) {
+    if (!writable || saving || loading) return;
+    void leaveEditor(() => {
+      try {
+        setSelectedRecords(selectRecords(selectedRecords, keys, rows));
+      } catch (error) {
+        toast.danger(
+          error instanceof Error
+            ? error.message
+            : "The selection could not be changed.",
+        );
+      }
+    });
+  }
+  function openBulk(action: BulkRowsInput["action"]["type"]) {
+    if (!writable || !selectedRecords.size) return;
+    void leaveEditor(() =>
+      setBulkAction({ action, records: [...selectedRecords.values()] }),
+    );
+  }
+  useEffect(() => {
+    setSelectedRecords(new Map());
+  }, [queryDigest, schema.data?.table.schemaVersion, canEdit]);
 
   function focusCell(row: number, column: number) {
     gridRef.current?.setActivePosition(
@@ -1580,6 +1644,49 @@ export function Spreadsheet({
     ? rows.findIndex((row) => row.id === draft.row.id)
     : -1;
   const gridColumns: Column<GridRow>[] = [
+    ...(canEdit
+      ? [
+          {
+            ...SelectColumn,
+            width: 48,
+            minWidth: 48,
+            maxWidth: 48,
+            cellClass: "record-selection-cell",
+            headerCellClass: "record-selection-cell",
+            renderHeaderCell: ({ tabIndex }) => (
+              <GridCheckbox
+                aria-label="Select loaded records"
+                tabIndex={tabIndex}
+                disabled={!writable || saving || loading || !rows.length}
+                checked={
+                  Boolean(rows.length) &&
+                  rows.every((row) => selectedRecords.has(row.id))
+                }
+                indeterminate={
+                  rows.some((row) => selectedRecords.has(row.id)) &&
+                  !rows.every((row) => selectedRecords.has(row.id))
+                }
+                onChange={(checked) => {
+                  const keys = new Set(selectedRecords.keys());
+                  for (const row of rows) {
+                    if (checked) keys.add(row.id);
+                    else keys.delete(row.id);
+                  }
+                  changeRecordSelection(keys);
+                }}
+              />
+            ),
+            renderCell: ({ row, rowIdx, tabIndex }) =>
+              isPlaceholderRow(row) ? null : (
+                <RecordSelectionCell
+                  row={row}
+                  rowNumber={windowStart + rowIdx + 1}
+                  tabIndex={tabIndex}
+                />
+              ),
+          } satisfies Column<GridRow>,
+        ]
+      : []),
     {
       key: "__row_number",
       name: (
@@ -1833,6 +1940,71 @@ export function Spreadsheet({
         }}
         onReloadFields={reloadViewFields}
       />
+      {canEdit && selectedRecords.size > 0 && (
+        <div
+          role="toolbar"
+          aria-label="Selected record actions"
+          className="flex min-w-0 flex-wrap items-center gap-2 border-b border-separator px-4 py-3 sm:px-6"
+        >
+          <span className="mr-auto text-sm tabular-nums">
+            {selectedRecords.size.toLocaleString(preferences.locale)} selected
+          </span>
+          <Button
+            variant="secondary"
+            isDisabled={!writable || saving}
+            onPress={() => openBulk("set")}
+          >
+            Set value
+          </Button>
+          <Button
+            variant="secondary"
+            isDisabled={!writable || saving}
+            onPress={() => openBulk("duplicate")}
+          >
+            Duplicate
+          </Button>
+          <Button
+            variant="danger"
+            isDisabled={!writable || saving}
+            onPress={() => openBulk("delete")}
+          >
+            Delete
+          </Button>
+          <Button
+            variant="secondary"
+            isDisabled={saving}
+            onPress={() => setSelectedRecords(new Map())}
+          >
+            Clear selection
+          </Button>
+        </div>
+      )}
+      {bulkAction && (
+        <BulkRows
+          target={{ orgId, databaseId, tableId: table.id }}
+          tableName={table.name}
+          selected={bulkAction.records}
+          action={bulkAction.action}
+          preferences={preferences}
+          canEdit={writable}
+          onClose={() => setBulkAction(null)}
+          onApplied={(result) => {
+            bulkFocus.current = true;
+            if (result.action !== "duplicate")
+              undoStack.current.forgetRows(
+                bulkAction.records.map((record) => record.rowId),
+              );
+            setBulkAction(null);
+            recordsChanged(result.action === "duplicate");
+          }}
+          onSelectionReload={(records) =>
+            setSelectedRecords(
+              new Map(records.map((record) => [record.rowId, record])),
+            )
+          }
+          onAccessLost={recordAccessLost}
+        />
+      )}
       {columnsOpen && (
         <ViewColumns
           fields={allFields}
@@ -2141,6 +2313,11 @@ export function Spreadsheet({
                 row.id === deleteTargetId ? "row-delete-pending" : undefined
               }
               rowHeight={rowHeight}
+              selectedRows={new Set(selectedRecords.keys())}
+              onSelectedRowsChange={changeRecordSelection}
+              isRowSelectionDisabled={(row) =>
+                isPlaceholderRow(row) || !writable || saving || loading
+              }
               className="rootset-grid"
               aria-label={`${table.name} spreadsheet`}
               aria-describedby="grid-instructions"
@@ -2272,6 +2449,11 @@ export function Spreadsheet({
                       },
                 );
                 extendSelection.current = false;
+              }}
+              onCellCopy={(_args, event) => {
+                if (draft) return;
+                event.preventDefault();
+                void copySelection();
               }}
               onCellKeyDown={onKey}
               onColumnResize={(column, width) => {
