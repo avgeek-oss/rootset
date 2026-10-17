@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Start field and view-column reordering only from the six-dot drag handle, with keyboard reordering still available on the handle.
+
 ## 0.2.0 (2026-10-17)
 
 - Create and edit complete records in a drawer, with required fields, defaults, generated IDs, choices, foreign keys and concurrent-edit protection.
