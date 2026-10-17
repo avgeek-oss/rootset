@@ -5,6 +5,7 @@
 - Start field and view-column reordering only from the six-dot drag handle, with keyboard reordering still available on the handle.
 - Bring spreadsheet comment controls closer to row numbers and reduce the row-number column's minimum width.
 - Align visibility checkboxes with the column heading in the Columns panel.
+- Mark backup attempt and retention errors with a red warning triangle before the details text.
 
 ## 0.2.0 (2026-10-17)
 
