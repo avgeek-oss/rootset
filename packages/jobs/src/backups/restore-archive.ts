@@ -60,7 +60,12 @@ function numericIdentity(value: string): string {
   const fraction = parts[3] ?? "";
   const digits = `${parts[2]}${fraction}`.replace(/^0+/, "");
   if (!digits) return "0";
-  const trailing = digits.match(/0*$/)![0].length;
+  let trailing = 0;
+  while (
+    trailing < digits.length &&
+    digits[digits.length - trailing - 1] === "0"
+  )
+    trailing++;
   const exponent = Number(parts[4] ?? 0) - fraction.length + trailing;
   return `${parts[1]}${digits.slice(0, digits.length - trailing)}e${exponent}`;
 }

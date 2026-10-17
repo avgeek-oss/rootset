@@ -15,6 +15,11 @@ export interface NumberLexeme {
   integer: boolean;
   safeInteger: boolean;
 }
+function trailingZeroCount(digits: string): number {
+  let end = digits.length;
+  while (end > 0 && digits[end - 1] === "0") end--;
+  return digits.length - end;
+}
 export function analyseNumberLexeme(
   lexeme: string,
   path: (string | number)[] = [],
@@ -32,7 +37,7 @@ export function analyseNumberLexeme(
   const fraction = parts[3] ?? "";
   const shift = Number(parts[4] ?? "0") - fraction.length;
   const digits = `${parts[2]}${fraction}`.replace(/^0+/, "") || "0";
-  const trailing = digits.match(/0*$/)![0].length;
+  const trailing = trailingZeroCount(digits);
   const integer = digits === "0" || shift >= 0 || trailing >= -shift;
   const safeInteger =
     integer &&
@@ -119,7 +124,7 @@ export function parseStrictJson(
       const shift = Number(parts[4] ?? "0") - fraction.length;
       const digits = `${parts[2]}${fraction}`.replace(/^0+/, "") || "0";
       // Integral lexemes can exceed the safe range even when Number rounds them.
-      const trailing = digits.match(/0*$/)![0].length;
+      const trailing = trailingZeroCount(digits);
       if (digits !== "0" && (shift >= 0 || trailing >= -shift)) {
         const integralDigits =
           shift >= 0 ? digits.length + shift : digits.length + shift;

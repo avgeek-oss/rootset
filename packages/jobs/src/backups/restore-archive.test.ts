@@ -318,6 +318,22 @@ describe("verified restore archive", () => {
         name,
       ).rejects.toThrow();
   });
+  it("rejects precision loss in long numeric metadata before interpreting schemas", async () => {
+    await expect(
+      openRestoreArchive(
+        await fixture((files) => {
+          const original = files.get("database.json")!;
+          files.set(
+            "database.json",
+            original.slice(0, -1) +
+              ',"numericMetadata":1.' +
+              "0".repeat(100000) +
+              "1}",
+          );
+        }),
+      ),
+    ).rejects.toThrow("losing precision");
+  });
   it("rejects unsafe integer lexemes and missing record values without losing valid large floats", async () => {
     for (const change of [
       (text: string) =>
