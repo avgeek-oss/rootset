@@ -490,4 +490,15 @@ export const ViewPreferencesSchema = z.strictObject({
   frozenColumns: z.number().int().min(0).max(limits.maxFields),
   hiddenColumns: z.array(IdSchema).max(limits.maxFields),
   query: JsonValueSchema.optional(),
+  foreignKeyDisplayFields: z
+    .record(IdSchema, IdSchema)
+    .refine(
+      (fields) => Object.keys(fields).length <= limits.maxForeignKeys,
+      "Too many foreign-key display fields",
+    )
+    .optional()
+    .describe(
+      "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+    ),
 });
+export type ViewPreferences = z.infer<typeof ViewPreferencesSchema>;

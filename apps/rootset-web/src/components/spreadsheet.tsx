@@ -221,9 +221,10 @@ export function Spreadsheet({
     errors: string[];
   } | null>(null);
   const [filterVisible, setFilterVisible] = useState(false);
-  const [recordEditor, setRecordEditor] = useState<{ rowId?: string } | null>(
-    null,
-  );
+  const [recordEditor, setRecordEditor] = useState<{
+    rowId?: string;
+    focusFieldId?: string;
+  } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [filterConditions, setFilterConditions] = useState<FilterCondition[]>(
     initialFilter.conditions,
@@ -747,12 +748,21 @@ export function Spreadsheet({
   }
 
   function beginEdit(row: Row, field: FieldDefinition, initialInput?: string) {
-    if (!writable || saving || !Object.hasOwn(row.values, field.name)) return;
+    if (!writable || saving || !Object.hasOwn(row.values, field.name))
+      return false;
+    if (
+      initialInput === undefined &&
+      schema.data?.foreignKeys.some((rule) => rule.fieldIds.includes(field.id))
+    ) {
+      setRecordEditor({ rowId: row.id, focusFieldId: field.id });
+      return false;
+    }
     setDraft({
       row,
       field,
       ...(initialInput !== undefined ? { initialInput } : {}),
     });
+    return true;
   }
 
   async function commitCell(value: JsonValue, target = draft) {
@@ -1020,11 +1030,13 @@ export function Spreadsheet({
         event.preventDefault();
         event.preventGridDefault();
         if (saving) return;
-        beginEdit(row, field, event.key.length === 1 ? event.key : undefined);
-        args.setActivePosition(
-          { rowIdx, idx: column.idx },
-          { enableEditor: true },
-        );
+        if (
+          beginEdit(row, field, event.key.length === 1 ? event.key : undefined)
+        )
+          args.setActivePosition(
+            { rowIdx, idx: column.idx },
+            { enableEditor: true },
+          );
       }
     }
   }
@@ -1723,6 +1735,7 @@ export function Spreadsheet({
           target={{ orgId, databaseId, tableId: table.id }}
           tableName={table.name}
           rowId={recordEditor.rowId}
+          focusFieldId={recordEditor.focusFieldId}
           preferences={preferences}
           canEdit={writable}
           onClose={() => setRecordEditor(null)}
@@ -1968,7 +1981,7 @@ export function Spreadsheet({
                   !writable
                 )
                   event.preventGridDefault();
-                else beginEdit(row, field);
+                else if (!beginEdit(row, field)) event.preventGridDefault();
               }}
               onCellContextMenu={({ row, column, rowIdx }, event) => {
                 event.preventDefault();

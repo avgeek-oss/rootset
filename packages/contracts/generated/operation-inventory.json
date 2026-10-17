@@ -2892,6 +2892,47 @@
     ]
   },
   {
+    "operationId": "updateForeignKeyDisplayField",
+    "publicRoute": "PUT /v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
+    "browserRoute": "PUT /api/internal/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
+    "mcpTool": "rootset_update_foreign_key_display_field",
+    "scopes": ["rows:read"],
+    "role": "viewer",
+    "resource": "table",
+    "personal": true,
+    "readOnly": false,
+    "stepUp": "never",
+    "job": false,
+    "errors": [
+      "VALIDATION_FAILED",
+      "UNAUTHENTICATED",
+      "ACCESS_DENIED",
+      "FORBIDDEN",
+      "INSUFFICIENT_SCOPE",
+      "PERSONAL_IDENTITY_REQUIRED",
+      "RESOURCE_NOT_FOUND",
+      "DEPENDENCY_UNAVAILABLE",
+      "REQUEST_TIMEOUT",
+      "IDEMPOTENCY_CONFLICT"
+    ],
+    "jsonRequestMaxBytes": 8388608,
+    "jsonReadTimeoutMs": 10000,
+    "uiEntry": "accounts",
+    "verification": [
+      "API-01",
+      "API-02",
+      "API-03",
+      "API-06",
+      "API-12",
+      "MCP-08",
+      "API-09",
+      "ACC-03",
+      "ACC-04",
+      "ACC-12",
+      "UI-14"
+    ]
+  },
+  {
     "operationId": "getBackupSchedule",
     "publicRoute": "GET /v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",
     "browserRoute": "GET /api/internal/v1/orgs/{orgId}/databases/{databaseId}/backup-schedule",

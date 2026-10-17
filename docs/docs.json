@@ -140,7 +140,8 @@
               "api-reference/getMutation",
               "api-reference/getUsage",
               "api-reference/getViewPreferences",
-              "api-reference/updateViewPreferences"
+              "api-reference/updateViewPreferences",
+              "api-reference/updateForeignKeyDisplayField"
             ]
           },
           {

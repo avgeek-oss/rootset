@@ -17051,6 +17051,18 @@
                           { "type": "array", "items": {} },
                           { "type": "object", "additionalProperties": {} }
                         ]
+                      },
+                      "foreignKeyDisplayFields": {
+                        "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                        }
                       }
                     },
                     "required": [
@@ -17217,6 +17229,205 @@
             "frozenColumns": 0,
             "hiddenColumns": []
           }
+        }
+      }
+    },
+    "/api/internal/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}": {
+      "put": {
+        "operationId": "updateForeignKeyDisplayField",
+        "tags": ["accounts"],
+        "summary": "Choose your display field for a foreign-key picker without changing its stored keys or other view preferences.",
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "foreignKeyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 255 },
+            "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayFieldId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": ["displayFieldId"],
+                "additionalProperties": false
+              },
+              "example": { "displayFieldId": "01K6J7B8000000000000000000" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/updateForeignKeyDisplayFieldOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-read-only": false,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": true,
+        "x-rootset-mcp-tool": "rootset_update_foreign_key_display_field",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "PERSONAL_IDENTITY_REQUIRED",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT",
+          "IDEMPOTENCY_CONFLICT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "tableId": "01K6J7B8000000000000000000",
+          "foreignKeyId": "01K6J7B8000000000000000000",
+          "displayFieldId": "01K6J7B8000000000000000000"
         }
       }
     },
@@ -34546,6 +34757,18 @@
                   { "type": "array", "items": {} },
                   { "type": "object", "additionalProperties": {} }
                 ]
+              },
+              "foreignKeyDisplayFields": {
+                "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
               }
             },
             "required": [
@@ -34610,6 +34833,18 @@
                   { "type": "array", "items": {} },
                   { "type": "object", "additionalProperties": {} }
                 ]
+              },
+              "foreignKeyDisplayFields": {
+                "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
               }
             },
             "required": [
@@ -34674,6 +34909,115 @@
                   { "type": "array", "items": {} },
                   { "type": "object", "additionalProperties": {} }
                 ]
+              },
+              "foreignKeyDisplayFields": {
+                "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              }
+            },
+            "required": [
+              "columnOrder",
+              "columnWidths",
+              "frozenColumns",
+              "hiddenColumns"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["tableId", "preferences"],
+        "additionalProperties": false
+      },
+      "updateForeignKeyDisplayFieldInput": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "foreignKeyId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "displayFieldId": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["tableId", "foreignKeyId", "displayFieldId"],
+        "additionalProperties": false
+      },
+      "updateForeignKeyDisplayFieldOutput": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "columnOrder": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "columnWidths": {
+                "type": "object",
+                "propertyNames": { "type": "string" },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 40,
+                  "maximum": 2000
+                }
+              },
+              "frozenColumns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "hiddenColumns": {
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
+              },
+              "query": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  { "type": "null" },
+                  { "type": "boolean" },
+                  { "type": "number" },
+                  { "type": "string" },
+                  { "type": "array", "items": {} },
+                  { "type": "object", "additionalProperties": {} }
+                ]
+              },
+              "foreignKeyDisplayFields": {
+                "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                }
               }
             },
             "required": [

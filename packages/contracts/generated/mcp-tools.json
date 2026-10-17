@@ -23788,6 +23788,18 @@
                     { "type": "array", "items": {} },
                     { "type": "object", "additionalProperties": {} }
                   ]
+                },
+                "foreignKeyDisplayFields": {
+                  "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
                 }
               },
               "required": [
@@ -23945,6 +23957,18 @@
                 { "type": "array", "items": {} },
                 { "type": "object", "additionalProperties": {} }
               ]
+            },
+            "foreignKeyDisplayFields": {
+              "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              }
             }
           },
           "required": [
@@ -24019,6 +24043,224 @@
                     { "type": "array", "items": {} },
                     { "type": "object", "additionalProperties": {} }
                   ]
+                },
+                "foreignKeyDisplayFields": {
+                  "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                }
+              },
+              "required": [
+                "columnOrder",
+                "columnWidths",
+                "frozenColumns",
+                "hiddenColumns"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": ["tableId", "preferences"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Known domain codes are published in ErrorCode; unknown future codes remain valid.",
+                  "x-rootset-known-error-codes": [
+                    "VALIDATION_FAILED",
+                    "UNAUTHENTICATED",
+                    "ACCESS_DENIED",
+                    "FORBIDDEN",
+                    "LAST_ADMIN",
+                    "INSUFFICIENT_SCOPE",
+                    "PERSONAL_IDENTITY_REQUIRED",
+                    "DELEGATION_EXCEEDS_AUTHORITY",
+                    "RESOURCE_NOT_FOUND",
+                    "ROW_VERSION_CONFLICT",
+                    "SCHEMA_VERSION_CONFLICT",
+                    "UNIQUE_CONFLICT",
+                    "FOREIGN_KEY_CONFLICT",
+                    "AUTO_INCREMENT_EXHAUSTED",
+                    "ROW_SIZE_LIMIT",
+                    "ROW_LIMIT_REACHED",
+                    "PAYLOAD_TOO_LARGE",
+                    "REQUEST_TIMEOUT",
+                    "QUERY_TIMEOUT",
+                    "CURSOR_INVALID",
+                    "STEP_UP_REQUIRED",
+                    "IDEMPOTENCY_CONFLICT",
+                    "JOB_FAILED",
+                    "RATE_LIMITED",
+                    "CAPACITY_LIMIT",
+                    "SCHEMA_MAINTENANCE",
+                    "ARTIFACT_UNVERIFIED",
+                    "ARTIFACT_EXPIRED",
+                    "CONFIGURATION_INVALID",
+                    "DEPENDENCY_UNAVAILABLE",
+                    "INTERNAL_ERROR"
+                  ]
+                },
+                "message": { "type": "string" },
+                "requestId": { "type": "string" },
+                "details": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                }
+              },
+              "required": ["code", "message", "requestId"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "_meta": {
+      "rootset.dev/jsonRequestMaxBytes": 8388608,
+      "rootset.dev/jsonReadTimeoutMs": 10000,
+      "rootset.dev/errorCodes": [
+        "VALIDATION_FAILED",
+        "UNAUTHENTICATED",
+        "ACCESS_DENIED",
+        "FORBIDDEN",
+        "INSUFFICIENT_SCOPE",
+        "PERSONAL_IDENTITY_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "REQUEST_TIMEOUT",
+        "IDEMPOTENCY_CONFLICT"
+      ]
+    }
+  },
+  {
+    "name": "rootset_update_foreign_key_display_field",
+    "title": "updateForeignKeyDisplayField",
+    "description": "Choose your display field for a foreign-key picker without changing its stored keys or other view preferences.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "tableId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "foreignKeyId": {
+          "type": "string",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "displayFieldId": {
+          "anyOf": [
+            { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+            { "type": "null" }
+          ]
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 255,
+          "description": "Stable caller-provided key across retries of this exact operation."
+        }
+      },
+      "required": [
+        "tableId",
+        "foreignKeyId",
+        "displayFieldId",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "tableId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "preferences": {
+              "type": "object",
+              "properties": {
+                "columnOrder": {
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "columnWidths": {
+                  "type": "object",
+                  "propertyNames": { "type": "string" },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 40,
+                    "maximum": 2000
+                  }
+                },
+                "frozenColumns": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 200
+                },
+                "hiddenColumns": {
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
+                },
+                "query": {
+                  "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "boolean" },
+                    { "type": "number" },
+                    { "type": "string" },
+                    { "type": "array", "items": {} },
+                    { "type": "object", "additionalProperties": {} }
+                  ]
+                },
+                "foreignKeyDisplayFields": {
+                  "description": "Personal picker labels. Change through updateForeignKeyDisplayField; ordinary view saves preserve these choices.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  }
                 }
               },
               "required": [

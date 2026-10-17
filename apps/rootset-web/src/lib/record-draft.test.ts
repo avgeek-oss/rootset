@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FieldDefinition, Row } from "@rootset/contracts";
-import { createRecordDraft, recordValues } from "./record-draft";
+import {
+  createRecordDraft,
+  recordErrorFields,
+  recordValues,
+} from "./record-draft";
 
 const fields: FieldDefinition[] = [
   {
@@ -41,6 +45,38 @@ const row: Row = {
 };
 
 describe("record drafts", () => {
+  it("maps server constraint conflicts to current fields without trusting unknown identifiers", () => {
+    const schema = {
+      fields,
+      foreignKeys: [],
+      uniqueRules: [
+        {
+          id: "00000000000000000000000020",
+          tableId: "00000000000000000000000021",
+          fieldIds: [fields[2]!.id, fields[1]!.id],
+          state: "active" as const,
+          strategy: "native" as const,
+          nullPolicy: "distinct" as const,
+        },
+      ],
+    };
+    expect(
+      recordErrorFields({ ruleId: schema.uniqueRules[0]!.id }, schema),
+    ).toEqual([fields[1]!.id, fields[2]!.id]);
+    expect(recordErrorFields({ fieldId: fields[3]!.id }, schema)).toEqual([
+      fields[3]!.id,
+    ]);
+    expect(recordErrorFields({ field: "NAME" }, schema)).toEqual([
+      fields[1]!.id,
+    ]);
+    for (const details of [
+      null,
+      [],
+      "error",
+      { ruleId: "missing", fieldId: "missing" },
+    ])
+      expect(recordErrorFields(details, schema)).toEqual([]);
+  });
   it("omits generated values and unchanged defaults while preserving optional NULL", () => {
     const draft = createRecordDraft(fields);
     expect(draft[fields[0]!.id]!.mode).toBe("default");

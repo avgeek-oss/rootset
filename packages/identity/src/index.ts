@@ -1228,7 +1228,11 @@ export class IdentityService {
             orgId: actor.orgId,
           });
       }
-      if (operation === "updateViewPreferences") {
+      if (
+        ["updateViewPreferences", "updateForeignKeyDisplayField"].includes(
+          operation,
+        )
+      ) {
         const table = (
           await client.query(
             "SELECT database_id FROM rootset_control.tables WHERE id=$1 AND org_id=$2 AND state='active'",
@@ -1575,7 +1579,8 @@ export class IdentityService {
         };
       }
       case "getViewPreferences":
-      case "updateViewPreferences": {
+      case "updateViewPreferences":
+      case "updateForeignKeyDisplayField": {
         const tableId = parse(IdSchema, input.tableId);
         const table = (
           await client.query(
@@ -1605,7 +1610,61 @@ export class IdentityService {
             },
           };
         }
+        if (operation === "updateForeignKeyDisplayField") {
+          const foreignKeyId = parse(IdSchema, input.foreignKeyId);
+          const displayFieldId =
+            input.displayFieldId === null
+              ? null
+              : parse(IdSchema, input.displayFieldId);
+          const rule = (
+            await client.query(
+              "SELECT referenced_table_id FROM rootset_control.foreign_keys WHERE id=$1 AND table_id=$2 AND org_id=$3 AND state='active'",
+              [foreignKeyId, tableId, actor.orgId],
+            )
+          ).rows[0];
+          if (!rule) notFound();
+          if (
+            displayFieldId &&
+            !(
+              await client.query(
+                "SELECT id FROM rootset_control.fields WHERE id=$1 AND table_id=$2 AND org_id=$3 AND state='active' AND definition->>'type'<>'json'",
+                [displayFieldId, rule.referenced_table_id, actor.orgId],
+              )
+            ).rowCount
+          )
+            throw new RootsetError(
+              "VALIDATION_FAILED",
+              "Choose a current scalar field from the referenced table",
+            );
+          const patch = displayFieldId
+            ? { [foreignKeyId]: displayFieldId }
+            : {};
+          const defaults = {
+            columnOrder: [],
+            columnWidths: {},
+            frozenColumns: 0,
+            hiddenColumns: [],
+            foreignKeyDisplayFields: patch,
+          };
+          const result = await client.query(
+            `INSERT INTO rootset_control.view_preferences(user_id,org_id,table_id,preferences) VALUES($1,$2,$3,$4)
+             ON CONFLICT(user_id,table_id) DO UPDATE SET preferences=jsonb_set(view_preferences.preferences,'{foreignKeyDisplayFields}',
+               coalesce((SELECT jsonb_object_agg(p.key,p.value) FROM jsonb_each(coalesce(view_preferences.preferences->'foreignKeyDisplayFields','{}'::jsonb)) p
+                 JOIN rootset_control.foreign_keys k ON k.id=p.key AND k.table_id=$3 AND k.state='active'
+                 WHERE p.key<>$5),'{}'::jsonb)||$6::jsonb),updated_at=now() RETURNING preferences`,
+            [
+              actor.userId,
+              actor.orgId,
+              tableId,
+              JSON.stringify(defaults),
+              foreignKeyId,
+              JSON.stringify(patch),
+            ],
+          );
+          return { tableId, preferences: result.rows[0]!.preferences };
+        }
         const preferences = parse(ViewPreferencesSchema, input.preferences);
+        delete preferences.foreignKeyDisplayFields;
         const fields = new Set(
           (
             await client.query(
@@ -1635,11 +1694,11 @@ export class IdentityService {
             "VALIDATION_FAILED",
             "View column order, visibility or freeze count is invalid",
           );
-        await client.query(
-          `INSERT INTO rootset_control.view_preferences(user_id,org_id,table_id,preferences) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,table_id) DO UPDATE SET preferences=$4,updated_at=now()`,
+        const saved = await client.query(
+          `INSERT INTO rootset_control.view_preferences(user_id,org_id,table_id,preferences) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,table_id) DO UPDATE SET preferences=jsonb_set($4::jsonb,'{foreignKeyDisplayFields}',coalesce(view_preferences.preferences->'foreignKeyDisplayFields','{}'::jsonb)),updated_at=now() RETURNING preferences`,
           [actor.userId, actor.orgId, tableId, JSON.stringify(preferences)],
         );
-        return { tableId, preferences };
+        return { tableId, preferences: saved.rows[0]!.preferences };
       }
       case "changePassword":
         return this.changePassword(client, actor, input);

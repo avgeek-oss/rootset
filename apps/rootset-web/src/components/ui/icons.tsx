@@ -24,6 +24,7 @@ import {
   MoreHorizontalIcon,
   ViewIcon,
   Upload01Icon,
+  Link01Icon,
 } from "@hugeicons/core-free-icons";
 import type { ComponentProps } from "react";
 
@@ -60,3 +61,4 @@ export const ArrowUpRight = makeIcon(ArrowUpRight01Icon);
 export const MoreHorizontal = makeIcon(MoreHorizontalIcon);
 export const View = makeIcon(ViewIcon);
 export const Upload = makeIcon(Upload01Icon);
+export const Link = makeIcon(Link01Icon);

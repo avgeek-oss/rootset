@@ -16,6 +16,33 @@ export interface RecordFieldDraft extends CellDraft {
 }
 export type RecordDraft = Record<string, RecordFieldDraft>;
 
+export function recordErrorFields(
+  details: unknown,
+  schema: {
+    fields: readonly Pick<FieldDefinition, "id" | "name">[];
+    foreignKeys: readonly { id: string; fieldIds: readonly string[] }[];
+    uniqueRules: readonly { id: string; fieldIds: readonly string[] }[];
+  },
+): string[] {
+  if (!details || typeof details !== "object" || Array.isArray(details))
+    return [];
+  const value = details as {
+    fieldId?: unknown;
+    field?: unknown;
+    ruleId?: unknown;
+  };
+  const rule = [...schema.foreignKeys, ...schema.uniqueRules].find(
+    (rule) => rule.id === value.ruleId,
+  );
+  const ids = new Set(rule?.fieldIds ?? []);
+  for (const field of schema.fields)
+    if (field.id === value.fieldId || field.name === value.field)
+      ids.add(field.id);
+  return schema.fields
+    .filter((field) => ids.has(field.id))
+    .map((field) => field.id);
+}
+
 export function createRecordDraft(
   fields: readonly FieldDefinition[],
   row?: Row,

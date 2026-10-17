@@ -11,10 +11,13 @@ import type { Preferences, Row, TableSchemaResult } from "@rootset/contracts";
 import {
   createRecordDraft,
   recordValues,
+  recordErrorFields,
   type RecordFieldDraft,
+  type RecordDraft,
 } from "../lib/record-draft";
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { RecordField } from "./record-field";
+import { RecordForeignKey } from "./record-foreign-key";
 import { useConfirmation } from "./settings/ui";
 import "./record-editor.css";
 
@@ -27,6 +30,7 @@ interface RecordEditorProps {
   target: RecordTarget;
   tableName: string;
   rowId?: string;
+  focusFieldId?: string;
   preferences: Preferences;
   canEdit: boolean;
   onClose: () => void;
@@ -176,6 +180,7 @@ function RecordForm({
   row,
   preferences,
   canEdit,
+  focusFieldId,
   busy,
   reloading,
   onClose,
@@ -204,18 +209,40 @@ function RecordForm({
   const submitted = useRef(false);
   const attempt = useRef(new MutationAttempt());
   const form = useRef<HTMLFormElement>(null);
+  const serverErrorFocus = useRef<string | undefined>(undefined);
+  const serverErrorFieldIds = useRef<string[]>([]);
   const readOnly = !canEdit || schema.table.state !== "active";
   useEffect(() => {
+    if (busy || reloading || !serverErrorFocus.current) return;
+    const id = serverErrorFocus.current;
+    serverErrorFocus.current = undefined;
+    const focusId =
+      schema.foreignKeys.find((rule) => rule.fieldIds.includes(id))
+        ?.fieldIds[0] ?? id;
+    form.current
+      ?.querySelector<HTMLElement>(
+        `[data-field-id="${focusId}"] :is(input,textarea,[role="spinbutton"],[data-slot="select-trigger"])`,
+      )
+      ?.focus();
+  }, [busy, reloading, schema.foreignKeys, errors]);
+  useEffect(() => {
+    const fieldId =
+      schema.foreignKeys.find((rule) =>
+        rule.fieldIds.includes(focusFieldId ?? ""),
+      )?.fieldIds[0] ?? focusFieldId;
+    const container = fieldId
+      ? form.current?.querySelector<HTMLElement>(`[data-field-id="${fieldId}"]`)
+      : form.current;
     const firstField =
       !readOnly && window.matchMedia("(pointer: fine)").matches
-        ? form.current?.querySelector<HTMLElement>(
+        ? container?.querySelector<HTMLElement>(
             'input:not([type="hidden"]):not([readonly]):not([disabled]),textarea:not([readonly]):not([disabled]),[role="spinbutton"]:not([aria-disabled="true"]),[data-slot="select-trigger"]:not([disabled])',
           )
         : null;
     (
       firstField ?? form.current?.closest<HTMLElement>('[role="dialog"]')
     )?.focus();
-  }, [readOnly]);
+  }, [readOnly, focusFieldId, schema.foreignKeys]);
   const dirty = Object.keys(drafts).some((id) => {
     const before = initial[id]!;
     const after = drafts[id]!;
@@ -227,11 +254,18 @@ function RecordForm({
   });
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
   function change(id: string, draft: RecordFieldDraft) {
-    setDrafts((current) => ({ ...current, [id]: draft }));
+    changeFields({ [id]: draft });
+  }
+  function changeFields(patch: RecordDraft) {
+    setDrafts((current) => ({ ...current, ...patch }));
+    const changed = Object.keys(patch);
+    const clear = serverErrorFieldIds.current.some((id) => changed.includes(id))
+      ? [...changed, ...serverErrorFieldIds.current]
+      : changed;
+    if (clear.length > changed.length) serverErrorFieldIds.current = [];
     setErrors((current) => {
-      if (!current[id]) return current;
       const next = { ...current };
-      delete next[id];
+      for (const id of clear) delete next[id];
       return next;
     });
   }
@@ -245,13 +279,17 @@ function RecordForm({
       preferences.timezone,
     );
     setErrors(result.errors);
+    serverErrorFieldIds.current = [];
     const invalid = Object.keys(result.errors)[0];
     if (invalid) {
       const field = schema.fields.find((field) => field.id === invalid)!;
+      const focusId =
+        schema.foreignKeys.find((rule) => rule.fieldIds.includes(invalid))
+          ?.fieldIds[0] ?? invalid;
       toast.danger(`${field.name}: ${result.errors[invalid]}`);
       form.current
         ?.querySelector<HTMLElement>(
-          `[data-field-id="${invalid}"] :is(input,textarea,[role="spinbutton"],[data-slot="select-trigger"])`,
+          `[data-field-id="${focusId}"] :is(input,textarea,[role="spinbutton"],[data-slot="select-trigger"])`,
         )
         ?.focus();
       return;
@@ -282,6 +320,14 @@ function RecordForm({
       onClose();
     } catch (error) {
       if (error instanceof ApiError) {
+        const fieldIds = recordErrorFields(error.details, schema);
+        if (fieldIds.length) {
+          serverErrorFieldIds.current = fieldIds;
+          setErrors(
+            Object.fromEntries(fieldIds.map((id) => [id, error.message])),
+          );
+          serverErrorFocus.current = fieldIds[0];
+        }
         if ([401, 403, 404].includes(error.status)) onAccessLost();
         else if (
           ["ROW_VERSION_CONFLICT", "SCHEMA_VERSION_CONFLICT"].includes(
@@ -325,20 +371,46 @@ function RecordForm({
             finishes.
           </p>
         )}
-        {schema.fields.map((field) => (
-          <RecordField
-            key={field.id}
-            field={field}
-            draft={drafts[field.id]!}
-            onChange={(draft) => change(field.id, draft)}
-            creating={!row}
-            timeZone={preferences.timezone}
-            hourCycle={preferences.timeFormat.startsWith("12-hour") ? 12 : 24}
-            invalid={Boolean(errors[field.id])}
-            disabled={busy || reloading}
-            readOnly={readOnly}
-          />
-        ))}
+        {schema.fields.map((field) => {
+          const links = schema.foreignKeys.filter(
+            (rule) => rule.fieldIds[0] === field.id,
+          );
+          if (links.length)
+            return links.map((rule) => (
+              <RecordForeignKey
+                key={rule.id}
+                target={target}
+                rule={rule}
+                fields={schema.fields}
+                drafts={drafts}
+                preferences={preferences}
+                errors={errors}
+                disabled={busy || reloading}
+                readOnly={readOnly}
+                creating={!row}
+                focus={rule.fieldIds.includes(focusFieldId ?? "")}
+                onChange={changeFields}
+              />
+            ));
+          if (
+            schema.foreignKeys.some((rule) => rule.fieldIds.includes(field.id))
+          )
+            return null;
+          return (
+            <RecordField
+              key={field.id}
+              field={field}
+              draft={drafts[field.id]!}
+              onChange={(draft) => change(field.id, draft)}
+              creating={!row}
+              timeZone={preferences.timezone}
+              hourCycle={preferences.timeFormat.startsWith("12-hour") ? 12 : 24}
+              invalid={Boolean(errors[field.id])}
+              disabled={busy || reloading}
+              readOnly={readOnly}
+            />
+          );
+        })}
       </Drawer.Body>
       <Drawer.Footer className="record-editor-footer">
         {needsReload && (

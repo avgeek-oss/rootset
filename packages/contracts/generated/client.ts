@@ -4636,6 +4636,7 @@ export type getViewPreferencesOutput = {
     hiddenColumns: string[];
     query?:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
   };
 };
 export type updateViewPreferencesInput = {
@@ -4647,6 +4648,7 @@ export type updateViewPreferencesInput = {
     hiddenColumns: string[];
     query?:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
   };
 };
 export type updateViewPreferencesOutput = {
@@ -4658,6 +4660,24 @@ export type updateViewPreferencesOutput = {
     hiddenColumns: string[];
     query?:
       null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
+  };
+};
+export type updateForeignKeyDisplayFieldInput = {
+  tableId: string;
+  foreignKeyId: string;
+  displayFieldId: string | null;
+};
+export type updateForeignKeyDisplayFieldOutput = {
+  tableId: string;
+  preferences: {
+    columnOrder: string[];
+    columnWidths: Record<string, number>;
+    frozenColumns: number;
+    hiddenColumns: string[];
+    query?:
+      null | boolean | number | string | unknown[] | Record<string, unknown>;
+    foreignKeyDisplayFields?: Record<string, string>;
   };
 };
 export type getBackupScheduleInput = { orgId: string; databaseId: string };
@@ -5204,6 +5224,11 @@ const routes = {
   },
   updateViewPreferences: {
     path: "/v1/me/view-preferences/{tableId}",
+    method: "PUT",
+    idempotencyRequired: true,
+  },
+  updateForeignKeyDisplayField: {
+    path: "/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
     method: "PUT",
     idempotencyRequired: true,
   },
@@ -6033,6 +6058,16 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<updateViewPreferencesOutput>;
+  }
+  updateForeignKeyDisplayField(
+    input: updateForeignKeyDisplayFieldInput,
+    options?: CallOptions,
+  ): Promise<updateForeignKeyDisplayFieldOutput> {
+    return this.call(
+      "updateForeignKeyDisplayField",
+      input,
+      options,
+    ) as Promise<updateForeignKeyDisplayFieldOutput>;
   }
   getBackupSchedule(
     input: getBackupScheduleInput,

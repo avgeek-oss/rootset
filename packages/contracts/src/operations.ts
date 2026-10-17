@@ -1376,6 +1376,21 @@ operation(
   { personal: true, resource: "table", minimumRole: "viewer" },
 );
 operation(
+  "updateForeignKeyDisplayField",
+  "update_foreign_key_display_field",
+  "PUT",
+  "/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
+  ["rows:read"],
+  z.strictObject({
+    tableId: IdSchema,
+    foreignKeyId: IdSchema,
+    displayFieldId: IdSchema.nullable(),
+  }),
+  ViewPreferencesResultSchema,
+  "Choose your display field for a foreign-key picker without changing its stored keys or other view preferences.",
+  { personal: true, resource: "table", minimumRole: "viewer" },
+);
+operation(
   "getBackupSchedule",
   "get_backup_schedule",
   "GET",

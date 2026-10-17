@@ -13,6 +13,7 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "updateProfile",
   "updatePreferences",
   "updateViewPreferences",
+  "updateForeignKeyDisplayField",
   "revokeSession",
   "revokeConnection",
   "updateOrganisation",
