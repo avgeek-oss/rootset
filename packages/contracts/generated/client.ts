@@ -3545,6 +3545,46 @@ export type deleteUniqueRuleInput = {
   id: string;
 };
 export type deleteUniqueRuleOutput = { deleted: boolean; mutationId?: string };
+export type getRowRelationshipsInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  rowId: string;
+  expectedVersion?: string;
+  cursor?: string | null;
+  limit?: number;
+};
+export type getRowRelationshipsOutput = {
+  rowVersion: string;
+  asOf: string;
+  data: {
+    id: string;
+    tableId: string;
+    tableName: string;
+    tableState: string;
+    fieldIds: string[];
+    fieldNames: string[];
+    referencedFieldIds: string[];
+    count: number;
+    hasKey: boolean;
+  }[];
+  nextCursor: unknown;
+  hasMore: boolean;
+};
+export type getRelatedRowFilterInput = {
+  orgId: string;
+  databaseId: string;
+  tableId: string;
+  ruleId: string;
+  referencedRowId: string;
+};
+export type getRelatedRowFilterOutput = {
+  filter: { fieldId: string; value: unknown }[];
+  schemaVersion: number;
+  referencedTableId: string;
+  referencedRowId: string;
+  referencedVersion: string;
+};
 export type listForeignKeysInput = {
   orgId: string;
   databaseId: string;
@@ -5496,6 +5536,16 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
+  getRowRelationships: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/rows/{rowId}/relationships",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  getRelatedRowFilter: {
+    path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/relationships/{ruleId}/records/{referencedRowId}/filter",
+    method: "GET",
+    idempotencyRequired: false,
+  },
   listForeignKeys: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/foreign-keys",
     method: "GET",
@@ -6278,6 +6328,26 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<deleteUniqueRuleOutput>;
+  }
+  getRowRelationships(
+    input: getRowRelationshipsInput,
+    options?: CallOptions,
+  ): Promise<getRowRelationshipsOutput> {
+    return this.call(
+      "getRowRelationships",
+      input,
+      options,
+    ) as Promise<getRowRelationshipsOutput>;
+  }
+  getRelatedRowFilter(
+    input: getRelatedRowFilterInput,
+    options?: CallOptions,
+  ): Promise<getRelatedRowFilterOutput> {
+    return this.call(
+      "getRelatedRowFilter",
+      input,
+      options,
+    ) as Promise<getRelatedRowFilterOutput>;
   }
   listForeignKeys(
     input: listForeignKeysInput,

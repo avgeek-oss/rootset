@@ -144,6 +144,7 @@
               "api-reference/listUniqueRules",
               "api-reference/createUniqueRule",
               "api-reference/deleteUniqueRule",
+              "api-reference/getRelatedRowFilter",
               "api-reference/listForeignKeys",
               "api-reference/createForeignKey",
               "api-reference/deleteForeignKey",
@@ -160,6 +161,7 @@
           {
             "group": "Data",
             "pages": [
+              "api-reference/getRowRelationships",
               "api-reference/listRows",
               "api-reference/createRow",
               "api-reference/queryRows",

@@ -841,6 +841,43 @@ export class RootsetCore {
       }
       case "listUniqueRules":
         return { data: (await s.listUniqueRules(a, tableId)).map(rulePublic) };
+      case "getRowRelationships": {
+        const rowId = str(input.rowId);
+        const request = {
+          resource: `row-relationships:${tableId}:${rowId}`,
+          limit: typeof input.limit === "number" ? input.limit : 20,
+          cursor: typeof input.cursor === "string" ? input.cursor : null,
+          filter: {
+            expectedVersion:
+              typeof input.expectedVersion === "string"
+                ? input.expectedVersion
+                : null,
+          },
+        };
+        const position = this.paging.read(a, request);
+        const result = await s.rowRelationships(
+          a,
+          tableId,
+          rowId,
+          {
+            afterId: position.afterId,
+            limit: position.limit + 1,
+            ...(typeof input.expectedVersion === "string"
+              ? { expectedVersion: input.expectedVersion }
+              : {}),
+          },
+          readSignal(ctx),
+        );
+        return { ...result, ...this.paging.paginate(result.data, a, request) };
+      }
+      case "getRelatedRowFilter":
+        return s.relatedRowFilter(
+          a,
+          tableId,
+          str(input.ruleId),
+          str(input.referencedRowId),
+          readSignal(ctx),
+        );
       case "listForeignKeys":
         return { data: await s.listForeignKeys(a, tableId) };
       case "createForeignKey":

@@ -82,7 +82,7 @@ const EmailChangeConfirmation = dynamic(() =>
   ),
 );
 const Spreadsheet = dynamic(() =>
-  import("./spreadsheet").then((module) => module.Spreadsheet),
+  import("./related-spreadsheet").then((module) => module.RelatedSpreadsheet),
 );
 const SettingsPanel = dynamic(() =>
   import("./settings").then((module) => module.SettingsPanel),
@@ -709,6 +709,8 @@ export function RootsetApp() {
                     table.id,
                     parameters.get("filter"),
                     parameters.get("view"),
+                    parameters.get("relationship"),
+                    parameters.get("record"),
                   ])}
                   orgId={orgId!}
                   databaseId={selectedDatabaseId}
@@ -716,6 +718,8 @@ export function RootsetApp() {
                   preferences={preferences}
                   canEdit={canEdit}
                   canManage={canEdit}
+                  relationshipId={parameters.get("relationship")}
+                  referencedRowId={parameters.get("record")}
                   linkedFilter={parameters.get("filter")}
                   savedViewId={parameters.get("view")}
                   onSettings={(section) =>

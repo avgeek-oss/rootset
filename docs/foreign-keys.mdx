@@ -33,6 +33,16 @@ Choose **NULL** to clear the optional fields of a link. Required fields retain t
 
 The `updateForeignKeyDisplayField` operation changes a personal label atomically and validates that the display field belongs to the referenced table. Passing `null` restores automatic label choice. Ordinary `updateViewPreferences` saves preserve these label choices so a column resize cannot overwrite them.
 
+## Open records that reference this record
+
+Open a saved parent record and find **Related records** below its fields. Each row shows a referencing table, its foreign-key fields and the exact number of matching records. **Open records** opens that table in a new tab with all parts of the key applied as a filter. Counts come from the reference registry and can be refreshed; they use saved values, including when the editor has unsaved changes.
+
+Composite keys retain their types and exact text, including leading zeros, `0` and `false`. A parent with a NULL key component has no reference link. Tables in maintenance show their status until they are available. Related records are available to viewers with current row and schema read access. The list has Previous and Next controls when more than twenty rules reference the record.
+
+Links identify the relationship and parent record without embedding long key values in the URL. The destination resolves the current saved key before loading any rows. Deleted rules, missing records, lost access and incomplete keys show an unavailable state; they never silently open the complete table. You can explicitly open the table without the relationship filter when needed.
+
+Use [Get row relationships](/api-reference/getRowRelationships) to read counts and [Get related row filter](/api-reference/getRelatedRowFilter) to resolve a navigation link in REST or MCP. Supply the parent record's `expectedVersion` when counts must match the revision currently shown in an editor.
+
 ## REST and MCP
 
 Use [Create foreign key](/api-reference/createForeignKey) or `rootset_create_foreign_key` with stable field IDs from the table schemas:

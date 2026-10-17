@@ -18,6 +18,7 @@ import {
 import { MutationAttempt } from "../lib/mutation-attempt";
 import { RecordField } from "./record-field";
 import { RecordForeignKey } from "./record-foreign-key";
+import { RecordRelationships } from "./record-relationships";
 import { useConfirmation } from "./settings/ui";
 import "./record-editor.css";
 
@@ -411,6 +412,16 @@ function RecordForm({
             />
           );
         })}
+        {row && (
+          <RecordRelationships
+            target={target}
+            rowId={row.id}
+            version={row.version}
+            disabled={busy || reloading}
+            onAccessLost={onAccessLost}
+            onReloadRecord={onReload}
+          />
+        )}
       </Drawer.Body>
       <Drawer.Footer className="record-editor-footer">
         {needsReload && (

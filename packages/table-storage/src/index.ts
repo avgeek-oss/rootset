@@ -14,6 +14,8 @@ import {
   type QuerySpec,
   type UniqueRuleCondition,
   type ForeignKey,
+  type RowRelationship,
+  type RelatedRowFilter,
   validateUniqueRuleCondition,
   type Row,
   type QueryResult,
@@ -2904,6 +2906,129 @@ export class TableStorage {
   async listForeignKeys(a: Actor, tableId: string): Promise<ForeignKey[]> {
     return this.run(a, async (c) =>
       this.foreignKeys(c, (await this.table(c, a, tableId)).id),
+    );
+  }
+  async rowRelationships(
+    a: Actor,
+    tableId: string,
+    rowId: string,
+    input: { afterId: string | null; limit: number; expectedVersion?: string },
+    signal?: AbortSignal,
+  ): Promise<{ rowVersion: string; asOf: string; data: RowRelationship[] }> {
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 21)
+      fail("VALIDATION_FAILED", "Relationship page supports up to 20 items");
+    return this.read(
+      a,
+      async (c) => {
+        const initial = await this.table(c, a, tableId);
+        await c.query(
+          "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+          [initial.databaseId],
+        );
+        const parent = await this.table(c, a, tableId);
+        const result = await c.query<Raw>(
+          `SELECT parent_row.*,statement_timestamp() AS __as_of,coalesce((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id',k.id,'tableId',k.table_id,'tableName',k.table_name,'tableState',k.table_state,
+            'fieldIds',k.field_ids,'fieldNames',k.field_names,'referencedFieldIds',k.referenced_field_ids,
+            'count',(SELECT count(*) FROM rootset_control.foreign_key_entries e WHERE e.target_rule_id=k.referenced_rule_id AND e.target_row_id=parent_row.row_id AND e.rule_id=k.id)
+          ) ORDER BY k.id)
+          FROM (SELECT k.*,source.name AS table_name,source.state AS table_state,
+            ARRAY(SELECT f.name FROM unnest(k.field_ids) WITH ORDINALITY ids(id,position) JOIN rootset_control.fields f ON f.id=ids.id ORDER BY ids.position) AS field_names
+            FROM rootset_control.foreign_keys k JOIN rootset_control.tables source ON source.id=k.table_id
+            WHERE k.referenced_table_id=$2 AND k.state='active' AND source.state<>'deleted' AND source.database_id=$3
+            AND ($4::text IS NULL OR k.id>$4) ORDER BY k.id LIMIT $5) k
+        ),'[]'::jsonb) AS __relationships FROM ${tablePath(parent)} parent_row WHERE parent_row.row_id=$1`,
+          [id(rowId), parent.id, parent.databaseId, input.afterId, input.limit],
+        );
+        const raw =
+          result.rows[0] ??
+          fail("RESOURCE_NOT_FOUND", "Record was not found", 404);
+        const row = rowFrom(raw, parent.fields);
+        if (input.expectedVersion && input.expectedVersion !== row.version)
+          fail(
+            "ROW_VERSION_CONFLICT",
+            "The record changed. Reload it to see its current relationships.",
+            409,
+          );
+        return {
+          rowVersion: row.version,
+          asOf: iso(raw.__as_of),
+          data: (raw.__relationships as Omit<RowRelationship, "hasKey">[]).map(
+            (relationship) => ({
+              ...relationship,
+              hasKey: relationship.referencedFieldIds.every(
+                (fid) => row.values[fieldFor(parent, fid).name] !== null,
+              ),
+            }),
+          ),
+        };
+      },
+      signal,
+    );
+  }
+
+  async relatedRowFilter(
+    a: Actor,
+    tableId: string,
+    ruleId: string,
+    referencedRowId: string,
+    signal?: AbortSignal,
+  ): Promise<RelatedRowFilter> {
+    return this.read(
+      a,
+      async (c) => {
+        const initial = await this.table(c, a, tableId);
+        await c.query(
+          "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+          [initial.databaseId],
+        );
+        const source = await this.table(c, a, tableId);
+        const rule =
+          (await this.foreignKeys(c, source.id)).find(
+            (rule) => rule.id === id(ruleId),
+          ) ??
+          fail("RESOURCE_NOT_FOUND", "The relationship no longer exists", 404);
+        const parent = await this.table(c, a, rule.referencedTableId);
+        if (parent.databaseId !== source.databaseId)
+          fail("RESOURCE_NOT_FOUND", "The relationship was not found", 404);
+        const result = await c.query<Raw>(
+          `SELECT * FROM ${tablePath(parent)} WHERE row_id=$1`,
+          [id(referencedRowId)],
+        );
+        const raw =
+          result.rows[0] ??
+          fail(
+            "RESOURCE_NOT_FOUND",
+            "The referenced record no longer exists",
+            404,
+          );
+        const row = rowFrom(raw, parent.fields);
+        const filter = rule.fieldIds.map((fid, index) => {
+          fieldFor(source, fid);
+          const value =
+            row.values[fieldFor(parent, rule.referencedFieldIds[index]!).name];
+          if (
+            value === null ||
+            value === undefined ||
+            typeof value === "object"
+          )
+            fail(
+              "FOREIGN_KEY_CONFLICT",
+              "The referenced record no longer has a complete key. Reload the record or open the table to choose another filter.",
+              409,
+            );
+          return { fieldId: fid, value };
+        });
+        return {
+          filter,
+          schemaVersion: source.schemaVersion,
+          referencedTableId: parent.id,
+          referencedRowId: row.id,
+          referencedVersion: row.version,
+        };
+      },
+      signal,
     );
   }
   async createForeignKey(

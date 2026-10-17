@@ -45,6 +45,10 @@ import {
 import { QuerySpecSchema } from "./query";
 import { ExportViewQuerySchema } from "./exports";
 import {
+  RowRelationshipsSchema,
+  RelatedRowFilterSchema,
+} from "./relationships";
+import {
   ArtifactSchema,
   ConnectionSchema,
   ContextSchema,
@@ -897,6 +901,34 @@ operation(
   z.strictObject({ ...table, ...expected, id: IdSchema }),
   deleted,
   "Remove uniqueness enforcement and update the schema version.",
+);
+operation(
+  "getRowRelationships",
+  "get_row_relationships",
+  "GET",
+  `${T}/rows/{rowId}/relationships`,
+  ["rows:read", "schema:read"],
+  z.strictObject({
+    ...table,
+    rowId: IdSchema,
+    expectedVersion: VersionSchema.optional(),
+    cursor: z.string().max(131200).nullable().optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+  }),
+  RowRelationshipsSchema,
+  "List the tables and foreign keys referencing a saved record with exact live counts and bounded pagination. Optional NULL key components do not form links.",
+  { minimumRole: "viewer" },
+);
+operation(
+  "getRelatedRowFilter",
+  "get_related_row_filter",
+  "GET",
+  `${T}/relationships/{ruleId}/records/{referencedRowId}/filter`,
+  ["rows:read", "schema:read"],
+  z.strictObject({ ...table, ruleId: IdSchema, referencedRowId: IdSchema }),
+  RelatedRowFilterSchema,
+  "Resolve a compact reverse-relationship link into a typed filter using the current saved referenced record. Missing or incomplete keys never produce an unfiltered table.",
+  { minimumRole: "viewer" },
 );
 operation(
   "listForeignKeys",

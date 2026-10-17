@@ -3,6 +3,7 @@ import { validateQuery, type ForeignKey, type Row } from "@rootset/contracts";
 import {
   foreignKeyLinks,
   readLinkedTableFilter,
+  reverseRelationshipPath,
 } from "./foreign-key-navigation";
 import { buildTableFilter } from "./table-filters";
 
@@ -165,4 +166,18 @@ describe("foreign-key record navigation", () => {
   it("leaves ordinary table navigation unfiltered", () => {
     expect(readLinkedTableFilter(null)).toEqual({ conditions: [] });
   });
+});
+
+it("reverse navigation keeps key values out of the URL", () => {
+  const href = reverseRelationshipPath(
+    "database",
+    rule.tableId,
+    rule.id,
+    row.id,
+  );
+  const url = new URL(href, "http://localhost");
+  expect(url.searchParams.get("relationship")).toBe(rule.id);
+  expect(url.searchParams.get("record")).toBe(row.id);
+  expect(url.searchParams.has("filter")).toBe(false);
+  expect(href.length).toBeLessThan(150);
 });
