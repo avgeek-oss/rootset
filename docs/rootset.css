@@ -1,0 +1,180 @@
+.oss-home {
+  max-width: 1280px;
+}
+
+.oss-home .oss-hero h1 {
+  margin-bottom: 12px;
+}
+
+.oss-home .oss-hero .oss-lead {
+  width: 100%;
+  max-width: none;
+}
+
+@media (max-width: 640px) {
+  .oss-home .oss-hero {
+    padding-top: 16px;
+  }
+}
+
+/* Footer layout follows the shared OSS documentation pattern. */
+#footer.advanced-footer > div {
+  max-width: 1280px;
+}
+
+#footer.advanced-footer > div {
+  padding-inline: 16px;
+}
+
+#footer.advanced-footer > div > div:first-child > div:nth-child(2) {
+  grid-template-columns: repeat(auto-fit, minmax(192px, 1fr));
+  gap: 24px;
+}
+
+#footer.advanced-footer > div > div:first-child > div:nth-child(2) a {
+  min-height: 24px;
+}
+
+#footer.advanced-footer > div > div:first-child > div:nth-child(2) > div > div {
+  gap: 4px;
+}
+
+@media (min-width: 1024px) {
+  #navbar > div:last-child > div > div > div {
+    padding-inline: 32px;
+  }
+
+  #footer.advanced-footer > div {
+    padding-inline: 48px;
+  }
+}
+
+@media (max-width: 767px) {
+  #footer.advanced-footer > div > div:first-child > div:nth-child(2) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  #footer.advanced-footer > div > div:first-child > div:nth-child(2) a {
+    min-height: 44px;
+  }
+
+  #footer.advanced-footer
+    > div
+    > div:first-child
+    > div:nth-child(2)
+    > div
+    > div {
+    gap: 0;
+  }
+}
+
+#footer
+  a:is(
+    [href="https://www.towbar.dev"],
+    [href="https://www.mill.fyi"],
+    [href="https://www.posted.cc"]
+  ) {
+  gap: 8px;
+}
+
+#footer
+  a:is(
+    [href="https://www.towbar.dev"],
+    [href="https://www.mill.fyi"],
+    [href="https://www.posted.cc"]
+  )::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+#footer a[href="https://www.towbar.dev"]::before {
+  background-image: url("/assets/projects/towbar.png");
+}
+
+#footer a[href="https://www.mill.fyi"]::before {
+  background-image: url("/assets/projects/mill.png");
+}
+
+#footer a[href="https://www.posted.cc"]::before {
+  background-image: url("/assets/projects/posted.png");
+}
+
+#footer.advanced-footer > div > div:first-child {
+  grid-template-columns: minmax(0, 1fr);
+}
+#footer.advanced-footer > div > div:first-child > div:first-child > div {
+  justify-content: flex-end;
+  min-width: 0;
+}
+#footer a:has(> [data-oss-repository]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--oss-muted, oklch(0.45 0 0));
+}
+.dark #footer a:has(> [data-oss-repository]) {
+  color: oklch(0.74 0 0);
+}
+#footer a:has(> [data-oss-repository]) svg {
+  flex-shrink: 0;
+  background-color: currentColor;
+}
+#footer [data-oss-repository] {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  #footer.advanced-footer > div > div:first-child:has(> div:nth-child(3)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  #footer.advanced-footer > div > div:first-child > div:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-self: end;
+  }
+}
+
+.mermaid {
+  --rootset-diagram-text: oklch(0.23 0 0);
+  --rootset-diagram-fill: color-mix(in oklch, var(--oss-primary) 10%, white);
+  --rootset-diagram-border: color-mix(in oklch, var(--oss-primary) 55%, white);
+  --rootset-diagram-external: oklch(0.95 0 0);
+  --rootset-diagram-external-border: oklch(0.65 0 0);
+}
+.dark .mermaid {
+  --rootset-diagram-text: oklch(0.95 0 0);
+  --rootset-diagram-fill: color-mix(in oklch, var(--oss-primary) 15%, black);
+  --rootset-diagram-border: var(--oss-primary);
+  --rootset-diagram-external: oklch(0.25 0 0);
+  --rootset-diagram-external-border: oklch(0.6 0 0);
+}
+.mermaid .node .label-container {
+  fill: var(--rootset-diagram-fill) !important;
+  stroke: var(--rootset-diagram-border) !important;
+}
+.mermaid .node.rootset-external .label-container {
+  fill: var(--rootset-diagram-external) !important;
+  stroke: var(--rootset-diagram-external-border) !important;
+}
+.mermaid .node .nodeLabel,
+.mermaid .node .nodeLabel p {
+  color: var(--rootset-diagram-text) !important;
+}
+.mermaid .flowchart-link {
+  stroke: var(--rootset-diagram-external-border) !important;
+}
+.mermaid marker path {
+  fill: var(--rootset-diagram-external-border) !important;
+  stroke: var(--rootset-diagram-external-border) !important;
+}

@@ -1,0 +1,139 @@
+---
+title: "rootset_create_foreign_key"
+sidebarTitle: "Create foreign key"
+description: "Validate existing rows and create a foreign key to matching scalar fields in the same database. The target requires an active unconditional unique rule. Any NULL in the local tuple skips validation. Referenced values cannot be changed or deleted while in use."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Create foreign key"]
+  invoke --> outcome["Check the job result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Member** or higher. The connection needs `schema:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+- Read the current table schema before supplying `expectedSchemaVersion`.
+- A returned job is pending work. Use [rootset_get_job](/mcp-reference/rootset_get_job) to check its final result.
+
+## Arguments
+
+| Argument                          | Required | Type            | Details                                                            |
+| --------------------------------- | -------- | --------------- | ------------------------------------------------------------------ |
+| `orgId`                           | Yes      | string          | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`                      | Yes      | string          | ID of the database to work with.                                   |
+| `tableId`                         | Yes      | string          | ID of the table to work with.                                      |
+| `expectedSchemaVersion`           | Yes      | integer         | Current version returned by the table schema.                      |
+| `fieldIds`                        | Yes      | array of string | All field IDs in the desired presentation order.                   |
+| `referencedTableId`               | Yes      | string          | —                                                                  |
+| `referencedRuleId`                | Yes      | string          | —                                                                  |
+| `expectedReferencedSchemaVersion` | Yes      | integer         | —                                                                  |
+| `idempotencyKey`                  | Yes      | string          | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "fieldIds": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      }
+    },
+    "referencedTableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "referencedRuleId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedReferencedSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "orgId",
+    "databaseId",
+    "tableId",
+    "expectedSchemaVersion",
+    "fieldIds",
+    "referencedTableId",
+    "referencedRuleId",
+    "expectedReferencedSchemaVersion",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_create_foreign_key",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000",
+      "expectedSchemaVersion": 1,
+      "fieldIds": ["01K6J7B8000000000000000000"],
+      "referencedTableId": "01K6J7B8000000000000000000",
+      "referencedRuleId": "01K6J7B8000000000000000000",
+      "expectedReferencedSchemaVersion": 1,
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/createForeignKey) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

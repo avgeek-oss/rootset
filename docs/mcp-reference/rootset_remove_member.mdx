@@ -1,0 +1,90 @@
+---
+title: "rootset_remove_member"
+sidebarTitle: "Remove member"
+description: "Remove a member and invalidate delegated access."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Check the account"] --> invoke["Remove member"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Admin** or higher. The connection needs `members:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+
+## Arguments
+
+| Argument          | Required | Type   | Details                                                            |
+| ----------------- | -------- | ------ | ------------------------------------------------------------------ |
+| `orgId`           | Yes      | string | Workspace ID returned by rootset_get_context.                      |
+| `id`              | Yes      | string | —                                                                  |
+| `expectedVersion` | Yes      | string | —                                                                  |
+| `idempotencyKey`  | Yes      | string | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": ["orgId", "id", "expectedVersion", "idempotencyKey"],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_remove_member",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "id": "01K6J7B8000000000000000000",
+      "expectedVersion": "1",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/removeMember) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

@@ -1,0 +1,105 @@
+---
+title: "rootset_update_preferences"
+sidebarTitle: "Update preferences"
+description: "Update timezone, locale, format or theme preferences."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Check the account"] --> invoke["Update preferences"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Use a personal OAuth connection for the signed-in account. The connection needs `profile:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+
+## Arguments
+
+| Argument         | Required | Type                                                                                                         | Details                                                            |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `timezone`       | No       | string                                                                                                       | —                                                                  |
+| `locale`         | No       | string                                                                                                       | —                                                                  |
+| `dateFormat`     | No       | "day-short-month-year" or "short-month-day-year" or "year-month-day" or "day-month-year" or "month-day-year" | —                                                                  |
+| `timeFormat`     | No       | "24-hour" or "12-hour" or "24-hour-seconds" or "12-hour-seconds"                                             | —                                                                  |
+| `theme`          | No       | "system" or "light" or "dark"                                                                                | —                                                                  |
+| `idempotencyKey` | Yes      | string                                                                                                       | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "locale": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "dateFormat": {
+      "type": "string",
+      "enum": [
+        "day-short-month-year",
+        "short-month-day-year",
+        "year-month-day",
+        "day-month-year",
+        "month-day-year"
+      ]
+    },
+    "timeFormat": {
+      "type": "string",
+      "enum": ["24-hour", "12-hour", "24-hour-seconds", "12-hour-seconds"]
+    },
+    "theme": {
+      "type": "string",
+      "enum": ["system", "light", "dark"]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "additionalProperties": false,
+  "required": ["idempotencyKey"]
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_update_preferences",
+    "arguments": {
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/updatePreferences) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

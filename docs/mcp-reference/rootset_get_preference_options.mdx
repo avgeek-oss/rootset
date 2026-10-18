@@ -1,0 +1,59 @@
+---
+title: "rootset_get_preference_options"
+sidebarTitle: "Get preference options"
+description: "List supported preference values."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Check the account"] --> invoke["Get preference options"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Viewer** or higher.
+
+- This tool reads data without changing it.
+
+## Arguments
+
+This tool takes an empty arguments object.
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_get_preference_options",
+    "arguments": {}
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/getPreferenceOptions) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

@@ -1,0 +1,93 @@
+---
+title: "rootset_get_related_row_filter"
+sidebarTitle: "Get related row filter"
+description: "Resolve a compact reverse-relationship link into a typed filter using the current saved referenced record. Missing or incomplete keys never produce an unfiltered table."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Get related row filter"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Viewer** or higher. The connection needs `rows:read`, `schema:read` scope.
+
+- This tool reads data without changing it.
+
+## Arguments
+
+| Argument          | Required | Type   | Details                                       |
+| ----------------- | -------- | ------ | --------------------------------------------- |
+| `orgId`           | Yes      | string | Workspace ID returned by rootset_get_context. |
+| `databaseId`      | Yes      | string | ID of the database to work with.              |
+| `tableId`         | Yes      | string | ID of the table to work with.                 |
+| `ruleId`          | Yes      | string | —                                             |
+| `referencedRowId` | Yes      | string | —                                             |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "ruleId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "referencedRowId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    }
+  },
+  "required": ["orgId", "databaseId", "tableId", "ruleId", "referencedRowId"],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_get_related_row_filter",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000",
+      "ruleId": "01K6J7B8000000000000000000",
+      "referencedRowId": "01K6J7B8000000000000000000"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/getRelatedRowFilter) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

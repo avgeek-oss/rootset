@@ -1,0 +1,21 @@
+---
+title: "Audit logs"
+description: "Review workspace events, filter their context, and inspect event details."
+icon: "file-clock"
+---
+
+Open **Operate → Audit Logs** in the main sidebar to review events you can access across the workspace.
+
+## Find an event
+
+Choose an event, resource, actor and time range, then select the search button. Resources list databases before tables. Table descriptions include their database so you can distinguish tables with the same name.
+
+The actor is the person or automation responsible for the event. Background workers and operator actions appear as **Automation**. User actions show the person's name.
+
+## Read the result
+
+Event names describe what happened, such as a request being created, succeeding or failing. The resource links to the affected database or table. A deleted resource keeps its name and shows _(Deleted)_ beside its type.
+
+Select **Details** at the end of a row to open its read-only JSON context. For example, a fields-reordered event can show the field names before and after the change. Other events include relevant resource names, changed settings, record counts or request information.
+
+Older events may have less detail because that context was not recorded when they occurred. Audit logs follow your current access permissions; event details do not grant access to another workspace or resource.

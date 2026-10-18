@@ -1,0 +1,128 @@
+---
+title: "rootset_list_rows"
+sidebarTitle: "List rows"
+description: "List rows with compact projection/order/cursor parameters."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["List rows"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Viewer** or higher. The connection needs `rows:read` scope.
+
+- This tool reads data without changing it.
+
+## Arguments
+
+| Argument     | Required | Type            | Details                                         |
+| ------------ | -------- | --------------- | ----------------------------------------------- |
+| `orgId`      | Yes      | string          | Workspace ID returned by rootset_get_context.   |
+| `databaseId` | Yes      | string          | ID of the database to work with.                |
+| `tableId`    | Yes      | string          | ID of the table to work with.                   |
+| `select`     | No       | array of string | Field names to include in the result.           |
+| `orderBy`    | No       | array of object | Fields to sort by, with asc or desc direction.  |
+| `limit`      | No       | integer         | Maximum number of items to return.              |
+| `cursor`     | No       | string or null  | Continuation cursor from the previous response. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "select": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "orderBy": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["asc", "desc"]
+          }
+        },
+        "required": ["field", "direction"],
+        "additionalProperties": false
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 25000
+    },
+    "cursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 131200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": ["orgId", "databaseId", "tableId"],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_list_rows",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/listRows) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

@@ -1,44 +1,102 @@
 ---
 title: "Configuration"
-description: "Required environment variables and optional defaults for the image-based installation."
+description: "Set up PostgreSQL, public URLs, storage and email for your installation."
+icon: "settings"
 ---
 
-All runtime configuration comes from environment variables. Keep `.env` outside Git and protect it with mode `0600`. Compose passes the configured API origin into the UI as `ROOTSET_PUBLIC_API_ORIGIN`; you do not configure it separately.
+Configure the API and worker with the same database, application secrets, public URLs, S3 source and SMTP settings. With Docker Compose, put them in your private `.env` file. With Towbar, use runtime secrets.
 
-## Required services and secrets
+## Database and public URLs
 
-| Variable                                         | Purpose                                                                                   |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `ROOTSET_DATABASE_URL`                           | One PostgreSQL URL for API, worker and migrations.                                        |
-| `ROOTSET_SECRET`                                 | Persistent application secret, at least 32 random characters. Also claims initial setup.  |
-| `ROOTSET_ENCRYPTION_KEY`                         | Persistent 32-byte encryption key represented by 64 hex characters for private artifacts. |
-| `ROOTSET_WEB_URL`                                | Exact public UI origin, such as `https://rootset.example.com`.                            |
-| `ROOTSET_API_URL`                                | Exact public API origin, such as `https://rootset-api.example.com`.                       |
-| `ROOTSET_S3_ENDPOINT`                            | S3-compatible endpoint reachable from API and worker.                                     |
-| `ROOTSET_S3_BUCKET`                              | Existing private artifact bucket.                                                         |
-| `ROOTSET_S3_ACCESS_KEY`, `ROOTSET_S3_SECRET_KEY` | Credentials scoped to that bucket.                                                        |
-| `ROOTSET_SMTP_HOST`                              | SMTP host reachable from API and worker.                                                  |
-| `ROOTSET_EMAIL_FROM`                             | Verified sender address accepted by your SMTP service.                                    |
+Use an ordinary PostgreSQL database owner with permission to create schemas and the `pgcrypto` extension. The API, worker and migrations use this connection.
 
-## Optional settings
+```dotenv
+ROOTSET_DATABASE_URL=postgres://rootset:your-password@postgres:5432/rootset
+ROOTSET_WEB_URL=https://rootset.example.com
+ROOTSET_API_URL=https://rootset-api.example.com
+```
 
-| Variable                                     | Default     | When to change it                                                                                                                         |
-| -------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `ROOTSET_S3_REGION`                          | `us-east-1` | Your object-storage provider requires a different region.                                                                                 |
-| `ROOTSET_SMTP_PORT`                          | `587`       | Your SMTP provider uses another port; implicit TLS commonly uses 465.                                                                     |
-| `ROOTSET_SMTP_SECURE`                        | `true`      | Choose the provider's supported TLS mode; `false` for SMTP/STARTTLS, commonly on port 587; `true` for implicit TLS, commonly on port 465. |
-| `ROOTSET_SMTP_USER`, `ROOTSET_SMTP_PASSWORD` | Unset       | Provider requires authenticated SMTP.                                                                                                     |
-| `ROOTSET_LOG_LEVEL`                          | `info`      | Temporarily adjust runtime logging for diagnosis.                                                                                         |
-| `ROOTSET_OAUTH_CLIENTS`                      | `[]`        | Configure operator-managed OAuth clients.                                                                                                 |
+The UI connects directly to the API. Compose supplies `ROOTSET_PUBLIC_API_ORIGIN` to the UI from `ROOTSET_API_URL`. For other deployments, set that UI variable to the same public API URL.
 
-## Compose options
+## Application secrets
 
-The downloaded Compose file pins the image versions; no version setting is needed in `.env`. `ROOTSET_COMPOSE_PROJECT` defaults to `rootset`. `ROOTSET_API_BIND` and `ROOTSET_WEB_BIND` default to `127.0.0.1`; their port defaults are 4310 and 4300. `POSTGRES_PASSWORD` is only for the bundled `local-db` profile, not an external database.
+Generate each value separately with `openssl rand -hex 32`. Keep the same values across restarts and upgrades, and store a recoverable copy outside Rootset.
 
-Rootset does not need proxy-trust variables, separate identity/DDL database URLs, a server timezone setting or per-table backup settings. Data is stored in UTC; each person chooses presentation preferences.
+```dotenv
+ROOTSET_SECRET=replace-with-a-generated-secret
+ROOTSET_ENCRYPTION_KEY=replace-with-a-separate-64-character-hex-key
+```
 
-Retain the application secret, encryption key, PostgreSQL data and private object artifacts together in your installation recovery plan. Losing the key prevents reading previously encrypted artifacts.
+The application secret is also used to claim the first administrator account. The encryption key protects private artifacts; replacing it does not unlock existing artifacts.
 
-## Automated database backups
+## S3 source
 
-Backup credentials are optional and supplied only to the worker through `ROOTSET_BACKUP_S3_*` settings and a separate `ROOTSET_BACKUP_ENCRYPTION_KEY`. The bucket, path prefix, cron expression and timezone are configured for each database. See [Database backups](/backups) for configuration, permissions, size limits and recovery-key retention.
+Create a private S3-compatible bucket for export artifacts. Give the API and worker credentials scoped to that bucket.
+
+```dotenv
+ROOTSET_S3_ENDPOINT=https://s3.example.com
+ROOTSET_S3_REGION=us-east-1
+ROOTSET_S3_BUCKET=rootset-artifacts
+ROOTSET_S3_ACCESS_KEY=your-access-key
+ROOTSET_S3_SECRET_KEY=your-secret-key
+```
+
+Use the endpoint and region supplied by your storage provider. Downloads are authenticated through Rootset; the bucket does not need public access.
+
+## SMTP
+
+Rootset uses SMTP for invitations, email verification and account recovery. Use a sender your email provider has verified, and match its port and TLS settings.
+
+```dotenv
+ROOTSET_SMTP_HOST=smtp.example.com
+ROOTSET_SMTP_PORT=587
+ROOTSET_SMTP_SECURE=false
+ROOTSET_SMTP_USER=your-smtp-user
+ROOTSET_SMTP_PASSWORD=your-smtp-password
+ROOTSET_EMAIL_FROM=Rootset <rootset@example.com>
+```
+
+This example uses STARTTLS on port 587. For implicit TLS, providers commonly use port 465 with `ROOTSET_SMTP_SECURE=true`. Omit the user and password only if your SMTP service does not require authentication.
+
+## Database backup source
+
+To enable [database backups](/backups), add these settings to the **worker only**. Backup storage is separate from the S3 source used for export artifacts.
+
+```dotenv
+ROOTSET_BACKUP_S3_ENDPOINT=https://backups.example.com
+ROOTSET_BACKUP_S3_REGION=us-east-1
+ROOTSET_BACKUP_S3_ACCESS_KEY=your-backup-access-key
+ROOTSET_BACKUP_S3_SECRET_KEY=your-backup-secret-key
+ROOTSET_BACKUP_ENCRYPTION_KEY=replace-with-a-separate-64-character-hex-key
+```
+
+Generate the backup key separately with `openssl rand -hex 32` and keep it outside Rootset. Existing backups require the key that encrypted them. All backup-enabled workers must use the same storage settings and key.
+
+Create the destination bucket before saving a schedule. Credentials need read/write access, multipart upload and abort permissions, and permission to delete destination-test probes. Configured backup retention also needs permission to delete saved backup objects.
+
+<Accordion title="Additional backup settings">
+
+| Variable                             | Default                  | Purpose                                                                |
+| ------------------------------------ | ------------------------ | ---------------------------------------------------------------------- |
+| `ROOTSET_BACKUP_S3_FORCE_PATH_STYLE` | `true`                   | Set to `false` if your provider requires virtual-host addressing.      |
+| `ROOTSET_BACKUP_TEMP_DIR`            | Artifact spool directory | Private writable disk space for preparing a complete encrypted backup. |
+| `ROOTSET_BACKUP_MAX_BYTES`           | 32 GiB                   | Compressed encrypted package limit; at most 63 GiB.                    |
+
+Keep space for a complete backup plus the one-GiB reserve. Compose uses the worker's disk-backed artifact spool.
+
+</Accordion>
+
+## Docker Compose settings
+
+The downloaded Compose file selects the release version. No version environment variable is needed.
+
+| Variable                  | Default                  | Purpose                                                     |
+| ------------------------- | ------------------------ | ----------------------------------------------------------- |
+| `ROOTSET_COMPOSE_PROJECT` | `rootset`                | Keep this stable to reuse the installation's named volumes. |
+| `ROOTSET_API_BIND`        | `127.0.0.1`              | API bind address.                                           |
+| `ROOTSET_WEB_BIND`        | `127.0.0.1`              | UI bind address.                                            |
+| `ROOTSET_API_PORT`        | `4310`                   | API port.                                                   |
+| `ROOTSET_WEB_PORT`        | `4300`                   | UI port.                                                    |
+| `POSTGRES_PASSWORD`       | Required with `local-db` | Password used for the bundled PostgreSQL database.          |
+
+Keep environment files outside Git. Rootset stores data in UTC; people choose their own display timezone and date format in Preferences.

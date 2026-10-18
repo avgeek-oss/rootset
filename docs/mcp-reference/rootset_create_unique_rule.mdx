@@ -1,0 +1,166 @@
+---
+title: "rootset_create_unique_rule"
+sidebarTitle: "Create unique rule"
+description: "Validate existing matching rows and atomically activate scalar uniqueness. Optional where accepts one scalar field ID with eq, ne, isNull or isNotNull; null unique values remain distinct."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Create unique rule"]
+  invoke --> outcome["Check the job result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Member** or higher. The connection needs `schema:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+- Read the current table schema before supplying `expectedSchemaVersion`.
+- A returned job is pending work. Use [rootset_get_job](/mcp-reference/rootset_get_job) to check its final result.
+
+## Arguments
+
+| Argument                | Required | Type            | Details                                                            |
+| ----------------------- | -------- | --------------- | ------------------------------------------------------------------ |
+| `orgId`                 | Yes      | string          | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`            | Yes      | string          | ID of the database to work with.                                   |
+| `tableId`               | Yes      | string          | ID of the table to work with.                                      |
+| `expectedSchemaVersion` | Yes      | integer         | Current version returned by the table schema.                      |
+| `fieldIds`              | Yes      | array of string | All field IDs in the desired presentation order.                   |
+| `where`                 | No       | object          | —                                                                  |
+| `idempotencyKey`        | Yes      | string          | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "fieldIds": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+      }
+    },
+    "where": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "op": {
+              "type": "string",
+              "enum": ["eq", "ne"]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4096
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "required": ["field", "op", "value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "op": {
+              "type": "string",
+              "enum": ["isNull", "isNotNull"]
+            }
+          },
+          "required": ["field", "op"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "orgId",
+    "databaseId",
+    "tableId",
+    "expectedSchemaVersion",
+    "fieldIds",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_create_unique_rule",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000",
+      "expectedSchemaVersion": 1,
+      "fieldIds": ["01K6J7B8000000000000000000"],
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/createUniqueRule) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

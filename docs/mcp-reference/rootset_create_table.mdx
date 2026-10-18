@@ -1,0 +1,733 @@
+---
+title: "rootset_create_table"
+sidebarTitle: "Create table"
+description: "Create a physical typed table and runtime schema metadata."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Find the database"] --> invoke["Create table"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Member** or higher. The connection needs `tables:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+
+## Arguments
+
+| Argument         | Required | Type            | Details                                                            |
+| ---------------- | -------- | --------------- | ------------------------------------------------------------------ |
+| `orgId`          | Yes      | string          | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`     | Yes      | string          | ID of the database to work with.                                   |
+| `name`           | Yes      | string          | —                                                                  |
+| `description`    | No       | string or null  | —                                                                  |
+| `fields`         | No       | array of object | —                                                                  |
+| `idempotencyKey` | Yes      | string          | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fields": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "text"
+              },
+              "allowedValues": {
+                "anyOf": [
+                  {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4096
+                    },
+                    "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
+                    "uniqueItems": true,
+                    "x-rootset-max-utf8-bytes": 65536
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "charLimit": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 65536
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "integer"
+              },
+              "autoIncrement": {
+                "description": "Generate increasing safe integers when a value is omitted on creation. Explicit IDs advance the durable counter. Cannot be combined with a constant default.",
+                "type": "boolean"
+              },
+              "min": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "max": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "float"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "uri"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "url"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "image"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "boolean"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "date"
+              },
+              "min": {
+                "type": "string",
+                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$",
+                "format": "date",
+                "examples": ["2024-01-01"]
+              },
+              "max": {
+                "type": "string",
+                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$",
+                "format": "date",
+                "examples": ["2024-01-01"]
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "time"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "date-time"
+              },
+              "min": {
+                "type": "string",
+                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                "format": "date-time",
+                "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                "examples": ["2024-01-01T12:30:00.000Z"]
+              },
+              "max": {
+                "type": "string",
+                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+                "format": "date-time",
+                "description": "UTC instant with mandatory Z and at most three fractional digits.",
+                "examples": ["2024-01-01T12:30:00.000Z"]
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z_]+$"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "default": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 199
+              },
+              "type": {
+                "type": "string",
+                "const": "json"
+              }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": ["orgId", "databaseId", "name", "idempotencyKey"],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_create_table",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "name": "example",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/createTable) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

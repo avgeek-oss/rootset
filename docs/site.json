@@ -14,14 +14,23 @@
         "dropdown": "Introduction",
         "icon": "book-open",
         "groups": [
-          { "group": "Get started", "pages": ["quickstart", "concepts"] },
+          { "group": "Get Started", "pages": ["overview"] },
           {
-            "group": "Self-host Rootset",
+            "group": "Self-hosting",
             "pages": [
-              "self-hosting/installation",
+              {
+                "group": "Installation",
+                "icon": "network",
+                "pages": [
+                  "self-hosting/installation",
+                  "self-hosting/installation/docker-compose",
+                  "self-hosting/installation/towbar"
+                ]
+              },
               "self-hosting/configuration",
-              "self-hosting/upgrades",
               "self-hosting/security",
+              "self-hosting/backup",
+              "self-hosting/upgrades",
               "self-hosting/troubleshooting"
             ]
           }
@@ -32,178 +41,321 @@
         "icon": "table",
         "groups": [
           {
-            "group": "Your data",
+            "group": "Common Concepts",
             "pages": [
               "databases",
               "tables",
               "fields",
               "rows",
-              "bulk-rows",
               "filters",
               "saved-views",
-              "cell-history",
-              "unique-rules",
-              "foreign-keys",
-              "import-requests",
-              "export-requests",
-              "backups"
+              "cell-history"
             ]
           },
           {
-            "group": "Workspace",
-            "pages": ["team-access", "api-keys", "account-settings"]
-          }
+            "group": "Schema and Relations",
+            "pages": ["unique-rules", "table-relations"]
+          },
+          {
+            "group": "Data Workflows",
+            "pages": [
+              "bulk-rows",
+              "import-requests",
+              "export-requests",
+              "backups",
+              "audit-logs"
+            ]
+          },
+          { "group": "Workspace", "pages": ["team-access", "account-settings"] }
         ]
       },
       {
         "dropdown": "API & MCP",
         "icon": "plug",
         "groups": [
+          { "group": "Connect a client", "pages": ["api-keys", "mcp-guide"] },
           {
-            "group": "Connect a client",
-            "pages": ["api-guide", "mcp-guide", "mcp-tools"]
-          }
-        ]
-      },
-      {
-        "dropdown": "API reference",
-        "icon": "code",
-        "groups": [
-          {
-            "group": "Accounts",
+            "group": "MCP reference",
             "pages": [
-              "api-reference/getContext",
-              "api-reference/getProfile",
-              "api-reference/updateProfile",
-              "api-reference/getPreferences",
-              "api-reference/updatePreferences",
-              "api-reference/getPreferenceOptions",
-              "api-reference/previewPreferences",
-              "api-reference/listSessions",
-              "api-reference/revokeSession",
-              "api-reference/listConnections",
-              "api-reference/revokeConnection",
-              "api-reference/getOrganisation",
-              "api-reference/updateOrganisation",
-              "api-reference/listMembers",
-              "api-reference/updateMember",
-              "api-reference/removeMember",
-              "api-reference/listInvitations",
-              "api-reference/inviteMember",
-              "api-reference/cancelInvitation",
-              "api-reference/listPersonalKeys",
-              "api-reference/createPersonalKey",
-              "api-reference/rotatePersonalKey",
-              "api-reference/revokePersonalKey",
-              "api-reference/listTeamKeys",
-              "api-reference/createTeamKey",
-              "api-reference/rotateTeamKey",
-              "api-reference/revokeTeamKey",
-              "api-reference/getSecurityStatus",
-              "api-reference/listActivity",
-              "api-reference/listActivityFilterOptions",
-              "api-reference/getActivityDetails",
-              "api-reference/getMutation",
-              "api-reference/getUsage",
-              "api-reference/getViewPreferences",
-              "api-reference/updateViewPreferences",
-              "api-reference/updateForeignKeyDisplayField",
-              "api-reference/previewDatabaseRestore",
-              "api-reference/restoreDatabaseBackup"
+              {
+                "group": "Accounts and Workspace",
+                "pages": [
+                  "mcp-reference/rootset_get_context",
+                  "mcp-reference/rootset_get_profile",
+                  "mcp-reference/rootset_update_profile",
+                  "mcp-reference/rootset_get_preferences",
+                  "mcp-reference/rootset_update_preferences",
+                  "mcp-reference/rootset_get_preference_options",
+                  "mcp-reference/rootset_preview_preferences",
+                  "mcp-reference/rootset_list_sessions",
+                  "mcp-reference/rootset_revoke_session",
+                  "mcp-reference/rootset_list_connections",
+                  "mcp-reference/rootset_revoke_connection",
+                  "mcp-reference/rootset_get_organisation",
+                  "mcp-reference/rootset_update_organisation",
+                  "mcp-reference/rootset_list_members",
+                  "mcp-reference/rootset_update_member",
+                  "mcp-reference/rootset_remove_member",
+                  "mcp-reference/rootset_list_invitations",
+                  "mcp-reference/rootset_invite_member",
+                  "mcp-reference/rootset_cancel_invitation",
+                  "mcp-reference/rootset_list_personal_keys",
+                  "mcp-reference/rootset_create_personal_key",
+                  "mcp-reference/rootset_rotate_personal_key",
+                  "mcp-reference/rootset_revoke_personal_key",
+                  "mcp-reference/rootset_list_team_keys",
+                  "mcp-reference/rootset_create_team_key",
+                  "mcp-reference/rootset_rotate_team_key",
+                  "mcp-reference/rootset_revoke_team_key",
+                  "mcp-reference/rootset_get_security_status",
+                  "mcp-reference/rootset_list_activity",
+                  "mcp-reference/rootset_list_activity_filter_options",
+                  "mcp-reference/rootset_get_activity_details",
+                  "mcp-reference/rootset_get_mutation",
+                  "mcp-reference/rootset_get_usage",
+                  "mcp-reference/rootset_get_view_preferences",
+                  "mcp-reference/rootset_update_view_preferences",
+                  "mcp-reference/rootset_update_foreign_key_display_field",
+                  "mcp-reference/rootset_preview_database_restore",
+                  "mcp-reference/rootset_restore_database_backup"
+                ]
+              },
+              {
+                "group": "Databases and Backups",
+                "pages": [
+                  "mcp-reference/rootset_list_databases",
+                  "mcp-reference/rootset_create_database",
+                  "mcp-reference/rootset_get_database",
+                  "mcp-reference/rootset_update_database",
+                  "mcp-reference/rootset_delete_database",
+                  "mcp-reference/rootset_get_database_backup_policy",
+                  "mcp-reference/rootset_save_database_backup_policy",
+                  "mcp-reference/rootset_get_backup_schedule",
+                  "mcp-reference/rootset_save_backup_schedule",
+                  "mcp-reference/rootset_delete_backup_schedule",
+                  "mcp-reference/rootset_preview_backup_schedule",
+                  "mcp-reference/rootset_list_database_backups",
+                  "mcp-reference/rootset_run_database_backup",
+                  "mcp-reference/rootset_test_backup_destination"
+                ]
+              },
+              {
+                "group": "Tables and Schema",
+                "pages": [
+                  "mcp-reference/rootset_list_tables",
+                  "mcp-reference/rootset_create_table",
+                  "mcp-reference/rootset_get_table",
+                  "mcp-reference/rootset_update_table",
+                  "mcp-reference/rootset_delete_table",
+                  "mcp-reference/rootset_get_table_schema",
+                  "mcp-reference/rootset_list_fields",
+                  "mcp-reference/rootset_create_field",
+                  "mcp-reference/rootset_update_field",
+                  "mcp-reference/rootset_delete_field",
+                  "mcp-reference/rootset_reorder_fields",
+                  "mcp-reference/rootset_preview_schema_change",
+                  "mcp-reference/rootset_apply_schema_change",
+                  "mcp-reference/rootset_get_schema_operation",
+                  "mcp-reference/rootset_list_unique_rules",
+                  "mcp-reference/rootset_create_unique_rule",
+                  "mcp-reference/rootset_delete_unique_rule",
+                  "mcp-reference/rootset_get_related_row_filter",
+                  "mcp-reference/rootset_list_foreign_keys",
+                  "mcp-reference/rootset_create_foreign_key",
+                  "mcp-reference/rootset_delete_foreign_key",
+                  "mcp-reference/rootset_preview_import_rows",
+                  "mcp-reference/rootset_import_rows",
+                  "mcp-reference/rootset_export_view",
+                  "mcp-reference/rootset_list_saved_views",
+                  "mcp-reference/rootset_create_saved_view",
+                  "mcp-reference/rootset_get_saved_view",
+                  "mcp-reference/rootset_update_saved_view",
+                  "mcp-reference/rootset_delete_saved_view"
+                ]
+              },
+              {
+                "group": "Records and History",
+                "pages": [
+                  "mcp-reference/rootset_get_row_relationships",
+                  "mcp-reference/rootset_list_rows",
+                  "mcp-reference/rootset_create_row",
+                  "mcp-reference/rootset_query_rows",
+                  "mcp-reference/rootset_get_row",
+                  "mcp-reference/rootset_update_row",
+                  "mcp-reference/rootset_delete_row",
+                  "mcp-reference/rootset_list_row_comments",
+                  "mcp-reference/rootset_create_row_comment",
+                  "mcp-reference/rootset_count_row_comments",
+                  "mcp-reference/rootset_delete_row_comment",
+                  "mcp-reference/rootset_preview_bulk_rows",
+                  "mcp-reference/rootset_bulk_rows",
+                  "mcp-reference/rootset_mutate_rows",
+                  "mcp-reference/rootset_get_table_statistics",
+                  "mcp-reference/rootset_count_rows",
+                  "mcp-reference/rootset_get_cell_history",
+                  "mcp-reference/rootset_query_history"
+                ]
+              },
+              {
+                "group": "Imports and Exports",
+                "pages": [
+                  "mcp-reference/rootset_export_rows",
+                  "mcp-reference/rootset_export_database",
+                  "mcp-reference/rootset_get_artifact"
+                ]
+              },
+              {
+                "group": "Background Jobs",
+                "pages": [
+                  "mcp-reference/rootset_list_jobs",
+                  "mcp-reference/rootset_get_job",
+                  "mcp-reference/rootset_cancel_job",
+                  "mcp-reference/rootset_retry_job"
+                ]
+              }
             ]
           },
           {
-            "group": "Databases",
+            "group": "API Reference",
             "pages": [
-              "api-reference/listDatabases",
-              "api-reference/createDatabase",
-              "api-reference/getDatabase",
-              "api-reference/updateDatabase",
-              "api-reference/deleteDatabase",
-              "api-reference/getDatabaseBackupPolicy",
-              "api-reference/saveDatabaseBackupPolicy",
-              "api-reference/getBackupSchedule",
-              "api-reference/saveBackupSchedule",
-              "api-reference/deleteBackupSchedule",
-              "api-reference/previewBackupSchedule",
-              "api-reference/listDatabaseBackups",
-              "api-reference/runDatabaseBackup",
-              "api-reference/testBackupDestination"
-            ]
-          },
-          {
-            "group": "Schema",
-            "pages": [
-              "api-reference/listTables",
-              "api-reference/createTable",
-              "api-reference/getTable",
-              "api-reference/updateTable",
-              "api-reference/deleteTable",
-              "api-reference/getTableSchema",
-              "api-reference/listFields",
-              "api-reference/createField",
-              "api-reference/updateField",
-              "api-reference/deleteField",
-              "api-reference/reorderFields",
-              "api-reference/previewSchemaChange",
-              "api-reference/applySchemaChange",
-              "api-reference/getSchemaOperation",
-              "api-reference/listUniqueRules",
-              "api-reference/createUniqueRule",
-              "api-reference/deleteUniqueRule",
-              "api-reference/getRelatedRowFilter",
-              "api-reference/listForeignKeys",
-              "api-reference/createForeignKey",
-              "api-reference/deleteForeignKey",
-              "api-reference/previewImportRows",
-              "api-reference/importRows",
-              "api-reference/exportView",
-              "api-reference/listSavedViews",
-              "api-reference/createSavedView",
-              "api-reference/getSavedView",
-              "api-reference/updateSavedView",
-              "api-reference/deleteSavedView"
-            ]
-          },
-          {
-            "group": "Data",
-            "pages": [
-              "api-reference/getRowRelationships",
-              "api-reference/listRows",
-              "api-reference/createRow",
-              "api-reference/queryRows",
-              "api-reference/getRow",
-              "api-reference/updateRow",
-              "api-reference/deleteRow",
-              "api-reference/listRowComments",
-              "api-reference/createRowComment",
-              "api-reference/countRowComments",
-              "api-reference/deleteRowComment",
-              "api-reference/previewBulkRows",
-              "api-reference/bulkRows",
-              "api-reference/mutateRows",
-              "api-reference/getTableStatistics",
-              "api-reference/countRows",
-              "api-reference/getCellHistory",
-              "api-reference/queryHistory"
-            ]
-          },
-          {
-            "group": "Artifacts",
-            "pages": [
-              "api-reference/exportRows",
-              "api-reference/exportDatabase",
-              "api-reference/getArtifact",
-              "api-reference/downloadArtifactBytes"
-            ]
-          },
-          {
-            "group": "Jobs",
-            "pages": [
-              "api-reference/listJobs",
-              "api-reference/getJob",
-              "api-reference/cancelJob",
-              "api-reference/retryJob"
+              "api-reference/overview",
+              {
+                "group": "Accounts and Workspace",
+                "pages": [
+                  "api-reference/getContext",
+                  "api-reference/getProfile",
+                  "api-reference/updateProfile",
+                  "api-reference/getPreferences",
+                  "api-reference/updatePreferences",
+                  "api-reference/getPreferenceOptions",
+                  "api-reference/previewPreferences",
+                  "api-reference/listSessions",
+                  "api-reference/revokeSession",
+                  "api-reference/listConnections",
+                  "api-reference/revokeConnection",
+                  "api-reference/getOrganisation",
+                  "api-reference/updateOrganisation",
+                  "api-reference/listMembers",
+                  "api-reference/updateMember",
+                  "api-reference/removeMember",
+                  "api-reference/listInvitations",
+                  "api-reference/inviteMember",
+                  "api-reference/cancelInvitation",
+                  "api-reference/listPersonalKeys",
+                  "api-reference/createPersonalKey",
+                  "api-reference/rotatePersonalKey",
+                  "api-reference/revokePersonalKey",
+                  "api-reference/listTeamKeys",
+                  "api-reference/createTeamKey",
+                  "api-reference/rotateTeamKey",
+                  "api-reference/revokeTeamKey",
+                  "api-reference/getSecurityStatus",
+                  "api-reference/listActivity",
+                  "api-reference/listActivityFilterOptions",
+                  "api-reference/getActivityDetails",
+                  "api-reference/getMutation",
+                  "api-reference/getUsage",
+                  "api-reference/getViewPreferences",
+                  "api-reference/updateViewPreferences",
+                  "api-reference/updateForeignKeyDisplayField",
+                  "api-reference/previewDatabaseRestore",
+                  "api-reference/restoreDatabaseBackup"
+                ]
+              },
+              {
+                "group": "Databases and Backups",
+                "pages": [
+                  "api-reference/listDatabases",
+                  "api-reference/createDatabase",
+                  "api-reference/getDatabase",
+                  "api-reference/updateDatabase",
+                  "api-reference/deleteDatabase",
+                  "api-reference/getDatabaseBackupPolicy",
+                  "api-reference/saveDatabaseBackupPolicy",
+                  "api-reference/getBackupSchedule",
+                  "api-reference/saveBackupSchedule",
+                  "api-reference/deleteBackupSchedule",
+                  "api-reference/previewBackupSchedule",
+                  "api-reference/listDatabaseBackups",
+                  "api-reference/runDatabaseBackup",
+                  "api-reference/testBackupDestination"
+                ]
+              },
+              {
+                "group": "Tables and Schema",
+                "pages": [
+                  "api-reference/listTables",
+                  "api-reference/createTable",
+                  "api-reference/getTable",
+                  "api-reference/updateTable",
+                  "api-reference/deleteTable",
+                  "api-reference/getTableSchema",
+                  "api-reference/listFields",
+                  "api-reference/createField",
+                  "api-reference/updateField",
+                  "api-reference/deleteField",
+                  "api-reference/reorderFields",
+                  "api-reference/previewSchemaChange",
+                  "api-reference/applySchemaChange",
+                  "api-reference/getSchemaOperation",
+                  "api-reference/listUniqueRules",
+                  "api-reference/createUniqueRule",
+                  "api-reference/deleteUniqueRule",
+                  "api-reference/getRelatedRowFilter",
+                  "api-reference/listForeignKeys",
+                  "api-reference/createForeignKey",
+                  "api-reference/deleteForeignKey",
+                  "api-reference/previewImportRows",
+                  "api-reference/importRows",
+                  "api-reference/exportView",
+                  "api-reference/listSavedViews",
+                  "api-reference/createSavedView",
+                  "api-reference/getSavedView",
+                  "api-reference/updateSavedView",
+                  "api-reference/deleteSavedView"
+                ]
+              },
+              {
+                "group": "Records and History",
+                "pages": [
+                  "api-reference/getRowRelationships",
+                  "api-reference/listRows",
+                  "api-reference/createRow",
+                  "api-reference/queryRows",
+                  "api-reference/getRow",
+                  "api-reference/updateRow",
+                  "api-reference/deleteRow",
+                  "api-reference/listRowComments",
+                  "api-reference/createRowComment",
+                  "api-reference/countRowComments",
+                  "api-reference/deleteRowComment",
+                  "api-reference/previewBulkRows",
+                  "api-reference/bulkRows",
+                  "api-reference/mutateRows",
+                  "api-reference/getTableStatistics",
+                  "api-reference/countRows",
+                  "api-reference/getCellHistory",
+                  "api-reference/queryHistory"
+                ]
+              },
+              {
+                "group": "Imports and Exports",
+                "pages": [
+                  "api-reference/exportRows",
+                  "api-reference/exportDatabase",
+                  "api-reference/getArtifact",
+                  "api-reference/downloadArtifactBytes"
+                ]
+              },
+              {
+                "group": "Background Jobs",
+                "pages": [
+                  "api-reference/listJobs",
+                  "api-reference/getJob",
+                  "api-reference/cancelJob",
+                  "api-reference/retryJob"
+                ]
+              }
             ]
           }
         ]
@@ -214,7 +366,7 @@
     "links": [
       { "type": "github", "href": "https://github.com/avgeek-oss/rootset" }
     ],
-    "primary": { "type": "button", "label": "Docs", "href": "/quickstart" }
+    "primary": { "type": "button", "label": "Get started", "href": "/overview" }
   },
   "footer": {
     "socials": { "github": "https://github.com/avgeek-oss/rootset" },
@@ -222,41 +374,45 @@
       {
         "header": "Documentation",
         "items": [
-          { "label": "Get started", "href": "/quickstart" },
-          { "label": "Install Rootset", "href": "/self-hosting/installation" },
-          { "label": "API & MCP", "href": "/api-guide" },
-          { "label": "Configuration", "href": "/self-hosting/configuration" }
+          { "label": "About Rootset", "href": "/overview" },
+          { "label": "Self-hosting", "href": "/self-hosting/installation" },
+          { "label": "Configuration", "href": "/self-hosting/configuration" },
+          {
+            "label": "Changelog",
+            "href": "https://github.com/avgeek-oss/rootset/releases"
+          }
         ]
       },
       {
-        "header": "Our OSS Philosophy",
+        "header": "Open Source",
         "items": [
           {
-            "label": "Why we build open source",
-            "href": "https://github.com/avgeek-oss/.github/blob/main/profile/README.md"
-          },
-          {
-            "label": "Rootset on GitHub",
+            "label": "GitHub Source",
             "href": "https://github.com/avgeek-oss/rootset"
           },
           {
-            "label": "Feedback & issues",
-            "href": "https://github.com/avgeek-oss/rootset/issues"
+            "label": "License Terms",
+            "href": "https://github.com/avgeek-oss/rootset/blob/main/LICENSE"
+          },
+          {
+            "label": "OSS Philosophy",
+            "href": "https://github.com/avgeek-oss/.github/blob/main/profile/README.md"
           }
         ]
       },
       {
-        "header": "Other OSS Apps",
+        "header": "Other OSS Projects",
         "items": [
-          {
-            "label": "Towbar — deploy to your own servers",
-            "href": "https://www.towbar.dev"
-          },
-          { "label": "Mill — plan and track work", "href": "https://mill.fyi" },
-          {
-            "label": "Vitalog — your health ledger",
-            "href": "https://www.vitalog.dev"
-          }
+          { "label": "Towbar", "href": "https://www.towbar.dev" },
+          { "label": "Mill", "href": "https://www.mill.fyi" },
+          { "label": "Posted", "href": "https://www.posted.cc" }
+        ]
+      },
+      {
+        "header": "More links",
+        "items": [
+          { "label": "Company website", "href": "https://www.avgeek.ltd" },
+          { "label": "Write to us", "href": "mailto:support@avgeek.ltd" }
         ]
       }
     ]
@@ -272,5 +428,18 @@
     }
   },
   "api": { "playground": { "display": "simple" } },
-  "redirects": []
+  "redirects": [
+    { "source": "/quickstart", "destination": "/overview" },
+    { "source": "/concepts", "destination": "/overview" },
+    { "source": "/foreign-keys", "destination": "/table-relations" },
+    {
+      "source": "/mcp-tools",
+      "destination": "/mcp-reference/rootset_get_context"
+    },
+    { "source": "/api-guide", "destination": "/api-reference/overview" },
+    {
+      "source": "/towbar-deployment",
+      "destination": "/self-hosting/installation/towbar"
+    }
+  ]
 }

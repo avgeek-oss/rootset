@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://towbar.dev/schemas/app.v2.json
+id: rootset-worker
+name: Rootset worker
+deployment:
+  type: image
+  image: ghcr.io/avgeek-oss/rootset-worker:0.2.3
+autoDeploy: false
+rollout:
+  type: recreate
+  maintenanceMode: true
+  reason: Keep one instance per service during an upgrade.
+container:
+  network: rootset
+  port: 4310
+  resources:
+    cpus: 1
+    memory: 2g
+  entrypoint: /bin/sh
+  command:
+    - -ec
+    - |
+      export ROOTSET_ARTIFACT_TEMP_DIR=/var/lib/rootset/artifact-spool
+      export NODE_OPTIONS="--max-old-space-size=1536"
+      exec node dist/worker.mjs
+  volumes:
+    - name: artifact-spool
+      mountPath: /var/lib/rootset/artifact-spool
+      initialData: image
+# No listener or public route. Towbar requires a container port even for command health.
+health:
+  type: command
+  command: [node, dist/worker-health.mjs]
+  timeoutSeconds: 180
+hooks:
+  preDeploy:
+    entrypoint: node
+    command: [dist/migrate.mjs]
+    timeoutSeconds: 300
+secrets:
+  preDeploy: [ROOTSET_DATABASE_URL]
+  runtime:
+    - ROOTSET_DATABASE_URL
+    - ROOTSET_API_URL
+    - ROOTSET_WEB_URL
+    - ROOTSET_SECRET
+    - ROOTSET_ENCRYPTION_KEY
+    - ROOTSET_S3_ENDPOINT
+    - ROOTSET_S3_BUCKET
+    - ROOTSET_S3_ACCESS_KEY
+    - ROOTSET_S3_SECRET_KEY
+    - ROOTSET_SMTP_HOST
+    - ROOTSET_SMTP_PORT
+    - ROOTSET_SMTP_SECURE
+    - ROOTSET_SMTP_USER
+    - ROOTSET_SMTP_PASSWORD
+    - ROOTSET_EMAIL_FROM
+    # Optional: enable database backups on the worker.
+    # - ROOTSET_BACKUP_S3_ENDPOINT
+    # - ROOTSET_BACKUP_S3_REGION
+    # - ROOTSET_BACKUP_S3_ACCESS_KEY
+    # - ROOTSET_BACKUP_S3_SECRET_KEY
+    # - ROOTSET_BACKUP_ENCRYPTION_KEY
+environments:
+  production:
+    server: 192.0.2.10

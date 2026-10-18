@@ -1,0 +1,39 @@
+---
+title: "Backup and recovery"
+description: "Protect the complete installation and restore individual databases from saved backups."
+icon: "archive-restore"
+---
+
+Rootset supports two levels of recovery: backups of individual databases through the application, and a complete installation backup managed by your operator.
+
+## Back up the installation
+
+Keep a consistent PostgreSQL backup together with your private object storage and persistent configuration. PostgreSQL contains accounts, workspace settings, table definitions, records, comments and history. Export artifacts live in the S3 source.
+
+Store these settings outside the installation so you can recover them:
+
+- `ROOTSET_SECRET` and `ROOTSET_ENCRYPTION_KEY`.
+- The PostgreSQL connection settings and credentials.
+- The S3 source settings and credentials.
+- The image version and deployment configuration.
+- The separate database-backup encryption key, if database backups are enabled.
+
+Use your PostgreSQL and object-storage provider's backup tools. Test recovery before relying on a backup, and take a recoverable backup before upgrading.
+
+## Enable database backups
+
+Add the [backup storage settings](/self-hosting/configuration#database-backup-source) to the worker. An administrator can then configure each database under **Backup & Restore → Backup Schedule**.
+
+Database backups include the tables, records, rules, comments, saved views and retained history of that database. They do not replace a complete installation backup: accounts, sessions, API keys and installation credentials are outside them.
+
+See [Backup and restore](/backups) for scheduling backups, running one manually and restoring into a new database.
+
+## Recover the installation
+
+1. Stop the API and worker while restoring data.
+2. Restore PostgreSQL and the matching object-storage snapshot.
+3. Restore the original secrets and configuration, including the encryption keys.
+4. Start the matching Rootset image version and check API readiness before opening access.
+5. Verify sign-in, a table read and an export download.
+
+Use compatible database and application versions. Starting an older image does not reverse a database migration; recovering an earlier schema requires its matching backup.

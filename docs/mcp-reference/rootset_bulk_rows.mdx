@@ -1,0 +1,210 @@
+---
+title: "rootset_bulk_rows"
+sidebarTitle: "Bulk rows"
+description: "Apply a field patch, duplicate records with regenerated automatic IDs, or delete 1–200 selected records atomically. Recheck source revisions and schema, enforce native constraints, and replay an unchanged idempotent request without duplicating records."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Bulk rows"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Member** or higher. The connection needs `rows:write` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+- Read the current table schema before supplying `expectedSchemaVersion`.
+
+## Arguments
+
+| Argument                | Required | Type            | Details                                                            |
+| ----------------------- | -------- | --------------- | ------------------------------------------------------------------ |
+| `expectedSchemaVersion` | Yes      | integer         | Current version returned by the table schema.                      |
+| `rows`                  | Yes      | array of object | —                                                                  |
+| `action`                | Yes      | JSON value      | —                                                                  |
+| `orgId`                 | Yes      | string          | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`            | Yes      | string          | ID of the database to work with.                                   |
+| `tableId`               | Yes      | string          | ID of the table to work with.                                      |
+| `idempotencyKey`        | Yes      | string          | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "expectedSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "rows": {
+      "minItems": 1,
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rowId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          }
+        },
+        "required": ["rowId", "expectedVersion"],
+        "additionalProperties": false
+      }
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "set"
+            },
+            "values": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "additionalProperties": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["type", "values"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "duplicate"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "delete"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "expectedSchemaVersion",
+    "rows",
+    "action",
+    "orgId",
+    "databaseId",
+    "tableId",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_bulk_rows",
+    "arguments": {
+      "expectedSchemaVersion": 1,
+      "rows": [
+        {
+          "rowId": "01J00000000000000000000003",
+          "expectedVersion": "1"
+        }
+      ],
+      "action": {
+        "type": "set",
+        "values": {
+          "NAME": "Updated name"
+        }
+      },
+      "orgId": "01J00000000000000000000000",
+      "databaseId": "01J00000000000000000000001",
+      "tableId": "01J00000000000000000000002",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/bulkRows) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)
