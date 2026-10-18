@@ -92,7 +92,7 @@ for protecting and restoring an installation.
 
 ## Deploy with Towbar
 
-The [Towbar deployment guide](.towbar/README.md) covers the packaged API, worker and UI, private PostgreSQL, runtime secrets and manual rollout on Platform Services.
+The [Towbar deployment guide](docs/towbar-deployment.md) covers the packaged API, worker and UI, private PostgreSQL, runtime secrets and manual rollout on Platform Services.
 
 ## Develop and verify
 
