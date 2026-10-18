@@ -1,18 +1,20 @@
 # Deploy Rootset with Towbar
 
-These manifests deploy the public Rootset **0.2.3** API, worker and UI images to the Platform Services server (`13.206.149.158`, Linux ARM64). All three images are pinned to the immutable multi-platform digests in the [release image manifest](https://github.com/avgeek-oss/rootset/releases/download/v0.2.3/rootset-images.json). There is no source build. `autoDeploy: false` keeps each deployment manual.
+The production manifests are maintained in the separate platform-services deployment repository. This source repository keeps an empty `towbar.yml` so Towbar can release its former workload declarations.
+
+The deployment manifests deploy the public Rootset **0.2.3** API, worker and UI images to the Platform Services server (`13.206.149.158`, Linux ARM64). All three images are pinned to the immutable multi-platform digests in the [release image manifest](https://github.com/avgeek-oss/rootset/releases/download/v0.2.3/rootset-images.json). There is no source build. `autoDeploy: false` keeps each deployment manual.
 
 The application is served at `https://rootset.avgeek.ltd`; authentication, REST, MCP and downloads use `https://rootset-api.avgeek.ltd`. The documentation site is separate, at `https://www.rootset.app`. The worker and PostgreSQL have no public domains. All four workloads share the private `rootset` Docker network on one server.
 
 ## Before deployment
 
-Use Towbar **2.0.36 or later**. Register and prepare the target server in Towbar, connect this repository, map `production` to `main`, and sync. Configure Towbar's Cloudflare DNS integration for `avgeek.ltd` before deploying the two public services.
+Use Towbar **2.0.36 or later**. Register and prepare the target server in Towbar, connect the deployment repository, map `production` to `main`, and sync. Configure Towbar's Cloudflare DNS integration for `avgeek.ltd` before deploying the two public services.
 
 The limits match the published Compose installation: PostgreSQL 4 GiB, API 1 GiB, worker 2 GiB and UI 1 GiB. Check available capacity alongside existing services before deployment; allow additional host headroom. Named volumes preserve PostgreSQL data and the API/worker artifact spools across redeployments.
 
 `rootset-postgres` is a managed PostgreSQL 18 Datastore declared in `.towbar/datastores/rootset-postgres.datastore.yml`. Its image is pinned to an immutable digest, with the PostgreSQL 18 data volume mounted at `/var/lib/postgresql`. Towbar manages its deployment, health checks and persistent volume. The API and worker continue to connect to `rootset-postgres:5432` on the private network.
 
-Use PostgreSQL-native backups and restores for recovery. Towbar’s current datastore restore flow does not replay this repository’s initialization script, so it does not recreate Rootset’s ordinary database-owner role and ownership setup. No automatic backup schedule is configured by these manifests.
+Use PostgreSQL-native backups and restores for recovery. Towbar’s current datastore restore flow does not replay the deployment repository’s initialization script, so it does not recreate Rootset’s ordinary database-owner role and ownership setup. No automatic backup schedule is configured by these manifests.
 
 The bundled PostgreSQL datastore is for a **fresh installation**. Save these values in its production runtime secrets:
 

@@ -1,4 +1,6 @@
 # yaml-language-server: $schema=https://towbar.dev/schemas/repository.v2.json
+# Production workload manifests are managed in platform-services.
+# Keep this empty environment so Towbar can release the former declarations.
 version: 2
 buildServer: null
 environments:
