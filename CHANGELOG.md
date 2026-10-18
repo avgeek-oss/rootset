@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3 (2026-10-18)
 
 - Add a dark green elephant mascot with friendly, sad and bucket-holding variants for empty lists, missing pages, unexpected errors and unavailable backup storage.
 - Replace the unavailable backup schedule and retention forms with a compact empty state titled "Backup storage unavailable" and storage configuration guidance.
