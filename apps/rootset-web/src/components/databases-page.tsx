@@ -6,6 +6,7 @@ import {
   ResourceTable,
 } from "@avgeek-oss/design-system/patterns/resource-table";
 import Link from "next/link";
+import { RootsetEmptyState } from "./rootset-empty-state";
 import type { DatabaseSummary } from "@rootset/contracts";
 import {
   ApplicationPage,
@@ -215,21 +216,21 @@ export function DatabasesPage({
               ))}
             </ul>
           ) : (
-            <div className="empty-state">
-              <HugeiconsIcon icon={DatabaseIcon} size={32} aria-hidden />
-              <h2>No databases yet</h2>
-              <p>
-                {canCreate
+            <RootsetEmptyState
+              title="No databases yet"
+              description={
+                canCreate
                   ? "Create a database to organise your data."
-                  : "Ask an administrator to create a database."}
-              </p>
+                  : "Ask an administrator to create a database."
+              }
+            >
               {canCreate ? (
                 <Button onPress={onCreate}>
                   <Plus />
                   Create database
                 </Button>
               ) : null}
-            </div>
+            </RootsetEmptyState>
           )}
         </ApplicationPage>
       </AppShell.Content>

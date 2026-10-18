@@ -1184,6 +1184,11 @@ export class RootsetCore {
           signal: readSignal(ctx),
           responseBudget: ctx.responseBudget,
         });
+      case "getActivityDetails":
+        return this.activity.details(a, input, {
+          signal: readSignal(ctx),
+          responseBudget: ctx.responseBudget,
+        });
       case "queryHistory": {
         const r = await s.queryHistory(a, tableId, {
           ...input,

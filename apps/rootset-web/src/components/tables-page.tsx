@@ -2,6 +2,7 @@
 
 // Adapted from Mill's boards page and shared widget layout (Apache-2.0).
 import Link from "next/link";
+import { RootsetEmptyState } from "./rootset-empty-state";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   HardDriveIcon,
@@ -225,21 +226,21 @@ export function TablesPage({
               ))}
             </ul>
           ) : !pending && !error ? (
-            <div className="empty-state">
-              <HugeiconsIcon icon={TableIcon} size={32} aria-hidden />
-              <h2>No tables yet</h2>
-              <p>
-                {canCreate
+            <RootsetEmptyState
+              title="No tables yet"
+              description={
+                canCreate
                   ? "Create a table to start organising your data."
-                  : "Ask an administrator to create a table."}
-              </p>
+                  : "Ask an administrator to create a table."
+              }
+            >
               {canCreate && (
                 <Button onPress={onCreate}>
                   <Plus />
                   Create your first table
                 </Button>
               )}
-            </div>
+            </RootsetEmptyState>
           ) : null}
         </ContentPage>
       </AppShell.Content>

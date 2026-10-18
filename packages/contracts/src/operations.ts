@@ -28,6 +28,8 @@ import {
   ActivityPageSchema,
   ActivityFilterInputSchema,
   ActivityFilterOptionsSchema,
+  ActivityDetailsInputSchema,
+  ActivityDetailsSchema,
 } from "./activity";
 import {
   AccountNameSchema,
@@ -1307,6 +1309,22 @@ operation(
   ActivityFilterInputSchema,
   ActivityFilterOptionsSchema,
   "Find actors or resources in permitted audit history, independently of event pagination. Narrow the search when more matches are available.",
+);
+operation(
+  "getActivityDetails",
+  "get_activity_details",
+  "GET",
+  `${O}/activity/details/{eventId}`,
+  ["history:read"],
+  ActivityDetailsInputSchema,
+  ActivityDetailsSchema,
+  "Read concise audit event context under current history, resource and job permissions. Includes retained field names and changes without record values or private job payloads.",
+  {
+    example: {
+      orgId: "01K6J7B8000000000000000000",
+      eventId: "r:1",
+    },
+  },
 );
 operation(
   "queryHistory",

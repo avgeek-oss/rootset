@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 (2026-10-18)
+
+- Add a dark green elephant mascot with friendly, sad and bucket-holding variants for empty lists, missing pages, unexpected errors and unavailable backup storage.
+- Replace the unavailable backup schedule and retention forms with a compact empty state titled "Backup storage unavailable" and storage configuration guidance.
+- Show a green loading indicator before "Loading Rootset…".
+- Add a Details action to Audit Logs with on-demand, read-only JSON context. Show retained field names before and after reordering, changed field attributes, record counts, request options and backup settings under the same access checks as the log list. New rule and relation events retain their context; older entries without it show an explanatory note.
+- Show deleted resource status beside its type as Database (Deleted) or Table (Deleted), with Deleted in italics.
+
 ## 0.2.2 (2026-10-18)
 
 - Rename Foreign keys to Table relations in table settings, dialogs, messages, audit labels, restore summaries and documentation. Preserve existing API names, event IDs and links.

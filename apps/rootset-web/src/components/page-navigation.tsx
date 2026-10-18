@@ -17,6 +17,7 @@ import {
   type QueryKey,
   type UseQueryOptions,
 } from "@tanstack/react-query";
+import { Spinner } from "@avgeek-oss/design-system/feedback/spinner";
 
 interface PageReadiness {
   location: string;
@@ -31,7 +32,10 @@ const serverSnapshot = () => false;
 export function PageLoading() {
   return (
     <div className="grid min-h-dvh place-items-center" role="status">
-      Loading Rootset…
+      <span className="inline-flex items-center gap-2">
+        <Spinner size="sm" color="accent" aria-hidden />
+        Loading Rootset…
+      </span>
     </div>
   );
 }

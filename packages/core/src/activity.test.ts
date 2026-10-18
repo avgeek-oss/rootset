@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   ActivityPageSchema,
   ActivityFilterOptionsSchema,
+  ActivityDetailsSchema,
   activityEventCatalog,
   newId,
   RootsetError,
@@ -109,6 +110,15 @@ test(
         );
         return id;
       };
+      const details = async (eventId: string, actor = admin, context = {}) =>
+        ActivityDetailsSchema.parse(
+          await runtime.core.execute(
+            "getActivityDetails",
+            actor,
+            { orgId, eventId },
+            context,
+          ),
+        );
       const filters = async (
         kind: "actors" | "resources",
         input: Record<string, unknown> = {},
@@ -644,6 +654,147 @@ test(
           await assert.rejects(
             list({ limit: 2, cursor: first.nextCursor!.slice(0, -3) + "abc" }),
             { code: "CURSOR_INVALID" },
+          );
+        },
+      );
+      await t.test(
+        "event details retain schema context, redact payloads and apply the same access as the list",
+        async () => {
+          const auditTable = await runtime.storage.createTable(
+            admin,
+            database.id,
+            {
+              name: "Audit context",
+              fields: [
+                { name: "FIRST", type: "text" },
+                { name: "SECOND", type: "integer" },
+              ],
+            },
+          );
+          const reordered = await runtime.storage.reorderFields(
+            admin,
+            auditTable.id,
+            {
+              fieldIds: auditTable.fields.map((field) => field.id).reverse(),
+              expectedSchemaVersion: auditTable.schemaVersion,
+            },
+          );
+          const reorderEvent = (
+            await list({ tableId: auditTable.id, event: "fields.reorder" })
+          ).data[0]!;
+          const renamed = await runtime.storage.updateField(
+            admin,
+            auditTable.id,
+            reordered.fields[0]!.id,
+            {
+              name: "RENAMED",
+              expectedSchemaVersion: reordered.schemaVersion,
+            },
+          );
+          const reorderDetails = await details(reorderEvent.id);
+          assert.deepEqual(reorderDetails.context.fieldOrder, {
+            before: auditTable.fields.map(({ name }) => name),
+            after: [...auditTable.fields].reverse().map(({ name }) => name),
+          });
+          const rule = await runtime.storage.createUniqueRule(
+            admin,
+            auditTable.id,
+            {
+              name: "Unique first",
+              expectedSchemaVersion: renamed.schemaVersion,
+              fieldIds: [auditTable.fields[0]!.id],
+            },
+          );
+          const ruleEvent = (
+            await list({ tableId: auditTable.id, event: "rule.create" })
+          ).data[0]!;
+          assert.deepEqual((await details(ruleEvent.id)).context.rules, [
+            {
+              id: rule.id,
+              name: "Unique first",
+              fields: [{ id: auditTable.fields[0]!.id, name: "FIRST" }],
+              conditional: false,
+            },
+          ]);
+          const page = await list({ limit: 100 });
+          for (const event of page.data) {
+            const result = await details(event.id);
+            assert.equal(result.event, event.event);
+            assert.equal(result.occurredAt, event.occurredAt);
+            assert.ok(
+              !/hidden-|physicalName|schemaName|input_digest|leaseToken|scopes|example.test/.test(
+                JSON.stringify(result),
+              ),
+            );
+            if (event.jobId === importId)
+              assert.equal(result.context.status, event.status);
+          }
+          const recordEvent = page.data.find(
+            (event) => event.category === "records",
+          )!;
+          assert.deepEqual(
+            (await details(recordEvent.id)).context.fields,
+            table.fields
+              .map(({ id, name }) => ({ id, name }))
+              .sort((a, b) => a.id.localeCompare(b.id)),
+          );
+          const ownJob = page.data.find((event) => event.jobId === importId)!;
+          assert.equal((await details(ownJob.id, member)).event, ownJob.event);
+          const privateJob = page.data.find(
+            (event) => event.jobId === otherJob,
+          )!;
+          await assert.rejects(details(privateJob.id, member), {
+            code: "RESOURCE_NOT_FOUND",
+          });
+          await assert.rejects(details(ownJob.id, viewer), {
+            code: "RESOURCE_NOT_FOUND",
+          });
+          const backupEvent = page.data.find(
+            (event) => event.category === "backups",
+          )!;
+          await assert.rejects(details(backupEvent.id, viewer), {
+            code: "RESOURCE_NOT_FOUND",
+          });
+          await assert.rejects(details("r:9223372036854775807"), {
+            code: "RESOURCE_NOT_FOUND",
+          });
+          await assert.rejects(
+            details(reorderEvent.id, admin, { responseBudget: 100 }),
+            { code: "RESULT_TOO_LARGE" },
+          );
+          const abort = new AbortController();
+          abort.abort();
+          await assert.rejects(
+            details(reorderEvent.id, admin, { signal: abort.signal }),
+            { code: "REQUEST_TIMEOUT" },
+          );
+          await assert.rejects(
+            runtime.core.execute("getActivityDetails", admin, {
+              orgId: newId(),
+              eventId: reorderEvent.id,
+            }),
+            { code: "RESOURCE_NOT_FOUND" },
+          );
+          const ruleTable = await runtime.storage.getTable(
+            admin,
+            auditTable.id,
+          );
+          const withoutRule = await runtime.storage.deleteUniqueRule(
+            admin,
+            auditTable.id,
+            rule.id,
+            { expectedSchemaVersion: ruleTable.schemaVersion },
+          );
+          await runtime.storage.deleteTable(admin, auditTable.id, {
+            expectedSchemaVersion: withoutRule.schemaVersion,
+          });
+          assert.equal(
+            (await details(reorderEvent.id)).resource?.type,
+            "table",
+          );
+          assert.deepEqual(
+            (await details(reorderEvent.id)).context,
+            reorderDetails.context,
           );
         },
       );

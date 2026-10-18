@@ -1309,6 +1309,13 @@ export class TableStorage {
           await c.query("SET LOCAL statement_timeout='0'");
           await c.query("SET LOCAL lock_timeout='10s'");
         }
+        const auditRules = kind.startsWith("rule.");
+        const auditRelations = kind.startsWith("foreign-key.");
+        const relatedBefore = auditRules
+          ? { rules: await this.rules(c, t) }
+          : auditRelations
+            ? { relations: await this.foreignKeys(c, t.id) }
+            : {};
         await change(c, t, j.operationId);
         await this.assertPublication(c, a, input.context);
         await this.finish(c, j.operationId, t.id);
@@ -1320,8 +1327,14 @@ export class TableStorage {
           t.id,
           t.id,
           kind,
-          t,
-          after,
+          { ...t, ...relatedBefore },
+          {
+            ...after,
+            ...(auditRules ? { rules: await this.rules(c, after) } : {}),
+            ...(auditRelations
+              ? { relations: await this.foreignKeys(c, after.id) }
+              : {}),
+          },
           input.context,
         );
         return after;

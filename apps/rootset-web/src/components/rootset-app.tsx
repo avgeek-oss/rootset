@@ -12,6 +12,7 @@ import {
 } from "./page-navigation";
 import { DatabasesPage } from "./databases-page";
 import { RootsetLogo } from "./rootset-logo";
+import { RootsetErrorBoundary, RootsetErrorState } from "./rootset-error-state";
 import { TablesPage } from "./tables-page";
 import { SpreadsheetLoading } from "./spreadsheet-loading";
 import {
@@ -78,12 +79,7 @@ import {
   Message01Icon,
   TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
-import {
-  LogOut,
-  RefreshCw,
-  Database as DatabaseSymbol,
-  Plus,
-} from "./ui/icons";
+import { LogOut, Database as DatabaseSymbol, Plus } from "./ui/icons";
 
 const AuthScreen = lazy(() =>
   import("./auth-screen").then((module) => ({ default: module.AuthScreen })),
@@ -130,9 +126,11 @@ export function RootsetApp() {
   const path = usePathname();
   const parameters = useSearchParams();
   return (
-    <PageTransition location={`${path}?${parameters.toString()}`}>
-      {(location) => <RootsetPage location={location} />}
-    </PageTransition>
+    <RootsetErrorBoundary>
+      <PageTransition location={`${path}?${parameters.toString()}`}>
+        {(location) => <RootsetPage location={location} />}
+      </PageTransition>
+    </RootsetErrorBoundary>
   );
 }
 
@@ -427,17 +425,14 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     );
   if (context.isError && !context.data)
     return (
-      <main className="startup-state">
-        <div className="grid gap-2 text-center">
-          <h1>Account context could not be loaded</h1>
-          <p role="alert">{context.error.message}</p>
-        </div>
-        <Button onPress={() => void context.refetch()}>
-          <RefreshCw />
-          Retry
-        </Button>
-      </main>
+      <RootsetErrorState code={500} onRetry={() => void context.refetch()} />
     );
+  if (
+    !selectedDatabaseId &&
+    !settings &&
+    !["/", "/databases", "/audit-logs"].includes(path)
+  )
+    return <RootsetErrorState code={404} />;
   if (navigationError)
     return (
       <main className="startup-state">
@@ -817,37 +812,7 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
                 (selectedDatabaseId && tables.isPending) ? (
                 <SpreadsheetLoading />
               ) : (
-                <section className="empty-state">
-                  <HugeiconsIcon
-                    icon={DatabaseIcon}
-                    size={32}
-                    aria-hidden="true"
-                  />
-                  <h1>
-                    {canManage
-                      ? database
-                        ? "Create your first table"
-                        : "Create your first database"
-                      : database
-                        ? "No tables yet"
-                        : "No databases yet"}
-                  </h1>
-                  <p>
-                    {canManage
-                      ? database
-                        ? "Add a structured table, then define its fields."
-                        : "Keep related master data together in one database."
-                      : "An editor or administrator can create databases, tables, and fields for this installation."}
-                  </p>
-                  {(database ? canEdit : canCreateDatabase) && (
-                    <Button
-                      onPress={() => setCreate(database ? "table" : "database")}
-                    >
-                      <Plus />
-                      {database ? "Create table" : "Create database"}
-                    </Button>
-                  )}
-                </section>
+                <RootsetErrorState code={404} />
               )}
             </SecondarySidebarLayout>
           </div>

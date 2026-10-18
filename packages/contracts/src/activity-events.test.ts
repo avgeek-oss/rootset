@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ActivityInputSchema, ActivityFilterInputSchema } from "./activity";
+import {
+  ActivityInputSchema,
+  ActivityFilterInputSchema,
+  ActivityDetailsInputSchema,
+} from "./activity";
 import {
   activityEventCatalog,
   activityEventDefinitions,
@@ -28,6 +32,37 @@ test("audit event names are unique and every selectable event has a label, categ
     activityEventCatalog["job.restoreDatabaseBackup.succeeded"],
     undefined,
   );
+});
+
+test("audit detail IDs accept each retained source and reject malformed or overflowing history IDs", () => {
+  const orgId = "01M4Z29DYW3NBAVHB1QS52RYAS";
+  for (const eventId of [
+    `m:${orgId}`,
+    `j:${orgId}`,
+    "r:12",
+    "r:9223372036854775807",
+    `a:${orgId}:detected`,
+    `a:${orgId}:resolved`,
+  ])
+    assert.equal(
+      ActivityDetailsInputSchema.parse({ orgId, eventId }).eventId,
+      eventId,
+    );
+  for (const eventId of [
+    "r:abc",
+    "r:-1",
+    "r:0",
+    "r:9223372036854775808",
+    "r:999999999999999999999999",
+    "m:invalid",
+    `a:${orgId}`,
+    `a:${orgId}:private`,
+    `r:${orgId}`,
+  ])
+    assert.equal(
+      ActivityDetailsInputSchema.safeParse({ orgId, eventId }).success,
+      false,
+    );
 });
 
 test("audit filters reject unknown event names, malformed resource keys and unbounded option requests", () => {

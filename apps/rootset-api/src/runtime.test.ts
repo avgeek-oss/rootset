@@ -1570,6 +1570,26 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         assert.ok(rest.data.length > 0);
         assert.deepEqual(browser.data, rest.data);
         assert.deepEqual(mcp.data, rest.data);
+        const eventId = rest.data[0].id;
+        const eventDetails = await call(
+          "getActivityDetails",
+          { orgId, eventId },
+          "rest",
+        );
+        assert.deepEqual(
+          await call("getActivityDetails", { orgId, eventId }, "browser"),
+          eventDetails,
+        );
+        assert.deepEqual(
+          await mcpOperation("getActivityDetails", { orgId, eventId }),
+          eventDetails,
+        );
+        assert.equal(eventDetails.event, "records.changed");
+        assert.ok(
+          !/Example Air|scopes|credentialId|input_digest/.test(
+            JSON.stringify(eventDetails),
+          ),
+        );
         assert.ok(
           !/Example Air|scopes|credentialId|input_digest/.test(
             JSON.stringify(rest),
