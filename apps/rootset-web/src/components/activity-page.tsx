@@ -16,6 +16,7 @@ import {
   Calendar03Icon,
   Calendar04Icon,
   Clock01Icon,
+  ViewIcon,
   Search01Icon,
   TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
@@ -37,6 +38,7 @@ import { AuditEventIcon } from "./audit-event-icon";
 import { AuditLogError } from "./audit-log-error";
 import { dataHref, settingsHref } from "./settings/navigation";
 import { ChevronLeft, ChevronRight } from "./ui/icons";
+import { AuditEventDetails } from "./audit-event-details";
 
 const categoryLabels: Record<ActivityCategory, string> = {
   records: "Records",
@@ -116,6 +118,7 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
   const [revision, setRevision] = useState(0);
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [page, setPage] = useState(0);
+  const [detailsEventId, setDetailsEventId] = useState<string | null>(null);
   const from = useMemo(
     () =>
       window === "all"
@@ -314,11 +317,15 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
                       {resourceType && (
                         <span className="text-xs text-muted">
                           {resourceType}
+                          {(event.database?.state === "deleted" ||
+                            event.table?.state === "deleted") && (
+                            <>
+                              {" ("}
+                              <em>Deleted</em>
+                              {")"}
+                            </>
+                          )}
                         </span>
-                      )}
-                      {(event.database?.state === "deleted" ||
-                        event.table?.state === "deleted") && (
-                        <span className="text-xs text-muted">Deleted</span>
                       )}
                       {event.table?.state === "maintenance" && (
                         <span className="text-xs text-muted">
@@ -343,6 +350,22 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
                       {event.actor.name}
                     </span>
                   </div>
+                ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                headerClassName: "text-right",
+                className: "text-right",
+                cell: (event) => (
+                  <Button
+                    variant="secondary"
+                    onPress={() => setDetailsEventId(event.id)}
+                    aria-label={`Details: ${event.summary}`}
+                  >
+                    <HugeiconsIcon icon={ViewIcon} size={16} aria-hidden />
+                    Details
+                  </Button>
                 ),
               },
             ]}
@@ -382,6 +405,13 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
             </div>
           </div>
         </>
+      )}
+      {detailsEventId && (
+        <AuditEventDetails
+          orgId={orgId}
+          eventId={detailsEventId}
+          onClose={() => setDetailsEventId(null)}
+        />
       )}
     </div>
   );

@@ -7,10 +7,17 @@ import { BackupHistorySettings } from "./backup-history";
 import { RestoreRequestsSettings } from "./restore-requests";
 import type { SettingsPanelProps } from "./types";
 
-const renderToStaticMarkup = (element: ReactElement) =>
-  renderMarkup(
-    createElement(QueryClientProvider, { client: new QueryClient() }, element),
-  );
+const renderToStaticMarkup = (element: ReactElement) => {
+  const client = new QueryClient();
+  client.setQueryData(["backup-policy", "org", "database"], {
+    policy: { retentionCount: null, overdueGraceMinutes: 60, version: 0 },
+    emailDeliveryAvailable: true,
+    lastSuccessful: null,
+    alerts: [],
+    retentionError: null,
+  });
+  return renderMarkup(createElement(QueryClientProvider, { client }, element));
+};
 vi.mock("./account/last-synced-time", () => ({
   RelativeTime: ({ value, label }: { value: string; label: string }) =>
     createElement(
@@ -145,12 +152,29 @@ describe("database backup schedule page", () => {
     expect(html).not.toContain("Restore backup");
     expect(html).not.toContain("Back up now");
   });
-  it("explains unavailable worker configuration", () => {
+  it("replaces both settings widgets with the storage empty state when no backup worker is available", () => {
     fixture.available = false;
     const html = renderToStaticMarkup(
       createElement(BackupScheduleSettings, props),
     );
+    expect(html).toContain("Backup storage unavailable");
     expect(html).toContain("no backup-enabled worker is online");
+    expect(html).toContain("/mascot/elephant-bucket.webp");
+    expect(html).not.toContain("Destination and schedule");
+    expect(html).not.toContain("Retention and alerts");
+    expect(html).not.toContain("<form");
+    expect(html).not.toContain("Save schedule");
+    expect(html).not.toContain("Save retention");
+  });
+  it("keeps the configuration forms available when the worker needs its saved destination reverified", () => {
+    fixture.matches = false;
+    const html = renderToStaticMarkup(
+      createElement(BackupScheduleSettings, props),
+    );
+    expect(html).toContain("Save this schedule again");
+    expect(html).toContain("Destination and schedule");
+    expect(html).toContain("Retention and alerts");
+    expect(html).not.toContain("/mascot/elephant-bucket.webp");
   });
   it("does not expose a premature schedule form before loading", () => {
     fixture.loading = true;

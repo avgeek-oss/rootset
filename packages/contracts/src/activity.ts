@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { CanonicalUtcDateTimeSchema, IdSchema } from "./models";
+import {
+  CanonicalUtcDateTimeSchema,
+  IdSchema,
+  JsonValueSchema,
+} from "./models";
 import { ActivityEventNameSchema } from "./activity-events";
 
 export const ActivityCategorySchema = z.enum([
@@ -93,6 +97,36 @@ export const ActivityPageSchema = z.strictObject({
   }),
 });
 export type ActivityPage = z.infer<typeof ActivityPageSchema>;
+
+export const ActivityDetailsInputSchema = z.strictObject({
+  orgId: IdSchema,
+  eventId: z
+    .string()
+    .regex(
+      /^(?:[mj]:[0-9A-HJKMNP-TV-Z]{26}|r:[1-9][0-9]{0,18}|a:[0-9A-HJKMNP-TV-Z]{26}:(?:detected|resolved))$/,
+    )
+    .refine(
+      (value) =>
+        !value.startsWith("r:") ||
+        (/^r:\d+$/.test(value) &&
+          BigInt(value.slice(2)) <= 9223372036854775807n),
+      "Invalid audit event ID",
+    ),
+});
+export const ActivityDetailsSchema = z.strictObject({
+  event: ActivityEventNameSchema,
+  occurredAt: CanonicalUtcDateTimeSchema,
+  actor: z.string(),
+  resource: z
+    .strictObject({
+      type: z.enum(["database", "table"]),
+      id: IdSchema,
+      name: z.string(),
+    })
+    .nullable(),
+  context: z.record(z.string(), JsonValueSchema),
+});
+export type ActivityDetails = z.infer<typeof ActivityDetailsSchema>;
 
 export const ActivityFilterInputSchema = z.strictObject({
   orgId: IdSchema,

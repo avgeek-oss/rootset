@@ -3,6 +3,7 @@ import { assertAccess } from "@rootset/access";
 import {
   ActivityInputSchema,
   ActivityFilterInputSchema,
+  ActivityDetailsInputSchema,
   schemaActions,
   backupActions,
   jobActions,
@@ -18,6 +19,8 @@ import {
   type ActivityCategory,
   type ActivityEvent,
   type ActivityPage,
+  type ActivityDetails,
+  type JsonValue,
 } from "@rootset/contracts";
 import {
   withOrgRead,
@@ -27,6 +30,10 @@ import {
   type PoolClient,
 } from "@rootset/database";
 import { CursorCodec } from "@rootset/table-storage/query";
+import {
+  resourceActivityDetails,
+  jobActivityDetails,
+} from "./activity-details";
 
 function can(actor: Actor, scopes: string[], admin = false): boolean {
   try {
@@ -108,6 +115,7 @@ function activityParameters(
   cutoff: string | null,
   tuple: unknown[] | null,
   limit: number,
+  eventId?: string,
 ): unknown[] {
   return [
     actor.orgId,
@@ -131,6 +139,9 @@ function activityParameters(
     input.event ?? null,
     input.actor ?? null,
     input.resource ?? null,
+    eventId?.split(":")[0] ?? null,
+    eventId?.split(":")[1] ?? null,
+    eventId?.split(":")[2] ?? null,
   ];
 }
 const automationActorSql =
@@ -144,11 +155,13 @@ const activitySourceSql = `
               m.id mutation_id,NULL::varchar(26) job_id,NULL::text file_name,'record'::text destination,NULL::text related_database_id
             FROM rootset_control.mutations m JOIN rootset_control.tables t ON t.id=m.table_id AND t.org_id=m.org_id
             WHERE m.org_id=$1 AND $4::boolean AND coalesce(m.context->>'source','') NOT IN ('import','schema')
+              AND ($22::text IS NULL OR ($22='m' AND m.id=$23::text))
               AND EXISTS(SELECT 1 FROM rootset_control.cell_changes c WHERE c.org_id=$1 AND c.mutation_id=m.id AND c.table_id=m.table_id)
             UNION ALL
             SELECT 'r:'||h.id,h.changed_at,a.category,a.label,h.operation,'succeeded',h.actor,h.database_id,h.table_id,NULL,NULL,NULL,a.destination,
               CASE WHEN h.operation='database.restore' THEN h.after_value->>'sourceDatabaseId' ELSE NULL END
             FROM rootset_control.resource_history h JOIN actions a ON a.operation=h.operation WHERE h.org_id=$1
+              AND ($22::text IS NULL OR ($22='r' AND h.id=CASE WHEN $22='r' THEN $23::bigint END))
             UNION ALL
             SELECT 'j:'||e.id,e.occurred_at,a.category,
               a.label||CASE e.state WHEN 'queued' THEN ' requested' WHEN 'succeeded' THEN ' completed'
@@ -162,6 +175,7 @@ const activitySourceSql = `
             JOIN job_actions a ON a.operation=j.operation_id
             LEFT JOIN rootset_control.tables t ON t.org_id=j.org_id AND t.id=j.target_id AND j.target_type='table'
             WHERE e.org_id=$1 AND ($5::boolean OR j.requester_id=$6 OR ($7::text IS NOT NULL AND j.actor->>'userId'=$7))
+              AND ($22::text IS NULL OR ($22='j' AND e.id=$23::text))
               AND NOT (e.state='succeeded' AND (a.category='schema' OR j.operation_id IN ('restoreDatabaseBackup','saveBackupSchedule')))
             UNION ALL
             SELECT 'a:'||a.id||':'||v.phase,v.occurred_at,'backups',
@@ -171,6 +185,7 @@ const activitySourceSql = `
               '{"kind":"system"}'::jsonb,a.database_id,NULL,NULL,NULL,NULL,'backup-history',NULL
             FROM rootset_control.backup_alerts a CROSS JOIN LATERAL (VALUES ('detected',a.detected_at),('resolved',a.resolved_at)) v(phase,occurred_at)
             WHERE a.org_id=$1 AND $8::boolean AND v.occurred_at IS NOT NULL
+              AND ($22::text IS NULL OR ($22='a' AND a.id=$23::text AND v.phase=$24::text))
           ), visible AS NOT MATERIALIZED (
             SELECT s.*,d.name database_name,d.state database_state,t.name table_name,t.state table_state,
               ${actorKeySql} actor_key,coalesce(s.actor->>'id',NULL) actor_id,coalesce(s.actor->>'kind','system') actor_kind,u.email actor_email,
@@ -203,6 +218,127 @@ export class ActivityReader {
         .update("rootset:activity:v1")
         .digest(),
     );
+  }
+  async details(
+    actor: Actor,
+    raw: unknown,
+    context: ReadContext = {},
+  ): Promise<ActivityDetails> {
+    const input = ActivityDetailsInputSchema.parse(raw);
+    assertAccess(actor, { scope: "history:read", orgId: input.orgId });
+    return this.withAccess(actor, context, async (access, client) => {
+      const source = (
+        await client.query<{
+          event_name: string;
+          occurred_at: string;
+          actor_name: string;
+          database_id: string | null;
+          database_name: string | null;
+          table_id: string | null;
+          table_name: string | null;
+          mutation_id: string | null;
+          job_id: string | null;
+          before_value: unknown;
+          after_value: unknown;
+          resource_id: string | null;
+          input: unknown;
+          state: string;
+          attempt: number;
+          kind: string;
+          backup_id: string | null;
+          occurrence_at: string;
+        }>(
+          `${activitySourceSql}
+          SELECT v.event_name,${utc("v.occurred_at")} occurred_at,v.actor_name,v.database_id,v.database_name,v.table_id,v.table_name,v.mutation_id,v.job_id,
+            h.before_value,h.after_value,h.resource_id,j.input,e.state,e.attempt,a.kind,a.backup_id,${utc("a.occurrence_at")} occurrence_at
+          FROM visible v
+          LEFT JOIN rootset_control.resource_history h ON $22='r' AND h.org_id=$1 AND h.id=CASE WHEN $22='r' THEN $23::bigint END
+          LEFT JOIN rootset_control.jobs j ON j.org_id=$1 AND j.id=v.job_id
+          LEFT JOIN rootset_control.activity_job_events e ON $22='j' AND e.org_id=$1 AND e.id=$23
+          LEFT JOIN rootset_control.backup_alerts a ON $22='a' AND a.org_id=$1 AND a.id=$23
+          WHERE v.event_key=$25
+            AND ($17::text IS NULL OR strpos(lower(v.summary),lower($17))>0)
+          LIMIT $18`,
+          [
+            ...activityParameters(
+              access.current,
+              access,
+              { orgId: input.orgId },
+              null,
+              null,
+              1,
+              input.eventId,
+            ),
+            input.eventId,
+          ],
+        )
+      ).rows[0];
+      if (!source)
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Audit event was not found",
+          404,
+        );
+      let details: Record<string, JsonValue>;
+      if (source.mutation_id) {
+        const operations = await client.query<{
+          operation: string;
+          rows: number;
+        }>(
+          `SELECT operation,count(DISTINCT row_id)::integer rows FROM rootset_control.cell_changes
+          WHERE org_id=$1 AND mutation_id=$2 GROUP BY operation ORDER BY operation`,
+          [input.orgId, source.mutation_id],
+        );
+        const fields = await client.query<{ id: string; name: string }>(
+          `SELECT DISTINCT field_id id,field_definition->>'name' name FROM rootset_control.cell_changes
+          WHERE org_id=$1 AND mutation_id=$2 ORDER BY id LIMIT $3`,
+          [input.orgId, source.mutation_id, limits.maxFields],
+        );
+        details = {
+          operations: operations.rows.map((item) => ({
+            operation: item.operation,
+            records: item.rows,
+          })),
+          fields: fields.rows,
+        };
+      } else if (source.job_id) {
+        details = jobActivityDetails(
+          source.input,
+          source.job_id,
+          source.state,
+          source.attempt,
+        );
+      } else if (input.eventId.startsWith("a:")) {
+        details = {
+          kind: source.kind,
+          backupId: source.backup_id,
+          scheduledFor: iso(source.occurrence_at),
+        };
+      } else {
+        details = resourceActivityDetails(
+          source.event_name,
+          source.before_value,
+          source.after_value,
+        );
+        if (source.event_name === "database.backup.prune")
+          details.backupId = source.resource_id;
+      }
+      return {
+        event: source.event_name,
+        occurredAt: iso(source.occurred_at),
+        actor: source.actor_name,
+        resource: source.table_id
+          ? { type: "table", id: source.table_id, name: source.table_name! }
+          : source.database_id
+            ? {
+                type: "database",
+                id: source.database_id,
+                name: source.database_name!,
+              }
+            : null,
+        context: details,
+      };
+    });
   }
   async list(
     actor: Actor,

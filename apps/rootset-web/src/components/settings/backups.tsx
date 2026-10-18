@@ -26,6 +26,7 @@ import { TimeZoneSelect } from "./time-zone-select";
 import { Empty, Field, Form, Loading, Section } from "./ui";
 import type { Job, SettingsPanelProps } from "./types";
 import { Trash2 } from "../ui/icons";
+import { RootsetEmptyState } from "../rootset-empty-state";
 const isActive = (state: string) => state === "queued" || state === "running";
 
 export function BackupScheduleSettings(props: SettingsPanelProps) {
@@ -175,27 +176,22 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
       <PageSelectionTitle label="Backup Schedule" />
       <Loading {...resource} retry={resource.reload} />
       <Loading {...job} retry={job.reload} />
-      {resource.data && (
+      {resource.data && !available ? (
+        <RootsetEmptyState
+          variant="bucket"
+          title="Backup storage unavailable"
+          description="Backup storage is not configured, or no backup-enabled worker is online. Your operator can configure S3-compatible storage on the Rootset worker."
+        />
+      ) : resource.data ? (
         <div className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
-          {!available ? (
+          {!matches && (
             <p
               role="status"
               className="settings-section-description col-span-full"
             >
-              Backup storage is not configured, or no backup-enabled worker is
-              online. Your operator can configure S3-compatible storage on the
-              Rootset worker.
+              The worker’s backup configuration changed. Save this schedule
+              again to verify the destination.
             </p>
-          ) : (
-            !matches && (
-              <p
-                role="status"
-                className="settings-section-description col-span-full"
-              >
-                The worker’s backup configuration changed. Save this schedule
-                again to verify the destination.
-              </p>
-            )
           )}
           <Section title="Destination and schedule">
             <Form
@@ -356,7 +352,7 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
           </Section>
           <BackupRetentionSettings {...props} />
         </div>
-      )}
+      ) : null}
     </>
   );
 }

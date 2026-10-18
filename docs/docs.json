@@ -141,6 +141,7 @@
               "api-reference/getSecurityStatus",
               "api-reference/listActivity",
               "api-reference/listActivityFilterOptions",
+              "api-reference/getActivityDetails",
               "api-reference/getMutation",
               "api-reference/getUsage",
               "api-reference/getViewPreferences",

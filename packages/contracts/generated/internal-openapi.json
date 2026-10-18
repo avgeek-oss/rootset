@@ -16090,6 +16090,171 @@
         }
       }
     },
+    "/api/internal/v1/orgs/{orgId}/activity/details/{eventId}": {
+      "get": {
+        "operationId": "getActivityDetails",
+        "tags": ["accounts"],
+        "summary": "Read concise audit event context under current history, resource and job permissions. Includes retained field names and changes without record values or private job payloads.",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "example": "01K6J7B8000000000000000000"
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[mj]:[0-9A-HJKMNP-TV-Z]{26}|r:[1-9][0-9]{0,18}|a:[0-9A-HJKMNP-TV-Z]{26}:(?:detected|resolved))$"
+            },
+            "example": "r:1"
+          }
+        ],
+        "security": [{ "browserSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Authorised operation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/getActivityDetailsOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or wrong-audience credential.",
+            "headers": {
+              "WWW-Authenticate": { "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient current authority.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or undisclosed target.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "408": {
+            "description": "Ordinary JSON request body did not finish within its bounded read deadline.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, schema, uniqueness or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload or output budget exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "422": {
+            "description": "Typed validation failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, concurrency or admission limit.",
+            "headers": { "Retry-After": { "schema": { "type": "string" } } },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "500": {
+            "description": "Redacted internal failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "502": {
+            "description": "A required upstream service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable. Check service configuration before retrying.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        },
+        "x-rootset-scopes": ["history:read"],
+        "x-rootset-read-only": true,
+        "x-rootset-step-up": "never",
+        "x-rootset-job": false,
+        "x-rootset-minimum-role": "viewer",
+        "x-rootset-personal": false,
+        "x-rootset-mcp-tool": "rootset_get_activity_details",
+        "x-rootset-error-codes": [
+          "VALIDATION_FAILED",
+          "UNAUTHENTICATED",
+          "ACCESS_DENIED",
+          "FORBIDDEN",
+          "INSUFFICIENT_SCOPE",
+          "RESOURCE_NOT_FOUND",
+          "DEPENDENCY_UNAVAILABLE",
+          "REQUEST_TIMEOUT"
+        ],
+        "x-rootset-json-request-max-bytes": 8388608,
+        "x-rootset-json-read-timeout-ms": 10000,
+        "x-rootset-request-example": {
+          "orgId": "01K6J7B8000000000000000000",
+          "eventId": "r:1"
+        }
+      }
+    },
     "/api/internal/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query": {
       "post": {
         "operationId": "queryHistory",
@@ -38310,6 +38475,196 @@
           "hasMore": { "type": "boolean" }
         },
         "required": ["data", "hasMore"],
+        "additionalProperties": false
+      },
+      "getActivityDetailsInput": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^(?:[mj]:[0-9A-HJKMNP-TV-Z]{26}|r:[1-9][0-9]{0,18}|a:[0-9A-HJKMNP-TV-Z]{26}:(?:detected|resolved))$"
+          }
+        },
+        "required": ["orgId", "eventId"],
+        "additionalProperties": false
+      },
+      "getActivityDetailsOutput": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "job.testBackupDestination.cancelled",
+              "job.testBackupDestination.succeeded",
+              "job.testBackupDestination.failed",
+              "job.testBackupDestination.partially_completed",
+              "job.testBackupDestination.queued",
+              "job.saveBackupSchedule.cancelled",
+              "job.saveBackupSchedule.failed",
+              "job.saveBackupSchedule.partially_completed",
+              "job.saveBackupSchedule.queued",
+              "backup.failed.detected",
+              "backup.failed.resolved",
+              "backup.overdue.detected",
+              "backup.overdue.resolved",
+              "database.backup.prune",
+              "database.backup_policy.update",
+              "database.backup_schedule.update",
+              "database.backup_schedule.delete",
+              "job.previewDatabaseRestore.cancelled",
+              "job.previewDatabaseRestore.succeeded",
+              "job.previewDatabaseRestore.failed",
+              "job.previewDatabaseRestore.partially_completed",
+              "job.previewDatabaseRestore.queued",
+              "job.runDatabaseBackup.cancelled",
+              "job.runDatabaseBackup.succeeded",
+              "job.runDatabaseBackup.failed",
+              "job.runDatabaseBackup.partially_completed",
+              "job.runDatabaseBackup.queued",
+              "database.create",
+              "database.delete",
+              "job.deleteDatabase.cancelled",
+              "job.deleteDatabase.failed",
+              "job.deleteDatabase.partially_completed",
+              "job.deleteDatabase.queued",
+              "job.exportDatabase.cancelled",
+              "job.exportDatabase.succeeded",
+              "job.exportDatabase.failed",
+              "job.exportDatabase.partially_completed",
+              "job.exportDatabase.queued",
+              "job.restoreDatabaseBackup.cancelled",
+              "job.restoreDatabaseBackup.failed",
+              "job.restoreDatabaseBackup.partially_completed",
+              "job.restoreDatabaseBackup.queued",
+              "database.restore",
+              "database.update",
+              "field.create",
+              "field.convert",
+              "job.createField.cancelled",
+              "job.createField.failed",
+              "job.createField.partially_completed",
+              "job.createField.queued",
+              "field.delete",
+              "job.deleteField.cancelled",
+              "job.deleteField.failed",
+              "job.deleteField.partially_completed",
+              "job.deleteField.queued",
+              "job.reorderFields.cancelled",
+              "job.reorderFields.failed",
+              "job.reorderFields.partially_completed",
+              "job.reorderFields.queued",
+              "job.updateField.cancelled",
+              "job.updateField.failed",
+              "job.updateField.partially_completed",
+              "job.updateField.queued",
+              "field.update",
+              "fields.reorder",
+              "job.previewImportRows.cancelled",
+              "job.previewImportRows.succeeded",
+              "job.previewImportRows.failed",
+              "job.previewImportRows.partially_completed",
+              "job.previewImportRows.queued",
+              "job.importRows.cancelled",
+              "job.importRows.succeeded",
+              "job.importRows.failed",
+              "job.importRows.partially_completed",
+              "job.importRows.queued",
+              "records.changed",
+              "job.applySchemaChange.cancelled",
+              "job.applySchemaChange.failed",
+              "job.applySchemaChange.partially_completed",
+              "job.applySchemaChange.queued",
+              "table.create",
+              "job.createTable.cancelled",
+              "job.createTable.failed",
+              "job.createTable.partially_completed",
+              "job.createTable.queued",
+              "table.delete",
+              "job.deleteTable.cancelled",
+              "job.deleteTable.failed",
+              "job.deleteTable.partially_completed",
+              "job.deleteTable.queued",
+              "job.exportRows.cancelled",
+              "job.exportRows.succeeded",
+              "job.exportRows.failed",
+              "job.exportRows.partially_completed",
+              "job.exportRows.queued",
+              "foreign-key.create",
+              "job.createForeignKey.cancelled",
+              "job.createForeignKey.failed",
+              "job.createForeignKey.partially_completed",
+              "job.createForeignKey.queued",
+              "foreign-key.delete",
+              "job.deleteForeignKey.cancelled",
+              "job.deleteForeignKey.failed",
+              "job.deleteForeignKey.partially_completed",
+              "job.deleteForeignKey.queued",
+              "job.updateTable.cancelled",
+              "job.updateTable.failed",
+              "job.updateTable.partially_completed",
+              "job.updateTable.queued",
+              "table.update",
+              "rule.create",
+              "job.createUniqueRule.cancelled",
+              "job.createUniqueRule.failed",
+              "job.createUniqueRule.partially_completed",
+              "job.createUniqueRule.queued",
+              "rule.delete",
+              "job.deleteUniqueRule.cancelled",
+              "job.deleteUniqueRule.failed",
+              "job.deleteUniqueRule.partially_completed",
+              "job.deleteUniqueRule.queued",
+              "job.exportView.cancelled",
+              "job.exportView.succeeded",
+              "job.exportView.failed",
+              "job.exportView.partially_completed",
+              "job.exportView.queued"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+          },
+          "actor": { "type": "string" },
+          "resource": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["database", "table"] },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+                  },
+                  "name": { "type": "string" }
+                },
+                "required": ["type", "id", "name"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
+          "context": {
+            "type": "object",
+            "propertyNames": { "type": "string" },
+            "additionalProperties": {
+              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+              "anyOf": [
+                { "type": "null" },
+                { "type": "boolean" },
+                { "type": "number" },
+                { "type": "string" },
+                { "type": "array", "items": {} },
+                { "type": "object", "additionalProperties": {} }
+              ]
+            }
+          }
+        },
+        "required": ["event", "occurredAt", "actor", "resource", "context"],
         "additionalProperties": false
       },
       "queryHistoryInput": {

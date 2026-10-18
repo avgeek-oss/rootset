@@ -4621,6 +4621,142 @@ export type listActivityFilterOptionsOutput = {
   }[];
   hasMore: boolean;
 };
+export type getActivityDetailsInput = { orgId: string; eventId: string };
+export type getActivityDetailsOutput = {
+  event:
+    | "job.testBackupDestination.cancelled"
+    | "job.testBackupDestination.succeeded"
+    | "job.testBackupDestination.failed"
+    | "job.testBackupDestination.partially_completed"
+    | "job.testBackupDestination.queued"
+    | "job.saveBackupSchedule.cancelled"
+    | "job.saveBackupSchedule.failed"
+    | "job.saveBackupSchedule.partially_completed"
+    | "job.saveBackupSchedule.queued"
+    | "backup.failed.detected"
+    | "backup.failed.resolved"
+    | "backup.overdue.detected"
+    | "backup.overdue.resolved"
+    | "database.backup.prune"
+    | "database.backup_policy.update"
+    | "database.backup_schedule.update"
+    | "database.backup_schedule.delete"
+    | "job.previewDatabaseRestore.cancelled"
+    | "job.previewDatabaseRestore.succeeded"
+    | "job.previewDatabaseRestore.failed"
+    | "job.previewDatabaseRestore.partially_completed"
+    | "job.previewDatabaseRestore.queued"
+    | "job.runDatabaseBackup.cancelled"
+    | "job.runDatabaseBackup.succeeded"
+    | "job.runDatabaseBackup.failed"
+    | "job.runDatabaseBackup.partially_completed"
+    | "job.runDatabaseBackup.queued"
+    | "database.create"
+    | "database.delete"
+    | "job.deleteDatabase.cancelled"
+    | "job.deleteDatabase.failed"
+    | "job.deleteDatabase.partially_completed"
+    | "job.deleteDatabase.queued"
+    | "job.exportDatabase.cancelled"
+    | "job.exportDatabase.succeeded"
+    | "job.exportDatabase.failed"
+    | "job.exportDatabase.partially_completed"
+    | "job.exportDatabase.queued"
+    | "job.restoreDatabaseBackup.cancelled"
+    | "job.restoreDatabaseBackup.failed"
+    | "job.restoreDatabaseBackup.partially_completed"
+    | "job.restoreDatabaseBackup.queued"
+    | "database.restore"
+    | "database.update"
+    | "field.create"
+    | "field.convert"
+    | "job.createField.cancelled"
+    | "job.createField.failed"
+    | "job.createField.partially_completed"
+    | "job.createField.queued"
+    | "field.delete"
+    | "job.deleteField.cancelled"
+    | "job.deleteField.failed"
+    | "job.deleteField.partially_completed"
+    | "job.deleteField.queued"
+    | "job.reorderFields.cancelled"
+    | "job.reorderFields.failed"
+    | "job.reorderFields.partially_completed"
+    | "job.reorderFields.queued"
+    | "job.updateField.cancelled"
+    | "job.updateField.failed"
+    | "job.updateField.partially_completed"
+    | "job.updateField.queued"
+    | "field.update"
+    | "fields.reorder"
+    | "job.previewImportRows.cancelled"
+    | "job.previewImportRows.succeeded"
+    | "job.previewImportRows.failed"
+    | "job.previewImportRows.partially_completed"
+    | "job.previewImportRows.queued"
+    | "job.importRows.cancelled"
+    | "job.importRows.succeeded"
+    | "job.importRows.failed"
+    | "job.importRows.partially_completed"
+    | "job.importRows.queued"
+    | "records.changed"
+    | "job.applySchemaChange.cancelled"
+    | "job.applySchemaChange.failed"
+    | "job.applySchemaChange.partially_completed"
+    | "job.applySchemaChange.queued"
+    | "table.create"
+    | "job.createTable.cancelled"
+    | "job.createTable.failed"
+    | "job.createTable.partially_completed"
+    | "job.createTable.queued"
+    | "table.delete"
+    | "job.deleteTable.cancelled"
+    | "job.deleteTable.failed"
+    | "job.deleteTable.partially_completed"
+    | "job.deleteTable.queued"
+    | "job.exportRows.cancelled"
+    | "job.exportRows.succeeded"
+    | "job.exportRows.failed"
+    | "job.exportRows.partially_completed"
+    | "job.exportRows.queued"
+    | "foreign-key.create"
+    | "job.createForeignKey.cancelled"
+    | "job.createForeignKey.failed"
+    | "job.createForeignKey.partially_completed"
+    | "job.createForeignKey.queued"
+    | "foreign-key.delete"
+    | "job.deleteForeignKey.cancelled"
+    | "job.deleteForeignKey.failed"
+    | "job.deleteForeignKey.partially_completed"
+    | "job.deleteForeignKey.queued"
+    | "job.updateTable.cancelled"
+    | "job.updateTable.failed"
+    | "job.updateTable.partially_completed"
+    | "job.updateTable.queued"
+    | "table.update"
+    | "rule.create"
+    | "job.createUniqueRule.cancelled"
+    | "job.createUniqueRule.failed"
+    | "job.createUniqueRule.partially_completed"
+    | "job.createUniqueRule.queued"
+    | "rule.delete"
+    | "job.deleteUniqueRule.cancelled"
+    | "job.deleteUniqueRule.failed"
+    | "job.deleteUniqueRule.partially_completed"
+    | "job.deleteUniqueRule.queued"
+    | "job.exportView.cancelled"
+    | "job.exportView.succeeded"
+    | "job.exportView.failed"
+    | "job.exportView.partially_completed"
+    | "job.exportView.queued";
+  occurredAt: string;
+  actor: string;
+  resource: { type: "database" | "table"; id: string; name: string } | null;
+  context: Record<
+    string,
+    null | boolean | number | string | unknown[] | Record<string, unknown>
+  >;
+};
 export type queryHistoryInput = {
   orgId: string;
   databaseId: string;
@@ -6102,6 +6238,11 @@ const routes = {
     method: "GET",
     idempotencyRequired: false,
   },
+  getActivityDetails: {
+    path: "/v1/orgs/{orgId}/activity/details/{eventId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
   queryHistory: {
     path: "/v1/orgs/{orgId}/databases/{databaseId}/tables/{tableId}/history/query",
     method: "POST",
@@ -7000,6 +7141,16 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<listActivityFilterOptionsOutput>;
+  }
+  getActivityDetails(
+    input: getActivityDetailsInput,
+    options?: CallOptions,
+  ): Promise<getActivityDetailsOutput> {
+    return this.call(
+      "getActivityDetails",
+      input,
+      options,
+    ) as Promise<getActivityDetailsOutput>;
   }
   queryHistory(
     input: queryHistoryInput,
