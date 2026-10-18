@@ -1,0 +1,64 @@
+---
+title: "Towbar"
+description: "Deploy Rootset through your existing Towbar installation."
+icon: "/assets/installation/towbar.png"
+---
+
+import Manifests from "/snippets/towbar-manifests.mdx";
+
+Use your existing Towbar installation to run the Rootset API, worker, UI and a managed PostgreSQL database. You also need an S3 source and SMTP service as described in [Configuration](/self-hosting/configuration).
+
+## Deployment files
+
+Copy the YML files listed into your deployment repository in the same folder structure and update them as required based on the instructions below. Include the PostgreSQL initialization script when using the bundled datastore.
+
+<Tree>
+  <Tree.File name="towbar.yml" />
+  <Tree.Folder name=".towbar" defaultOpen>
+    <Tree.Folder name="config" defaultOpen>
+      <Tree.File name="postgres-init.sh" />
+    </Tree.Folder>
+    <Tree.Folder name="datastores" defaultOpen>
+      <Tree.File name="rootset-postgres.datastore.yml" />
+    </Tree.Folder>
+    <Tree.Folder name="services" defaultOpen>
+      <Tree.File name="rootset-api.service.yml" />
+      <Tree.File name="rootset-worker.service.yml" />
+      <Tree.File name="rootset-web.service.yml" />
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+Replace the IP address, TLS mode and domains as required. Add the required environment variables to runtime secrets based on your installation. The example includes commented-out backup variables; refer to [Configuration](/self-hosting/configuration) for the settings supported by your Rootset version.
+
+<Manifests />
+
+## Runtime secrets
+
+For the bundled PostgreSQL datastore, set:
+
+```dotenv
+POSTGRES_USER=postgres
+POSTGRES_DB=rootset
+POSTGRES_PASSWORD=your-generated-password
+```
+
+The initialization script creates an ordinary `rootset` database owner. It runs only on an empty datastore volume. Do not delete an existing volume to force initialization.
+
+On **both API and worker**, add the database URL, public URLs, application secrets, S3 source and SMTP settings from [Configuration](/self-hosting/configuration). Use `rootset-postgres:5432` as the database host when using the bundled datastore.
+
+Also add `ROOTSET_DATABASE_URL` to the **pre-deploy secrets** of both services so their migration hooks can connect. On the **UI**, add only `ROOTSET_PUBLIC_API_ORIGIN`, set to the public API URL.
+
+If you use an existing PostgreSQL server, omit the datastore and initialization script, and supply its ordinary database-owner URL instead.
+
+## Sync and deploy
+
+Connect the deployment repository in Towbar, map the `production` environment to your branch, and sync the manifests.
+
+1. Deploy PostgreSQL and wait for readiness, or check your existing database connection.
+2. Deploy the worker and wait for its migration hook and heartbeat check.
+3. Deploy the API and wait for `/health/ready`.
+4. Deploy the UI and open its public URL.
+5. Claim the installation with your configured application secret and create the first administrator.
+
+The examples keep deployment manual with `autoDeploy: false`. Keep all three application images on the same release version. Follow [Upgrades](/self-hosting/upgrades) when updating an existing installation.

@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://towbar.dev/schemas/app.v2.json
+id: rootset-web
+name: Rootset UI
+deployment:
+  type: image
+  image: ghcr.io/avgeek-oss/rootset-web:0.2.3
+autoDeploy: false
+rollout:
+  type: recreate
+  maintenanceMode: true
+  reason: Keep one instance per service during an upgrade.
+container:
+  network: rootset
+  port: 4300
+  resources:
+    cpus: 0.25
+    memory: 1g
+  entrypoint: /bin/sh
+  command:
+    - -ec
+    - |
+      export NODE_OPTIONS="--max-old-space-size=768 --max-http-header-size=196608"
+      exec node apps/rootset-web/server.js
+health:
+  type: http
+  path: /
+  timeoutSeconds: 180
+secrets:
+  runtime: [ROOTSET_PUBLIC_API_ORIGIN]
+ingress:
+  type: proxy
+domains:
+  primary: rootset.example.com
+tls:
+  mode: direct
+environments:
+  production:
+    server: 192.0.2.10

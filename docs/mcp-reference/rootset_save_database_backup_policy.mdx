@@ -1,0 +1,119 @@
+---
+title: "rootset_save_database_backup_policy"
+sidebarTitle: "Save database backup policy"
+description: "Save the successful-backup retention count and overdue grace. The newest successful backup and packages needed by current restore requests remain protected."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Find the database"] --> invoke["Save database backup policy"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Admin** or higher. The connection needs `backups:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+
+## Arguments
+
+| Argument              | Required | Type            | Details                                                            |
+| --------------------- | -------- | --------------- | ------------------------------------------------------------------ |
+| `expectedVersion`     | Yes      | integer         | —                                                                  |
+| `retentionCount`      | Yes      | integer or null | —                                                                  |
+| `overdueGraceMinutes` | Yes      | integer         | —                                                                  |
+| `orgId`               | Yes      | string          | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`          | Yes      | string          | ID of the database to work with.                                   |
+| `idempotencyKey`      | Yes      | string          | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "expectedVersion": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483646
+    },
+    "retentionCount": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "overdueGraceMinutes": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 1440
+    },
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "expectedVersion",
+    "retentionCount",
+    "overdueGraceMinutes",
+    "orgId",
+    "databaseId",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_save_database_backup_policy",
+    "arguments": {
+      "expectedVersion": 0,
+      "retentionCount": 1,
+      "overdueGraceMinutes": 5,
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/saveDatabaseBackupPolicy) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

@@ -1,78 +1,43 @@
 ---
-title: "Database backups"
-description: "Schedule full encrypted database backups to your own S3-compatible bucket."
+title: "Backup and restore"
+description: "Schedule database backups, review attempts, and restore a saved snapshot into a new database."
+icon: "archive-restore"
 ---
 
-An Admin can open a database and choose **Backup & Restore → Backup Schedule**. Each backup captures every table in that database, field definitions, unique rules, foreign keys, auto-increment counters, comments, saved views and retained history at one consistent point in time.
+Administrators manage a database's backups under **Backup & Restore**. A backup captures every table in that database, including field definitions, records, unique rules, table relations, comments, saved views and retained history.
 
-## Configure the worker
+## Before you begin
 
-Supply the following optional variables to the **worker only**, using its environment or secret manager:
+Your operator needs to configure a [database backup source](/self-hosting/configuration#database-backup-source) on the worker. If storage is not configured or no backup-enabled worker is online, Rootset shows an empty state instead of the schedule forms.
 
-```dotenv
-ROOTSET_BACKUP_S3_ENDPOINT=https://your-backup-endpoint.example.com
-ROOTSET_BACKUP_S3_REGION=us-east-1
-ROOTSET_BACKUP_S3_ACCESS_KEY=your-access-key
-ROOTSET_BACKUP_S3_SECRET_KEY=your-secret-key
-ROOTSET_BACKUP_ENCRYPTION_KEY=your-64-hex-digit-backup-key
-```
-
-Generate the backup key with `openssl rand -hex 32`. Keep it outside Rootset with your recovery configuration. Existing packages require the key that encrypted them. Packages contain the encryption metadata needed to read them without the original installation database; they never contain the key itself.
-
-The backup destination is independent of the S3 storage used for temporary exports. All backup-enabled workers must use the same endpoint, region, addressing mode and encryption key. Workers without these settings continue processing ordinary jobs. Partial configuration prevents the worker from starting. Use HTTPS for remote object storage.
-
-The bucket must already exist. Credentials need write and read access to the selected prefix, multipart upload/abort permissions, and delete access for test probes under `<prefix>/.rootset-tests/`. Configured retention also needs delete permission on the catalogued backup objects in the selected prefix. No public bucket access is needed.
-
-The Compose files pass backup variables only to the worker and use its existing writable disk-backed artifact spool. Other installations should set `ROOTSET_BACKUP_TEMP_DIR` to a private writable disk directory. The default compressed encrypted package limit is 32 GiB, with a one-GiB free-space reserve. `ROOTSET_BACKUP_MAX_BYTES` can increase this to at most 63 GiB. Oversized backups fail explicitly. RAM use is bounded; the worker needs disk space for a complete compressed encrypted package before upload.
-
-`ROOTSET_BACKUP_S3_FORCE_PATH_STYLE` defaults to `true`; use `false` for providers that require virtual-host addressing. Region defaults to `us-east-1`.
+The backup bucket must exist. Keep the backup encryption key outside Rootset; restoring a package requires its original key.
 
 ## Save a schedule
 
-Enter a bucket and optional path prefix, a cron expression, and a timezone from the searchable **Time zone** dropdown, then choose **Save schedule**. The worker writes a random probe, reads it back, verifies it and removes it before saving. A failed verification leaves any existing schedule unchanged and shows an error toast. Leading and trailing slashes in the path prefix are removed automatically.
+Open **Backup Schedule**, enter the bucket and an optional path prefix, choose a timezone, and enter a cron schedule. For example, `0 2 * * *` runs daily at 02:00 in that timezone.
 
-Cron has five numeric fields: minute, hour, day of month, month, weekday. Lists, ranges and steps are supported. Seconds and aliases such as `@daily` are not accepted. For example, `0 2 * * *` means daily at 02:00 in the saved timezone. If both day-of-month and weekday are restricted, either may match. The page previews the next three runs. On spring-forward days a missing local time advances by the daylight-saving gap; the repeated fall-back hour runs once. All occurrence timestamps are stored in UTC.
+Choose **Save schedule**. Rootset tests the destination before saving it. If the test fails, the existing schedule stays unchanged. Leading and trailing slashes in the prefix are removed automatically.
 
-The initial timezone is copied from the Admin's preferences. Later preference changes do not alter a saved schedule. Every saved schedule is active and belongs to the database, so it continues if the configuring Admin leaves. **Delete schedule**, beside **Save schedule**, stops scheduled backups and removes the configuration, including while the worker is offline. It also cancels pending scheduled runs and schedule saves; a verification already in progress cannot recreate a deleted schedule. Deleting the schedule does not delete packages itself; configured retention and bucket lifecycle rules still apply. History is retained. Changes cancel pending scheduled runs from an older schedule version. Cancellation is checked between extraction batches and before publication; an in-flight storage request may finish before cancellation is observed.
+The schedule belongs to the database and continues if its configuring administrator leaves. Choose **Delete schedule** to stop scheduled backups; this does not delete completed packages.
 
-Open **Backup Attempts** and use **Back up now** to queue a full backup to a verified saved destination. Manual runs recheck their requester's authority before publication. Changes to the worker endpoint or encryption key require saving the schedule again, which verifies the destination before applying the changes.
+Use **Retention and alerts** to choose how many successful backups to keep and how long a scheduled backup can be overdue before notifying administrators. Leave the backup count empty to keep all managed backups. The most recent successful backup and packages needed by restores remain protected.
 
-## Backup attempts and failures
+## Run a backup now
 
-Open **Backup & Restore → Backup Attempts** for destination tests, manual and scheduled backups, and missed schedule ranges. The Type chips show **Manual** or **Scheduled**. Scheduled and snapshot timestamps use relative dates alongside the exact time in your account preferences. A successful backup shows its snapshot timestamp, size, table and row counts, and S3 object path. Queued work is not a completed backup. Use **Cancel** on queued or running work when needed; cancelling a run does not delete completed packages.
+Open **Backup Attempts** and choose **Back up now**. A manual run uses the saved destination. Only one backup for a database can be queued or running at a time.
 
-Only one backup per database can be queued or running. Temporary failures retry with backoff, at most three attempts. Every attempt starts a complete snapshot with a unique object key. A worker outage results in one current catch-up backup; missed occurrences are recorded, not recreated. Snapshot time can differ from the planned time.
+Backup Attempts lists manual and scheduled runs, destination tests and failures. Successful backups show the snapshot time, size, table and row counts, and storage path. Queued or running work is not a completed backup. Use **Cancel** when you need to stop a pending attempt.
 
-The worker releases its database snapshot before uploading. Record writes continue during extraction; schema changes and deletion coordinate with the snapshot lock. A backup is successful only after a complete upload and a full read-back SHA-256 verification. This adds read traffic to your bucket. Incomplete multipart uploads are aborted when possible; configure the bucket to expire abandoned multipart uploads after crashes. Completed objects from interrupted or cancelled attempts can remain unlisted in history and can be managed through your bucket lifecycle policy.
+## Restore a database
 
-## Backup contents and recovery
+Choose **Restore** on a successful backup, then **Verify backup**. Rootset reads and verifies the package before offering the restore. Review its tables, counts and compatibility result, choose a name, and confirm the restore.
 
-Each `.rootset-backup` is an independent full backup: a versioned authenticated AES-256-GCM envelope around a compressed ZIP64 archive. The archive holds a manifest, JSON schema and rule definitions, typed NDJSON rows, generator state, comments and retained history. NULL, empty strings, leading-zero text, JSON values, record identifiers, versions and timestamps are preserved. URLs and image fields retain their values; remote content is not downloaded into the backup.
+A restore creates a new database; it does not replace the source database. Open **Restore Attempts** to follow its progress. Once it succeeds, open the restored database and verify the records before using it.
 
-Authentication secrets, accounts, sessions, API keys, OAuth grants, job queues, temporary exports and installation credentials are outside the database backup. Historical authors are preserved as attribution, not login authority. A database backup is separate from a complete installation recovery plan.
+The restore needs a worker with access to the original backup source and encryption key. If a database was deleted, the managed backup can still be recoverable through the [restore API](/api-reference/previewDatabaseRestore) when you have the backup reference and required administrator access.
 
-## Restore into a new database
+## What a database backup contains
 
-In **Backup Attempts**, choose **Restore** on a successful managed backup, then **Verify backup**. A worker with the original endpoint and encryption key downloads the published object, verifies its size and SHA-256 checksum, authenticates its AES-GCM envelope, and checks every archive entry against the manifest. It validates compatible schema migrations, field definitions, typed records and the relationship graph. The preview lists active tables, fields, records, unique rules and foreign keys, plus counts for comments, saved views and retained history. Previewing does not create or modify a database.
+Backups preserve typed values, NULLs, identifiers, counters, comments and retained history. Image and URL fields retain their URLs; their remote files are not downloaded.
 
-Enter a **New database name** and choose **Restore into new database**. Previews expire after 24 hours and belong to the verifying credential. Restoration downloads and verifies the exact package again, then loads it in one database transaction. Required fields, types, bounds, choices, uniqueness, foreign keys and generator counters must all pass validation before publication. Failure or cancellation rolls back the new database and its schema. Existing databases and backup packages are preserved. A committed restore is recorded atomically, so a worker retry after publication returns the same new database.
-
-Open **Backup & Restore → Restore Attempts** to follow verification and restoration, reopen a request, cancel it, retry a failed restore, or open the restored database. Closing the drawer leaves queued work running. Current Admin authority and both `backups:manage` and `databases:manage` are required at submission and before publication; status reads recheck current authority. Cancellation is checked between download chunks, row/history batches and validation steps. A current storage request or SQL validation statement can finish before it is observed.
-
-Tables, fields, rules and history receive new internal identities. Table-scoped record IDs, versions, values and timestamps retain their original meaning, including microsecond timestamp precision. Historical actor attribution grants no login access. Personal saved views keep their original owner if the account still exists; otherwise they are omitted and reported. Shared views remain shared. Packages created before saved views were included remain supported and restore without those views. Backup scheduling starts unconfigured: save and verify a schedule explicitly for the new database.
-
-Restore accepts only a successful backup already catalogued by this installation in the same organisation, including through the API when the source database has been deleted. Arbitrary archive uploads, overwriting an existing database and restoring accounts or credentials are not supported. The first implementation supports up to 1,000 tables, 10,000 archive entries and 64 MiB of schema metadata, with bounded record/history batches and the configured backup size limit. It needs disk space for both the encrypted package and decrypted ZIP plus the configured reserve; archive entries are read as streams rather than extracted to filesystem paths.
-
-## Retention and administrator alerts
-
-**Backup Schedule → Retention and alerts** lets an Admin choose how many successful backups to keep, independently of the cron schedule and destination. Leave **Successful backups to keep** empty to keep all, which is the default for existing and new databases. A count from 1 to 10,000 keeps the newest successful packages by completion time. The latest successful backup always remains protected. Backups used by queued/running restore requests or unexpired verified previews stay protected, so the retained total can temporarily exceed the configured count.
-
-The worker removes only exact catalogued object keys belonging to that database and the worker's configured backend. It does not delete arbitrary prefixes, failed-attempt objects, destination probes or publication history. History shows **Removing** while a deletion is pending and **Pruned** after removal; unavailable packages have no Restore action. Failed removal backs off and retries, and **Backup Attempts** reports the retention error. Removal is permanent. Increasing the retention count or switching to keep-all cannot recover packages already removed or cancel a deletion already claimed by a worker.
-
-Administrators receive one email when a full manual or scheduled backup fails after its available attempts. Cancellation, destination tests, pending retries and skipped ranges do not produce failure emails. A later successful backup resolves the failure alert.
-
-The **Overdue grace period** defaults to 60 minutes and accepts 5 to 1,440 minutes. A scheduled backup is overdue when no successful snapshot covers a cron occurrence older than that grace period, starting after the current schedule version was saved. Timezone and daylight-saving behavior follows the saved cron schedule. One active overdue episode sends one notification, rather than a new message for every missed occurrence. A qualifying successful snapshot, deletion of the schedule or a schedule change resolves the episode. Upgrades do not notify about historical incidents before alert tracking began.
-
-Notifications use the worker's existing SMTP configuration and encrypted email queue. Only current verified administrators receive them; membership, role, address and alert status are checked again at delivery. Resolved alerts and recipients who lost Admin access are suppressed. If every worker is offline, detection and notification resume only when a worker returns.
-
-Rootset's protection applies to its own retention process. A bucket lifecycle rule or external deletion can still remove a protected object. Keep the provider's lifecycle policy consistent with your retention needs and preserve every encryption key required by retained packages.
+Accounts, sessions, API keys, OAuth grants, queued jobs and installation credentials are outside a database backup. For recovery of the whole installation, follow [Backup and recovery](/self-hosting/backup).

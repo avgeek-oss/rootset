@@ -1,48 +1,38 @@
 ---
-title: "Releases and upgrades"
-description: "Pin all three images to a release version and preserve your installation data."
+title: "Upgrades"
+description: "Update all three services together while preserving your data and configuration."
+icon: "arrow-up"
 ---
 
-A release publishes `ghcr.io/avgeek-oss/rootset-api:<version>`, `ghcr.io/avgeek-oss/rootset-worker:<version>` and `ghcr.io/avgeek-oss/rootset-web:<version>` for Linux amd64 and arm64. Migrations reuse the API image. All three images share one version and are built from the same reviewed commit.
+Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/rootset/releases). Read its release notes for configuration changes, then take a [recoverable backup](/self-hosting/backup).
 
-The release workflow validates the version/tag and requires verification for that exact commit to pass before building images. It assembles the architecture manifests, verifies anonymous access, and tests installation and restart using the pulled images on both native architectures. Only after those checks pass does it publish the GitHub release with image digests and installation files. Publishing a tag does not by itself mean the release is ready for installation.
+Use the same release version for the API, worker and UI. Keep the PostgreSQL data, object storage, application secret and encryption keys.
 
-## Upgrade a released installation
+## Docker Compose
 
-Read the target release notes first. Protect PostgreSQL, object storage, and the persistent application secret/encryption key using your provider's backup tools. Download the target release's Compose file, which pins all images to that version. Preserve your existing `.env` settings, review any configuration changes in the release notes, and pull before replacing running containers.
-
-```bash
-docker compose pull
-docker compose up -d --wait
-docker compose ps
-curl --fail http://localhost:4310/health/ready
-```
-
-Include `--profile local-db` if you use bundled PostgreSQL. Preserve the Compose project name and volumes. `docker compose down` preserves named volumes; `down --volumes` deletes them.
-
-## Upgrading to v0.1.5
-
-Version `0.1.5` supports in-place upgrades from released `0.1.2`, `0.1.3` and `0.1.4` installations. Back up the database and stop the API and worker before running migrations. Keep your database volume, object storage, application secret and encryption key.
-
-The `0.1.4` release appended the comments schema to the existing baseline. Version `0.1.5` recognizes the exact baseline and migration hashes from `0.1.2` and `0.1.3`, adds the comments schema and deletion log, and reconciles the baseline checksum in one transaction. The original migration ledger, including its timestamps, is retained in `rootset_control.migration_repairs`. Existing rows, users, credentials, metadata and history are preserved. An existing `0.1.4` installation keeps its comments unchanged.
-
-The API and worker images include this compatibility upgrade. Compose's migration service and Towbar's pre-deploy hooks run it through the normal migration command; no manual checksum edit or separate SQL command is needed. Repeating the migration is safe. Unknown hashes, conflicting comment tables and unsupported migration histories still stop the upgrade without resetting data.
-
-For Compose, after downloading the `0.1.5` Compose file and preserving your existing `.env`:
+Download the new release's Compose file as described in [Docker Compose installation](/self-hosting/installation/docker-compose). Preserve your existing `.env` and review any new configuration settings.
 
 ```bash
 docker compose pull
 docker compose stop api worker web
 docker compose run --rm migrate
 docker compose up -d --wait
+docker compose ps
+curl --fail http://localhost:4310/health/ready
 ```
 
-For Towbar, stop the existing API and worker before deploying the new images. Deploy the worker first, then the API and UI. The worker's pre-deploy hook migrates the database; its heartbeat is then available for the API readiness check. Image rollback does not reverse database changes. To restore the earlier schema, use the pre-upgrade backup with the matching images and secrets.
+Include `--profile local-db` when using bundled PostgreSQL. Keep the Compose project name and named volumes. Do not use `docker compose down --volumes` during an upgrade.
 
-## Prelaunch databases
+## Towbar
 
-Unreleased prelaunch schemas and unknown modified baselines remain unsupported. Startup refuses them without resetting the original installation. Preserve that database for inspection; do not clear the migration ledger or change its hashes to force startup. The released `0.1.2`–`0.1.4` upgrade path above is separate from these prelaunch schemas.
+Update the API, worker and UI image references in your deployment repository to the chosen version, then sync it in Towbar. Stop the existing API and worker before starting the upgrade.
 
-[Database backups](/backups) protect logical databases through the worker. Rootset has no restore UI or public restore operation yet. Recover the complete installation with PostgreSQL and object-storage tools, with matching secrets and image versions. Do not assume an older application image can read a newer schema.
+Deploy the worker first so its migration hook completes and its heartbeat becomes available. Deploy the API next, wait for readiness, and then deploy the UI. Keep the datastore and persistent volumes in place.
 
-Row discussions are stored in the shared `rootset_control.row_comments` table. Include the complete control schema and user-data schemas in the same consistent PostgreSQL backup and restore. A CSV/JSON row export does not contain comments, and copying only a logical database's physical tables cannot restore its discussions. Deleting a row, table or database removes its comments from the live installation. Older provider snapshots retain their point-in-time contents according to your backup retention policy.
+## After upgrading
+
+Verify sign-in, open a table, and confirm that an export completes and downloads. If migrations or readiness checks fail, inspect the first error before continuing.
+
+Database migrations run through the normal migration command. Unknown or modified migration histories stop the upgrade without resetting the installation; do not edit stored checksums to force it through.
+
+An image rollback does not undo database changes. To recover an earlier schema, restore the matching installation backup and configuration.

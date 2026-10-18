@@ -1,0 +1,109 @@
+---
+title: "rootset_delete_row_comment"
+sidebarTitle: "Delete row comment"
+description: "Permanently clear your own comment's body, or moderate as an administrator, while retaining its author, creation time and deletion timestamp in the discussion. Requires current write access to the row. Deleted entries cannot be edited, restored or removed through comment operations."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Delete row comment"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Member** or higher. The connection needs `rows:write` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+
+## Arguments
+
+| Argument         | Required | Type   | Details                                                            |
+| ---------------- | -------- | ------ | ------------------------------------------------------------------ |
+| `orgId`          | Yes      | string | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`     | Yes      | string | ID of the database to work with.                                   |
+| `tableId`        | Yes      | string | ID of the table to work with.                                      |
+| `rowId`          | Yes      | string | Stable record ID, not its position in the spreadsheet.             |
+| `commentId`      | Yes      | string | —                                                                  |
+| `idempotencyKey` | Yes      | string | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "rowId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "commentId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "orgId",
+    "databaseId",
+    "tableId",
+    "rowId",
+    "commentId",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_delete_row_comment",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000",
+      "rowId": "01K6J7B8000000000000000000",
+      "commentId": "01K6J7B8000000000000000000",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/deleteRowComment) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

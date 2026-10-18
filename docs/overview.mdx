@@ -1,0 +1,51 @@
+---
+title: "About Rootset"
+description: "Organise structured data in typed tables, work together in a spreadsheet, and connect your tools."
+icon: "database"
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Rootset is an open-source workspace for structured data. Your team can create tables, edit records in the browser, and use the same data through REST and MCP. You run Rootset on your own infrastructure with PostgreSQL.
+
+## How your data is organised
+
+Each installation has one workspace. A **database** groups related tables, and each **table** has fields that describe the values its records can hold. Creating a database in Rootset does not require another PostgreSQL connection.
+
+For example, a product database could have a Products table with a name, stock count and price, plus a Suppliers table linked through a [table relation](/table-relations).
+
+## Start with a table
+
+1. [Install Rootset](/self-hosting/installation) and create the first administrator account.
+2. Choose **Create database**, open it, and choose **Create table**.
+3. Add fields in **Settings → Fields**, choosing the types and rules your data needs.
+4. Use **Add record** or **Import records** to populate the table. Double-click a cell to edit it.
+
+<Screenshot
+  light="/assets/screenshots/rows-light.png"
+  dark="/assets/screenshots/rows-dark.png"
+  alt="A Rootset table with typed fields and editable records"
+  width={3840}
+  height={2160}
+/>
+
+## Work together
+
+Invite people with Admin, Member or Viewer access. Use [saved views](/saved-views) to return to a useful arrangement of columns, filters and sorting. Row comments keep discussions beside the record, and [cell history](/cell-history) shows saved changes.
+
+## Connect your tools
+
+Use [API keys](/api-keys) for REST integrations, or connect an [MCP client](/mcp-guide) through browser sign-in. The browser, API and MCP share the same data rules and permissions.
+
+<CardGroup cols={2}>
+  <Card
+    title="Install Rootset"
+    icon="network"
+    href="/self-hosting/installation"
+  >
+    Choose Docker Compose or Towbar for your server.
+  </Card>
+  <Card title="Explore tables" icon="table" href="/tables">
+    Learn about fields, records, views and data workflows.
+  </Card>
+</CardGroup>

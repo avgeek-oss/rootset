@@ -1,0 +1,316 @@
+---
+title: "rootset_update_saved_view"
+sidebarTitle: "Update saved view"
+description: "Update your personal view, or an owned/shared view with current write authority. Administrators can manage shared views; only its owner can make one personal. Versions reject concurrent edits."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Update saved view"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Use a personal OAuth connection for the signed-in account. The connection needs `rows:read` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+- Read the current table schema before supplying `expectedSchemaVersion`.
+
+## Arguments
+
+| Argument                | Required | Type                   | Details                                                            |
+| ----------------------- | -------- | ---------------------- | ------------------------------------------------------------------ |
+| `orgId`                 | Yes      | string                 | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`            | Yes      | string                 | ID of the database to work with.                                   |
+| `tableId`               | Yes      | string                 | ID of the table to work with.                                      |
+| `expectedSchemaVersion` | Yes      | integer                | Current version returned by the table schema.                      |
+| `viewId`                | Yes      | string                 | —                                                                  |
+| `expectedVersion`       | Yes      | string                 | —                                                                  |
+| `name`                  | No       | string                 | —                                                                  |
+| `visibility`            | No       | "personal" or "shared" | —                                                                  |
+| `definition`            | No       | object                 | —                                                                  |
+| `idempotencyKey`        | Yes      | string                 | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "viewId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "visibility": {
+      "type": "string",
+      "enum": ["personal", "shared"]
+    },
+    "definition": {
+      "type": "object",
+      "properties": {
+        "columnOrder": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "columnWidths": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 2000
+          }
+        },
+        "frozenColumns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "hiddenColumns": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "query": {
+          "type": "object",
+          "properties": {
+            "where": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "orderBy": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": ["asc", "desc"]
+                  }
+                },
+                "required": ["field", "direction"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "columnOrder",
+        "columnWidths",
+        "frozenColumns",
+        "hiddenColumns",
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "orgId",
+    "databaseId",
+    "tableId",
+    "expectedSchemaVersion",
+    "viewId",
+    "expectedVersion",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "eq",
+                "ne",
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "between",
+                "in",
+                "isNull",
+                "isNotNull",
+                "prefix",
+                "contains",
+                "iContains",
+                "pathExists",
+                "pathEq",
+                "jsonContains"
+              ]
+            },
+            "value": {
+              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              ]
+            },
+            "path": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["field", "op"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "and": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            }
+          },
+          "required": ["and"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "or": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            }
+          },
+          "required": ["or"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_update_saved_view",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000001",
+      "tableId": "01K6J7B8000000000000000002",
+      "expectedSchemaVersion": 1,
+      "viewId": "01K6J7B8000000000000000003",
+      "expectedVersion": "1",
+      "name": "Needs review",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/updateSavedView) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

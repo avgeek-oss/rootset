@@ -1,0 +1,253 @@
+---
+title: "rootset_count_rows"
+sidebarTitle: "Count rows"
+description: "Get an explicitly labelled count; expensive exact filtered counts become jobs."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Count rows"]
+  invoke --> outcome["Check the job result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Viewer** or higher. The connection needs `rows:read` scope.
+
+- This tool reads data without changing it.
+- A returned job is pending work. Use [rootset_get_job](/mcp-reference/rootset_get_job) to check its final result.
+
+## Arguments
+
+| Argument     | Required | Type    | Details                                       |
+| ------------ | -------- | ------- | --------------------------------------------- |
+| `orgId`      | Yes      | string  | Workspace ID returned by rootset_get_context. |
+| `databaseId` | Yes      | string  | ID of the database to work with.              |
+| `tableId`    | Yes      | string  | ID of the table to work with.                 |
+| `query`      | No       | object  | —                                             |
+| `exact`      | No       | boolean | —                                             |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "query": {
+      "type": "object",
+      "properties": {
+        "select": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "where": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "orderBy": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "direction": {
+                "type": "string",
+                "enum": ["asc", "desc"]
+              }
+            },
+            "required": ["field", "direction"],
+            "additionalProperties": false
+          }
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25000
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 131200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "exact": {
+      "type": "boolean"
+    }
+  },
+  "required": ["orgId", "databaseId", "tableId"],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "eq",
+                "ne",
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "between",
+                "in",
+                "isNull",
+                "isNotNull",
+                "prefix",
+                "contains",
+                "iContains",
+                "pathExists",
+                "pathEq",
+                "jsonContains"
+              ]
+            },
+            "value": {
+              "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              ]
+            },
+            "path": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["field", "op"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "and": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            }
+          },
+          "required": ["and"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "or": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            }
+          },
+          "required": ["or"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_count_rows",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/countRows) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

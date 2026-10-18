@@ -1,0 +1,115 @@
+---
+title: "rootset_preview_preferences"
+sidebarTitle: "Preview preferences"
+description: "Preview a UTC instant with proposed display preferences."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Check the account"] --> invoke["Preview preferences"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Viewer** or higher.
+
+- This tool reads data without changing it.
+
+## Arguments
+
+| Argument      | Required | Type   | Details                                                           |
+| ------------- | -------- | ------ | ----------------------------------------------------------------- |
+| `preferences` | Yes      | object | —                                                                 |
+| `value`       | Yes      | string | UTC instant with mandatory Z and at most three fractional digits. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "preferences": {
+      "type": "object",
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "dateFormat": {
+          "type": "string",
+          "enum": [
+            "day-short-month-year",
+            "short-month-day-year",
+            "year-month-day",
+            "day-month-year",
+            "month-day-year"
+          ]
+        },
+        "timeFormat": {
+          "type": "string",
+          "enum": ["24-hour", "12-hour", "24-hour-seconds", "12-hour-seconds"]
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["system", "light", "dark"]
+        }
+      },
+      "required": ["timezone", "locale", "dateFormat", "timeFormat", "theme"],
+      "additionalProperties": false
+    },
+    "value": {
+      "type": "string",
+      "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$",
+      "format": "date-time",
+      "description": "UTC instant with mandatory Z and at most three fractional digits.",
+      "examples": ["2024-01-01T12:30:00.000Z"]
+    }
+  },
+  "required": ["preferences", "value"],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_preview_preferences",
+    "arguments": {
+      "preferences": {
+        "timezone": "UTC",
+        "locale": "en-GB",
+        "dateFormat": "day-short-month-year",
+        "timeFormat": "24-hour",
+        "theme": "system"
+      },
+      "value": "2024-01-01T12:30:00.000Z"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/previewPreferences) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

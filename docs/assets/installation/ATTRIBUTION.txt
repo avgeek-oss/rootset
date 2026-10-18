@@ -1,0 +1,5 @@
+Docker Compose logo: https://github.com/docker/compose/blob/289d8a037874a5197c54cfa055d28cc5d980593f/logo.png
+Source license: LICENSE.docker-compose (Apache-2.0). Docker and Docker Compose names and logos belong to Docker.
+
+Towbar logo: https://github.com/avgeek-oss/towbar/blob/0ab387c473a25c12fc7bada6482585e2c4698b33/apps/towbar-web-app/public/brand/towbar-logo.png
+Resized to 256 x 256 pixels. Towbar is an Avgeek OSS application, licensed under Apache-2.0.

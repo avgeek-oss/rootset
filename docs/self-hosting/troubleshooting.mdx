@@ -1,6 +1,7 @@
 ---
 title: "Troubleshooting"
 description: "Diagnose image pulls, startup, API connectivity, email and export failures."
+icon: "life-buoy"
 ---
 
 ## Container image cannot be pulled
@@ -14,7 +15,7 @@ docker compose ps -a
 docker compose logs --tail=100 migrate api worker
 ```
 
-Fix the first failed prerequisite. A migration failure blocks API/worker startup. Verify that PostgreSQL is reachable and its owner can create schemas and `pgcrypto`. For the baseline mismatch when upgrading `0.1.2` or `0.1.3` to `0.1.4`, use `0.1.5` and follow [Releases and upgrades](/self-hosting/upgrades). Unknown baseline hashes still require inspection; do not delete the ledger or change checksums manually.
+Fix the first failed prerequisite. A migration failure blocks API/worker startup. Verify that PostgreSQL is reachable and its owner can create schemas and `pgcrypto`. Follow [Upgrades](/self-hosting/upgrades) if a migration fails during an update; do not edit stored checksums or delete the migration ledger.
 
 ## The UI cannot reach the API
 
@@ -30,4 +31,4 @@ Check the worker is healthy, PostgreSQL is reachable, and API/worker use the sam
 
 ## Lost secrets or data
 
-Recover using the provider-level backup and matching image version, application secret and encryption key. A new encryption key does not unlock old artifacts. Rootset has no in-app restore or deleted-row recovery.
+Recover using the provider-level backup and matching image version, application secret and encryption key. A new encryption key does not unlock old artifacts. You can [restore a saved database backup](/backups#restore-a-database), but this does not replace recovery of the complete installation. Deleted rows have no undo.

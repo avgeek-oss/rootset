@@ -1,0 +1,79 @@
+---
+title: "rootset_update_profile"
+sidebarTitle: "Update profile"
+description: "Update your display name."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Check the account"] --> invoke["Update profile"]
+  invoke --> outcome["Read the result"]
+```
+
+## Access and behavior
+
+Use a personal OAuth connection for the signed-in account. The connection needs `profile:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+
+## Arguments
+
+| Argument         | Required | Type   | Details                                                            |
+| ---------------- | -------- | ------ | ------------------------------------------------------------------ |
+| `name`           | Yes      | string | —                                                                  |
+| `idempotencyKey` | Yes      | string | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": ["name", "idempotencyKey"],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_update_profile",
+    "arguments": {
+      "name": "example",
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/updateProfile) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)

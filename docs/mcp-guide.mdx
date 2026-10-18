@@ -1,90 +1,84 @@
 ---
-title: "Connect an MCP client"
-description: "Connect to Rootset's public MCP endpoint with browser sign-in."
+title: "MCP connections"
+description: "Connect an MCP client to Rootset through browser sign-in."
+icon: "/assets/icons/mcp.svg"
 ---
 
-Rootset exposes Streamable HTTP MCP at **`https://your-api-origin/mcp`**. Use the same API origin as REST; do not point MCP clients at the UI.
+Use your installation's public **API** URL followed by `/mcp`, such as `https://rootset-api.example.com/mcp`. The UI URL is a separate address.
 
-Add the remote server URL, then sign in to Rootset in your browser and review the requested access. The configurations below use OAuth; you do not need to create an API key or configure an authentication header.
+Add the server in your MCP client, sign in to Rootset in the browser, and review the requested access. MCP uses OAuth; you do not need an API key or a custom authentication header.
 
-## Codex
+## Connect your client
 
-Add this entry to `~/.codex/config.toml`, replacing the example URL with your installation's public API origin:
+<Tabs>
+  <Tab title="Codex">
+    Add the server to `~/.codex/config.toml`:
 
-```toml
-[mcp_servers.rootset]
-url = "https://rootset-api.example.com/mcp"
-```
+    ```toml
+    [mcp_servers.rootset]
+    url = "https://rootset-api.example.com/mcp"
+    ```
 
-Save the configuration, then start browser sign-in:
+    Then start browser sign-in:
 
-```sh
-codex mcp login rootset
-```
+    ```bash
+    codex mcp login rootset
+    ```
 
-If you previously used the API-key configuration, remove `bearer_token_env_var` and any custom authentication headers before signing in. See [Codex's MCP guide](https://developers.openai.com/codex/mcp).
+    Remove any old `bearer_token_env_var` or custom authentication headers before switching from an API-key configuration.
 
-Codex uses its client metadata document and a local callback with a dynamically assigned port. Rootset accepts port changes for literal loopback HTTP callbacks (`127.0.0.1` or `[::1]`), while the registered host, path and query must still match. The authorization code is bound to the exact callback selected for that request.
+  </Tab>
+  <Tab title="Cursor">
+    Add the server to `.cursor/mcp.json`, then connect and follow the browser sign-in prompt:
 
-The consent form starts with **Read-only**. Choose **Write** or **Administrator** yourself before approving; the client's requested scopes do not select or limit this choice. The available choices are bounded by your current team role. Administrator access requires an administrator account and recent identity confirmation.
-
-```bash
-codex mcp login rootset
-```
-
-Changing your team role, including a promotion, or removing your membership automatically revokes your MCP connections and pending approvals. Reconnect and approve again with your new role. Restoring the previous role does not reactivate an old connection. You can also revoke connections in **Account Settings → MCP connections**.
-
-MCP requires OAuth. [Personal and team API keys](/api-keys) remain available for REST requests.
-
-## Cursor
-
-Add the server to `.cursor/mcp.json`, then connect and complete the browser sign-in prompt:
-
-```json
-{
-  "mcpServers": {
-    "rootset": {
-      "url": "https://rootset-api.example.com/mcp"
+    ```json
+    {
+      "mcpServers": {
+        "rootset": { "url": "https://rootset-api.example.com/mcp" }
+      }
     }
-  }
-}
-```
+    ```
 
-## VS Code
+  </Tab>
+  <Tab title="VS Code">
+    Add the server to `.vscode/mcp.json`, start it from the MCP controls, and follow the authorization prompt:
 
-Add the server to `.vscode/mcp.json`, start it from VS Code's MCP controls, and follow the authorization prompt:
-
-```json
-{
-  "servers": {
-    "rootset": {
-      "type": "http",
-      "url": "https://rootset-api.example.com/mcp"
+    ```json
+    {
+      "servers": {
+        "rootset": {
+          "type": "http",
+          "url": "https://rootset-api.example.com/mcp"
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-## Claude Code
+  </Tab>
+  <Tab title="Claude Code">
+    Add the remote server:
 
-Add the remote server:
+    ```bash
+    claude mcp add --transport http rootset 'https://rootset-api.example.com/mcp'
+    ```
 
-```sh
-claude mcp add --transport http rootset 'https://rootset-api.example.com/mcp'
-```
+    Open `/mcp` in Claude Code and select Rootset to sign in.
 
-Open `/mcp` in Claude Code and select Rootset to authenticate through your browser. See [Claude Code's MCP guide](https://code.claude.com/docs/en/mcp#authenticate-with-remote-mcp-servers).
+  </Tab>
+</Tabs>
 
-## Other clients
+Replace the example API URL with your own installation. Other clients need Streamable HTTP and OAuth support.
 
-Use a client that supports Streamable HTTP and OAuth. Add your installation's `/mcp` URL and follow its browser sign-in flow.
+## Choose access
 
-## Permissions and connections
+The consent form starts with **Read-only**. Choose **Write** or **Administrator** if needed and available for your workspace role. Administrator access requires an administrator account and recent identity confirmation.
 
-The approved scopes are bounded by your current workspace role. Read-only access cannot edit records. Edit access cannot delete databases or tables. Administrators can authorize those operations; browser-only identity confirmation is not an approval ticket for MCP.
+Role changes and membership removal revoke existing MCP connections. Sign in again to approve access under your new role. You can revoke a connection in **Account Settings → MCP connections**.
 
-Manage and revoke access in **Account Settings → MCP connections**. When access expires or is revoked, sign in again from your client.
+## Try a workflow
 
-## Work with a table
+Ask your client to find the workspace, list its databases and tables, and read a table's schema. It can then query records or make changes within the access you approved.
 
-Ask the client to discover the workspace, list databases and tables, and read the table schema before querying or creating rows. [MCP tools](/mcp-tools) share the REST contract and permissions. Schema changes, exports and deletion can return jobs; inspect their status before treating the operation as complete.
+The **MCP reference** groups individual tools by purpose. Each tool page includes its arguments, an example call, permissions and the corresponding REST operation. For jobs such as exports or schema changes, check the job's result before treating the work as complete.
+
+Use [API keys](/api-keys) for REST integrations that need a personal or team credential.

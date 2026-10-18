@@ -1,0 +1,244 @@
+---
+title: "rootset_apply_schema_change"
+sidebarTitle: "Apply schema change"
+description: "Start a journalled resumable schema change with verified cutover."
+icon: "/assets/icons/mcp.svg"
+---
+
+## Workflow
+
+```mermaid
+flowchart LR
+  discover["Read the table schema"] --> invoke["Apply schema change"]
+  invoke --> outcome["Check the job result"]
+```
+
+## Access and behavior
+
+Requires a current workspace role of **Member** or higher. The connection needs `schema:manage` scope.
+
+- This tool changes data or starts work. Confirm the target and input before calling it.
+- Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
+- Read the current table schema before supplying `expectedSchemaVersion`.
+- A returned job is pending work. Use [rootset_get_job](/mcp-reference/rootset_get_job) to check its final result.
+
+## Arguments
+
+| Argument                | Required | Type       | Details                                                            |
+| ----------------------- | -------- | ---------- | ------------------------------------------------------------------ |
+| `orgId`                 | Yes      | string     | Workspace ID returned by rootset_get_context.                      |
+| `databaseId`            | Yes      | string     | ID of the database to work with.                                   |
+| `tableId`               | Yes      | string     | ID of the table to work with.                                      |
+| `expectedSchemaVersion` | Yes      | integer    | Current version returned by the table schema.                      |
+| `change`                | Yes      | JSON value | —                                                                  |
+| `idempotencyKey`        | Yes      | string     | Stable caller-provided key across retries of this exact operation. |
+
+<Accordion title="Complete input schema">
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "orgId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "databaseId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "tableId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "expectedSchemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "change": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "add_field"
+            },
+            "field": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["kind", "field"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "update_field"
+            },
+            "fieldId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "changes": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "description": "Any finite JSON value. Cell size/depth and typed numeric policies are enforced by the domain validator.",
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                ]
+              }
+            },
+            "conversion": {
+              "type": "string",
+              "enum": ["explicit", "lossless"]
+            }
+          },
+          "required": ["kind", "fieldId", "changes"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "delete_field"
+            },
+            "fieldId": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "removeDependencies": {
+              "type": "boolean"
+            }
+          },
+          "required": ["kind", "fieldId", "removeDependencies"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "reorder_fields"
+            },
+            "fieldIds": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              }
+            }
+          },
+          "required": ["kind", "fieldIds"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 255,
+      "description": "Stable caller-provided key across retries of this exact operation."
+    }
+  },
+  "required": [
+    "orgId",
+    "databaseId",
+    "tableId",
+    "expectedSchemaVersion",
+    "change",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false
+}
+```
+
+</Accordion>
+
+## Example call
+
+Your client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rootset_apply_schema_change",
+    "arguments": {
+      "orgId": "01K6J7B8000000000000000000",
+      "databaseId": "01K6J7B8000000000000000000",
+      "tableId": "01K6J7B8000000000000000000",
+      "expectedSchemaVersion": 1,
+      "change": {
+        "kind": "add_field",
+        "field": {}
+      },
+      "idempotencyKey": "example-request-0001"
+    }
+  }
+}
+```
+
+## Result
+
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/applySchemaChange) documents the corresponding result fields and errors.
+
+[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)
