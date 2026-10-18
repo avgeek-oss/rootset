@@ -25,7 +25,7 @@ import {
   UserAccountIcon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { AppShellBreadcrumb } from "@avgeek-oss/design-system/layouts/app-shell-breadcrumb";
 import type { DatabaseSummary, Table } from "@rootset/contracts";
 import {
@@ -127,6 +127,8 @@ export function resourceBreadcrumbs(context: {
   tableId?: string | null;
   tableName?: string;
   section?: SettingsSection | null;
+  databaseSwitcher?: ReactNode;
+  tableSwitcher?: ReactNode;
 }): ComponentProps<typeof AppShellBreadcrumb>["items"] {
   const { databaseId, databaseName, tableId, tableName, section } = context;
   const scope = section ? settingsScope(section) : null;
@@ -141,7 +143,18 @@ export function resourceBreadcrumbs(context: {
     { label: "Rootset", href: "/" },
     { label: "Databases", ...(databaseId ? { href: "/" } : {}) },
     ...(databaseId
-      ? [{ label: databaseName ?? "Database", href: dataHref(databaseId) }]
+      ? [
+          {
+            label: databaseName ?? "Database",
+            href: dataHref(databaseId),
+            ...(context.databaseSwitcher
+              ? {
+                  content: context.databaseSwitcher,
+                  contentKey: `database-${databaseId}`,
+                }
+              : {}),
+          },
+        ]
       : []),
     ...(databaseId && scope !== "database"
       ? [
@@ -156,6 +169,12 @@ export function resourceBreadcrumbs(context: {
           {
             label: tableName ?? "Table",
             ...(section ? { href: dataHref(databaseId, tableId) } : {}),
+            ...(context.tableSwitcher
+              ? {
+                  content: context.tableSwitcher,
+                  contentKey: `table-${tableId}`,
+                }
+              : {}),
           },
         ]
       : []),

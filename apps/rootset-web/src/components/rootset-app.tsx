@@ -14,6 +14,7 @@ import { DatabasesPage } from "./databases-page";
 import { RootsetLogo } from "./rootset-logo";
 import { RootsetErrorBoundary, RootsetErrorState } from "./rootset-error-state";
 import { TablesPage } from "./tables-page";
+import { BreadcrumbResourceSwitcher } from "./breadcrumb-resource-switcher";
 import { SpreadsheetLoading } from "./spreadsheet-loading";
 import {
   client,
@@ -712,6 +713,24 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
                     tableId: selectedTableId,
                     tableName: table?.name,
                     section: settings,
+                    databaseSwitcher: database ? (
+                      <BreadcrumbResourceSwitcher
+                        kind="database"
+                        currentId={database.id}
+                        label={database.name}
+                        resources={databases.data ?? []}
+                      />
+                    ) : undefined,
+                    tableSwitcher:
+                      table && selectedDatabaseId ? (
+                        <BreadcrumbResourceSwitcher
+                          kind="table"
+                          currentId={table.id}
+                          databaseId={selectedDatabaseId}
+                          label={table.name}
+                          resources={tables.data ?? []}
+                        />
+                      ) : undefined,
                   })
             }
             title={
