@@ -86,7 +86,10 @@ for (const slug of pages) {
     await linkExists(match[1] ?? match[2], slug);
   const icon = text.match(/\nicon: "([^"]+)"/);
   if (icon) await linkExists(icon[1], slug);
-  if (slug.startsWith("api-reference/") && slug !== "api-reference/overview") {
+  if (
+    slug.startsWith("api-reference/") &&
+    slug !== "api-reference/request-conventions"
+  ) {
     assert(
       expected.delete(slug.slice("api-reference/".length)),
       `Unexpected endpoint ${slug}`,
@@ -130,10 +133,6 @@ for (const slug of pages) {
 }
 assert.equal(expected.size, 0, "Missing endpoint reference pages");
 assert.equal(expectedTools.size, 0, "Missing MCP reference pages");
-for (const redirect of site.redirects) {
-  assert.notEqual(redirect.source, redirect.destination, "Redirect loop");
-  await linkExists(redirect.destination, "redirect");
-}
 for (const css of ["rootset.css", "oss-docs.css"]) {
   const text = await readFile(path.join(docs, css), "utf8");
   for (const match of text.matchAll(/url\("(\/[^" )]+)"\)/g))

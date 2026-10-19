@@ -58,6 +58,6 @@ curl --fail-with-body "$ROOTSET_API_ORIGIN/v1/me" \
 
 This read-only request returns your workspace context and capabilities. Use the workspace ID from the response when calling workspace-scoped endpoints, such as [listing databases](/api-reference/listDatabases). The URL and key are client settings; use the API address rather than the web application's address.
 
-Send the same `Authorization` header with other requests in the [API reference](/api-reference/overview). A `401` response means authentication failed; a `403` response means the credential does not have access to that operation. Expired or revoked keys stop working.
+Send the same `Authorization` header with other requests in the [API reference](/api-reference/request-conventions). A `401` response means authentication failed; a `403` response means the credential does not have access to that operation. Expired or revoked keys stop working.
 
 Use [MCP connections](/mcp-connections) to connect an AI assistant through browser sign-in instead of an API key.

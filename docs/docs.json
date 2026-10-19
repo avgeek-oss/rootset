@@ -263,7 +263,7 @@
           {
             "group": "API Reference",
             "pages": [
-              "api-reference/overview",
+              "api-reference/request-conventions",
               {
                 "group": "Accounts and Workspace",
                 "pages": [
@@ -499,35 +499,5 @@
     "playground": {
       "display": "simple"
     }
-  },
-  "redirects": [
-    {
-      "source": "/mcp-guide",
-      "destination": "/mcp-connections"
-    },
-    {
-      "source": "/quickstart",
-      "destination": "/overview"
-    },
-    {
-      "source": "/concepts",
-      "destination": "/overview"
-    },
-    {
-      "source": "/foreign-keys",
-      "destination": "/table-relations"
-    },
-    {
-      "source": "/mcp-tools",
-      "destination": "/mcp-reference/rootset_get_context"
-    },
-    {
-      "source": "/api-guide",
-      "destination": "/api-reference/overview"
-    },
-    {
-      "source": "/towbar-deployment",
-      "destination": "/self-hosting/installation/towbar"
-    }
-  ]
+  }
 }

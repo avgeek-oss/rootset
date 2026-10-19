@@ -598,7 +598,7 @@ function McpSetup({ url }: { url: string }) {
         ...config,
         icon: <McpClientLogo client={config.id} />,
       }))}
-      documentationUrl="https://www.rootset.app/mcp-guide"
+      documentationUrl="https://www.rootset.app/mcp-connections"
     />
   );
 }
