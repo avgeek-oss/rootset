@@ -128,7 +128,7 @@ describe("Towbar account component parity", () => {
     expect(html).toContain("https://rootset.example/mcp");
     expect(html).not.toContain("ROOTSET_API_KEY");
     expect(html).not.toContain("bearer_token_env_var");
-    expect(html).toContain("https://www.rootset.app/mcp-guide");
+    expect(html).toContain("https://www.rootset.app/mcp-connections");
     expect(html).not.toContain("TOWBAR_API_KEY");
   });
 });
