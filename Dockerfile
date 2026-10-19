@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+ARG NODE_IMAGE=node:24.22.0-alpine3.24@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f
 ARG ROOTSET_SOURCE_REVISION=unknown
 FROM ${NODE_IMAGE} AS build
 WORKDIR /workspace
@@ -15,7 +15,9 @@ LABEL org.opencontainers.image.source="https://github.com/avgeek-oss/rootset" \
       org.opencontainers.image.revision="${ROOTSET_SOURCE_REVISION}"
 WORKDIR /app
 ENV NODE_ENV=production TZ=UTC
-RUN groupadd --gid 10001 rootset && useradd --uid 10001 --gid rootset --no-create-home rootset \
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+    && addgroup -g 10001 rootset && adduser -u 10001 -G rootset -D -H rootset \
     && install -d -m 0700 -o rootset -g rootset /var/lib/rootset/artifact-spool
 COPY --from=build --chown=rootset:rootset /workspace/dist /app/dist
 COPY --from=build --chown=rootset:rootset /workspace/packages/database/migrations /app/migrations
@@ -34,7 +36,9 @@ LABEL org.opencontainers.image.source="https://github.com/avgeek-oss/rootset" \
       org.opencontainers.image.revision="${ROOTSET_SOURCE_REVISION}"
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 TZ=UTC PORT=4300 HOSTNAME=0.0.0.0 NODE_OPTIONS=--max-http-header-size=196608
-RUN groupadd --gid 10001 rootset && useradd --uid 10001 --gid rootset --no-create-home rootset
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+    && addgroup -g 10001 rootset && adduser -u 10001 -G rootset -D -H rootset
 COPY --from=build --chown=rootset:rootset /workspace/apps/rootset-web/.next/standalone /app
 COPY --from=build --chown=rootset:rootset /workspace/apps/rootset-web/.next/static /app/apps/rootset-web/.next/static
 COPY --from=build --chown=rootset:rootset /workspace/apps/rootset-web/public /app/apps/rootset-web/public

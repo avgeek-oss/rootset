@@ -3,7 +3,7 @@ id: rootset-api
 name: Rootset API
 deployment:
   type: image
-  image: ghcr.io/avgeek-oss/rootset-api:0.2.3
+  image: ghcr.io/avgeek-oss/rootset-api:0.2.4
 autoDeploy: false
 rollout:
   type: recreate

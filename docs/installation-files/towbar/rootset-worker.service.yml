@@ -3,7 +3,7 @@ id: rootset-worker
 name: Rootset worker
 deployment:
   type: image
-  image: ghcr.io/avgeek-oss/rootset-worker:0.2.3
+  image: ghcr.io/avgeek-oss/rootset-worker:0.2.4
 autoDeploy: false
 rollout:
   type: recreate

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4 (2026-10-19)
+
+- Add searchable database and table dropdowns to resource breadcrumbs.
+- Restructure the documentation, reference navigation and footer; refresh the homepage copy and product screenshots; simplify installation around bundled PostgreSQL and latest-release downloads.
+- Add step-by-step API key and MCP connection guides, use Request conventions for REST guidance, and remove retired documentation routes and redirects.
+- Require matching application versions and the latest successful verification, documentation and security checks for the exact release commit before publishing. Scan every native platform image for High/Critical vulnerabilities before promoting it.
+- Refresh the pinned Node runtime base and remove package managers from runtime images to resolve the base-image findings caught by the publication scan.
+- Keep production workload declarations in platform-services, separate from application publication.
+
 ## 0.2.3 (2026-10-18)
 
 - Add a dark green elephant mascot with friendly, sad and bucket-holding variants for empty lists, missing pages, unexpected errors and unavailable backup storage.
