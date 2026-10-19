@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      checks: read
     outputs:
       commit: ${{ steps.release.outputs.commit }}
       created: ${{ steps.release.outputs.created }}
@@ -30,8 +29,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
       - id: release
-        name: Require matching version, main commit and successful verification
+        name: Require matching versions, main commit and stable tag
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
           GH_TOKEN: ${{ github.token }}
@@ -45,9 +48,8 @@ jobs:
           test "$(jq -r .version package.json)" = "$version"
           commit="$(git rev-parse HEAD)"
           test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$commit"
-          gh api "repos/$GH_REPO/commits/$commit/check-runs?filter=latest&per_page=100" > "$RUNNER_TEMP/release-checks.json"
           docker compose --env-file rootset.env.example -f compose.images.yaml config --format json > "$RUNNER_TEMP/release-compose.json"
-          node tools/release/check.mjs "$RUNNER_TEMP/release-checks.json" "$RUNNER_TEMP/release-compose.json" rootset.env.example "$version"
+          node tools/release/validate.mjs "$RUNNER_TEMP/release-compose.json"
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-state"; then
             test "$(cat "$RUNNER_TEMP/release-state")" = "true"
           fi
@@ -58,8 +60,40 @@ jobs:
             echo "version=$version"
           } >> "$GITHUB_OUTPUT"
 
-  build:
+  verify:
+    name: Verify release CI
     needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Require the latest exact-commit CI results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            gh api "repos/$GH_REPO/commits/$RELEASE_COMMIT/check-runs?filter=all&per_page=100" --paginate --slurp > "$RUNNER_TEMP/release-checks.json"
+            if node tools/release/check.mjs --commit "$RELEASE_COMMIT" --checks "$RUNNER_TEMP/release-checks.json"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 12 ]; then exit 1; fi
+            sleep 15
+          done
+
+  build:
+    needs: [prepare, verify]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     permissions:
@@ -111,6 +145,15 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=release-${{ matrix.service }}-${{ matrix.architecture }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.service }}-${{ matrix.architecture }}
+      - name: Scan the built platform image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        env:
+          TRIVY_PLATFORM: linux/${{ matrix.architecture }}
+        with:
+          image-ref: ghcr.io/avgeek-oss/rootset-${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
       - name: Record immutable platform digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}

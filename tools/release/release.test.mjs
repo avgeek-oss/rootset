@@ -1,39 +1,194 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { parse } from "yaml";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { requirePinnedInstallation, requireVerifiedChecks } from "./check.mjs";
+import {
+  requirePinnedInstallation,
+  requireVerifiedChecks,
+  requireVersionConsistency,
+} from "./check.mjs";
 import { inspectPublicImage, readReleaseImages } from "./images.mjs";
 import { verifyPulledImage } from "./verify-installation.mjs";
 
 const version = "0.1.0";
 const commit = "a".repeat(40);
-const passedChecks = () => ({
-  check_runs: ["verify", "docs"].map((name) => ({
-    name,
-    app: { slug: "github-actions" },
-    status: "completed",
-    conclusion: "success",
-  })),
+const passedChecks = () => [
+  {
+    check_runs: ["verify", "docs", "security"].map((name, id) => ({
+      id: id + 1,
+      name,
+      head_sha: commit,
+      started_at: "2026-10-19T00:00:00Z",
+      app: { slug: "github-actions" },
+      status: "completed",
+      conclusion: "success",
+    })),
+  },
+];
+
+test("publication requires successful verification, docs and security for the exact commit", () => {
+  assert.doesNotThrow(() => requireVerifiedChecks(passedChecks(), commit));
+  for (const name of ["verify", "docs", "security"]) {
+    for (const change of [
+      (input, index) => input.splice(index, 1),
+      (input, index) => (input[index].status = "queued"),
+      (input, index) => (input[index].status = "in_progress"),
+      (input, index) => (input[index].conclusion = "failure"),
+      (input, index) => (input[index].conclusion = "skipped"),
+      (input, index) => (input[index].conclusion = "cancelled"),
+      (input, index) => (input[index].app.slug = "another-app"),
+      (input, index) => (input[index].head_sha = "b".repeat(40)),
+    ]) {
+      const input = passedChecks();
+      change(
+        input[0].check_runs,
+        input[0].check_runs.findIndex((check) => check.name === name),
+      );
+      assert.throws(() => requireVerifiedChecks(input, commit));
+    }
+  }
+  for (const input of [{}, [{}], []])
+    assert.throws(() => requireVerifiedChecks(input, commit));
+  assert.throws(() => requireVerifiedChecks(passedChecks(), "main"));
 });
 
-test("publication requires both current successful GitHub Actions checks", () => {
-  assert.doesNotThrow(() => requireVerifiedChecks(passedChecks()));
-  for (const change of [
-    (input) => input.check_runs.pop(),
-    (input) => (input.check_runs[0].status = "in_progress"),
-    (input) => (input.check_runs[0].conclusion = "failure"),
-    (input) => (input.check_runs[1].conclusion = "skipped"),
-    (input) => (input.check_runs[1].app.slug = "another-app"),
-    (input) => input.check_runs.push(input.check_runs[0]),
-  ]) {
+test("publication reads all pages and rejects newer failed or unfinished reruns", () => {
+  for (const name of ["verify", "docs", "security"]) {
     const input = passedChecks();
-    change(input);
-    assert.throws(() => requireVerifiedChecks(input));
+    const original = input[0].check_runs.find((check) => check.name === name);
+    const newer = { ...original, id: 20, started_at: "2026-10-19T00:00:01Z" };
+    input.push({ check_runs: [newer] });
+    original.conclusion = "failure";
+    assert.doesNotThrow(() => requireVerifiedChecks(input, commit));
+    original.conclusion = "success";
+    newer.conclusion = "failure";
+    assert.throws(() => requireVerifiedChecks(input, commit), /latest/);
+    newer.conclusion = "success";
+    newer.status = "in_progress";
+    assert.throws(() => requireVerifiedChecks(input, commit), /running/);
+    newer.status = "completed";
+    newer.started_at = original.started_at;
+    newer.conclusion = "failure";
+    input.reverse();
+    assert.throws(() => requireVerifiedChecks(input, commit), /latest/);
   }
-  assert.throws(() => requireVerifiedChecks({}));
+});
+
+test("the publication CLI checks paginated results and the supplied source commit", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "rootset-checks-"));
+  const file = join(directory, "checks.json");
+  try {
+    const checks = passedChecks()[0].check_runs;
+    await writeFile(
+      file,
+      JSON.stringify([
+        { check_runs: checks.slice(0, 1) },
+        { check_runs: checks.slice(1) },
+      ]),
+    );
+    const run = (sha) =>
+      execFileSync(
+        process.execPath,
+        ["tools/release/check.mjs", "--commit", sha, "--checks", file],
+        { stdio: "pipe" },
+      );
+    assert.doesNotThrow(() => run(commit));
+    assert.throws(() => run("b".repeat(40)));
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("all application package versions must match a stable root version", () => {
+  const apps = () => ({ api: version, worker: version, web: version });
+  assert.doesNotThrow(() => requireVersionConsistency(version, apps()));
+  for (const app of ["api", "worker", "web"]) {
+    const input = apps();
+    input[app] = "0.0.1";
+    assert.throws(
+      () => requireVersionConsistency(version, input),
+      /package version/,
+    );
+    delete input[app];
+    assert.throws(
+      () => requireVersionConsistency(version, input),
+      /package version/,
+    );
+  }
+  for (const invalid of ["v0.1.0", "0.1.0-rc.1", "01.1.0", "0.1"])
+    assert.throws(() => requireVersionConsistency(invalid, apps()));
+});
+
+test("version validation accepts rendered Compose JSON and rejects a mismatched release tag", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "rootset-version-"));
+  const file = join(directory, "compose.json");
+  try {
+    await writeFile(
+      file,
+      JSON.stringify(parse(await readFile("compose.images.yaml", "utf8"))),
+    );
+    const currentVersion = JSON.parse(
+      await readFile("package.json", "utf8"),
+    ).version;
+    const run = (tag) =>
+      execFileSync(process.execPath, ["tools/release/validate.mjs", file], {
+        env: { ...process.env, RELEASE_TAG: tag },
+        stdio: "pipe",
+      });
+    assert.doesNotThrow(() => run(`v${currentVersion}`));
+    assert.throws(() => run("v999.0.0"));
+    const compose = parse(await readFile("compose.images.yaml", "utf8"));
+    compose.services.worker.image = "ghcr.io/avgeek-oss/rootset-worker:0.0.1";
+    await writeFile(file, JSON.stringify(compose));
+    assert.throws(() => run(`v${currentVersion}`));
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("release builds cannot promote image digests before scanning every platform", async () => {
+  const workflow = parse(
+    await readFile(".github/workflows/release-images.yml", "utf8"),
+  );
+  const build = workflow.jobs.build;
+  assert.deepEqual(build.needs, ["prepare", "verify"]);
+  assert.deepEqual(build.strategy.matrix.service, ["api", "worker", "web"]);
+  assert.deepEqual(build.strategy.matrix.architecture, ["amd64", "arm64"]);
+  const scanIndex = build.steps.findIndex((step) =>
+    step.uses?.startsWith("aquasecurity/trivy-action@"),
+  );
+  const recordIndex = build.steps.findIndex(
+    (step) => step.name === "Record immutable platform digest",
+  );
+  assert(scanIndex > build.steps.findIndex((step) => step.id === "build"));
+  assert(scanIndex < recordIndex);
+  const scan = build.steps[scanIndex];
+  assert.equal(
+    scan.with["image-ref"],
+    "ghcr.io/avgeek-oss/rootset-${{ matrix.service }}@${{ steps.build.outputs.digest }}",
+  );
+  assert.equal(scan.env.TRIVY_PLATFORM, "linux/${{ matrix.architecture }}");
+  assert.equal(scan.with.scanners, "vuln");
+  assert.equal(scan.with.severity, "HIGH,CRITICAL");
+  assert.equal(scan.with["exit-code"], "1");
+  assert(!scan["continue-on-error"]);
+  assert.equal(workflow.jobs.verify.name, "Verify release CI");
+  const gate = workflow.jobs.verify.steps.find((step) => step.run);
+  assert.match(gate.run, /--paginate --slurp/);
+  assert.match(gate.run, /--commit "\$RELEASE_COMMIT"/);
+  const ci = parse(await readFile(".github/workflows/verify.yaml", "utf8"));
+  const sourceScan = ci.jobs.security.steps.find((step) =>
+    step.uses?.startsWith("aquasecurity/trivy-action@"),
+  );
+  assert.equal(sourceScan.with["scan-type"], "fs");
+  assert.equal(sourceScan.with.scanners, "vuln,secret");
+  assert.equal(sourceScan.with.severity, "HIGH,CRITICAL");
+  assert.equal(sourceScan.with["exit-code"], "1");
+  assert(!sourceScan["continue-on-error"]);
 });
 
 test("installation files pin every application service to the release without a version setting", () => {

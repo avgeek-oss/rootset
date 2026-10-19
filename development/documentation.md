@@ -37,10 +37,16 @@ committing them. Never capture real customer records or visible API key secrets.
 ## Publish release images
 
 1. Review and merge the consolidated PR. Set the root package version to the
-   intended stable release and let the `verify` and `docs` checks pass on main.
+   intended stable release, keep the API/worker/web package versions and Compose
+   image pins aligned, and run `pnpm release:check`. Let `verify`, `docs` and
+   `security` pass on the exact main commit.
 2. Create and push a matching `vMAJOR.MINOR.PATCH` tag on that exact main commit.
 3. Run **Publish release images** on main with that tag. It rejects mismatched
-   versions, commits, incomplete checks and an already published release.
+   versions, commits, incomplete checks and an already published release. The CI
+   gate reads paginated check results and waits briefly for in-flight runs; only
+   the latest successful results for that exact commit qualify.
+   Each native platform image must pass a High/Critical vulnerability scan
+   before its digest can be promoted into a release manifest.
 4. On first publication, make all three GHCR packages public. Anonymous image pulls
    must succeed before the workflow can attach the installation files; rerun
    the failed manifest job after correcting visibility.
