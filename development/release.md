@@ -8,27 +8,35 @@ workflow never deploys an application instance.
 ## Versioning
 
 Use semantic versions, starting with `0.1.0` for the initial release. Update the
-root `package.json` version through a reviewed PR. Pin the API, worker, web and
-migration image tags in `compose.images.yaml` to the same version and run
-`pnpm docs:sync` so its public download copy matches. The environment template
+root `package.json` and the API, worker and web package versions through a reviewed
+PR. Pin the API, worker, web and migration image tags in `compose.images.yaml` to the same version and run
+`pnpm docs:sync` so its public download copy matches. Run `pnpm release:check`
+to validate the package versions and installation image pins. The environment template
 contains installation settings; it does not select an image version. The public installation guide downloads both files from the latest release;
 keep those asset names stable.
 
-After merging, wait for `verify` and `docs` to pass on the exact main commit.
+After merging, wait for `verify`, `docs` and `security` to pass on the exact main
+commit.
 Create a matching `vMAJOR.MINOR.PATCH` tag on that commit, then run **Publish
 release images** on main with that tag. An inconsistent version, tag or commit,
 failed/incomplete CI, private repository or already published release stops the
 workflow before building.
 
+The publication gate reads all check-run pages and requires the latest result for
+each check on that exact source commit. An older success cannot hide a failed
+rerun, and queued or running checks block publication. The gate retries up to
+12 times at 15-second intervals to allow in-flight CI to finish.
+
 ## Images and gates
 
-| Stage        | Result                                                                                                                                                                                               |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prepare      | Validate the stable version, main commit, tag and successful CI.                                                                                                                                     |
-| Build        | Build API, worker and UI on native AMD64 and ARM64 runners, with SBOM, provenance and source/version labels.                                                                                         |
-| Manifest     | Assemble multi-platform images, verify public access and content digests, then retain `rootset-images.json`.                                                                                         |
-| Installation | Pull the immutable images on both native architectures; verify setup, email verification, migrations, health, non-root execution, permissions, preserved restart and upgrades from released schemas. |
-| Publish      | Attach the image manifest and installation files, then publish the GitHub release only after both installation checks pass.                                                                          |
+| Stage        | Result                                                                                                                                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prepare      | Validate matching package/image versions, the main commit and stable tag.                                                                                                                                      |
+| CI gate      | Require the latest successful verification, docs and security results for the exact release commit before building.                                                                                            |
+| Build        | Build API, worker and UI on native AMD64 and ARM64 runners, with SBOM, provenance and source/version labels; scan each immutable platform image for High/Critical vulnerabilities before promoting its digest. |
+| Manifest     | Assemble multi-platform images, verify public access and content digests, then retain `rootset-images.json`.                                                                                                   |
+| Installation | Pull the immutable images on both native architectures; verify setup, email verification, migrations, health, non-root execution, permissions, preserved restart and upgrades from released schemas.           |
+| Publish      | Attach the image manifest and installation files, then publish the GitHub release only after both installation checks pass.                                                                                    |
 
 All three images use one version:
 
@@ -49,6 +57,10 @@ for PostgreSQL, S3 and SMTP. It runs the actual pulled API/worker/UI images with
 containers and volumes are removed afterward. Reports are retained for each
 architecture. Public installation uses `compose.images.yaml` with external
 services or the optional bundled PostgreSQL profile.
+
+CI also scans the source tree for High/Critical vulnerabilities and secrets.
+A failed source or image scan blocks publication; the workflow does not ignore
+scanner failures.
 
 Released SQL migrations are immutable. Add a new migration for schema changes;
 do not append to the baseline. The v0.1.4 baseline change has one explicit
