@@ -3,7 +3,7 @@ id: rootset-web
 name: Rootset UI
 deployment:
   type: image
-  image: ghcr.io/avgeek-oss/rootset-web:0.2.3
+  image: ghcr.io/avgeek-oss/rootset-web:0.2.4
 autoDeploy: false
 rollout:
   type: recreate
