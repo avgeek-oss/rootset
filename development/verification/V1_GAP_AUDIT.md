@@ -1,10 +1,10 @@
-# Current V1 gaps
+# Historical V1 gaps
 
-The revised scope is defined by the [plan](../../rc-plan/README.md) and
-[40-item checklist](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
-The [current local results](CURRENT_RESULTS.md) record passing workspace and native
-checks and a rendered browser smoke check. Grouped checklist items remain open
-until every behavior is reviewed. Acceptance remains false.
+This is a historical gap audit from the revised V1 development scope. It is not
+an inventory of the current release: backup, restore and browser record-creation
+capabilities have changed since this audit. See the [verification guide](README.md)
+and [verification requirements](../../tools/verification/requirements.json) for
+current checks. Earlier local reports retain their own dated observations.
 
 | Area                  | Required current result                                                                                                                                                   |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

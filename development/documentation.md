@@ -1,7 +1,7 @@
 # Documentation and image releases
 
 The Mintlify content directory is `docs`, including its `docs.json`. Internal
-plans and verification reports live under `development` and `rc-plan`.
+guides and verification reports live under `development`.
 
 Rootset uses `@avgeek-oss/mintlify-docs` for the homepage, screenshots, native action
 links, navigation and footer. Edit `docs/site.json` and product MDX pages;

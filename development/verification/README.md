@@ -1,14 +1,10 @@
-# V1 verification
+# Verification
 
-The [current checklist](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md)
-contains 40 pending checks for the revised V1 of 5 October 2026. It replaces the
-former 205-item multi-organisation checklist. The old candidate's reports remain
-historical; current acceptance is false.
+Run checks against the exact version or commit under review. Record the command
+or manual method, environment, date, observed result and remaining limitations.
+Historical reports describe their own versions and do not certify later releases.
 
-[Current local results](CURRENT_RESULTS.md) records the simplified implementation's
-passing native, workspace and browser checks and the remaining sign-off work.
-
-## Ordinary checks
+## Workspace checks
 
 ```sh
 pnpm contracts:generate
@@ -16,47 +12,48 @@ pnpm verify
 pnpm test:integration
 ```
 
-Review generated drift, run the affected integration cases with isolated
-PostgreSQL/object/mail fixtures, and use real browser/native evidence for actual
-user flows. Missing dependencies and skipped scenarios remain unresolved. A
-passing unit suite does not establish installed readiness, encrypted recovery,
-OAuth client interoperability or five-million-row performance.
+Review generated drift and run affected integration cases with isolated
+PostgreSQL, object storage and mail fixtures. Use real browser and native evidence
+for user flows. Missing dependencies and skipped scenarios remain unresolved.
+A passing unit suite does not establish installed readiness, encrypted recovery,
+OAuth client interoperability or full-scale performance.
 
-Record the candidate/version, command or manual method, environment, date,
-observed result and limitation for each completed checklist item. Keep ordinary
-logs, screenshots, native SQL comparisons, job terminal reports and benchmark
-percentiles. Protect any fixture credentials/data; share redacted reports. No
-large provenance or extra approval packet is required to run these checks.
+## Whole-system checks
 
-## Remaining whole-system work
+- Verify fresh installation, supported upgrades, concurrent migration startup and
+  refusal of incompatible prelaunch ledgers.
+- Exercise Admin, Member and Viewer through the browser, REST and MCP, including
+  credential revocation and OAuth operation consent.
+- Compare typed records, revisions, uniqueness and cell history with native data.
+  Rehearse interrupted schema changes and worker recovery.
+- Restore database and object data to a separate target using retained keys.
+  Compare results without altering the source installation.
+- Review phone and desktop routes, light and dark themes, keyboard and touch
+  interactions, screen readers, loading states and failures.
+- Measure scale, contention, scrolling and memory against the
+  [performance profile](performance.md). Report targets and observed results separately.
 
-- Fresh baseline/singleton enforcement and refusal of incompatible old ledgers.
-- Three-role browser/REST/MCP behavior, live personal-key revocation, real OAuth
-  operation consent, authentication/factors and Admin recovery.
-- One field name, stable-ID rename, native typed storage, atomic revisions,
-  uniqueness, retained cell history and crash-reconciled schema/jobs.
-- Genuine dependency/process-failure rehearsals and separate-target recovery of
-  identity/control/data, SQL privileges, a nonempty object set and retained keys.
-- Actual phone/desktop, Safari/Chromium, keyboard/touch/screen-reader and typed
-  editing/history/settings flows.
-- Full five-million-row, near-byte-limit and ten-million-history fixtures with
-  capped cold/warm transport, contention, viewport/cache/memory and latency checks.
+## Evidence tools
 
-The approved core caps remain PostgreSQL/API/worker/web 4/1/2/1 GiB, total 8 GiB,
-with no extra swap. Object/mail test fixtures and browser memory are reported
-separately. The [checklist performance profile](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md#performance-profile)
-retains all original workload, network, percentile and frame/cache thresholds.
+The machine-readable [verification requirements](../../tools/verification/requirements.json)
+retain stable `V1-01` through `V1-40` IDs used by the integration suites. These IDs
+are evidence references, not a version or acceptance claim. Update requirements
+and their independent review clauses when supported behavior changes.
 
-## Evidence and maintenance
+`tools/verification/gate-audit.ts` produces test-source pointers for these
+requirements. `pnpm verify:signoff <report.json> <candidate-version>` validates
+reported results and artifact hashes. Neither tool turns source pointers or
+complete metadata into product acceptance. Keep credentials and private fixture
+data outside Git; share redacted logs, native comparisons and captures.
 
-[Development history](DEVELOPMENT_EVIDENCE.md) records the earlier scope and limits.
-[Operation coverage](OPERATION_COVERAGE_REVIEW.md) explains what a genuine
-cross-surface result must show. [Metrics and SQL roles](OPERATOR_METRICS_AND_ROLES.md)
-records operational trust boundaries. [Current gaps](V1_GAP_AUDIT.md) is the short
-pending-work summary.
+## Historical results
 
-Retain earlier files under `verification/` unchanged. Tools and JSON gate indexes
-must be aligned with `V1-01`–`V1-40`; obsolete IDs/counts are not current acceptance
-criteria. A source pointer, prepared fixture or old pass is not a current test
-result. Final reporting must list unresolved checks and separate local results,
-image publication, deployment and production health.
+[Development history](DEVELOPMENT_EVIDENCE.md) and the
+[earlier gap audit](V1_GAP_AUDIT.md) are historical development records. For
+current review, use the operation catalog, CI results and observations from the
+version under test. [Operation coverage](OPERATION_COVERAGE_REVIEW.md) describes
+cross-surface checks; [metrics and SQL roles](OPERATOR_METRICS_AND_ROLES.md)
+describes operational trust boundaries.
+
+Keep local verification, image publication, deployment and production health
+separate in reports.

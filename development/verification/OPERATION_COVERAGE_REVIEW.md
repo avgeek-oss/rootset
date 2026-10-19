@@ -43,7 +43,7 @@ oracles rather than response status alone.
 ## Record remaining cases
 
 Use `V1-04`–`V1-25` and `V1-31`–`V1-38` in the
-[current checklist](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
+[verification requirements](../../tools/verification/requirements.json).
 Record exact current test/manual results and the still-unobserved behaviors.
 Historical reports remain available; their older catalog/authority/schema cannot
 be treated as a current all-operations pass. Acceptance remains false until the

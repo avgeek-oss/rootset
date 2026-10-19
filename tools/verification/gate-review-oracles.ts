@@ -102,15 +102,15 @@ export const gateReviewOracles = new Map<string, string>([
   ],
   [
     "V1-26",
-    "Database backup operations are Admin-only across browser, REST and MCP; restore operations remain absent. API/MCP row creation remains available.",
+    "Database backup and restore operations are Admin-only across browser, REST and MCP; manual and scheduled attempts expose truthful terminal states and authenticated artifacts.",
   ],
   [
     "V1-27",
-    "The browser provides filters and inline edits, automatically loads batches during scrolling, uses path-based resource URLs, and restores committed values with a toast on failed edits. There is no Add row button, row-creation modal or Go to row action. The database Backup Schedule page uses the shared page layout and history table.",
+    "The browser supports row creation, import, duplication, bulk updates, deletion, filters and inline edits; scrolling loads bounded batches and failed edits restore committed values with a toast. Backup schedules, backup attempts and restore attempts use their dedicated pages.",
   ],
   [
     "V1-28",
-    "The current migrations add database backup schedules and runs without restore or backup-notification tables. Exports and bounded cell history remain functional; separate history archive/policy tables are absent.",
+    "Forward migrations preserve existing records, exports and bounded cell history while adding backup schedules, attempts, restore tracking and notifications. Retention protects packages required by restores.",
   ],
   [
     "V1-29",

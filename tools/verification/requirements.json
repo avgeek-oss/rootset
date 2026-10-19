@@ -1,0 +1,202 @@
+[
+  {
+    "id": "V1-01",
+    "area": "Installation and accounts",
+    "requirement": "An empty PostgreSQL 18 installation applies the baseline and current forward migrations; concurrent startup and digest mismatch behave safely."
+  },
+  {
+    "id": "V1-02",
+    "area": "Installation and accounts",
+    "requirement": "An incompatible earlier prelaunch ledger refuses startup without changing data; the message gives fresh-install guidance and preserves the original installation."
+  },
+  {
+    "id": "V1-03",
+    "area": "Installation and accounts",
+    "requirement": "Setup claims one organisation and the first Admin atomically; SQL rejects a second organisation, including concurrent/direct fixture attempts."
+  },
+  {
+    "id": "V1-04",
+    "area": "Installation and accounts",
+    "requirement": "Admin/Member/Viewer permissions match the role matrix across browser, REST and MCP; Admin alone manages members and deletes databases/tables; Members create and edit databases/tables/schema; SMTP/S3 configuration is read only from the deployment environment."
+  },
+  {
+    "id": "V1-05",
+    "area": "Installation and accounts",
+    "requirement": "Invitations and member role/removal flows work, protect the last Admin, and have no organisation switcher or removed lifecycle fields."
+  },
+  {
+    "id": "V1-06",
+    "area": "Installation and accounts",
+    "requirement": "Password/email verification/reset, passkey-gated sign-in, passkey recovery codes, session-bound fresh proof, session revocation and direct password/passkey confirmation work with expiry/replay/rate-limit failures. Authenticator/TOTP capabilities are absent."
+  },
+  {
+    "id": "V1-07",
+    "area": "Installation and accounts",
+    "requirement": "Personal key permissions are capped by live membership; workspace-owned team keys have admin-only management and cannot access personal accounts. Verify REST/MCP permission ceilings, rotation, revocation, expiry, creator departure, waiting requests and replay."
+  },
+  {
+    "id": "V1-08",
+    "area": "Installation and accounts",
+    "requirement": "OAuth PKCE, redirect/state/issuer/audience, code replay, refresh reuse, revocation and operation consent work with a real MCP client; no database/table selections remain."
+  },
+  {
+    "id": "V1-09",
+    "area": "Contracts and storage",
+    "requirement": "Generated OpenAPI/client/MCP artifacts match the catalog; supported operations share strict input/output validation and have useful typed errors."
+  },
+  {
+    "id": "V1-10",
+    "area": "Contracts and storage",
+    "requirement": "Browser Origin/CSRF, REST/MCP audience separation, nested-parent validation and SQL parameter/identifier boundaries reject abuse without leaking secrets or data."
+  },
+  {
+    "id": "V1-11",
+    "area": "Contracts and storage",
+    "requirement": "Field definitions have only one `name`; 1–64 letters/underscores pass, digits/empty/overlong/invalid names fail, and table-local uniqueness is enforced."
+  },
+  {
+    "id": "V1-12",
+    "area": "Contracts and storage",
+    "requirement": "Field rename changes the UI label and JSON key together while preserving internal ID, values, query references and interpretable cell history."
+  },
+  {
+    "id": "V1-13",
+    "area": "Contracts and storage",
+    "requirement": "All eleven types, defaults/nulls, required fields, numeric/text bounds and JSON validation work without coercion or silent loss."
+  },
+  {
+    "id": "V1-14",
+    "area": "Contracts and storage",
+    "requirement": "UTC time/date-time precision, calendar dates and timezone/DST editing round-trip through browser, REST, MCP, export and history."
+  },
+  {
+    "id": "V1-15",
+    "area": "Contracts and storage",
+    "requirement": "Row bytes, 200 fields, JSON depth, request/result bytes, query rows and 1,000-row mutation caps enforce exact boundaries."
+  },
+  {
+    "id": "V1-16",
+    "area": "Contracts and storage",
+    "requirement": "The 5,000,000th live row succeeds and the next fails; concurrent writers cannot race the limit, rollback releases reservations and committed deletion frees capacity."
+  },
+  {
+    "id": "V1-17",
+    "area": "Contracts and storage",
+    "requirement": "Revision conflicts, no-op updates, atomic batches and idempotent retry preserve the committed outcome under concurrent writes and network/process loss."
+  },
+  {
+    "id": "V1-18",
+    "area": "Contracts and storage",
+    "requirement": "Single/composite scalar uniqueness handles nulls, exact text/float equality, wide tuples, forced digest collisions and concurrent insert/update/delete."
+  },
+  {
+    "id": "V1-19",
+    "area": "Contracts and storage",
+    "requirement": "Schema/rule/index jobs validate existing values and row size; interrupted conversion/index activation reconciles actual catalog state and preserves the original generation on failure."
+  },
+  {
+    "id": "V1-20",
+    "area": "History, jobs and recovery",
+    "requirement": "Inserts/edits/conversions record correct typed before/after values, field/row IDs, revisions, attribution and UTC time in the data transaction; failed/no-op writes add no false cell history."
+  },
+  {
+    "id": "V1-21",
+    "area": "History, jobs and recovery",
+    "requirement": "Field renames preserve interpretable history; deletion of a row, field, table or database removes its corresponding cell changelogs for every role; each existing cell retains only its latest 200 saved changes; no-op and failed writes add no entry."
+  },
+  {
+    "id": "V1-22",
+    "area": "History, jobs and recovery",
+    "requirement": "Typed filters, JSON operators, projection/sort, signed cursors, byte-capped continuation and deep window navigation return correct complete rows."
+  },
+  {
+    "id": "V1-23",
+    "area": "History, jobs and recovery",
+    "requirement": "Scan timeout/disconnect cancels owned work and preserves peer requests; native connection cleanup/restart tests cover idle and active pools without leaks."
+  },
+  {
+    "id": "V1-24",
+    "area": "History, jobs and recovery",
+    "requirement": "Durable jobs fence stale leases, resume committed checkpoints, disclose partial cancellation and publish effects once under worker/process termination."
+  },
+  {
+    "id": "V1-25",
+    "area": "History, jobs and recovery",
+    "requirement": "CSV/JSONL exports preserve types/UTC/leading-zero text and produce authenticated checksummed artifacts."
+  },
+  {
+    "id": "V1-26",
+    "area": "History, jobs and recovery",
+    "requirement": "Database backup and restore operations are Admin-only across browser, REST and MCP; manual and scheduled attempts expose truthful terminal states and authenticated artifacts."
+  },
+  {
+    "id": "V1-27",
+    "area": "History, jobs and recovery",
+    "requirement": "The browser supports row creation, import, duplication, bulk updates, deletion, filters and inline edits; scrolling loads bounded batches and failed edits restore committed values with a toast. Backup schedules, backup attempts and restore attempts use their dedicated pages."
+  },
+  {
+    "id": "V1-28",
+    "area": "History, jobs and recovery",
+    "requirement": "Forward migrations preserve existing records, exports and bounded cell history while adding backup schedules, attempts, restore tracking and notifications. Retention protects packages required by restores."
+  },
+  {
+    "id": "V1-29",
+    "area": "History, jobs and recovery",
+    "requirement": "Full-installation recovery restores database ownership, identity/control/data state, a nonempty object set and the installation encryption key on a separate target without altering the source."
+  },
+  {
+    "id": "V1-30",
+    "area": "History, jobs and recovery",
+    "requirement": "Object/SMTP outage, corruption, missing keys, disk pressure and connection saturation produce truthful failures/retry behavior; retention preserves the last verified recovery point."
+  },
+  {
+    "id": "V1-31",
+    "area": "Browser and performance",
+    "requirement": "Real phone/desktop and light/dark flows cover setup, people, role/key/OAuth settings, all typed editors, drafts/conflicts, history and job terminal states."
+  },
+  {
+    "id": "V1-32",
+    "area": "Browser and performance",
+    "requirement": "Keyboard, touch, screen-reader and zoom behavior work on the actual grid; no removed account/resource-selection, installation tuning/provider configuration or standalone Background Jobs controls remain."
+  },
+  {
+    "id": "V1-33",
+    "area": "Browser and performance",
+    "requirement": "Record genuine five-million-row and 200-field near-limit fixtures, counts/checksums, at least ten million history events and the approved resource/network profile."
+  },
+  {
+    "id": "V1-34",
+    "area": "Browser and performance",
+    "requirement": "Warm/cold indexed queries, normal/byte-capped REST pages, unindexed scans and deep navigation meet the targets below with plans, percentiles and errors."
+  },
+  {
+    "id": "V1-35",
+    "area": "Browser and performance",
+    "requirement": "Ten simultaneous editing clients meet committed edit/history targets without lost changes or duplicate history; background work keeps foreground reads responsive."
+  },
+  {
+    "id": "V1-36",
+    "area": "Browser and performance",
+    "requirement": "Safari/Chromium viewport, five-minute scroll, cache eviction, memory and restart/query-switching checks meet the targets without growing leaks."
+  },
+  {
+    "id": "V1-37",
+    "area": "Candidate review",
+    "requirement": "`pnpm contracts:generate` drift, `pnpm verify` and affected genuine integration/browser checks pass for the exact candidate; missing prerequisites are reported."
+  },
+  {
+    "id": "V1-38",
+    "area": "Candidate review",
+    "requirement": "Fresh images/installation, non-root runtime privileges, narrow mounts/environments and readiness are verified, including failed migration/dependency startup."
+  },
+  {
+    "id": "V1-39",
+    "area": "Candidate review",
+    "requirement": "A reviewer follows the current installation, account/key and PostgreSQL/provider recovery runbooks successfully with synthetic isolated data."
+  },
+  {
+    "id": "V1-40",
+    "area": "Candidate review",
+    "requirement": "The report lists current results and unresolved checks, keeps historical evidence separate and states acceptance/publication/deployment status truthfully."
+  }
+]

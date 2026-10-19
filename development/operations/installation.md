@@ -36,10 +36,10 @@ volumes preserve data across `docker compose down`; `down --volumes` deletes the
 Changing `ROOTSET_COMPOSE_PROJECT` selects a different volume namespace. Confirm
 which installation owns the volumes before interpreting an empty startup.
 
-The only installation SQL is
-[`0001_baseline.sql`](../../packages/database/migrations/0001_baseline.sql).
-It is an editable fresh-install baseline before V1 release. Startup serialises
-baseline application and checks the stored digest. An incompatible prelaunch
+Installation starts with
+[`0001_baseline.sql`](../../packages/database/migrations/0001_baseline.sql) and
+applies the numbered forward migrations. Released migrations are immutable.
+Startup serialises migration application and checks stored digests. An incompatible prelaunch
 ledger must refuse startup without changing data and point to a fresh, separate
 installation. Never clear its ledger or remove its original volumes to bypass
 that refusal. Dynamic user-table jobs still have their own schema journals.
@@ -68,8 +68,8 @@ web 1 GiB, totalling 8 GiB. Each combined memory/swap cap equals its memory cap,
 so swap adds no headroom. Node heap limits leave native/buffer room. Record CPU,
 disk, PostgreSQL settings and host contention for benchmarks. Local object/mail
 services are separate test fixtures, and browser memory is measured separately.
-The [performance profile](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md#performance-profile)
-retains the full five-million-row workload and latency/cache targets.
+The [performance profile](../verification/performance.md) defines the
+five-million-row benchmark workload and latency/cache targets.
 
 ## External services and HTTPS
 
