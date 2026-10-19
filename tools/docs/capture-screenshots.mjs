@@ -23,7 +23,7 @@ if (!credentialsPath)
 const credentials = parseEnv(await readFile(credentialsPath, "utf8"));
 const browser = await chromium.launch();
 const context = await browser.newContext({
-  viewport: { width: 1920, height: 1080 },
+  viewport: { width: 1280, height: 800 },
   deviceScaleFactor: 2,
 });
 const page = await context.newPage();
@@ -45,18 +45,27 @@ async function call(method, endpoint, data) {
   return response.json();
 }
 async function capture(name) {
+  const zoom = await page.evaluate(
+    () => getComputedStyle(document.documentElement).zoom,
+  );
+  if (!["1", "normal"].includes(zoom))
+    throw new Error(`Unexpected page zoom: ${zoom}`);
   await page
     .getByRole("link", { name: "Account Settings", exact: true })
     .first()
     .waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);
+  const captureStyle = await page.addStyleTag({
+    content: "nextjs-portal { display: none !important; }",
+  });
   await page.screenshot({
     path: path.join(output, name + ".png"),
     type: "png",
     animations: "disabled",
   });
-  console.log(`Captured ${name}: 3840×2160 PNG`);
+  await captureStyle.evaluate((element) => element.remove());
+  console.log(`Captured ${name}: 2560×1600 PNG`);
 }
 try {
   const login = await context.request.post(api + "/v1/auth/sign-in/email", {
@@ -149,7 +158,7 @@ try {
       theme,
     );
     await page.goto(web + href);
-    await page.getByRole("grid").waitFor();
+    await page.getByRole("grid", { name: "Products spreadsheet" }).waitFor();
     const toggle = page.getByRole("button", { name: "Toggle navigation" });
     if ((await toggle.getAttribute("aria-expanded")) === "false")
       await toggle.click();
@@ -255,8 +264,9 @@ try {
     JSON.stringify(
       {
         sourceRevision: process.env.ROOTSET_DOCS_SOURCE_REVISION,
-        viewport: { width: 1920, height: 1080 },
+        viewport: { width: 1280, height: 800 },
         deviceScaleFactor: 2,
+        zoom: 1,
         format: "png",
         dataset: "Disposable synthetic Product catalog fixture",
         capturedAt: new Date().toISOString(),

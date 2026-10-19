@@ -11,8 +11,8 @@ Use semantic versions, starting with `0.1.0` for the initial release. Update the
 root `package.json` version through a reviewed PR. Pin the API, worker, web and
 migration image tags in `compose.images.yaml` to the same version and run
 `pnpm docs:sync` so its public download copy matches. The environment template
-contains installation settings; it does not select an image version. Keep the installation example in
-`docs/self-hosting/installation/docker-compose.mdx` aligned with the current released version.
+contains installation settings; it does not select an image version. The public installation guide downloads both files from the latest release;
+keep those asset names stable.
 
 After merging, wait for `verify` and `docs` to pass on the exact main commit.
 Create a matching `vMAJOR.MINOR.PATCH` tag on that commit, then run **Publish

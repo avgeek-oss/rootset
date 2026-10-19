@@ -1,6 +1,6 @@
 ---
-title: "Open-source structured data"
-description: "Typed tables, a spreadsheet UI, REST API and MCP. Self-host Rootset on PostgreSQL and own your data."
+title: "Centralised MDM for structured data"
+description: "Structured MDM data management for the modern era. Preloaded with MCP and spreadsheet-like UI that scales more than a million rows."
 mode: "custom"
 ---
 
@@ -17,22 +17,22 @@ import {
   FeatureCopy,
   FeatureImage,
   Eyebrow,
-  SplitSection,
-  SectionIntro,
-  Points,
 } from "/snippets/oss/homepage.jsx";
 import { ThemeImage } from "/snippets/oss/screenshot.jsx";
 
 <Home>
   <Hero id="hero-heading">
     <h1 id="hero-heading">
-      Open-source
+      Centralised MDM for
       <br />
       <span>structured data</span>
     </h1>
-    <p>
-      Typed tables for your team, applications and AI tools.
-      <br />A spreadsheet UI, REST API and MCP, on PostgreSQL you own.
+    <p className="oss-lead">
+      <span>Structured MDM data management for the modern era.</span>
+      <span>
+        Preloaded with MCP and spreadsheet-like UI that scales more than a
+        million rows.
+      </span>
     </p>
     <Actions>
       <ActionLink href="/self-hosting/installation">
@@ -42,7 +42,7 @@ import { ThemeImage } from "/snippets/oss/screenshot.jsx";
         variant="secondary"
         href="https://github.com/avgeek-oss/rootset"
       >
-        Explore on GitHub ↗
+        GitHub Source →
       </ActionLink>
     </Actions>
   </Hero>
@@ -51,8 +51,8 @@ import { ThemeImage } from "/snippets/oss/screenshot.jsx";
       light="/assets/screenshots/rows-light.png"
       dark="/assets/screenshots/rows-dark.png"
       alt="Rootset product catalog with typed spreadsheet columns"
-      width={3840}
-      height={2160}
+      width={2560}
+      height={1600}
       priority
     />
   </ProductFrame>
@@ -98,8 +98,8 @@ import { ThemeImage } from "/snippets/oss/screenshot.jsx";
           light="/assets/screenshots/fields-light.png"
           dark="/assets/screenshots/fields-dark.png"
           alt="Rootset fields table with types, defaults and constraints"
-          width={3840}
-          height={2160}
+          width={2560}
+          height={1600}
         />
       </FeatureImage>
     </Feature>
@@ -119,8 +119,8 @@ import { ThemeImage } from "/snippets/oss/screenshot.jsx";
           light="/assets/screenshots/filters-light.png"
           dark="/assets/screenshots/filters-dark.png"
           alt="Rootset filter form with field and match controls"
-          width={3840}
-          height={2160}
+          width={2560}
+          height={1600}
         />
       </FeatureImage>
     </Feature>
@@ -139,8 +139,8 @@ import { ThemeImage } from "/snippets/oss/screenshot.jsx";
           light="/assets/screenshots/unique-rule-editor-light.png"
           dark="/assets/screenshots/unique-rule-editor-dark.png"
           alt="Create unique rule modal"
-          width={3840}
-          height={2160}
+          width={2560}
+          height={1600}
         />
       </FeatureImage>
     </Feature>
@@ -159,45 +159,12 @@ import { ThemeImage } from "/snippets/oss/screenshot.jsx";
           light="/assets/screenshots/export-editor-light.png"
           dark="/assets/screenshots/export-editor-dark.png"
           alt="Export request form with CSV and JSONL formats"
-          width={3840}
-          height={2160}
+          width={2560}
+          height={1600}
         />
       </FeatureImage>
     </Feature>
   </FeatureGroup>
-  <SplitSection id="ownership-heading">
-    <SectionIntro>
-      <Eyebrow>Self-hosted</Eyebrow>
-      <h2 id="ownership-heading">Your infrastructure. Your data.</h2>
-      <p>
-        Deploy matching API, worker and UI images, connect PostgreSQL, and give
-        your workspace the services it needs.
-      </p>
-    </SectionIntro>
-    <Points>
-      <div>
-        <h3>Versioned container images</h3>
-        <p>
-          Run separate API, worker and UI images on one release version.
-          Migrations reuse the API image.
-        </p>
-      </div>
-      <div>
-        <h3>One database connection</h3>
-        <p>
-          Use your own PostgreSQL instance or the optional Compose database.
-          There are no separate identity or DDL database credentials.
-        </p>
-      </div>
-      <div>
-        <h3>Workspace permissions</h3>
-        <p>
-          Admin, Member and Viewer roles apply across the UI, API and MCP. Team
-          keys give automation its own scoped access.
-        </p>
-      </div>
-    </Points>
-  </SplitSection>
   <Actions>
     <ActionLink href="/self-hosting/installation">Set up Rootset →</ActionLink>
     <ActionLink variant="secondary" href="/overview">

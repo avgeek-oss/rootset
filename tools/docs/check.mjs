@@ -211,15 +211,21 @@ for (const group of site.footer.links)
   for (const item of group.items) await linkExists(item.href, "footer");
 await linkExists(site.navbar.primary.href, "navbar");
 let screenshots = 0;
+const capture = JSON.parse(
+  await readFile(path.join(docs, "assets/screenshots/capture.json"), "utf8"),
+);
+assert.deepEqual(capture.viewport, { width: 1280, height: 800 });
+assert.equal(capture.deviceScaleFactor, 2);
+assert.equal(capture.zoom, 1);
 for (const file of await readdir(path.join(docs, "assets/screenshots"))) {
   if (!file.endsWith(".png")) continue;
   const buffer = await readFile(path.join(docs, "assets/screenshots", file));
   assert.equal(buffer.subarray(1, 4).toString(), "PNG", file);
-  assert.equal(buffer.readUInt32BE(16), 3840, file);
-  assert.equal(buffer.readUInt32BE(20), 2160, file);
+  assert.equal(buffer.readUInt32BE(16), 2560, file);
+  assert.equal(buffer.readUInt32BE(20), 1600, file);
   screenshots++;
 }
-assert(screenshots >= 20, "Missing 2x light/dark captures");
+assert.equal(screenshots, 28, "Missing 2x light/dark captures");
 console.log(
   `Checked ${pages.length} pages, all public endpoints, links, image dimensions and image-based Compose.`,
 );
