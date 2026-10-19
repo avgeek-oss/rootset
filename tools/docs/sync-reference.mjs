@@ -26,7 +26,7 @@ const labels = {
   artifacts: "Imports and Exports",
   jobs: "Background Jobs",
 };
-const endpointPages = new Set(["overview"]);
+const endpointPages = new Set(["request-conventions"]);
 const toolPages = new Set();
 await mkdir(path.join(docs, "api-reference"), { recursive: true });
 await mkdir(path.join(docs, "mcp-reference"), { recursive: true });
@@ -154,7 +154,7 @@ for (const [url, methods] of Object.entries(spec.paths)) {
     ];
     await save(
       toolSlug,
-      `---\ntitle: ${JSON.stringify(tool.name)}\nsidebarTitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(op.summary)}\nicon: "/assets/icons/mcp.svg"\n---\n\n## Workflow\n\n\`\`\`mermaid\nflowchart LR\n  discover[${JSON.stringify(target)}] --> invoke[${JSON.stringify(title)}]\n  invoke --> outcome[${JSON.stringify(outcome)}]\n\`\`\`\n\n## Access and behavior\n\n${access}${scopes.length ? " The connection needs " + scopes.map((scope) => "`" + scope + "`").join(", ") + " scope." : ""}\n\n${behavior.map((text) => "- " + text).join("\n")}\n\n## Arguments\n\n${argumentsTable ? "| Argument | Required | Type | Details |\n| --- | --- | --- | --- |\n" + argumentsTable : "This tool takes an empty arguments object."}\n\n<Accordion title="Complete input schema">\n\n\`\`\`json\n${JSON.stringify(tool.inputSchema, null, 2)}\n\`\`\`\n\n</Accordion>\n\n## Example call\n\nYour client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.\n\n\`\`\`json\n${JSON.stringify(call, null, 2)}\n\`\`\`\n\n## Result\n\nRead the structured result returned by the tool. A tool failure sets \`isError\`; do not treat an error as a completed operation. The [REST operation](/api-reference/${op.operationId}) documents the corresponding result fields and errors.\n\n[Connect an MCP client](/mcp-guide) · [REST conventions](/api-reference/overview)\n`,
+      `---\ntitle: ${JSON.stringify(tool.name)}\nsidebarTitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(op.summary)}\nicon: "/assets/icons/mcp.svg"\n---\n\n## Workflow\n\n\`\`\`mermaid\nflowchart LR\n  discover[${JSON.stringify(target)}] --> invoke[${JSON.stringify(title)}]\n  invoke --> outcome[${JSON.stringify(outcome)}]\n\`\`\`\n\n## Access and behavior\n\n${access}${scopes.length ? " The connection needs " + scopes.map((scope) => "`" + scope + "`").join(", ") + " scope." : ""}\n\n${behavior.map((text) => "- " + text).join("\n")}\n\n## Arguments\n\n${argumentsTable ? "| Argument | Required | Type | Details |\n| --- | --- | --- | --- |\n" + argumentsTable : "This tool takes an empty arguments object."}\n\n<Accordion title="Complete input schema">\n\n\`\`\`json\n${JSON.stringify(tool.inputSchema, null, 2)}\n\`\`\`\n\n</Accordion>\n\n## Example call\n\nYour client initializes the MCP connection before this call. Example identifiers and values are illustrative; use the IDs, schema version and values from your installation.\n\n\`\`\`json\n${JSON.stringify(call, null, 2)}\n\`\`\`\n\n## Result\n\nRead the structured result returned by the tool. A tool failure sets \`isError\`; do not treat an error as a completed operation. The [REST operation](/api-reference/${op.operationId}) documents the corresponding result fields and errors.\n\n[Connect an MCP client](/mcp-connections) · [Request conventions](/api-reference/request-conventions)\n`,
     );
   }
 }
@@ -172,7 +172,7 @@ const integrations = config.navigation.dropdowns.find(
   (item) => item.dropdown === "API & MCP",
 );
 integrations.groups.find((group) => group.group === "API Reference").pages = [
-  "api-reference/overview",
+  "api-reference/request-conventions",
   ...[...apiGroups].map(([group, pages]) => ({ group, pages })),
 ];
 integrations.groups.find((group) => group.group === "MCP reference").pages = [

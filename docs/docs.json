@@ -117,7 +117,7 @@
         "groups": [
           {
             "group": "Connect a client",
-            "pages": ["api-keys", "mcp-guide"]
+            "pages": ["api-keys", "mcp-connections"]
           },
           {
             "group": "MCP reference",
@@ -263,7 +263,7 @@
           {
             "group": "API Reference",
             "pages": [
-              "api-reference/overview",
+              "api-reference/request-conventions",
               {
                 "group": "Accounts and Workspace",
                 "pages": [
@@ -499,31 +499,5 @@
     "playground": {
       "display": "simple"
     }
-  },
-  "redirects": [
-    {
-      "source": "/quickstart",
-      "destination": "/overview"
-    },
-    {
-      "source": "/concepts",
-      "destination": "/overview"
-    },
-    {
-      "source": "/foreign-keys",
-      "destination": "/table-relations"
-    },
-    {
-      "source": "/mcp-tools",
-      "destination": "/mcp-reference/rootset_get_context"
-    },
-    {
-      "source": "/api-guide",
-      "destination": "/api-reference/overview"
-    },
-    {
-      "source": "/towbar-deployment",
-      "destination": "/self-hosting/installation/towbar"
-    }
-  ]
+  }
 }

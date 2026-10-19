@@ -1,11 +1,12 @@
 {
-  "sourceRevision": "ba344edd24a1f343073116833f053ad2bba782ab",
+  "sourceRevision": "1af583d6d13cda5bc1739fc779a29efa91d65569",
   "viewport": {
-    "width": 1920,
-    "height": 1080
+    "width": 1280,
+    "height": 800
   },
   "deviceScaleFactor": 2,
+  "zoom": 1,
   "format": "png",
   "dataset": "Disposable synthetic Product catalog fixture",
-  "capturedAt": "2026-10-09T21:45:43.957Z"
+  "capturedAt": "2026-10-19T16:41:14.002Z"
 }

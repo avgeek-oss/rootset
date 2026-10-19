@@ -9,9 +9,19 @@
 .oss-home .oss-hero .oss-lead {
   width: 100%;
   max-width: none;
+  font-size: 19px;
+  line-height: 1.6;
+}
+
+.oss-home .oss-hero .oss-lead > span {
+  display: block;
 }
 
 @media (max-width: 640px) {
+  .oss-home .oss-hero .oss-lead {
+    font-size: 16px;
+  }
+
   .oss-home .oss-hero {
     padding-top: 16px;
   }

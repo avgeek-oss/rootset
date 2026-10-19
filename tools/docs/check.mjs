@@ -86,7 +86,10 @@ for (const slug of pages) {
     await linkExists(match[1] ?? match[2], slug);
   const icon = text.match(/\nicon: "([^"]+)"/);
   if (icon) await linkExists(icon[1], slug);
-  if (slug.startsWith("api-reference/") && slug !== "api-reference/overview") {
+  if (
+    slug.startsWith("api-reference/") &&
+    slug !== "api-reference/request-conventions"
+  ) {
     assert(
       expected.delete(slug.slice("api-reference/".length)),
       `Unexpected endpoint ${slug}`,
@@ -130,10 +133,6 @@ for (const slug of pages) {
 }
 assert.equal(expected.size, 0, "Missing endpoint reference pages");
 assert.equal(expectedTools.size, 0, "Missing MCP reference pages");
-for (const redirect of site.redirects) {
-  assert.notEqual(redirect.source, redirect.destination, "Redirect loop");
-  await linkExists(redirect.destination, "redirect");
-}
 for (const css of ["rootset.css", "oss-docs.css"]) {
   const text = await readFile(path.join(docs, css), "utf8");
   for (const match of text.matchAll(/url\("(\/[^" )]+)"\)/g))
@@ -211,15 +210,21 @@ for (const group of site.footer.links)
   for (const item of group.items) await linkExists(item.href, "footer");
 await linkExists(site.navbar.primary.href, "navbar");
 let screenshots = 0;
+const capture = JSON.parse(
+  await readFile(path.join(docs, "assets/screenshots/capture.json"), "utf8"),
+);
+assert.deepEqual(capture.viewport, { width: 1280, height: 800 });
+assert.equal(capture.deviceScaleFactor, 2);
+assert.equal(capture.zoom, 1);
 for (const file of await readdir(path.join(docs, "assets/screenshots"))) {
   if (!file.endsWith(".png")) continue;
   const buffer = await readFile(path.join(docs, "assets/screenshots", file));
   assert.equal(buffer.subarray(1, 4).toString(), "PNG", file);
-  assert.equal(buffer.readUInt32BE(16), 3840, file);
-  assert.equal(buffer.readUInt32BE(20), 2160, file);
+  assert.equal(buffer.readUInt32BE(16), 2560, file);
+  assert.equal(buffer.readUInt32BE(20), 1600, file);
   screenshots++;
 }
-assert(screenshots >= 20, "Missing 2x light/dark captures");
+assert.equal(screenshots, 34, "Missing 2x light/dark captures");
 console.log(
   `Checked ${pages.length} pages, all public endpoints, links, image dimensions and image-based Compose.`,
 );
