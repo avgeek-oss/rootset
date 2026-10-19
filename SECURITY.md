@@ -1,27 +1,29 @@
 # Security reports
 
-Use a private GitHub vulnerability report when enabled, or an established private
-channel to a repository administrator. Keep credentials, customer rows, backups,
-session tokens and usable exploit credentials out of public issues.
+Report vulnerabilities privately through
+[GitHub private vulnerability reporting](https://github.com/avgeek-oss/rootset/security/advisories/new).
+If private reporting is unavailable, contact [support@avgeek.ltd](mailto:support@avgeek.ltd)
+to arrange a private report. Do not post exploit details or credentials in public issues.
 
-Include the source version, affected operation and role, synthetic reproduction
-steps, and observed impact. V1 is under implementation and verification; no
-released version is currently designated production-supported.
+Include the Rootset version or commit, affected operation and role, synthetic
+reproduction steps, and observed impact. Keep customer records, backups,
+session tokens and usable credentials out of the report. Use synthetic data
+and redact secrets from logs and screenshots.
 
-## Current security boundary
+## Security boundaries
 
-An installation has one SQL-enforced organisation and three membership roles:
-Admin, Member and Viewer. Admin includes installation management. Personal API
-keys use live membership authority; demotion removes former permissions and
-member removal or credential revocation must reject subsequent use. OAuth adds
-operation consent, PKCE and token/client/audience validation. It has no database
-or table selection grants.
+An installation has one organisation and three membership roles: Admin, Member
+and Viewer. Admin includes installation management. Personal API keys use live
+membership authority and their configured permission ceiling. OAuth additionally
+limits operations through consent and validates PKCE, clients and token audiences.
 
-Keep runtime PostgreSQL application, identity and DDL credentials separate from
-the migration/database-owner credential. Protect sessions, factors, credential
-hashing secrets and encryption keys. A retained encrypted artifact is recoverable
-only with its matching key. Follow the [recovery runbooks](development/operations/README.md).
+Migrations, API and worker use one ordinary PostgreSQL database owner through
+`ROOTSET_DATABASE_URL`. It must not have superuser or `BYPASSRLS` privileges.
+The database owner can alter schemas and policies; its credentials are trusted
+operator credentials, not an end-user SQL interface.
 
-The [current checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) requires
-real denial, recovery and dependency checks. Earlier source reviews and runtime
-receipts describe historical candidates; they do not certify the revised model.
+Protect the application secret, sessions, credentials and encryption key. An
+encrypted backup requires its matching key to restore. Keep the database, worker
+and storage administration interfaces private and expose the UI and API through
+HTTPS. Follow the [security guide](https://www.rootset.app/self-hosting/security)
+and [backup and recovery guide](https://www.rootset.app/self-hosting/backup).

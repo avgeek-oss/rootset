@@ -43,9 +43,7 @@ work. It reported source-preserving bounded checksum finalisation rather than
 pruning other products or changing limits. Keep failed attempts and their stated
 limitations; do not relabel old results as current successful checks.
 
-Current passing local checks and remaining work are recorded in
-[current results](CURRENT_RESULTS.md); complete grouped sign-off remains open in
-the [revised checklist](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md). The
-core allocation is PostgreSQL/API/worker/web 4/1/2/1 GiB with no extra swap;
-object/mail fixtures and browser memory are separate observations. Complete only
-items supported by genuine results for the revised candidate.
+Use the [verification guide](README.md) to record current results and remaining
+work. The core allocation is PostgreSQL/API/worker/web 4/1/2/1 GiB with no extra
+swap; object/mail fixtures and browser memory are separate observations. Complete
+only items supported by genuine results for the version under review.

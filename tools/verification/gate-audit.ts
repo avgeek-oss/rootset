@@ -10,24 +10,16 @@ export interface Requirement {
 }
 
 export async function requirements(): Promise<Requirement[]> {
-  const source = await readFile(
-    join(root, "rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md"),
-    "utf8",
-  );
-  const result: Requirement[] = [];
-  let area = "";
-  for (const line of source.split("\n")) {
-    if (line.startsWith("## ")) area = line.slice(3);
-    const match = /^- \[[ xX]\] `([A-Z0-9]+-\d{2})` (.+)$/.exec(line);
-    if (match) result.push({ id: match[1]!, area, requirement: match[2]! });
-  }
+  const result = JSON.parse(
+    await readFile(join(root, "tools/verification/requirements.json"), "utf8"),
+  ) as Requirement[];
   const ids = new Set(result.map(({ id }) => id));
   if (
     result.length !== 40 ||
     ids.size !== 40 ||
     result.some(({ id }) => !/^V1-(?:0[1-9]|[1-3]\d|40)$/.test(id))
   )
-    throw new Error("Expected the current 40 unique V1 checklist IDs.");
+    throw new Error("Expected 40 unique verification requirement IDs.");
   return result;
 }
 

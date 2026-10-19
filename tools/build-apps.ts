@@ -135,6 +135,7 @@ await writeFile(
 );
 for (const [name, path] of [
   ["Rootset-LICENSE", "LICENSE"],
+  ["Rootset-NOTICE", "NOTICE"],
   ["Towbar-LICENSE", "packages/email/LICENSE-Towbar"],
   ["email-reference-notices.md", "packages/email/THIRD_PARTY_NOTICES.md"],
   ["web-ui-reference-notices.md", "apps/rootset-web/THIRD_PARTY_NOTICES.md"],

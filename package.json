@@ -1,8 +1,18 @@
 {
   "name": "rootset",
   "version": "0.2.4",
+  "description": "Self-hosted structured master data management with a spreadsheet UI, REST API and MCP.",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
+  "homepage": "https://www.rootset.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/avgeek-oss/rootset.git"
+  },
+  "bugs": {
+    "url": "https://github.com/avgeek-oss/rootset/issues"
+  },
   "packageManager": "pnpm@11.5.3",
   "engines": {
     "node": ">=24 <25"

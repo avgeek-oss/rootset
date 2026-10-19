@@ -2,136 +2,85 @@
 
 # Rootset
 
-Rootset is self-hosted structured storage for one organisation. Create logical
-databases and typed tables, edit records in a spreadsheet, and use the same data
-through REST or MCP using API keys or OAuth. PostgreSQL stores values, revisions and
-the latest 200 changes per existing cell. Deleting a row, field, table, or database removes its cell changelogs. The project domain is [www.rootset.app](https://www.rootset.app).
+Rootset is open-source, self-hosted master data management for structured data.
+Create databases and typed tables, manage records in a spreadsheet-like UI, and
+connect applications and AI clients through REST and MCP. PostgreSQL stores your
+data, revisions and cell history on your infrastructure.
 
-V1 uses Admin, Member and Viewer roles. Admins manage people and can delete databases and tables. Members can create and edit databases, tables and fields. Viewers can read data. Browser database deletion requires password/passkey confirmation; authorised API/MCP credentials execute directly.
-SMTP and S3-compatible storage use `.env`. Create rows through REST/MCP; the UI edits existing rows. Admins can schedule encrypted database backups to their own S3-compatible buckets through the worker. Restore has no UI or public operation yet.
-There is no standalone Background Jobs page, storage admission policy or search-index management. Table filtering and unique rules are supported without search-index setup.
-Unique rules can apply to all rows or rows matching one scalar condition. Each table can have only one rule for a given field set and condition; selecting the same fields in a different order does not create another rule. See [conditional uniqueness](docs/unique-rules.mdx) for the contract and NULL behavior.
-Personal API keys have Read-only, Edit or Administrative permissions, capped by
-the person's current role. Workspace-owned team keys use the same permissions,
-with admin-only creation, rotation and revocation independent of the creator.
-OAuth connections add approved operations to that
-current authority. Field definitions have one `name`
-property, used both as the UI label and the JSON row key. Required is the only
-nullability setting: optional fields allow null and default to null unless a
-literal default is supplied. The field editor requires a valid non-null literal
-default for required fields; new rows must receive a valid value or use that
-default.
+[Documentation](https://www.rootset.app/overview) ·
+[Installation](https://www.rootset.app/self-hosting/installation/docker-compose) ·
+[Releases](https://github.com/avgeek-oss/rootset/releases) ·
+[Report a bug](https://github.com/avgeek-oss/rootset/issues)
 
-Fields support text, URI, URL, image, integer, float, boolean, date, time, date-time and JSON. Text fields can restrict values to a bounded choice list; the grid edits them with a dropdown. Defaults and existing rows are validated before activating a constraint. URI, URL and image values are stored as plain strings without address-format validation or custom constraints. Image cells display a compact thumbnail and edit the stored URL inline; unavailable images show a muted image icon.
+## What you can do
 
-The [current V1 plan](rc-plan/README.md) and its
-[verification checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md) define
-the revised scope. Implementation and verification are being aligned with it.
-Earlier candidate receipts and the former checklist are historical; acceptance
-remains false until the current checks have genuine evidence.
+- Define typed fields, defaults, unique rules and table relations.
+- Edit, import, export and duplicate records; save views with filters, sorting
+  and column layouts.
+- Review cell history and audit logs with context for changes.
+- Connect through the REST API or MCP using API keys or OAuth. Admin, Member and
+  Viewer roles control access; credentials remain bounded by their permissions.
+- Schedule encrypted database backups to S3-compatible storage and restore them
+  through the UI, REST or MCP.
 
-## Install published images
+## Install Rootset
 
-The public documentation source lives directly in [docs](docs). Start with the
-[installation guide](docs/self-hosting/installation.mdx) and
-[environment reference](docs/self-hosting/configuration.mdx).
+Use the [Docker Compose guide](https://www.rootset.app/self-hosting/installation/docker-compose)
+to run the latest published API, worker and UI images with bundled PostgreSQL.
+An existing PostgreSQL database is also supported. Published images support
+Linux AMD64 and ARM64.
 
-Use [compose.images.yaml](compose.images.yaml) and [rootset.env.example](rootset.env.example)
-with Docker Compose. API, worker and UI have separate images pinned to the
-release version in the Compose file; migrations reuse the API image. Supply your own PostgreSQL URL,
-private S3-compatible bucket and SMTP settings, or use the optional `local-db`
-profile for bundled PostgreSQL. Published images do not require Node.js, pnpm,
-or a GitHub Packages token on the host.
+Rootset needs private S3-compatible storage for artifacts, SMTP for account emails
+and HTTPS routes for the UI and API. The guide covers configuration, initial
+setup and readiness checks. You can also install through
+[Towbar](https://www.rootset.app/self-hosting/installation/towbar).
 
-Published images are available through GitHub Releases. The
-[release procedure](development/documentation.md#publish-release-images) builds
-Linux AMD64 and ARM64 images, tests their installation and restart on both native
-architectures, then publishes the release with its image manifest and installation files.
+Before upgrading an existing installation, follow the
+[upgrade guide](https://www.rootset.app/self-hosting/upgrades) and keep a recoverable
+backup, including the application secret and encryption key.
 
 ## Run from source
 
-Use Node.js 24, pnpm 11.5.3, Docker and Docker Compose v2. The published
-`@avgeek-oss/design-system` package is hosted on GitHub Packages. Authenticate
-with a GitHub token that has `read:packages`; another Avgeek checkout is not needed.
-See [registry and build setup](development/operations/installation.md#package-registry).
+Use Node.js 24, pnpm 11.5.3 and Docker Compose. Dependencies are available from
+the public npm registry; no package-registry credential is required.
 
 ```sh
+git clone https://github.com/avgeek-oss/rootset.git
+cd rootset
 pnpm install --frozen-lockfile
 pnpm setup:env
 docker compose --profile local up --build -d
 docker compose --profile local ps
 ```
 
-`setup:env` creates the protected `.env` once. Keep it outside Git and retain an
-encrypted recovery copy. Open `http://localhost:4300`, claim setup with the
-value of `ROOTSET_SECRET`, and establish the first Admin and the installation's single
-organisation. Local email is captured at `http://localhost:8025`.
+Open `http://localhost:4300` and use the generated `ROOTSET_SECRET` from `.env`
+to claim the installation and create the first administrator. Keep `.env` private.
+The local profile supplies PostgreSQL, object storage and Mailpit. Named volumes
+preserve data; `docker compose down --volumes` deletes them.
 
-The API and worker use one `ROOTSET_DATABASE_URL`, one `ROOTSET_SECRET` and one
-`ROOTSET_ENCRYPTION_KEY`. The database URL also applies the installation baseline.
-For external PostgreSQL, use an ordinary database owner without superuser or
-BYPASSRLS access. Retain the secret and encryption key across restart and backup.
-See the [environment reference](development/operations/installation.md#external-services-and-https)
-for S3 and SMTP settings.
+See the [development installation guide](development/operations/installation.md)
+for source builds and runtime requirements.
 
-The browser calls `http://localhost:4310` directly for authentication, REST,
-OAuth, MCP and artifact transfer. For HTTPS routing, configure
-`ROOTSET_WEB_URL=https://rootset.avgeek.ltd` and
-`ROOTSET_API_URL=https://rootset-api.avgeek.ltd`. The API owns the host-only
-browser session cookie and accepts credentialed requests from the exact UI
-origin.
+## Contribute
 
-Fresh installations apply [0001_baseline.sql](packages/database/migrations/0001_baseline.sql) and the subsequent numbered migrations. Released migration files are immutable. An earlier prelaunch database is not an
-upgrade target: startup must refuse its incompatible ledger without changing data.
-Preserve that installation and use an empty, separate installation for the new
-baseline. Do not clear its ledger or delete its volumes to bypass the refusal.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for development conventions, checks and
+migration rules. Bug reports and pull requests are welcome on
+[GitHub](https://github.com/avgeek-oss/rootset). Report vulnerabilities privately
+using [SECURITY.md](SECURITY.md).
 
-See [installation](development/operations/installation.md) for external PostgreSQL,
-S3-compatible storage, SMTP and HTTPS, and [recovery](development/operations/upgrade-and-recovery.md)
-for protecting and restoring an installation.
+Useful references:
 
-## Deploy with Towbar
+- [Public documentation source](docs) and [documentation tooling](development/documentation.md)
+- [Operation catalog](packages/contracts/src) for REST and MCP contracts
+- [Operations and recovery](development/operations/README.md)
+- [Verification guidance](development/verification/README.md)
+- [Changelog](CHANGELOG.md)
 
-The [Towbar installation guide](docs/self-hosting/installation/towbar.mdx) provides deployment examples for an existing Towbar installation.
+## License
 
-## Develop and verify
+Copyright 2026 Avgeek, Inc. Licensed under the
+[Apache License, Version 2.0](LICENSE).
 
-```sh
-pnpm contracts:generate
-pnpm verify
-pnpm test:integration
-```
-
-Use isolated PostgreSQL fixtures and synthetic data for integration checks.
-Configure test object storage and SMTP where the scenario needs them. Missing
-prerequisites must fail visibly. Generated OpenAPI, client and MCP contracts live
-in `packages/contracts/generated`; regenerate them when an operation changes.
-
-The performance target remains a five-million-row table under combined
-PostgreSQL/API/worker/web memory caps of 8 GiB, with no additional swap. Ordinary
-checks, real recovery rehearsals and browser evidence establish different facts.
-Record remaining full-scale work in the [verification guide](development/verification/README.md).
-
-## Documentation
-
-- [Accounts and roles](rc-plan/ACCOUNT_ARCHITECTURE.md)
-- [Tables, fields and history](rc-plan/MDM_DATABASE_ARCHITECTURE.md)
-- [REST and MCP](rc-plan/API_AND_MCP_ARCHITECTURE.md)
-- [Runtime and frontend](rc-plan/STACK_ARCHITECTURE.md)
-- [Implementation plan](rc-plan/IMPLEMENTATION_PLAN.md)
-- [Operations](development/operations/README.md)
-- [Contributing](CONTRIBUTING.md) and [security reports](SECURITY.md)
-
-Source/image publication, production deployment and production health are
-separate release decisions. Adapted material retains its applicable licence and
-source notices.
-
-The table UI loads 200 rows initially and requests more as you scroll. It keeps at most 1,000 loaded rows (and a 32 MiB active window), fetching earlier batches again when you scroll back. React Data Grid renders only visible rows. Resource pages use `/databases/:id` and `/databases/:id/tables/:id`; filters and sorts stay part of the data query. Invalid or failed cell saves show a toast and restore the committed value.
-
-Press Command-Z (Control-Z on Windows/Linux) while the grid is focused to undo
-saved cell edits, null changes and pastes, one action at a time. The current table
-session retains up to 200 undo actions; leaving the table or reloading clears them.
-A paste is undone atomically. Undo uses normal API revision checks and records
-the restored values in cell history. A toast confirms success or explains a
-failure. Text inputs retain their normal unsaved-text undo. Redo and undoing
-deletions or schema changes are not supported.
+Third-party components retain their respective licenses. See [NOTICE](NOTICE)
+and the attribution files it lists. Production builds include dependency licenses
+and attribution notices.

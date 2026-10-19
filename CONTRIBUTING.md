@@ -1,7 +1,13 @@
 # Contributing to Rootset
 
-Use Node.js 24 and pnpm 11.5.3. Configure [GitHub Packages authentication](development/operations/installation.md#package-registry), then install with `pnpm install --frozen-lockfile` and
-read the [current V1 scope](rc-plan/README.md) before changing a domain contract.
+Use Node.js 24 and pnpm 11.5.3. Install dependencies with
+`pnpm install --frozen-lockfile`; they are available from the public npm registry.
+Follow the [development installation guide](development/operations/installation.md)
+to start a local instance.
+
+Open an issue for a bug or a proposed change. Include the Rootset version,
+reproduction steps and expected behavior for bugs. Pull requests should explain
+what changed, why and how it was verified. Keep unrelated changes separate.
 
 Keep browser, REST and MCP operations on the same validated domain service.
 Resolve the installation's single organisation and the person's current
@@ -31,8 +37,8 @@ concurrency, crash recovery, backup restore and full-scale behavior need real
 observations when they change; a unit test alone cannot establish them.
 
 Record what ran, its result and any remaining limitation. Keep secrets and private
-fixture evidence outside Git. The [short V1 checklist](rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md)
-starts unchecked for the revised scope; do not carry old pass marks forward.
+fixture evidence outside Git. See [verification guidance](development/verification/README.md)
+for integration, recovery and performance checks.
 
 ## Schema migrations
 
@@ -46,3 +52,9 @@ Review real desktop/mobile routes in light and dark themes after UI changes.
 Include keyboard use, drafts, conflicts, loading and failure states. Report
 security defects through [SECURITY.md](SECURITY.md). Publication, deployment and
 DNS changes require separate authorization.
+
+## License
+
+Contributions are submitted under the repository's [Apache License 2.0](LICENSE).
+Preserve existing copyright and third-party attribution notices, and include the
+license and source attribution for any adapted code or assets.

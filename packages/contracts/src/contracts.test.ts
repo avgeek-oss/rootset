@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import {
   CanonicalUtcDateTimeSchema,
@@ -826,18 +825,7 @@ test("query AST budgets reject deep object input before recursive Zod traversal"
   assert.equal(QuerySpecSchema.safeParse({ sql: "DROP TABLE" }).success, false);
 });
 
-test("catalog covers every named baseline MCP operation with unique routes and strict envelopes", () => {
-  const brief = readFileSync(
-    fileURLToPath(
-      new URL("../../../rc-plan/API_AND_MCP_ARCHITECTURE.md", import.meta.url),
-    ),
-    "utf8",
-  );
-  const promised = [...new Set(brief.match(/rootset_[a-z_]+/g))];
-  const missing = promised.filter(
-    (name) => !operations.some((operation) => operation.toolName === name),
-  );
-  assert.deepEqual(missing, []);
+test("catalog uses unique operation IDs, MCP tools and routes with strict envelopes", () => {
   assert.equal(
     new Set(operations.map((operation) => operation.id)).size,
     operations.length,

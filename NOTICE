@@ -1,0 +1,13 @@
+Rootset
+Copyright 2026 Avgeek, Inc.
+
+This product includes software adapted from Towbar and Mill,
+Copyright Avgeek, Inc., licensed under Apache License 2.0.
+
+Third-party attribution and license notices are retained in:
+- packages/email/THIRD_PARTY_NOTICES.md
+- apps/rootset-web/THIRD_PARTY_NOTICES.md
+- docs/assets/installation/ATTRIBUTION.txt
+
+Production builds include dependency licenses and attribution in the notices
+directory. Third-party components retain their respective licenses.

@@ -52,4 +52,4 @@ Current checks require real pool saturation, dependency failures, process restar
 job/schema recovery and redacted metrics/unknown-state behavior. Source declarations
 or old suite totals do not establish these results. Map them to `V1-10`, `V1-23`,
 `V1-24`, `V1-29`, `V1-30` and `V1-38` in the
-[checklist](../../rc-plan/IMPLEMENTATION_VERIFICATION_CHECKLIST.md).
+[verification requirements](../../tools/verification/requirements.json).
