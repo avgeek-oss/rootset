@@ -252,6 +252,21 @@ try {
     await page.getByRole("dialog").waitFor();
     await capture("api-key-editor-" + theme);
     await page.keyboard.press("Escape");
+    await page.goto(web + "/team-settings/api-keys");
+    await page
+      .getByRole("heading", { name: "API Keys", exact: true })
+      .waitFor();
+    await capture("team-api-keys-" + theme);
+    await page.goto(web + "/settings/mcp");
+    await page
+      .getByRole("heading", { name: "MCP Guide", exact: true })
+      .waitFor();
+    await capture("mcp-guide-" + theme);
+    await page.goto(web + "/settings/mcp-connections");
+    await page
+      .getByRole("heading", { name: "MCP Connections", exact: true })
+      .waitFor();
+    await capture("mcp-connections-" + theme);
     await page.goto(web + "/settings/profile");
     await page.getByRole("heading", { name: "Profile", exact: true }).waitFor();
     await capture("profile-" + theme);

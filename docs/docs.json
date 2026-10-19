@@ -117,7 +117,7 @@
         "groups": [
           {
             "group": "Connect a client",
-            "pages": ["api-keys", "mcp-guide"]
+            "pages": ["api-keys", "mcp-connections"]
           },
           {
             "group": "MCP reference",
@@ -501,6 +501,10 @@
     }
   },
   "redirects": [
+    {
+      "source": "/mcp-guide",
+      "destination": "/mcp-connections"
+    },
     {
       "source": "/quickstart",
       "destination": "/overview"

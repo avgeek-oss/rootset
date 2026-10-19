@@ -73,7 +73,10 @@
         "dropdown": "API & MCP",
         "icon": "plug",
         "groups": [
-          { "group": "Connect a client", "pages": ["api-keys", "mcp-guide"] },
+          {
+            "group": "Connect a client",
+            "pages": ["api-keys", "mcp-connections"]
+          },
           {
             "group": "MCP reference",
             "pages": [
@@ -429,6 +432,7 @@
   },
   "api": { "playground": { "display": "simple" } },
   "redirects": [
+    { "source": "/mcp-guide", "destination": "/mcp-connections" },
     { "source": "/quickstart", "destination": "/overview" },
     { "source": "/concepts", "destination": "/overview" },
     { "source": "/foreign-keys", "destination": "/table-relations" },

@@ -225,7 +225,7 @@ for (const file of await readdir(path.join(docs, "assets/screenshots"))) {
   assert.equal(buffer.readUInt32BE(20), 1600, file);
   screenshots++;
 }
-assert.equal(screenshots, 28, "Missing 2x light/dark captures");
+assert.equal(screenshots, 34, "Missing 2x light/dark captures");
 console.log(
   `Checked ${pages.length} pages, all public endpoints, links, image dimensions and image-based Compose.`,
 );

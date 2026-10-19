@@ -1,0 +1,97 @@
+---
+title: "MCP connections"
+description: "Connect your AI assistant, choose its access and try a first request."
+icon: "/assets/icons/mcp.svg"
+---
+
+import { Screenshot } from "/snippets/oss/screenshot.jsx";
+
+Connect an AI assistant to explore your databases, query records and make changes in Rootset. Sign in through your browser and choose the access it receives. You do not need an API key.
+
+## Find your connection settings
+
+1. Open **Account Settings → MCP Guide** in Rootset.
+2. Choose your client from the **App** menu.
+3. Copy the configuration shown for your installation.
+
+The guide includes settings for Codex, Claude Code, Cursor, VS Code and other MCP clients. It uses your installation's API URL, so you do not have to build the endpoint yourself.
+
+<Screenshot
+  light="/assets/screenshots/mcp-guide-light.png"
+  dark="/assets/screenshots/mcp-guide-dark.png"
+  alt="Rootset MCP Guide showing a client configuration and the App selector"
+  caption="Copy the configuration for your client from Account Settings."
+  width={2560}
+  height={1600}
+/>
+
+## Connect a client
+
+The server address is your public **API** URL followed by `/mcp`:
+
+```text
+https://rootset-api.example.com/mcp
+```
+
+Replace the example address below with your installation's API address. The web application's address is separate.
+
+<CodeGroup>
+```bash Codex
+codex mcp add rootset --url "https://rootset-api.example.com/mcp"
+codex mcp login rootset
+```
+
+```bash Claude Code
+claude mcp add --transport http rootset "https://rootset-api.example.com/mcp"
+```
+
+</CodeGroup>
+
+For Codex, the second command starts browser sign-in. In Claude Code, open `/mcp`, select Rootset and authenticate. For other clients, use the configuration from **MCP Guide** and follow the client's sign-in prompt. The client must support Streamable HTTP and OAuth.
+
+See the [Codex MCP documentation](https://developers.openai.com/codex/mcp) for its configuration options.
+
+## Approve access
+
+In the browser, review the client name and choose the access to grant:
+
+| Access        | What the assistant can do                                              |
+| ------------- | ---------------------------------------------------------------------- |
+| Read-only     | View databases, tables, schemas, records and cell history.             |
+| Write         | Read data and create, update or delete records.                        |
+| Administrator | Manage databases, tables, fields and team settings as well as records. |
+
+The form starts with **Read-only**. Available access is limited by your current workspace role. Administrator access requires an administrator account and recent identity confirmation.
+
+Role changes and membership removal revoke existing connections. Sign in again to approve access under your new role.
+
+## Try the connection
+
+Start with a read-only request:
+
+```text
+List my Rootset databases and the tables in each one. Show the fields in the Products table, if it exists.
+```
+
+With Write access and a Products table, you can try:
+
+```text
+Inspect the Products schema, then add a record with NAME "Field notebook", SKU "RS-DEMO-0001" and STOCK 24. Report the result.
+```
+
+Review the result in Rootset. For operations that return a background job, such as exports or schema changes, the assistant should check the job's result before reporting completion. The **MCP reference** lists each tool's arguments, permissions and examples.
+
+## Manage connections
+
+Open **Account Settings → MCP Connections** to see approved clients, their permissions and when they were used. Select **Revoke** to remove a client's access. Connect and sign in again if you want to grant access later.
+
+<Screenshot
+  light="/assets/screenshots/mcp-connections-light.png"
+  dark="/assets/screenshots/mcp-connections-dark.png"
+  alt="MCP Connections settings where approved clients can be managed"
+  caption="Review and revoke client access from MCP Connections."
+  width={2560}
+  height={1600}
+/>
+
+Use [API keys](/api-keys) for scripts and services that call the REST API directly.
