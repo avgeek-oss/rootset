@@ -17,8 +17,10 @@ keep those asset names stable.
 
 After merging, wait for `verify`, `docs` and `security` to pass on the exact main
 commit.
-Create a matching `vMAJOR.MINOR.PATCH` tag on that commit, then run **Publish
-release images** on main with that tag. An inconsistent version, tag or commit,
+Then run **Cut release** on main from the Actions tab: it checks the versions,
+changelog entry and CI results for the head commit, creates the matching
+`vMAJOR.MINOR.PATCH` tag there, and runs **Publish release images** with that tag.
+Creating the tag and running the publisher by hand still works. An inconsistent version, tag or commit,
 failed/incomplete CI, private repository or already published release stops the
 workflow before building.
 
