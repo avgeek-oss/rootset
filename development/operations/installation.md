@@ -1,6 +1,6 @@
 # Installation
 
-Use Node.js 24, pnpm 11.5.3, Docker Compose v2 with `depends_on.required` support
+Use Node.js 26, pnpm 11.5.3, Docker Compose v2 with `depends_on.required` support
 and PostgreSQL 18. Build from the committed lockfile;
 a failed one-shot baseline migration must prevent API/worker startup.
 

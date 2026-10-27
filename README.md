@@ -42,7 +42,7 @@ backup, including the application secret and encryption key.
 
 ## Run from source
 
-Use Node.js 24, pnpm 11.5.3 and Docker Compose. Dependencies are available from
+Use Node.js 26, pnpm 11.5.3 and Docker Compose. Dependencies are available from
 the public npm registry; no package-registry credential is required.
 
 ```sh
