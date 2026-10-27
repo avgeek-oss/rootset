@@ -156,26 +156,49 @@ test("release builds cannot promote image digests before scanning every platform
   );
   const build = workflow.jobs.build;
   assert.deepEqual(build.needs, ["prepare", "verify"]);
-  assert.deepEqual(build.strategy.matrix.service, ["api", "worker", "web"]);
   assert.deepEqual(build.strategy.matrix.architecture, ["amd64", "arm64"]);
-  const scanIndex = build.steps.findIndex((step) =>
-    step.uses?.startsWith("aquasecurity/trivy-action@"),
+  const pushes = build.steps.filter((step) =>
+    step.uses?.startsWith("docker/build-push-action@"),
+  );
+  assert.deepEqual(
+    pushes.map((step) => step.id),
+    ["build_api", "build_worker", "build_web"],
   );
   const recordIndex = build.steps.findIndex(
-    (step) => step.name === "Record immutable platform digest",
+    (step) => step.name === "Record immutable platform digests",
   );
-  assert(scanIndex > build.steps.findIndex((step) => step.id === "build"));
-  assert(scanIndex < recordIndex);
-  const scan = build.steps[scanIndex];
-  assert.equal(
-    scan.with["image-ref"],
-    "ghcr.io/avgeek-oss/rootset-${{ matrix.service }}@${{ steps.build.outputs.digest }}",
-  );
-  assert.equal(scan.env.TRIVY_PLATFORM, "linux/${{ matrix.architecture }}");
-  assert.equal(scan.with.scanners, "vuln");
-  assert.equal(scan.with.severity, "HIGH,CRITICAL");
-  assert.equal(scan.with["exit-code"], "1");
-  assert(!scan["continue-on-error"]);
+  assert(recordIndex > 0);
+  for (const [service, target] of [
+    ["api", "runtime"],
+    ["worker", "worker"],
+    ["web", "web"],
+  ]) {
+    const buildIndex = build.steps.findIndex(
+      (step) => step.id === `build_${service}`,
+    );
+    const push = build.steps[buildIndex];
+    assert.equal(push.with.target, target);
+    assert.equal(push.with.platforms, "linux/${{ matrix.architecture }}");
+    assert(
+      push.with.outputs.startsWith(
+        `type=image,name=ghcr.io/avgeek-oss/rootset-${service},push-by-digest=true,`,
+      ),
+    );
+    const scanIndex = build.steps.findIndex(
+      (step) =>
+        step.uses?.startsWith("aquasecurity/trivy-action@") &&
+        step.with?.["image-ref"] ===
+          `ghcr.io/avgeek-oss/rootset-${service}@\${{ steps.build_${service}.outputs.digest }}`,
+    );
+    assert(scanIndex > buildIndex, `${service} is scanned after it is built`);
+    assert(scanIndex < recordIndex, `${service} is scanned before promotion`);
+    const scan = build.steps[scanIndex];
+    assert.equal(scan.env.TRIVY_PLATFORM, "linux/${{ matrix.architecture }}");
+    assert.equal(scan.with.scanners, "vuln");
+    assert.equal(scan.with.severity, "HIGH,CRITICAL");
+    assert.equal(scan.with["exit-code"], "1");
+    assert(!scan["continue-on-error"]);
+  }
   assert.equal(workflow.jobs.verify.name, "Verify release CI");
   const gate = workflow.jobs.verify.steps.find((step) => step.run);
   assert.match(gate.run, /--paginate --slurp/);
