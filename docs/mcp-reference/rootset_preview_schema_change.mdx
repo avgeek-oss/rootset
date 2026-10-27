@@ -22,13 +22,14 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
 
 ## Arguments
 
-| Argument                | Required | Type       | Details                                       |
-| ----------------------- | -------- | ---------- | --------------------------------------------- |
-| `orgId`                 | Yes      | string     | Workspace ID returned by rootset_get_context. |
-| `databaseId`            | Yes      | string     | ID of the database to work with.              |
-| `tableId`               | Yes      | string     | ID of the table to work with.                 |
-| `expectedSchemaVersion` | Yes      | integer    | Current version returned by the table schema. |
-| `change`                | Yes      | JSON value | —                                             |
+| Argument                | Required | Type       | Details                                                                      |
+| ----------------------- | -------- | ---------- | ---------------------------------------------------------------------------- |
+| `orgId`                 | Yes      | string     | Organisation ID returned by rootset_get_context.                             |
+| `databaseId`            | Yes      | string     | ID of the database to work with.                                             |
+| `tableId`               | Yes      | string     | ID of the table to work with.                                                |
+| `expectedSchemaVersion` | Yes      | integer    | Current version returned by the table schema.                                |
+| `change`                | Yes      | JSON value | —                                                                            |
+| `workspaceId`           | Yes      | string     | Workspace ID returned by rootset_list_workspaces; required even for Default. |
 
 <Accordion title="Complete input schema">
 
@@ -186,6 +187,10 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
           "additionalProperties": false
         }
       ]
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
     }
   },
   "required": [
@@ -193,7 +198,8 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
     "databaseId",
     "tableId",
     "expectedSchemaVersion",
-    "change"
+    "change",
+    "workspaceId"
   ],
   "additionalProperties": false
 }
@@ -220,7 +226,8 @@ Your client initializes the MCP connection before this call. Example identifiers
       "change": {
         "kind": "add_field",
         "field": {}
-      }
+      },
+      "workspaceId": "01K6J7B8000000000000000000"
     }
   }
 }

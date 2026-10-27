@@ -13,7 +13,7 @@ import {
   type ActivityFilterOptions,
   type ActivityIcon,
 } from "@rootset/contracts";
-import { client } from "@rootset/web-client";
+import { client, currentWorkspaceId } from "@rootset/web-client";
 import { AuditEventIcon } from "./audit-event-icon";
 import { AuditLogError } from "./audit-log-error";
 import { AuditActorIcon, isAutomationActor } from "./audit-actor-icon";
@@ -36,18 +36,20 @@ const labels = {
 const actorKinds: Record<string, string> = {
   session: "User",
   personal_key: "Personal API key",
-  team_key: "Team API key",
+  workspace_key: "Workspace API key",
   oauth: "Connected application",
 };
 
 export function AuditLogFilter({
   orgId,
+  workspaceId = currentWorkspaceId(),
   kind,
   value,
   onChange,
   categories,
 }: {
   orgId: string;
+  workspaceId?: string;
   kind: "events" | "actors" | "resources";
   value: AuditFilterValue | null;
   onChange: (value: AuditFilterValue | null) => void;
@@ -62,11 +64,11 @@ export function AuditLogFilter({
   }, [search]);
   const remote = kind !== "events";
   const query = useQuery({
-    queryKey: ["activity-filter-options", orgId, kind, term],
+    queryKey: ["activity-filter-options", orgId, workspaceId, kind, term],
     queryFn: ({ signal }) =>
       client.operation<ActivityFilterOptions>(
         "listActivityFilterOptions",
-        { orgId, kind, q: term, limit: 50 },
+        { orgId, workspaceId, kind, q: term, limit: 50 },
         { signal },
       ),
     enabled: remote && open,

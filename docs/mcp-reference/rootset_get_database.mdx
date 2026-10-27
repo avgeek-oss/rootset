@@ -21,10 +21,11 @@ Requires a current workspace role of **Viewer** or higher. The connection needs 
 
 ## Arguments
 
-| Argument     | Required | Type   | Details                                       |
-| ------------ | -------- | ------ | --------------------------------------------- |
-| `orgId`      | Yes      | string | Workspace ID returned by rootset_get_context. |
-| `databaseId` | Yes      | string | ID of the database to work with.              |
+| Argument      | Required | Type   | Details                                                                      |
+| ------------- | -------- | ------ | ---------------------------------------------------------------------------- |
+| `orgId`       | Yes      | string | Organisation ID returned by rootset_get_context.                             |
+| `databaseId`  | Yes      | string | ID of the database to work with.                                             |
+| `workspaceId` | Yes      | string | Workspace ID returned by rootset_list_workspaces; required even for Default. |
 
 <Accordion title="Complete input schema">
 
@@ -40,9 +41,13 @@ Requires a current workspace role of **Viewer** or higher. The connection needs 
     "databaseId": {
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
     }
   },
-  "required": ["orgId", "databaseId"],
+  "required": ["orgId", "databaseId", "workspaceId"],
   "additionalProperties": false
 }
 ```
@@ -62,7 +67,8 @@ Your client initializes the MCP connection before this call. Example identifiers
     "name": "rootset_get_database",
     "arguments": {
       "orgId": "01K6J7B8000000000000000000",
-      "databaseId": "01K6J7B8000000000000000000"
+      "databaseId": "01K6J7B8000000000000000000",
+      "workspaceId": "01K6J7B8000000000000000000"
     }
   }
 }

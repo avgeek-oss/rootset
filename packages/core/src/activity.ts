@@ -50,6 +50,7 @@ function authority(actor: Actor): string {
     kind: actor.kind,
     id: actor.id,
     orgId: actor.orgId,
+    workspaceId: actor.workspaceId ?? null,
     userId: actor.userId ?? null,
     credentialId: actor.credentialId ?? null,
     clientId: actor.clientId ?? null,
@@ -142,6 +143,7 @@ function activityParameters(
     eventId?.split(":")[0] ?? null,
     eventId?.split(":")[1] ?? null,
     eventId?.split(":")[2] ?? null,
+    input.workspaceId,
   ];
 }
 const automationActorSql =
@@ -189,12 +191,12 @@ const activitySourceSql = `
           ), visible AS NOT MATERIALIZED (
             SELECT s.*,d.name database_name,d.state database_state,t.name table_name,t.state table_state,
               ${actorKeySql} actor_key,coalesce(s.actor->>'id',NULL) actor_id,coalesce(s.actor->>'kind','system') actor_kind,u.email actor_email,
-              CASE WHEN ${automationActorSql} THEN 'Automation' ELSE coalesce(nullif(u.name,''),CASE s.actor->>'kind' WHEN 'session' THEN 'Former member' WHEN 'personal_key' THEN 'Personal API key' WHEN 'team_key' THEN 'Team API key' WHEN 'oauth' THEN 'Connected application' ELSE 'Former member' END) END actor_name
+              CASE WHEN ${automationActorSql} THEN 'Automation' ELSE coalesce(nullif(u.name,''),CASE s.actor->>'kind' WHEN 'session' THEN 'Former member' WHEN 'personal_key' THEN 'Personal API key' WHEN 'workspace_key' THEN 'Workspace API key' WHEN 'oauth' THEN 'Connected application' ELSE 'Former member' END) END actor_name
             FROM source s
             LEFT JOIN rootset_control.databases d ON d.org_id=$1 AND d.id=s.database_id
             LEFT JOIN rootset_control.tables t ON t.org_id=$1 AND t.id=s.table_id
             LEFT JOIN rootset_control.users u ON u.id=s.actor->>'userId'
-            WHERE s.occurred_at<=coalesce($9::timestamptz,statement_timestamp()) AND ($10::timestamptz IS NULL OR s.occurred_at>=$10::timestamptz)
+            WHERE d.workspace_id=$25 AND s.occurred_at<=coalesce($9::timestamptz,statement_timestamp()) AND ($10::timestamptz IS NULL OR s.occurred_at>=$10::timestamptz)
               AND ($11::timestamptz IS NULL OR s.occurred_at<=$11::timestamptz)
               AND ($12::text IS NULL OR s.database_id=$12 OR s.related_database_id=$12) AND ($13::text IS NULL OR s.table_id=$13)
               AND ($14::text IS NULL OR s.category=$14)
@@ -256,14 +258,14 @@ export class ActivityReader {
           LEFT JOIN rootset_control.jobs j ON j.org_id=$1 AND j.id=v.job_id
           LEFT JOIN rootset_control.activity_job_events e ON $22='j' AND e.org_id=$1 AND e.id=$23
           LEFT JOIN rootset_control.backup_alerts a ON $22='a' AND a.org_id=$1 AND a.id=$23
-          WHERE v.event_key=$25
+          WHERE v.event_key=$26
             AND ($17::text IS NULL OR strpos(lower(v.summary),lower($17))>0)
           LIMIT $18`,
           [
             ...activityParameters(
               access.current,
               access,
-              { orgId: input.orgId },
+              { orgId: input.orgId, workspaceId: input.workspaceId },
               null,
               null,
               1,
@@ -363,6 +365,7 @@ export class ActivityReader {
     };
     const binding = {
       orgId: actor.orgId,
+      workspaceId: actor.workspaceId ?? null,
       tableId: actor.orgId,
       schemaVersion: 1,
       membershipVersion: actor.membershipVersion ?? 0,
@@ -603,7 +606,7 @@ export class ActivityReader {
           activityParameters(
             access.current,
             access,
-            { orgId: input.orgId, q: input.q },
+            { orgId: input.orgId, workspaceId: input.workspaceId, q: input.q },
             null,
             null,
             limit,

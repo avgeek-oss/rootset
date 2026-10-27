@@ -3,6 +3,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   McpServerIcon,
+  Layers01Icon,
   Clock01Icon,
   TransactionHistoryIcon,
   DatabaseIcon,
@@ -34,7 +35,8 @@ import {
 } from "@avgeek-oss/design-system/navigation/secondary-sidebar";
 import { canOpenSettings, SECTION_LABELS, type SettingsSection } from "./types";
 
-export type SettingsScope = "account" | "team" | "database" | "table";
+export type SettingsScope =
+  "account" | "team" | "workspace" | "database" | "table";
 
 export const settingsGroups = {
   account: [
@@ -43,8 +45,19 @@ export const settingsGroups = {
     { title: "API & MCP", sections: ["api-keys", "mcp-connections", "mcp"] },
   ],
   team: [
-    { title: "Account", sections: ["organisation", "members"] },
-    { title: "API & MCP", sections: ["team-api-keys"] },
+    { title: "Team", sections: ["organisation", "members", "team-workspaces"] },
+  ],
+  workspace: [
+    {
+      title: "Workspace",
+      sections: [
+        "workspace-general",
+        "workspace-access",
+        "workspace-api-keys",
+        "workspace-audit-logs",
+      ],
+    },
+    { title: "Danger Zone", sections: ["workspace-danger-zone"] },
   ],
   database: [
     { title: "Data", sections: ["database-exports"] },
@@ -81,6 +94,7 @@ export function settingsScope(section: SettingsSection): SettingsScope {
 }
 
 export const scopeTitles: Record<SettingsScope, string> = {
+  workspace: "Workspace Settings",
   account: "Account Settings",
   team: "Team Settings",
   database: "Database settings",
@@ -92,8 +106,10 @@ export function settingsHref(
   context: { databaseId?: string | null; tableId?: string | null },
 ) {
   const scope = settingsScope(section);
+  if (scope === "workspace")
+    return `/workspace-settings/${section === "workspace-general" ? "general" : section === "workspace-access" ? "manage-access" : section === "workspace-audit-logs" ? "audit-logs" : section === "workspace-danger-zone" ? "delete-workspace" : "api-keys"}`;
   if (scope === "team")
-    return `/team-settings/${section === "organisation" ? "general" : section === "team-api-keys" ? "api-keys" : section}`;
+    return `/team-settings/${section === "organisation" ? "general" : section === "team-workspaces" ? "workspaces" : section}`;
   if (scope === "account") return `/settings/${section}`;
   const base = dataHref(
     context.databaseId,
@@ -129,14 +145,25 @@ export function resourceBreadcrumbs(context: {
   section?: SettingsSection | null;
   databaseSwitcher?: ReactNode;
   tableSwitcher?: ReactNode;
+  workspaceIsDefault?: boolean;
 }): ComponentProps<typeof AppShellBreadcrumb>["items"] {
   const { databaseId, databaseName, tableId, tableName, section } = context;
   const scope = section ? settingsScope(section) : null;
-  if (section && (scope === "account" || scope === "team"))
+  if (
+    section &&
+    (scope === "account" || scope === "team" || scope === "workspace")
+  )
     return [
       scope === "account"
         ? { label: "Account Settings", href: "/settings/profile" }
-        : { label: "Team Settings", href: "/team-settings/general" },
+        : scope === "workspace"
+          ? {
+              label: "Workspace Settings",
+              href: context.workspaceIsDefault
+                ? "/workspace-settings/api-keys"
+                : "/workspace-settings/general",
+            }
+          : { label: "Team Settings", href: "/team-settings/general" },
       { label: SECTION_LABELS[section] },
     ];
   return [
@@ -222,8 +249,13 @@ export const settingsIcons = {
   passkeys: FingerPrintIcon,
   sessions: ComputerIcon,
   "api-keys": Key01Icon,
-  "team-api-keys": Key01Icon,
+  "workspace-api-keys": Key01Icon,
   mcp: McpServerIcon,
+  "workspace-general": Settings01Icon,
+  "workspace-access": UserGroupIcon,
+  "workspace-audit-logs": TransactionHistoryIcon,
+  "workspace-danger-zone": Delete02Icon,
+  "team-workspaces": Layers01Icon,
   organisation: Settings01Icon,
   members: UserGroupIcon,
   "mcp-connections": McpServerIcon,
@@ -268,13 +300,26 @@ export function SettingsNavigation({
 export function settingsNavigationGroups(
   scope: SettingsScope,
   role: string,
-  context: { databaseId?: string | null; tableId?: string | null } = {},
+  context: {
+    databaseId?: string | null;
+    tableId?: string | null;
+    workspaceIsDefault?: boolean;
+  } = {},
 ) {
   return settingsGroups[scope]
     .map((group) => ({
       title: group.title,
       items: group.sections
         .filter((item) => canOpenSettings(item, role))
+        .filter(
+          (item) =>
+            !context.workspaceIsDefault ||
+            ![
+              "workspace-general",
+              "workspace-access",
+              "workspace-danger-zone",
+            ].includes(item),
+        )
         .map((item) => ({
           id: item,
           label: ["database", "table", "organisation"].includes(item)
@@ -294,31 +339,35 @@ function SettingsSections({
   role,
   databaseId,
   tableId,
+  workspaceIsDefault,
 }: {
   section?: SettingsSection | null;
   scope: SettingsScope;
   role: string;
   databaseId?: string | null;
   tableId?: string | null;
+  workspaceIsDefault?: boolean;
 }) {
   return (
     <>
-      {settingsNavigationGroups(scope, role, { databaseId, tableId }).map(
-        (group) => (
-          <SecondaryItems
-            key={group.title}
-            title={group.title}
-            selected={section ?? ""}
-            items={group.items.map((item) => ({
-              id: item.id,
-              href: item.href,
-              label: item.label,
-              icon: <HugeiconsIcon icon={item.icon} />,
-              destructive: item.destructive,
-            }))}
-          />
-        ),
-      )}
+      {settingsNavigationGroups(scope, role, {
+        databaseId,
+        tableId,
+        workspaceIsDefault,
+      }).map((group) => (
+        <SecondaryItems
+          key={group.title}
+          title={group.title}
+          selected={section ?? ""}
+          items={group.items.map((item) => ({
+            id: item.id,
+            href: item.href,
+            label: item.label,
+            icon: <HugeiconsIcon icon={item.icon} />,
+            destructive: item.destructive,
+          }))}
+        />
+      ))}
     </>
   );
 }
@@ -331,6 +380,7 @@ export function PageNavigation({
   databaseId,
   tableId,
   locale,
+  workspaceIsDefault,
 }: {
   section: SettingsSection | null;
   role: string;
@@ -339,19 +389,24 @@ export function PageNavigation({
   databaseId: string | null;
   tableId: string | null;
   locale: string;
+  workspaceIsDefault?: boolean;
 }) {
   const scope = section
     ? settingsScope(section)
     : tableId
       ? "table"
       : "database";
-  if (section && (scope === "account" || scope === "team"))
+  if (
+    section &&
+    (scope === "account" || scope === "team" || scope === "workspace")
+  )
     return (
       <SettingsSections
         key={`${scope}:${role}`}
         scope={scope}
         section={section}
         role={role}
+        workspaceIsDefault={workspaceIsDefault}
       />
     );
   if (!databaseId) return null;

@@ -18,6 +18,7 @@ export type ActivityCategory = z.infer<typeof ActivityCategorySchema>;
 export const ActivityInputSchema = z
   .strictObject({
     orgId: IdSchema,
+    workspaceId: IdSchema,
     databaseId: IdSchema.optional(),
     tableId: IdSchema.optional(),
     category: ActivityCategorySchema.optional(),
@@ -100,6 +101,7 @@ export type ActivityPage = z.infer<typeof ActivityPageSchema>;
 
 export const ActivityDetailsInputSchema = z.strictObject({
   orgId: IdSchema,
+  workspaceId: IdSchema,
   eventId: z
     .string()
     .regex(
@@ -130,6 +132,7 @@ export type ActivityDetails = z.infer<typeof ActivityDetailsSchema>;
 
 export const ActivityFilterInputSchema = z.strictObject({
   orgId: IdSchema,
+  workspaceId: IdSchema,
   kind: z.enum(["actors", "resources"]),
   q: z.string().trim().max(200).optional(),
   limit: z.number().int().min(1).max(100).optional(),

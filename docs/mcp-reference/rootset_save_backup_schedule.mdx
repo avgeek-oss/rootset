@@ -23,16 +23,17 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
 
 ## Arguments
 
-| Argument          | Required | Type    | Details                                                            |
-| ----------------- | -------- | ------- | ------------------------------------------------------------------ |
-| `bucket`          | Yes      | string  | —                                                                  |
-| `prefix`          | Yes      | string  | —                                                                  |
-| `cron`            | Yes      | string  | —                                                                  |
-| `timezone`        | Yes      | string  | —                                                                  |
-| `expectedVersion` | Yes      | integer | —                                                                  |
-| `orgId`           | Yes      | string  | Workspace ID returned by rootset_get_context.                      |
-| `databaseId`      | Yes      | string  | ID of the database to work with.                                   |
-| `idempotencyKey`  | Yes      | string  | Stable caller-provided key across retries of this exact operation. |
+| Argument          | Required | Type    | Details                                                                      |
+| ----------------- | -------- | ------- | ---------------------------------------------------------------------------- |
+| `bucket`          | Yes      | string  | —                                                                            |
+| `prefix`          | Yes      | string  | —                                                                            |
+| `cron`            | Yes      | string  | —                                                                            |
+| `timezone`        | Yes      | string  | —                                                                            |
+| `expectedVersion` | Yes      | integer | —                                                                            |
+| `orgId`           | Yes      | string  | Organisation ID returned by rootset_get_context.                             |
+| `databaseId`      | Yes      | string  | ID of the database to work with.                                             |
+| `workspaceId`     | Yes      | string  | Workspace ID returned by rootset_list_workspaces; required even for Default. |
+| `idempotencyKey`  | Yes      | string  | Stable caller-provided key across retries of this exact operation.           |
 
 <Accordion title="Complete input schema">
 
@@ -73,6 +74,10 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
     },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
     "idempotencyKey": {
       "type": "string",
       "minLength": 8,
@@ -88,6 +93,7 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
     "expectedVersion",
     "orgId",
     "databaseId",
+    "workspaceId",
     "idempotencyKey"
   ],
   "additionalProperties": false
@@ -115,6 +121,7 @@ Your client initializes the MCP connection before this call. Example identifiers
       "expectedVersion": 0,
       "orgId": "01K6J7B8000000000000000000",
       "databaseId": "01K6J7B8000000000000000000",
+      "workspaceId": "01K6J7B8000000000000000000",
       "idempotencyKey": "example-request-0001"
     }
   }

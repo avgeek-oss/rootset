@@ -43,6 +43,7 @@ export const LifecycleSchema = z.enum([
   "failed",
 ]);
 export const DatabaseSchema = z.strictObject({
+  workspaceId: IdSchema,
   id: IdSchema,
   orgId: IdSchema,
   name: z.string().min(1).max(255),
@@ -143,7 +144,8 @@ export const InvitationSchema = z.strictObject({
   createdAt: DateTimeSchema,
 });
 export const KeyMetadataSchema = z.strictObject({
-  scope: z.enum(["personal", "team"]),
+  scope: z.enum(["personal", "workspace"]),
+  workspaceId: IdSchema.nullable(),
   access: z.enum(["read", "edit"]),
   includeAdmin: z.boolean(),
   id: IdSchema,

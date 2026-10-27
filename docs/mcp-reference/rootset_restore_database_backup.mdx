@@ -23,13 +23,14 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
 
 ## Arguments
 
-| Argument         | Required | Type   | Details                                                            |
-| ---------------- | -------- | ------ | ------------------------------------------------------------------ |
-| `orgId`          | Yes      | string | Workspace ID returned by rootset_get_context.                      |
-| `backupId`       | Yes      | string | —                                                                  |
-| `previewId`      | Yes      | string | —                                                                  |
-| `name`           | Yes      | string | —                                                                  |
-| `idempotencyKey` | Yes      | string | Stable caller-provided key across retries of this exact operation. |
+| Argument         | Required | Type   | Details                                                                      |
+| ---------------- | -------- | ------ | ---------------------------------------------------------------------------- |
+| `orgId`          | Yes      | string | Organisation ID returned by rootset_get_context.                             |
+| `backupId`       | Yes      | string | —                                                                            |
+| `previewId`      | Yes      | string | —                                                                            |
+| `name`           | Yes      | string | —                                                                            |
+| `workspaceId`    | Yes      | string | Workspace ID returned by rootset_list_workspaces; required even for Default. |
+| `idempotencyKey` | Yes      | string | Stable caller-provided key across retries of this exact operation.           |
 
 <Accordion title="Complete input schema">
 
@@ -55,6 +56,10 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
       "minLength": 1,
       "maxLength": 255
     },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
     "idempotencyKey": {
       "type": "string",
       "minLength": 8,
@@ -62,7 +67,14 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
       "description": "Stable caller-provided key across retries of this exact operation."
     }
   },
-  "required": ["orgId", "backupId", "previewId", "name", "idempotencyKey"],
+  "required": [
+    "orgId",
+    "backupId",
+    "previewId",
+    "name",
+    "workspaceId",
+    "idempotencyKey"
+  ],
   "additionalProperties": false
 }
 ```
@@ -85,6 +97,7 @@ Your client initializes the MCP connection before this call. Example identifiers
       "backupId": "01K6J7B8000000000000000000",
       "previewId": "01K6J7B8000000000000000000",
       "name": "example",
+      "workspaceId": "01K6J7B8000000000000000000",
       "idempotencyKey": "example-request-0001"
     }
   }

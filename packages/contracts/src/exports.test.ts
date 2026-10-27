@@ -14,6 +14,7 @@ const fields: FieldDefinition[] = [
 test("current-view exports capture a bounded projection without page cursors or limits", () => {
   const base = {
     orgId: id,
+    workspaceId: id,
     databaseId: id,
     tableId: id,
     expectedSchemaVersion: 1,
@@ -45,6 +46,7 @@ test("current-view exports capture a bounded projection without page cursors or 
   assert.equal(
     getOperation("exportRows").inputSchema.safeParse({
       orgId: id,
+      workspaceId: id,
       databaseId: id,
       tableId: id,
       format: "csv",

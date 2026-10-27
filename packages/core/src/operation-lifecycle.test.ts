@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -54,11 +55,16 @@ test("actual core field order, schema preview, uniqueness removal, statistics, c
       input: Record<string, unknown>,
       actor = owner,
     ) => {
-      const result = await runtime.core.execute(id, actor, input, {
-        surface: "browser",
-        idempotencyKey: newId(),
-        requestId: newId(),
-      });
+      const result = await runtime.core.execute(
+        id,
+        actor,
+        workspaceInput(id, actor, input),
+        {
+          surface: "browser",
+          idempotencyKey: newId(),
+          requestId: newId(),
+        },
+      );
       return getOperation(id).outputSchema.parse(result) as Record<
         string,
         unknown

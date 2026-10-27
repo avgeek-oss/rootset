@@ -1,5 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import {
+  WorkspaceDetailsSettings,
+  WorkspaceAccessSettings,
+  TeamWorkspacesSettings,
+} from "../workspaces";
+import { lazy, useState, useEffect } from "react";
 import { Page } from "@avgeek-oss/design-system/layouts/page";
 import { ContentPage, SettingsPageTitle } from "@avgeek-oss/design-system";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -45,9 +50,15 @@ import "./settings.css";
 
 export type { SettingsPanelProps, SettingsSection } from "./types";
 
+const WorkspaceAuditLogsPage = lazy(() =>
+  import("../activity-page").then((module) => ({
+    default: module.AuditLogsPage,
+  })),
+);
+
 export function SettingsPanel(props: SettingsPanelProps) {
   const activeSection = props.section;
-  const commonSettings = ["account", "team"].includes(
+  const commonSettings = ["account", "team", "workspace"].includes(
     settingsScope(activeSection),
   );
   const [selection, setSelection] = useState<PageSelection | null>(null);
@@ -69,10 +80,15 @@ export function SettingsPanel(props: SettingsPanelProps) {
     scopes: string[];
   } | null>(props.role ? undefined : "/context", null);
   const components = {
+    "workspace-general": WorkspaceDetailsSettings,
+    "workspace-danger-zone": WorkspaceDetailsSettings,
+    "workspace-audit-logs": WorkspaceAuditLogsPage,
+    "workspace-access": WorkspaceAccessSettings,
+    "team-workspaces": TeamWorkspacesSettings,
     organisation: OrganisationSettings,
     members: MembersSettings,
     "api-keys": PersonalKeysSettings,
-    "team-api-keys": TeamKeysSettings,
+    "workspace-api-keys": WorkspaceKeysSettings,
     "mcp-connections": ConnectionsSettings,
     profile: ProfileSettings,
     preferences: PreferencesSettings,
@@ -131,7 +147,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
   return (
     <PageSelectionContext.Provider value={setSelection}>
       <RelativeTimeProvider>
-        {commonSettings && activeSection === "passkeys" ? (
+        {activeSection === "workspace-audit-logs" ? (
+          content
+        ) : commonSettings && activeSection === "passkeys" ? (
           <Page>
             <div className="min-w-0">{content}</div>
             <IdentityConfirmation />
@@ -142,21 +160,41 @@ export function SettingsPanel(props: SettingsPanelProps) {
             breadcrumbAncestors={[
               settingsScope(activeSection) === "team"
                 ? { label: "Team Settings", href: "/team-settings/general" }
-                : { label: "Account Settings", href: "/settings/profile" },
+                : settingsScope(activeSection) === "workspace"
+                  ? {
+                      label: "Workspace Settings",
+                      href: props.workspaceIsDefault
+                        ? "/workspace-settings/api-keys"
+                        : "/workspace-settings/general",
+                    }
+                  : { label: "Account Settings", href: "/settings/profile" },
             ]}
             actions={selection?.actions}
             titleContent={
-              <SettingsPageTitle
-                section={
-                  activeSection === "organisation"
-                    ? "general"
-                    : activeSection === "team-api-keys"
-                      ? "api-keys"
-                      : (activeSection as Parameters<
-                          typeof SettingsPageTitle
-                        >[0]["section"])
-                }
-              />
+              settingsScope(activeSection) === "workspace" ||
+              activeSection === "team-workspaces" ? (
+                <span className="inline-flex items-center gap-2">
+                  <HugeiconsIcon
+                    icon={settingsIcons[activeSection]}
+                    size={20}
+                  />
+                  {title}
+                </span>
+              ) : (
+                <SettingsPageTitle
+                  section={
+                    ["organisation", "workspace-general"].includes(
+                      activeSection,
+                    )
+                      ? "general"
+                      : activeSection === "workspace-api-keys"
+                        ? "api-keys"
+                        : (activeSection as Parameters<
+                            typeof SettingsPageTitle
+                          >[0]["section"])
+                  }
+                />
+              )
             }
           >
             <div className="content-grid min-w-0">{content}</div>
@@ -188,8 +226,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
   );
 }
 
-function TeamKeysSettings() {
-  return <ApiMcpSettings section="team-keys" />;
+function WorkspaceKeysSettings() {
+  return <ApiMcpSettings section="workspace-keys" />;
 }
 
 function PersonalKeysSettings() {

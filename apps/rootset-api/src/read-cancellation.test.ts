@@ -752,6 +752,7 @@ test(
             config.baseURL = `http://127.0.0.1:${address.port}`;
             handler = createRuntimeApp(runtime);
             const target = {
+              workspaceId: actor.orgId,
               orgId: actor.orgId,
               databaseId: database.id,
               tableId: table.id,
@@ -785,6 +786,7 @@ test(
                       },
                     }
                   : {
+                      workspaceId: actor.orgId,
                       orgId: actor.orgId,
                       databaseId: database.id,
                       query: { limit: 200 },
@@ -792,7 +794,9 @@ test(
                     };
               // Public path carries route IDs rather than body IDs.
               const encoded = JSON.stringify(
-                kind === "rest" ? { query: { limit: 200 } } : body,
+                kind === "rest"
+                  ? { workspaceId: actor.orgId, query: { limit: 200 } }
+                  : body,
               );
               const request = httpRequest(`${config.baseURL}${path}`, {
                 method: "POST",
@@ -925,7 +929,7 @@ test(
               }
             }
             const response = await fetch(
-              `${config.baseURL}/v1/orgs/${actor.orgId}/databases/${database.id}/tables/${table.id}/rows?limit=200`,
+              `${config.baseURL}/v1/orgs/${actor.orgId}/databases/${database.id}/tables/${table.id}/rows?limit=200&workspaceId=${actor.orgId}`,
               { headers: { Authorization: "Bearer isolated-fixture" } },
             );
             assert.equal(response.status, 200);

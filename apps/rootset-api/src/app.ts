@@ -122,6 +122,7 @@ const pathNames = (path: string) =>
   [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]!);
 const httpPath = (path: string) => path.replace(/\{([^}]+)\}/g, ":$1");
 const WindowInputSchema = z.strictObject({
+  workspaceId: IdSchema,
   orgId: IdSchema,
   databaseId: IdSchema,
   query: QuerySpecSchema.optional(),
@@ -532,6 +533,7 @@ export function createApp(deps: ApiDependencies) {
               operation.id,
               actor,
               validate(operation, {
+                workspaceId: c.req.query("workspaceId"),
                 ...value,
                 tableId: c.req.param("tableId"),
               }),
@@ -667,7 +669,21 @@ export function createApp(deps: ApiDependencies) {
             ReturnType<NonNullable<ApiDependencies["downloadArtifact"]>>
           >;
           try {
-            artifact = await deps.downloadArtifact!(actor, id);
+            const workspaceId = IdSchema.parse(c.req.query("workspaceId"));
+            await deps.core.execute(
+              "getArtifact",
+              actor,
+              { orgId, workspaceId, id },
+              {
+                surface: internal ? "browser" : "rest",
+                requestId: c.get("requestId"),
+                responseBudget: limits.restResultBytes,
+              },
+            );
+            artifact = await deps.downloadArtifact!(
+              { ...actor, workspaceId },
+              id,
+            );
           } finally {
             await release();
           }
@@ -736,7 +752,8 @@ export function createApp(deps: ApiDependencies) {
               404,
             );
         if (operation.id === "queryRows" && !("query" in body)) {
-          body = { query: body };
+          const { workspaceId, ...queryBody } = body;
+          body = { workspaceId, query: queryBody };
           numericLexemes = numericLexemes.map((info) => ({
             ...info,
             path: ["query", ...info.path],
@@ -821,7 +838,10 @@ export function createApp(deps: ApiDependencies) {
         403,
       );
     const actor = await deps.identity.resolveActor(request, "mcp");
-    if (!actor || !["oauth", "personal_key", "team_key"].includes(actor.kind))
+    if (
+      !actor ||
+      !["oauth", "personal_key", "workspace_key"].includes(actor.kind)
+    )
       return errorResponse(
         new RootsetError(
           "UNAUTHENTICATED",
@@ -1104,7 +1124,7 @@ export function createApp(deps: ApiDependencies) {
     }));
     server.setRequestHandler(ReadResourceRequestSchema, async (message) => {
       const match = message.params.uri.match(
-        /^rootset:\/\/artifacts\/([0-7][0-9A-HJKMNP-TV-Z]{25})$/i,
+        /^rootset:\/\/workspaces\/([0-7][0-9A-HJKMNP-TV-Z]{25})\/artifacts\/([0-7][0-9A-HJKMNP-TV-Z]{25})$/i,
       );
       if (!match)
         throw new RootsetError(
@@ -1120,7 +1140,7 @@ export function createApp(deps: ApiDependencies) {
           await deps.core.execute(
             "getArtifact",
             actor,
-            { orgId: actor.orgId, id: match[1] },
+            { orgId: actor.orgId, workspaceId: match[1], id: match[2] },
             {
               requestId: c.get("requestId"),
               surface: "mcp",

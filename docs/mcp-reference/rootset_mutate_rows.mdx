@@ -24,15 +24,16 @@ Requires a current workspace role of **Member** or higher. The connection needs 
 
 ## Arguments
 
-| Argument                | Required | Type                | Details                                                            |
-| ----------------------- | -------- | ------------------- | ------------------------------------------------------------------ |
-| `orgId`                 | Yes      | string              | Workspace ID returned by rootset_get_context.                      |
-| `databaseId`            | Yes      | string              | ID of the database to work with.                                   |
-| `tableId`               | Yes      | string              | ID of the table to work with.                                      |
-| `expectedSchemaVersion` | Yes      | integer             | Current version returned by the table schema.                      |
-| `mutations`             | Yes      | array of JSON value | —                                                                  |
-| `repair`                | No       | object              | —                                                                  |
-| `idempotencyKey`        | Yes      | string              | Stable caller-provided key across retries of this exact operation. |
+| Argument                | Required | Type                | Details                                                                      |
+| ----------------------- | -------- | ------------------- | ---------------------------------------------------------------------------- |
+| `orgId`                 | Yes      | string              | Organisation ID returned by rootset_get_context.                             |
+| `databaseId`            | Yes      | string              | ID of the database to work with.                                             |
+| `tableId`               | Yes      | string              | ID of the table to work with.                                                |
+| `expectedSchemaVersion` | Yes      | integer             | Current version returned by the table schema.                                |
+| `mutations`             | Yes      | array of JSON value | —                                                                            |
+| `repair`                | No       | object              | —                                                                            |
+| `workspaceId`           | Yes      | string              | Workspace ID returned by rootset_list_workspaces; required even for Default. |
+| `idempotencyKey`        | Yes      | string              | Stable caller-provided key across retries of this exact operation.           |
 
 <Accordion title="Complete input schema">
 
@@ -196,6 +197,10 @@ Requires a current workspace role of **Member** or higher. The connection needs 
       "required": ["reason"],
       "additionalProperties": false
     },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
     "idempotencyKey": {
       "type": "string",
       "minLength": 8,
@@ -209,6 +214,7 @@ Requires a current workspace role of **Member** or higher. The connection needs 
     "tableId",
     "expectedSchemaVersion",
     "mutations",
+    "workspaceId",
     "idempotencyKey"
   ],
   "additionalProperties": false,
@@ -259,6 +265,7 @@ Your client initializes the MCP connection before this call. Example identifiers
           "values": {}
         }
       ],
+      "workspaceId": "01K6J7B8000000000000000000",
       "idempotencyKey": "example-request-0001"
     }
   }

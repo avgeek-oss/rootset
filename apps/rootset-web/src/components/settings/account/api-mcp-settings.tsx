@@ -5,7 +5,7 @@ import {
   TableCellDescription,
 } from "@avgeek-oss/design-system/data-display/table-cell-text";
 
-type KeyScope = "personal" | "team";
+type KeyScope = "personal" | "workspace";
 type KeyAccess = "read" | "edit";
 type KeyPermissionMode = "full-admin" | "scoped-admin" | "standard";
 import { useAccess } from "./adapter";
@@ -153,11 +153,12 @@ function Choice({
 }
 
 export type KeyStoreSection =
-  "personal-keys" | "team-keys" | "mcp-connections" | "mcp";
+  "personal-keys" | "workspace-keys" | "mcp-connections" | "mcp";
 export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
-  const scope: KeyScope = section === "team-keys" ? "team" : "personal";
+  const scope: KeyScope =
+    section === "workspace-keys" ? "workspace" : "personal";
   const endpoint = `${baseEndpoint}/${scope}`;
-  const isKeyPage = section === "personal-keys" || section === "team-keys";
+  const isKeyPage = section === "personal-keys" || section === "workspace-keys";
   const query = useApiQuery<KeySettings>(
     isKeyPage || section === "mcp-connections" ? endpoint : null,
   );
@@ -196,7 +197,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
   );
   const sectionLabels: Record<KeyStoreSection, string> = {
     "personal-keys": "API Keys",
-    "team-keys": "API Keys",
+    "workspace-keys": "API Keys",
     "mcp-connections": "MCP Connections",
     mcp: "MCP Guide",
   };
@@ -322,8 +323,8 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
             getRowKey={(key) => key.id}
             emptyTitle="No API keys yet"
             emptyDescription={
-              scope === "team"
-                ? "Create an API key for scripts or apps used by your team."
+              scope === "workspace"
+                ? "Create an API key for scripts or apps used in this workspace."
                 : "Create an API key for your scripts or apps."
             }
           />
@@ -515,7 +516,7 @@ function CreateKey({
           disabled={busy}
           maxLength={120}
           placeholder={
-            scope === "team"
+            scope === "workspace"
               ? "e.g. Shared automation"
               : "e.g. Cursor on my Mac"
           }
@@ -549,7 +550,9 @@ function CreateKey({
                 [
                   "admin",
                   "Administrative",
-                  "Edit access plus managing databases, tables, fields and team settings.",
+                  scope === "workspace"
+                    ? "Edit access plus deleting databases and tables, managing fields and administering backups in this workspace."
+                    : "Edit access plus managing databases, tables, fields and team settings.",
                 ] as [string, string, string],
               ]
             : []),

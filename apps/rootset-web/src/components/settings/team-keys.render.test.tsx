@@ -29,17 +29,17 @@ vi.mock("./account/adapter", () => ({
   api: {},
 }));
 
-it("renders the team key page with the shared API Keys heading and empty state", () => {
+it("renders the workspace key page with the shared API Keys heading and empty state", () => {
   const html = renderToStaticMarkup(
     createElement(SettingsPanel, {
       orgId: "installation",
-      section: "team-api-keys",
+      section: "workspace-api-keys",
       role: "admin",
       onClose() {},
     }),
   );
   expect(html).toContain("API Keys");
   expect(html).toContain("No API keys yet");
-  expect(html).toContain("scripts or apps used by your team");
+  expect(html).toContain("scripts or apps used in this workspace");
   expect(html).toContain("<svg");
 });

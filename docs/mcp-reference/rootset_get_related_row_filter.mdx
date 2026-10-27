@@ -21,13 +21,14 @@ Requires a current workspace role of **Viewer** or higher. The connection needs 
 
 ## Arguments
 
-| Argument          | Required | Type   | Details                                       |
-| ----------------- | -------- | ------ | --------------------------------------------- |
-| `orgId`           | Yes      | string | Workspace ID returned by rootset_get_context. |
-| `databaseId`      | Yes      | string | ID of the database to work with.              |
-| `tableId`         | Yes      | string | ID of the table to work with.                 |
-| `ruleId`          | Yes      | string | —                                             |
-| `referencedRowId` | Yes      | string | —                                             |
+| Argument          | Required | Type   | Details                                                                      |
+| ----------------- | -------- | ------ | ---------------------------------------------------------------------------- |
+| `orgId`           | Yes      | string | Organisation ID returned by rootset_get_context.                             |
+| `databaseId`      | Yes      | string | ID of the database to work with.                                             |
+| `tableId`         | Yes      | string | ID of the table to work with.                                                |
+| `ruleId`          | Yes      | string | —                                                                            |
+| `referencedRowId` | Yes      | string | —                                                                            |
+| `workspaceId`     | Yes      | string | Workspace ID returned by rootset_list_workspaces; required even for Default. |
 
 <Accordion title="Complete input schema">
 
@@ -55,9 +56,20 @@ Requires a current workspace role of **Viewer** or higher. The connection needs 
     "referencedRowId": {
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
     }
   },
-  "required": ["orgId", "databaseId", "tableId", "ruleId", "referencedRowId"],
+  "required": [
+    "orgId",
+    "databaseId",
+    "tableId",
+    "ruleId",
+    "referencedRowId",
+    "workspaceId"
+  ],
   "additionalProperties": false
 }
 ```
@@ -80,7 +92,8 @@ Your client initializes the MCP connection before this call. Example identifiers
       "databaseId": "01K6J7B8000000000000000000",
       "tableId": "01K6J7B8000000000000000000",
       "ruleId": "01K6J7B8000000000000000000",
-      "referencedRowId": "01K6J7B8000000000000000000"
+      "referencedRowId": "01K6J7B8000000000000000000",
+      "workspaceId": "01K6J7B8000000000000000000"
     }
   }
 }

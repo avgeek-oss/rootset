@@ -127,6 +127,7 @@ export class MetadataPaging {
             kind: actor.kind,
             id: actor.id,
             orgId: actor.orgId,
+            workspaceId: actor.workspaceId ?? null,
             userId: actor.userId ?? null,
             credentialId: actor.credentialId ?? null,
             clientId: actor.clientId ?? null,

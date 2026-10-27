@@ -26,7 +26,7 @@ import {
   ALL_SCOPES,
   keyRole,
   keyScopes,
-  teamKeyScopes,
+  workspaceKeyScopes,
   assertAccess,
   roleAllows,
   type Actor,
@@ -136,12 +136,13 @@ const safeEqual = (a: string, b: string): boolean => {
 const notFound = (): never => {
   throw new RootsetError("RESOURCE_NOT_FOUND", "Resource was not found", 404);
 };
-const keyFields = `scope,access,include_admin,id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
+const keyFields = `workspace_id,scope,access,include_admin,id,name,user_id,creator_user_id,prefix,expires_at,revoked_at,last_used_at,created_at,rotated_from`;
 const mapKey = (r: Record<string, unknown>, orgId: string) => ({
   id: r.id,
   orgId,
   name: r.name,
   scope: r.scope,
+  workspaceId: r.workspace_id ?? null,
   access: r.access,
   includeAdmin: r.include_admin,
   userId: r.user_id,
@@ -561,10 +562,10 @@ export class IdentityService {
     transactionClient?: PoolClient,
   ): Promise<Actor> {
     const hydrate = async (client: PoolClient): Promise<Actor> => {
-      if (actor.kind === "team_key") {
+      if (actor.kind === "workspace_key") {
         const key = (
           await client.query(
-            `SELECT k.access,k.include_admin FROM rootset_control.api_keys k JOIN rootset_control.organisations o ON o.id=k.org_id AND o.singleton WHERE k.id=$1 AND k.org_id=$2 AND k.scope='team' AND k.user_id IS NULL AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now())`,
+            `SELECT k.access,k.include_admin,k.workspace_id FROM rootset_control.api_keys k JOIN rootset_control.organisations o ON o.id=k.org_id AND o.singleton WHERE k.id=$1 AND k.org_id=$2 AND k.scope='workspace' AND k.user_id IS NULL AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now())`,
             [actor.credentialId ?? actor.id, actor.orgId],
           )
         ).rows[0];
@@ -575,12 +576,13 @@ export class IdentityService {
             401,
           );
         return {
-          kind: "team_key",
+          kind: "workspace_key",
           id: actor.id,
+          workspaceId: key.workspace_id,
           credentialId: actor.credentialId ?? actor.id,
           orgId: actor.orgId,
           role: keyRole("admin", key.access, key.include_admin),
-          scopes: teamKeyScopes(key.access, key.include_admin),
+          scopes: workspaceKeyScopes(key.access, key.include_admin),
         };
       }
       const membership = (
@@ -652,6 +654,7 @@ export class IdentityService {
         kind: actor.kind,
         id: actor.id,
         orgId: actor.orgId,
+        ...(actor.workspaceId ? { workspaceId: actor.workspaceId } : {}),
         userId: actor.userId,
         ...(actor.credentialId ? { credentialId: actor.credentialId } : {}),
         ...(actor.clientId ? { clientId: actor.clientId } : {}),
@@ -725,7 +728,11 @@ export class IdentityService {
       )
         return null;
       const actor = await this.refreshActor({
-        kind: candidate.scope === "team" ? "team_key" : "personal_key",
+        kind:
+          candidate.scope === "workspace" ? "workspace_key" : "personal_key",
+        ...(candidate.workspace_id
+          ? { workspaceId: candidate.workspace_id }
+          : {}),
         id: candidate.id,
         credentialId: candidate.id,
         orgId: candidate.org_id,
@@ -1076,8 +1083,8 @@ export class IdentityService {
         [
           "createPersonalKey",
           "rotatePersonalKey",
-          "createTeamKey",
-          "rotateTeamKey",
+          "createWorkspaceKey",
+          "rotateWorkspaceKey",
         ].includes(operation))
     )
       this.requireRecentAuthentication(actor);
@@ -1203,6 +1210,16 @@ export class IdentityService {
           context,
         );
       const definition = operationMap[operation];
+      if (
+        operation.endsWith("WorkspaceKey") ||
+        operation === "listWorkspaceKeys"
+      ) {
+        const workspace = await client.query(
+          `SELECT w.id FROM rootset_control.workspaces w WHERE w.org_id=$1 AND w.id=$2 AND w.deleted_at IS NULL AND (w.is_default OR EXISTS(SELECT 1 FROM rootset_control.workspace_members m WHERE m.workspace_id=w.id AND m.user_id=$3)) FOR SHARE OF w`,
+          [actor.orgId, normalizedInput.workspaceId, actor.userId],
+        );
+        if (!workspace.rowCount) notFound();
+      }
       if (definition) {
         const ranks = { viewer: 1, member: 2, admin: 3 };
         if (ranks[actor.role] < ranks[definition.minimumRole])
@@ -1528,9 +1545,9 @@ export class IdentityService {
           (row) => mapKey(row, actor.orgId),
         );
       }
-      case "listTeamKeys": {
+      case "listWorkspaceKeys": {
         assertAccess(actor, {
-          scope: "team-keys:manage",
+          scope: "workspace-keys:manage",
           roles: ["admin"],
           personal: true,
         });
@@ -1539,20 +1556,20 @@ export class IdentityService {
           actor,
           operation,
           input,
-          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND scope='team'`,
-          [actor.orgId],
+          `SELECT ${keyFields} FROM rootset_control.api_keys WHERE org_id=$1 AND scope='workspace' AND workspace_id=$2`,
+          [actor.orgId, actor.workspaceId],
           (row) => mapKey(row, actor.orgId),
         );
       }
       case "createPersonalKey":
       case "rotatePersonalKey":
-      case "createTeamKey":
-      case "rotateTeamKey":
+      case "createWorkspaceKey":
+      case "rotateWorkspaceKey":
         return this.createOrRotateKey(client, operation, actor, input, context);
       case "revokePersonalKey":
         return this.revokeKey(client, actor, input);
-      case "revokeTeamKey":
-        return this.revokeKey(client, actor, input, "team");
+      case "revokeWorkspaceKey":
+        return this.revokeKey(client, actor, input, "workspace");
       case "getSecurityStatus": {
         security();
         const factor = (
@@ -2359,9 +2376,13 @@ export class IdentityService {
     await this.lockUserAuthorities(client, [actor.userId!]);
     actor = await this.hydrateActor(actor, true, client);
     assertAccess(actor, {
-      scope: operation.endsWith("TeamKey") ? "team-keys:manage" : "keys:manage",
+      scope: operation.endsWith("WorkspaceKey")
+        ? "workspace-keys:manage"
+        : "keys:manage",
       personal: true,
-      ...(operation.endsWith("TeamKey") ? { roles: ["admin" as const] } : {}),
+      ...(operation.endsWith("WorkspaceKey")
+        ? { roles: ["admin" as const] }
+        : {}),
     });
     if (typeof input.orgId === "string" && input.orgId !== actor.orgId)
       notFound();
@@ -2377,6 +2398,7 @@ export class IdentityService {
       actorKind: actor.kind,
       actorId: actor.id,
       orgId: actor.orgId,
+      ...(actor.workspaceId ? { workspaceId: actor.workspaceId } : {}),
       userId: actor.userId ?? null,
       credentialId: actor.credentialId ?? null,
       clientId: actor.clientId ?? null,
@@ -2406,12 +2428,13 @@ export class IdentityService {
       if (
         !(
           await client.query(
-            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope=$4 AND ($4='team' OR user_id=$3)`,
+            `SELECT 1 FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope=$4 AND (($4='workspace' AND workspace_id=$5) OR ($4='personal' AND user_id=$3))`,
             [
               id,
               actor.orgId,
               actor.userId,
-              operation.endsWith("TeamKey") ? "team" : "personal",
+              operation.endsWith("WorkspaceKey") ? "workspace" : "personal",
+              actor.workspaceId ?? null,
             ],
           )
         ).rowCount
@@ -2429,10 +2452,10 @@ export class IdentityService {
   ): Promise<unknown> {
     await this.lockUserAuthorities(client, [actor.userId!]);
     actor = await this.hydrateActor(actor, true, client);
-    const scope = operation.endsWith("TeamKey") ? "team" : "personal";
+    const scope = operation.endsWith("WorkspaceKey") ? "workspace" : "personal";
     assertAccess(actor, {
-      scope: scope === "team" ? "team-keys:manage" : "keys:manage",
-      ...(scope === "team" ? { roles: ["admin" as const] } : {}),
+      scope: scope === "workspace" ? "workspace-keys:manage" : "keys:manage",
+      ...(scope === "workspace" ? { roles: ["admin" as const] } : {}),
       personal: true,
     });
     if (!context.idempotencyKey)
@@ -2443,6 +2466,7 @@ export class IdentityService {
     const data = parse(
       z.strictObject({
         orgId: IdSchema.optional(),
+        workspaceId: IdSchema.optional(),
         id: IdSchema.optional(),
         name: nameSchema.optional(),
         access: z.enum(["read", "edit"]).optional(),
@@ -2466,8 +2490,14 @@ export class IdentityService {
         throw new RootsetError("VALIDATION_FAILED", "Key id is required");
       old = (
         await client.query(
-          `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope=$4 AND ($4='team' OR user_id=$3) AND revoked_at IS NULL FOR UPDATE`,
-          [data.id, actor.orgId, actor.userId, scope],
+          `SELECT * FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope=$4 AND (($4='workspace' AND workspace_id=$5) OR ($4='personal' AND user_id=$3)) AND revoked_at IS NULL FOR UPDATE`,
+          [
+            data.id,
+            actor.orgId,
+            actor.userId,
+            scope,
+            actor.workspaceId ?? null,
+          ],
         )
       ).rows[0];
       if (!old) notFound();
@@ -2528,11 +2558,11 @@ export class IdentityService {
     const id = newId(),
       secret = `rst_${id}_${randomBytes(32).toString("base64url")}`;
     const result = await client.query(
-      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from,access,include_admin,scope) VALUES($1,$2,$3,$11,$4,$5,$6,$7,$8,$9,$10,$12) RETURNING ${keyFields}`,
+      `INSERT INTO rootset_control.api_keys(id,org_id,user_id,creator_user_id,name,secret_hash,prefix,expires_at,rotated_from,access,include_admin,scope,workspace_id) VALUES($1,$2,$3,$11,$4,$5,$6,$7,$8,$9,$10,$12,$13) RETURNING ${keyFields}`,
       [
         id,
         actor.orgId,
-        scope === "team" ? null : actor.userId,
+        scope === "workspace" ? null : actor.userId,
         name,
         this.hashSecret(secret),
         `rst_${id}`,
@@ -2542,6 +2572,7 @@ export class IdentityService {
         includeAdmin,
         actor.userId,
         scope,
+        scope === "workspace" ? actor.workspaceId : null,
       ],
     );
     const metadata = mapKey(result.rows[0]!, actor.orgId);
@@ -2566,19 +2597,19 @@ export class IdentityService {
     client: PoolClient,
     actor: Actor,
     input: Record<string, unknown>,
-    scope: "personal" | "team" = "personal",
+    scope: "personal" | "workspace" = "personal",
   ): Promise<unknown> {
     assertAccess(actor, {
-      scope: scope === "team" ? "team-keys:manage" : "keys:manage",
-      ...(scope === "team" ? { roles: ["admin" as const] } : {}),
+      scope: scope === "workspace" ? "workspace-keys:manage" : "keys:manage",
+      ...(scope === "workspace" ? { roles: ["admin" as const] } : {}),
       personal: true,
     });
     const id = parse(IdSchema, input.id);
     if (
       !(
         await client.query(
-          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND org_id=$2 AND scope=$4 AND ($4='team' OR user_id=$3) RETURNING id`,
-          [id, actor.orgId, actor.userId, scope],
+          `UPDATE rootset_control.api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND org_id=$2 AND scope=$4 AND (($4='workspace' AND workspace_id=$5) OR ($4='personal' AND user_id=$3)) RETURNING id`,
+          [id, actor.orgId, actor.userId, scope, actor.workspaceId ?? null],
         )
       ).rowCount
     )

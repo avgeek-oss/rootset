@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { newId, type Actor } from "@rootset/contracts";
+import { newId, FieldDefinitionSchema, type Actor } from "@rootset/contracts";
 import {
   createPool,
   migrate,
@@ -130,23 +130,67 @@ async function fixture(t: TestContext) {
     ddlPool: pool,
     cursorSecret: "upgrade-fixture-secret-at-least-thirty-two-characters",
   });
-  const database = await storage.createDatabase(actor, {
-    name: "Existing database",
+  // Seed the released schema directly; current storage requires the later workspace migration.
+  const databaseId = newId(),
+    tableId = newId(),
+    mutationId = newId();
+  const schema = `rsd_${databaseId.toLowerCase()}`,
+    physical = `rst_${tableId.toLowerCase()}`;
+  const field = FieldDefinitionSchema.parse({
+    id: newId(),
+    name: "payload",
+    type: "json",
+    order: 0,
   });
-  const table = await storage.createTable(actor, database.id, {
-    name: "Existing table",
-    fields: [{ name: "payload", type: "json" }],
+  const column = `f_${field.id.toLowerCase()}`;
+  const rows = Array.from({ length: 100 }, (_, i) => ({
+    id: newId(),
+    values: { payload: { i, unicode: "தமிழ் ✈️", nested: [null, true, 12.5] } },
+  }));
+  await withOrg(pool, actor.orgId, async (client) => {
+    await client.query(
+      "INSERT INTO rootset_control.databases(id,org_id,name,schema_name) VALUES($1,$2,'Existing database',$3)",
+      [databaseId, actor.orgId, schema],
+    );
+    await client.query(
+      "INSERT INTO rootset_control.tables(id,database_id,org_id,name,physical_name) VALUES($1,$2,$3,'Existing table',$4)",
+      [tableId, databaseId, actor.orgId, physical],
+    );
+    await client.query(
+      "INSERT INTO rootset_control.fields(id,table_id,org_id,name,definition,position) VALUES($1,$2,$3,'payload',$4,0)",
+      [field.id, tableId, actor.orgId, field],
+    );
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    await client.query(
+      `CREATE TABLE "${schema}"."${physical}"(row_id varchar(26) PRIMARY KEY,org_id varchar(26) NOT NULL,row_version bigint NOT NULL DEFAULT 1,created_at timestamptz NOT NULL DEFAULT clock_timestamp(),updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),"${column}" jsonb)`,
+    );
+    await client.query(
+      `ALTER TABLE "${schema}"."${physical}" ENABLE ROW LEVEL SECURITY`,
+    );
+    await client.query(
+      `ALTER TABLE "${schema}"."${physical}" FORCE ROW LEVEL SECURITY`,
+    );
+    await client.query(
+      `CREATE POLICY org_isolation ON "${schema}"."${physical}" USING(org_id=rootset_control.current_org_id()) WITH CHECK(org_id=rootset_control.current_org_id())`,
+    );
+    await client.query(
+      `CREATE TRIGGER rootset_enforce BEFORE INSERT OR UPDATE OR DELETE ON "${schema}"."${physical}" FOR EACH ROW EXECUTE FUNCTION rootset_control.enforce_row('${tableId}')`,
+    );
+    await client.query(
+      "INSERT INTO rootset_control.mutations(id,org_id,table_id,idempotency_key,input_hash,actor,context,schema_version) VALUES($1,$2,$3,'upgrade-fixture','fixture',$4,'{}',1)",
+      [mutationId, actor.orgId, tableId, actor],
+    );
+    await client.query("SELECT set_config('rootset.mutation_id',$1,true)", [
+      mutationId,
+    ]);
+    for (const row of rows)
+      await client.query(
+        `INSERT INTO "${schema}"."${physical}"(row_id,org_id,"${column}") VALUES($1,$2,$3)`,
+        [row.id, actor.orgId, row.values.payload],
+      );
   });
-  const rows = await storage.mutateRows(actor, table.id, {
-    idempotencyKey: "upgrade-fixture",
-    operations: Array.from({ length: 100 }, (_, i) => ({
-      kind: "create" as const,
-      values: {
-        payload: { i, unicode: "தமிழ் ✈️", nested: [null, true, 12.5] },
-      },
-    })),
-  });
-  return { pool, actor, storage, table, rows: rows.rows };
+  const table = { id: tableId, databaseId, fields: [field] };
+  return { pool, actor, storage, table, rows };
 }
 
 async function snapshot(pool: Pool, orgId: string, tables?: string[]) {
@@ -161,7 +205,10 @@ async function snapshot(pool: Pool, orgId: string, tables?: string[]) {
       const value =
         relation === "rootset_control.tables"
           ? "to_jsonb(r)-'last_data_change_at'"
-          : "to_jsonb(r)";
+          : relation === "rootset_control.databases" ||
+              relation === "rootset_control.api_keys"
+            ? "to_jsonb(r)-'workspace_id'"
+            : "to_jsonb(r)";
       rows[relation] = (
         await client.query(
           `SELECT coalesce(jsonb_agg(${value} ORDER BY (${value})::text),'[]'::jsonb) AS rows FROM ${relation} r`,
@@ -203,6 +250,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0012_backup_retention_alerts.sql",
         "0013_activity_job_events.sql",
         "0014_resource_data_changes.sql",
+        "0015_workspaces.sql",
       ]);
     } else
       assert.deepEqual(await migrate(pool), [
@@ -219,6 +267,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0012_backup_retention_alerts.sql",
         "0013_activity_job_events.sql",
         "0014_resource_data_changes.sql",
+        "0015_workspaces.sql",
       ]);
     const preservedTables = before.tables.filter(
       (name) => name !== "rootset_control.migrations",
@@ -236,7 +285,7 @@ for (const mode of ["SQL bridge", "migration runner"])
     );
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0014_resource_data_changes.sql",
+      version: "0015_workspaces.sql",
     });
     const summary = (await storage.listTables(actor, table.databaseId)).find(
       (entry) => entry.id === table.id,
@@ -325,7 +374,7 @@ test("concurrent migration hooks apply the compatibility upgrade only once", asy
   const { pool, actor } = await fixture(t);
   const before = await snapshot(pool, actor.orgId);
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  assert.deepEqual(results.map((names) => names.length).sort(), [0, 13]);
+  assert.deepEqual(results.map((names) => names.length).sort(), [0, 14]);
   assert.equal(
     (await pool.query("SELECT count(*) FROM rootset_control.migration_repairs"))
       .rows[0].count,
@@ -389,6 +438,7 @@ test("a failure after schema creation rolls back all DDL, data and ledger change
     "0012_backup_retention_alerts.sql",
     "0013_activity_job_events.sql",
     "0014_resource_data_changes.sql",
+    "0015_workspaces.sql",
   ]);
   assert.equal((await migrationStatus(pool)).complete, true);
 });

@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -102,13 +103,13 @@ test(
         const result = await runtime.core.execute(
           operation,
           actor,
-          {
+          workspaceInput(operation, actor, {
             orgId,
             ...(operation === "createPersonalKey"
               ? {}
               : { databaseId: database.id }),
             ...input,
-          },
+          }),
           { surface: "rest", idempotencyKey: newId() },
         );
         return getOperation(operation).outputSchema.parse(result) as T;

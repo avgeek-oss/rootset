@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, accountKeyRows, oauthPermissions } from "./adapter";
+import { api, accountKeyRows, oauthPermissions, useApiQuery } from "./adapter";
 import { performAction, read, write } from "../api";
+import { usePageQuery } from "../../page-navigation";
+vi.mock("../../page-navigation", () => ({
+  usePageQuery: vi.fn(() => ({ data: null, error: null, refetch: vi.fn() })),
+}));
 
 vi.mock("../api", () => ({
   performAction: vi.fn(),
@@ -54,7 +58,7 @@ describe("account component bindings", () => {
       await api.post("/v1/core/settings/api-keys/personal", input),
     ).toEqual({ token: null });
   });
-  it("creates and revokes workspace-owned keys through team operations", async () => {
+  it("creates and revokes workspace-owned keys through workspace operations", async () => {
     vi.mocked(read).mockResolvedValue({
       organisation: { id: "installation" },
       principal: { role: "admin" },
@@ -67,17 +71,20 @@ describe("account component bindings", () => {
       expiresAt: null,
     };
     expect(
-      await api.post("/v1/core/settings/api-keys/team", input, {
+      await api.post("/v1/core/settings/api-keys/workspace", input, {
         "Idempotency-Key": "team-request",
       }),
     ).toEqual({ token: "team-token" });
     expect(performAction).toHaveBeenCalledWith(
-      "createTeamKey",
+      "createWorkspaceKey",
       { ...input, orgId: "installation" },
       { idempotencyKey: "team-request" },
     );
-    await api.delete("/v1/core/settings/api-keys/team/key");
-    expect(write).toHaveBeenCalledWith("/orgs/installation/keys/key", "DELETE");
+    await api.delete("/v1/core/settings/api-keys/workspace/key");
+    expect(write).toHaveBeenCalledWith(
+      "/orgs/installation/workspace-keys/key",
+      "DELETE",
+    );
   });
   it("revokes a connection through its connection endpoint", async () => {
     vi.mocked(read).mockResolvedValue([{ id: "grant" }]);
@@ -131,4 +138,38 @@ describe("account component bindings", () => {
       permissionMode: "scoped-admin",
     });
   });
+});
+
+it("separates workspace API-key caches and pins the read to the requested workspace", async () => {
+  let active = "workspace-a";
+  vi.stubGlobal("window", {
+    sessionStorage: { getItem: () => active },
+    __ROOTSET_API_ORIGIN: "http://rootset.test",
+  });
+  try {
+    vi.mocked(read)
+      .mockResolvedValueOnce({ organisation: { id: "org" } })
+      .mockResolvedValueOnce([]);
+    useApiQuery("/v1/core/settings/api-keys/workspace");
+    const first = vi.mocked(usePageQuery).mock.calls.at(-1)![0];
+    expect(first.queryKey).toEqual([
+      "account-settings",
+      "/v1/core/settings/api-keys/workspace",
+      "workspace-a",
+    ]);
+    active = "workspace-b";
+    useApiQuery("/v1/core/settings/api-keys/workspace");
+    const second = vi.mocked(usePageQuery).mock.calls.at(-1)![0];
+    expect(second.queryKey).toEqual([
+      "account-settings",
+      "/v1/core/settings/api-keys/workspace",
+      "workspace-b",
+    ]);
+    await (first.queryFn as () => Promise<unknown>)();
+    expect(read).toHaveBeenCalledWith(
+      "/orgs/org/workspace-keys?workspaceId=workspace-a",
+    );
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

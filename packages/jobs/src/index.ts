@@ -84,7 +84,7 @@ function accepted(job: JobRecord) {
   return {
     jobId: job.id,
     state: job.state,
-    statusUrl: `/v1/orgs/${job.org_id}/jobs/${job.id}`,
+    statusUrl: `/v1/orgs/${job.org_id}/jobs/${job.id}?workspaceId=${job.input.workspaceId ?? job.actor.workspaceId ?? job.org_id}`,
   };
 }
 function jobView(job: JobRecord): Record<string, unknown> {
@@ -900,7 +900,7 @@ export class JobsService {
           : undefined;
     const request = {
       ...(order ? { order } : {}),
-      resource: `jobs:${actor.orgId}`,
+      resource: `jobs:${actor.orgId}:${actor.workspaceId}`,
       limit,
       cursor: typeof input.cursor === "string" ? input.cursor : null,
       filter: {
@@ -918,7 +918,7 @@ export class JobsService {
         (
           await client.query<JobRecord>(
             `SELECT * FROM rootset_control.jobs
-      WHERE ($1::text IS NULL OR id${order === "desc" ? "<" : ">"}$1) AND ($2::text IS NULL OR state=$2) AND ($3::text IS NULL OR kind=$3 OR ($3='import' AND kind='import_preview') OR ($3='database_restore' AND kind='database_restore_preview'))
+      WHERE coalesce(input->>'workspaceId',actor->>'workspaceId',org_id)=$7 AND ($1::text IS NULL OR id${order === "desc" ? "<" : ">"}$1) AND ($2::text IS NULL OR state=$2) AND ($3::text IS NULL OR kind=$3 OR ($3='import' AND kind='import_preview') OR ($3='database_restore' AND kind='database_restore_preview'))
       AND ($4::text IS NULL OR (target_type='database' AND target_id=$4) OR (kind IN ('database_restore_preview','database_restore') AND input->>'sourceDatabaseId'=$4)) AND ($5::text IS NULL OR (target_type='table' AND target_id=$5)) ORDER BY id ${order === "desc" ? "DESC" : "ASC"} LIMIT $6`,
             [
               position.afterId,
@@ -927,6 +927,7 @@ export class JobsService {
               input.databaseId ?? null,
               input.tableId ?? null,
               limit + 1,
+              actor.workspaceId ?? actor.orgId,
             ],
           )
         ).rows,
@@ -994,8 +995,8 @@ export class JobsService {
       sizeBytes: Number(artifact.byte_length),
       checksum: artifact.checksum!,
       expiresAt: artifact.expires_at.toISOString(),
-      downloadUrl: `${this.config.baseURL ?? ""}/v1/orgs/${actor.orgId}/artifacts/${artifact.id}/download`,
-      resourceUri: `rootset://artifacts/${artifact.id}`,
+      downloadUrl: `${this.config.baseURL ?? ""}/v1/orgs/${actor.orgId}/artifacts/${artifact.id}/download?workspaceId=${actor.workspaceId ?? actor.orgId}`,
+      resourceUri: `rootset://workspaces/${actor.workspaceId ?? actor.orgId}/artifacts/${artifact.id}`,
       ...(typeof artifact.metadata.rowCount === "number"
         ? { rowCount: artifact.metadata.rowCount }
         : {}),

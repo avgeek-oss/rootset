@@ -8,6 +8,13 @@ Choose a published version from [GitHub Releases](https://github.com/avgeek-oss/
 
 Use the same release version for the API, worker and UI. Keep the PostgreSQL data, object storage, application secret and encryption keys.
 
+<Warning>
+  The workspace upgrade moves existing databases into Default and revokes old
+  team API keys. Create replacement workspace keys after upgrading. REST and MCP
+  data operations now require an explicit `workspaceId`, including for Default.
+  Update integrations before resuming automation.
+</Warning>
+
 ## Docker Compose
 
 Download the new release's Compose file as described in [Docker Compose installation](/self-hosting/installation/docker-compose). Preserve your existing `.env` and review any new configuration settings.

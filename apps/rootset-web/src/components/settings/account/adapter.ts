@@ -20,7 +20,7 @@ import type {
   Preferences,
 } from "../types";
 import { createDateTimeFormatter } from "@rootset/contracts";
-import { browserApiOrigin } from "@rootset/web-client";
+import { browserApiOrigin, currentWorkspaceId } from "@rootset/web-client";
 
 export type AccountUser = Profile & {
   name: string;
@@ -107,7 +107,10 @@ export function accountKeyRows(
   ];
 }
 
-async function loadAccount(path: string): Promise<unknown> {
+async function loadAccount(
+  path: string,
+  workspaceId?: string,
+): Promise<unknown> {
   switch (path) {
     case "/v1/core/profile": {
       const [user, security] = await Promise.all([
@@ -136,15 +139,15 @@ async function loadAccount(path: string): Promise<unknown> {
         })),
       };
     }
-    case "/v1/core/settings/api-keys/team": {
+    case "/v1/core/settings/api-keys/workspace": {
       const context = await read<Context>("/context");
       const keys = await read<ApiKey[]>(
-        `/orgs/${context.organisation?.id}/keys`,
+        `/orgs/${context.organisation?.id}/workspace-keys?workspaceId=${workspaceId}`,
       );
       return {
         keys: accountKeyRows(keys, [], "admin").map((key) => ({
           ...key,
-          scope: "team",
+          scope: "workspace",
         })),
         apiUrl: `${browserApiOrigin()}/v1`,
         mcpUrl: `${browserApiOrigin()}/mcp`,
@@ -168,11 +171,15 @@ async function loadAccount(path: string): Promise<unknown> {
 }
 
 export function useApiQuery<T>(path: string | null) {
+  const workspaceId =
+    path === "/v1/core/settings/api-keys/workspace"
+      ? currentWorkspaceId()
+      : undefined;
   const query = usePageQuery<T>({
-    queryKey: ["account-settings", path],
+    queryKey: ["account-settings", path, ...(workspaceId ? [workspaceId] : [])],
     queryFn: async () => {
       try {
-        return (await loadAccount(path!)) as T;
+        return (await loadAccount(path!, workspaceId)) as T;
       } catch (error) {
         throw new Error(describeError(error).message);
       }
@@ -248,19 +255,19 @@ async function mutate(
       });
     if (path.startsWith("/v1/core/sessions/"))
       return write(`/me/sessions/${path.split("/").at(-1)}`, "DELETE");
-    if (path === "/v1/core/settings/api-keys/team") {
+    if (path === "/v1/core/settings/api-keys/workspace") {
       const context = await read<Context>("/context");
       const result = await performAction<{ secret?: string }>(
-        "createTeamKey",
+        "createWorkspaceKey",
         { ...values, orgId: context.organisation?.id },
         { idempotencyKey: headers?.["Idempotency-Key"] },
       );
       return { token: result.secret ?? null };
     }
-    if (path.startsWith("/v1/core/settings/api-keys/team/")) {
+    if (path.startsWith("/v1/core/settings/api-keys/workspace/")) {
       const context = await read<Context>("/context");
       return write(
-        `/orgs/${context.organisation?.id}/keys/${path.split("/").at(-1)}`,
+        `/orgs/${context.organisation?.id}/workspace-keys/${path.split("/").at(-1)}`,
         "DELETE",
       );
     }

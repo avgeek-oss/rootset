@@ -52,7 +52,7 @@ afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
 });
-async function render(value = eventId) {
+async function render(value = eventId, workspaceId = "workspace-a") {
   await act(async () => {
     root.render(
       createElement(
@@ -60,6 +60,7 @@ async function render(value = eventId) {
         { client: queryClient },
         createElement(AuditEventDetails, {
           orgId: "org",
+          workspaceId,
           eventId: value,
           onClose: vi.fn(),
         }),
@@ -79,7 +80,7 @@ it("loads only the chosen event and displays selectable, read-only JSON", async 
   });
   expect(client.operation).toHaveBeenCalledWith(
     "getActivityDetails",
-    { orgId: "org", eventId: "r:12" },
+    { orgId: "org", workspaceId: "workspace-a", eventId: "r:12" },
     { signal: expect.any(AbortSignal) },
   );
   const editor = EditorView.findFromDOM(host.querySelector(".cm-editor")!)!;
@@ -120,4 +121,24 @@ it("shows a compact error instead of putting raw response errors in the dialog",
   });
   expect(host.textContent).not.toContain("private-provider-message");
   expect(host.querySelector(".cm-editor")).toBeNull();
+});
+
+it("does not reuse event details from another workspace", async () => {
+  vi.mocked(client.operation)
+    .mockResolvedValueOnce(details)
+    .mockImplementationOnce(() => new Promise(() => {}));
+  await render();
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    expect(host.querySelector(".cm-editor")).not.toBeNull();
+  });
+  await render(eventId, "workspace-b");
+  expect(host.querySelector(".cm-editor")).toBeNull();
+  expect(client.operation).toHaveBeenLastCalledWith(
+    "getActivityDetails",
+    { orgId: "org", workspaceId: "workspace-b", eventId },
+    { signal: expect.any(AbortSignal) },
+  );
 });

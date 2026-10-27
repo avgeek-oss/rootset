@@ -112,8 +112,15 @@ export async function restoreDatabaseSnapshot(
   }
   await client.query("SET LOCAL statement_timeout='60s'");
   await client.query(
-    "INSERT INTO rootset_control.databases(id,org_id,name,description,schema_name) VALUES($1,$2,$3,$4,$5)",
-    [databaseId, orgId, input.name, source.database.description, schemaName],
+    "INSERT INTO rootset_control.databases(id,org_id,name,description,schema_name,workspace_id) VALUES($1,$2,$3,$4,$5,$6)",
+    [
+      databaseId,
+      orgId,
+      input.name,
+      source.database.description,
+      schemaName,
+      actor.workspaceId ?? actor.orgId,
+    ],
   );
   await client.query(`CREATE SCHEMA ${q(schemaName)}`);
   const tables = new Map<string, TableRecord>(),

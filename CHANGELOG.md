@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Group databases, records, audit logs and background work under workspaces. Migrate existing databases into a protected Default workspace shared by the whole team.
+- Let admins create private workspaces and manage access using members' existing team roles. Add a team-wide workspace directory, searchable member selection and confirmation before removing access.
+- Replace team API keys with admin-managed workspace API keys. Existing team keys are revoked during migration. Database, table, record, job, artifact and audit operations now require an explicit `workspaceId` in REST and MCP requests.
+- Keep the current page visible while workspace navigation loads its destination. Preserve workspace scope on filtered and paginated browser requests, including Restore Attempts.
+
 ## 0.2.4 (2026-10-19)
 
 - Add searchable database and table dropdowns to resource breadcrumbs.

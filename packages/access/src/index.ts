@@ -24,7 +24,8 @@ const personalScopes = new Set([
 export function roleAllows(role: Role, scope: string): boolean {
   if (!ALL_SCOPES.includes(scope as (typeof ALL_SCOPES)[number])) return false;
   if (role === "admin") return true;
-  if (scope.startsWith("backups:")) return false;
+  if (scope.startsWith("backups:") || scope.startsWith("workspaces:"))
+    return false;
   if (personalScopes.has(scope) || scope === "org:read") return true;
   if (scope === "members:read" || scope.startsWith("installation:"))
     return false;
@@ -65,12 +66,15 @@ export function keyScopes(
   return roleScopes("member").filter((scope) => !personalScopes.has(scope));
 }
 
-export function teamKeyScopes(
+export function workspaceKeyScopes(
   access: "read" | "edit",
   includeAdmin: boolean,
 ): string[] {
   return keyScopes(access, includeAdmin).filter(
-    (scope) => !personalScopes.has(scope) && scope !== "team-keys:manage",
+    (scope) =>
+      /^(rows|databases|tables|schema|history|jobs|backups|exports):/.test(
+        scope,
+      ) || scope === "org:read",
   );
 }
 
@@ -105,7 +109,7 @@ export function assertAccess(
   if (
     (actor.kind === "oauth" ||
       actor.kind === "personal_key" ||
-      actor.kind === "team_key") &&
+      actor.kind === "workspace_key") &&
     !actor.scopes.includes(requirement.scope)
   )
     throw new AccessError(
@@ -123,7 +127,7 @@ export function assertDelegation(actor: Actor, scopes: string[]): void {
         !roleAllows(actor.role, scope) ||
         ((actor.kind === "oauth" ||
           actor.kind === "personal_key" ||
-          actor.kind === "team_key") &&
+          actor.kind === "workspace_key") &&
           !actor.scopes.includes(scope)),
     )
   )
