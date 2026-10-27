@@ -24,7 +24,7 @@
     "lint": "eslint apps packages tools --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test --concurrency=2",
+    "test": "turbo run test --concurrency=4",
     "test:integration": "tsx --test tools/verification/*.test.ts",
     "verify": "pnpm release:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "release:check": "node tools/release/validate.mjs",

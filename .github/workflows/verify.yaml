@@ -99,11 +99,11 @@ jobs:
           node dist/objects-init.mjs
       - name: Format, lint, strict types, unit tests and production builds
         run: pnpm verify
+      # One test runner runs every suite file concurrently. Each file creates
+      # its own uniquely named database and object prefix and binds no fixed
+      # port, so the suites cannot see each other's state.
       - name: Real PostgreSQL storage, identity, OAuth, API and MCP integration
-        run: |
-          pnpm test:integration
-          pnpm exec tsx packages/jobs/src/integration.ts
-          pnpm exec tsx --test packages/jobs/src/backups/integration.ts
+        run: pnpm exec tsx --test tools/verification/*.test.ts packages/jobs/src/integration.ts packages/jobs/src/backups/integration.ts
       - name: Dependency vulnerability check
         run: pnpm audit --prod --audit-level high
       - name: Record candidate and dependency/build manifests
