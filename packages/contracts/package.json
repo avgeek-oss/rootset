@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@typescript/typescript6": "catalog:",
     "typescript": "catalog:"
   },
   "dependencies": {

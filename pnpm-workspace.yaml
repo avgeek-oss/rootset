@@ -4,7 +4,10 @@ packages:
 allowBuilds:
   esbuild: true
 catalog:
-  typescript: 6.0.3
+  typescript: 7.0.2
+  # The TypeScript 6 API for tools TypeScript 7 no longer serves (it has no
+  # programmatic API): typescript-eslint and the scripts that compile with it.
+  "@typescript/typescript6": 6.0.2
   tsx: 4.23.15
   zod: 4.6.7
   pg: 8.23.1
@@ -40,8 +43,8 @@ catalog:
   "@tailwindcss/postcss": 4.3.3
   "@playwright/test": 1.63.0
   "@axe-core/playwright": 4.13.0
-  eslint: 10.11.0
-  typescript-eslint: 8.71.0
+  eslint: 10.13.0
+  typescript-eslint: 8.72.1
   prettier: 3.9.9
   turbo: 2.11.6
   esbuild: 0.28.2
