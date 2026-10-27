@@ -16,6 +16,25 @@ Give each person and client the access they need. Admins manage the workspace an
 
 Revoke unused API keys, MCP connections and browser sessions. Use personal credentials for individual clients and workspace API keys for workspace automation. Sensitive account changes require identity confirmation.
 
+## Security boundaries
+
+An installation has one organisation and three membership roles: Admin, Member
+and Viewer. Workspace membership limits access without changing those roles.
+Default is shared; private workspaces require explicit membership even for admins.
+Workspace API keys are restricted to their workspace. Admin includes installation management. Personal API keys use live
+membership authority and their configured permission ceiling. OAuth additionally
+limits operations through consent and validates PKCE, clients and token audiences.
+
+Migrations, API and worker use one ordinary PostgreSQL database owner through
+`ROOTSET_DATABASE_URL`. It must not have superuser or `BYPASSRLS` privileges.
+The database owner can alter schemas and policies; its credentials are trusted
+operator credentials, not an end-user SQL interface.
+
+Protect the application secret, sessions, credentials and encryption key. An
+encrypted backup requires its matching key to restore. Keep the database, worker
+and storage administration interfaces private and expose the UI and API through
+HTTPS. See the [backup and recovery guide](/self-hosting/backup).
+
 ## Report a vulnerability
 
 Follow [SECURITY.md](https://github.com/avgeek-oss/rootset/blob/main/SECURITY.md) for responsible reporting. Do not post credentials or private data in public issues.
