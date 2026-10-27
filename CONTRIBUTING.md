@@ -1,6 +1,6 @@
 # Contributing to Rootset
 
-Use Node.js 24 and pnpm 11.5.3. Install dependencies with
+Use Node.js 26 and pnpm 11.5.3. Install dependencies with
 `pnpm install --frozen-lockfile`; they are available from the public npm registry.
 Follow the [development installation guide](development/operations/installation.md)
 to start a local instance.
