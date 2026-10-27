@@ -58,3 +58,6 @@ minimumReleaseAgeExclude:
 # Optional peers that no workspace package pins; keep them on patched releases.
 overrides:
   "vite@>=8.3.0 <8.3.3": 8.3.5
+  # Transitive type packages and optional peers would otherwise resolve
+  # @types/node to the newest major; keep one Node 24 version.
+  "@types/node": 24.19.2
