@@ -56,7 +56,7 @@ minimumReleaseAgeExclude:
   - "@tanstack/query-core@5.104.1"
   - "@tanstack/react-query@5.104.1"
   - lucide-react@1.50.0
-  - "@avgeek-oss/design-system@1.3.2"
+  - "@avgeek-oss/design-system@1.4.0"
   - "@avgeek-oss/mintlify-docs@0.1.6"
 # Optional peers that no workspace package pins; keep them on patched releases.
 overrides:

@@ -62,12 +62,17 @@ preserve data; `docker compose down --volumes` deletes them.
 See the [development installation guide](development/operations/installation.md)
 for source builds and runtime requirements.
 
-## Contribute
+## Feedback and development
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for development conventions, checks and
-migration rules. Bug reports and pull requests are welcome on
-[GitHub](https://github.com/avgeek-oss/rootset). Report vulnerabilities privately
-using [SECURITY.md](SECURITY.md).
+Rootset does not accept contributions from public sources, to curb automated pull
+requests and because there are no dedicated resources to review and sign them off.
+Feedback and issues are welcome in
+[GitHub issues](https://github.com/avgeek-oss/rootset/issues); we triage them and
+aim to fix them promptly. Report vulnerabilities privately using
+[SECURITY.md](SECURITY.md).
+
+[CONTRIBUTING.md](CONTRIBUTING.md) holds the maintainers' development notes:
+conventions, checks and migration rules.
 
 Useful references:
 

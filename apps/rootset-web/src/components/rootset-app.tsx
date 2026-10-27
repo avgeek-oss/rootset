@@ -609,175 +609,173 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
             />
           }
           sidebar={
-            <div className="workspace-sidebar">
-              {workspace && (
-                <WorkspaceSwitcher
-                  orgId={orgId!}
-                  current={workspace}
-                  workspaces={workspaces.data?.data ?? []}
-                  canCreate={canManage}
-                />
-              )}
-              <ApplicationSidebar
-                config={{
-                  accessibleLabel: "Primary navigation",
-                  homeHref: "/",
-                  brandVersion: rootsetVersion,
-                  brand: {
-                    id: "rootset",
-                    accessibleLabel: "Rootset home",
-                    title: "Rootset",
-                    logo: <RootsetLogo />,
+            <ApplicationSidebar
+              config={{
+                accessibleLabel: "Primary navigation",
+                workspace: workspace ? (
+                  <WorkspaceSwitcher
+                    orgId={orgId!}
+                    current={workspace}
+                    workspaces={workspaces.data?.data ?? []}
+                    canCreate={canManage}
+                  />
+                ) : undefined,
+                homeHref: "/",
+                brandVersion: rootsetVersion,
+                brand: {
+                  id: "rootset",
+                  accessibleLabel: "Rootset home",
+                  title: "Rootset",
+                  logo: <RootsetLogo />,
+                },
+                groups: [
+                  {
+                    id: "operate",
+                    label: "Operate",
+                    items: [
+                      {
+                        kind: "link",
+                        id: "databases",
+                        label: "Databases",
+                        href: "/databases",
+                        icon: DatabaseIcon,
+                        activePath: resourceScope ? path : "/databases",
+                      },
+                    ],
                   },
-                  groups: [
-                    {
-                      id: "operate",
-                      label: "Operate",
-                      items: [
-                        {
-                          kind: "link",
-                          id: "databases",
-                          label: "Databases",
-                          href: "/databases",
-                          icon: DatabaseIcon,
-                          activePath: resourceScope ? path : "/databases",
-                        },
-                      ],
-                    },
-                    {
-                      id: "settings",
-                      label: "Settings",
-                      items: [
-                        {
-                          kind: "link",
-                          id: "account",
-                          label: "Account Settings",
-                          href: settingsHref("profile", {}),
-                          icon: UserAccountIcon,
-                          activePath:
-                            settings && settingsScope(settings) === "account"
-                              ? path
-                              : "/settings/profile",
-                        },
-                        ...(canManage
-                          ? [
-                              {
-                                kind: "link" as const,
-                                id: "workspace-settings",
-                                label: "Workspace Settings",
-                                href: workspaceSettingsHref,
-                                icon: Layers01Icon,
-                                activePath:
-                                  settings &&
-                                  settingsScope(settings) === "workspace"
-                                    ? path
-                                    : workspaceSettingsHref,
-                              },
-                              {
-                                kind: "link" as const,
-                                id: "team",
-                                label: "Team Settings",
-                                href: settingsHref("organisation", {}),
-                                icon: UserGroupIcon,
-                                activePath:
-                                  settings && settingsScope(settings) === "team"
-                                    ? path
-                                    : "/team-settings",
-                              },
-                            ]
-                          : []),
-                      ],
-                    },
-                  ],
-                  footerContent: (
-                    <SidebarAccountMenu
-                      name={profileName}
-                      email={context.data.profile?.email ?? ""}
-                      teamName={context.data.organisation?.name ?? "Rootset"}
-                      groups={[
-                        {
-                          id: "account",
-                          label: "Account",
-                          items: [
+                  {
+                    id: "settings",
+                    label: "Settings",
+                    items: [
+                      {
+                        kind: "link",
+                        id: "account",
+                        label: "Account Settings",
+                        href: settingsHref("profile", {}),
+                        icon: UserAccountIcon,
+                        activePath:
+                          settings && settingsScope(settings) === "account"
+                            ? path
+                            : "/settings/profile",
+                      },
+                      ...(canManage
+                        ? [
                             {
-                              id: "profile",
-                              label: "Profile",
-                              icon: icon(UserAccountIcon),
+                              kind: "link" as const,
+                              id: "workspace-settings",
+                              label: "Workspace Settings",
+                              href: workspaceSettingsHref,
+                              icon: Layers01Icon,
+                              activePath:
+                                settings &&
+                                settingsScope(settings) === "workspace"
+                                  ? path
+                                  : workspaceSettingsHref,
                             },
                             {
-                              id: "preferences",
-                              label: "Preferences",
-                              icon: icon(Settings01Icon),
+                              kind: "link" as const,
+                              id: "team",
+                              label: "Team Settings",
+                              href: settingsHref("organisation", {}),
+                              icon: UserGroupIcon,
+                              activePath:
+                                settings && settingsScope(settings) === "team"
+                                  ? path
+                                  : "/team-settings",
                             },
-                            {
-                              id: "email-password",
-                              label: "Email & Password",
-                              icon: icon(Mail01Icon),
-                            },
-                            {
-                              id: "api-keys",
-                              label: "API Keys",
-                              icon: icon(Key01Icon),
-                            },
-                          ],
-                        },
-                        {
-                          id: "rootset",
-                          label: "Rootset",
-                          items: [
-                            {
-                              id: "changelog",
-                              label: "Changelog",
-                              icon: icon(News01Icon),
-                            },
-                            {
-                              id: "documentation",
-                              label: "Documentation",
-                              icon: icon(BookOpen01Icon),
-                            },
-                            {
-                              id: "feedback",
-                              label: "Leave Feedback",
-                              icon: icon(Message01Icon),
-                            },
-                          ],
-                        },
-                        {
-                          id: "session",
-                          label: "Session",
-                          items: [
-                            {
-                              id: "logout",
-                              label: "Sign out",
-                              icon: icon(Logout03Icon),
-                              destructive: true,
-                            },
-                          ],
-                        },
-                      ]}
-                      onAction={(id) => {
-                        const productUrl = productLinks[id];
-                        if (id === "logout")
-                          void authClient.signOut().then(() => {
-                            queryClient.clear();
-                            location.assign("/login");
-                          });
-                        else if (productUrl)
-                          window.open(
-                            productUrl,
-                            "_blank",
-                            "noopener,noreferrer",
-                          );
-                        else {
-                          const section = resolveSettingsSection(id);
-                          if (section) openSettings(section);
-                        }
-                      }}
-                    />
-                  ),
-                }}
-              />
-            </div>
+                          ]
+                        : []),
+                    ],
+                  },
+                ],
+                footerContent: (
+                  <SidebarAccountMenu
+                    name={profileName}
+                    email={context.data.profile?.email ?? ""}
+                    teamName={context.data.organisation?.name ?? "Rootset"}
+                    groups={[
+                      {
+                        id: "account",
+                        label: "Account",
+                        items: [
+                          {
+                            id: "profile",
+                            label: "Profile",
+                            icon: icon(UserAccountIcon),
+                          },
+                          {
+                            id: "preferences",
+                            label: "Preferences",
+                            icon: icon(Settings01Icon),
+                          },
+                          {
+                            id: "email-password",
+                            label: "Email & Password",
+                            icon: icon(Mail01Icon),
+                          },
+                          {
+                            id: "api-keys",
+                            label: "API Keys",
+                            icon: icon(Key01Icon),
+                          },
+                        ],
+                      },
+                      {
+                        id: "rootset",
+                        label: "Rootset",
+                        items: [
+                          {
+                            id: "changelog",
+                            label: "Changelog",
+                            icon: icon(News01Icon),
+                          },
+                          {
+                            id: "documentation",
+                            label: "Documentation",
+                            icon: icon(BookOpen01Icon),
+                          },
+                          {
+                            id: "feedback",
+                            label: "Leave Feedback",
+                            icon: icon(Message01Icon),
+                          },
+                        ],
+                      },
+                      {
+                        id: "session",
+                        label: "Session",
+                        items: [
+                          {
+                            id: "logout",
+                            label: "Sign out",
+                            icon: icon(Logout03Icon),
+                            destructive: true,
+                          },
+                        ],
+                      },
+                    ]}
+                    onAction={(id) => {
+                      const productUrl = productLinks[id];
+                      if (id === "logout")
+                        void authClient.signOut().then(() => {
+                          queryClient.clear();
+                          location.assign("/login");
+                        });
+                      else if (productUrl)
+                        window.open(
+                          productUrl,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      else {
+                        const section = resolveSettingsSection(id);
+                        if (section) openSettings(section);
+                      }
+                    }}
+                  />
+                ),
+              }}
+            />
           }
         >
           <AppShellBreadcrumb
