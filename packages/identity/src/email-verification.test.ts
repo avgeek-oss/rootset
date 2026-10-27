@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
-import { setTimeout as delay } from "node:timers/promises";
 import { newId } from "@rootset/contracts";
 import { decryptProtected, type EmailPayload } from "@rootset/email";
 import { isolatedDatabase } from "../../../tools/verification/isolated-database";
@@ -202,7 +201,7 @@ test(
     );
     await t.test(
       "the private outbox cooldown and five-email budget remain hidden from public callers",
-      async () => {
+      async (st) => {
         await clearPublicBuckets();
         assert.equal((await publicRequest(pendingEmail)).status, 200);
         assert.equal(
@@ -210,8 +209,12 @@ test(
           1,
           "The authenticated outbox cooldown cannot be bypassed by clearing public buckets",
         );
+        // Verification tokens carry whole-second issue times, so each resend
+        // needs a later second to get a distinct token and outbox dedupe key.
+        // Advance a mocked Date by that second instead of waiting for it.
+        st.mock.timers.enable({ apis: ["Date"], now: Date.now() });
         for (let count = 1; count < 5; count++) {
-          await delay(1_000);
+          st.mock.timers.tick(1_000);
           await clearPublicBuckets();
           await fixture.owner.query(
             "UPDATE rootset_control.email_outbox SET created_at=now()-interval '2 minutes' WHERE to_address=$1",

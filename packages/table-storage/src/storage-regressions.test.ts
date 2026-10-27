@@ -402,11 +402,23 @@ test(
 );
 
 test(
-  "Native ranked windows preserve rows, counts, and bindings across the 10000-row anchor boundary",
+  "Native ranked windows preserve rows, counts, and bindings across a window anchor boundary",
   { skip: !configured, timeout: 240_000 },
   async (t) => {
-    const size = 10_037;
-    const table = await storage!.createTable(actor, databaseId, {
+    // Anchors are persisted every windowAnchorInterval ranks (10,000 by
+    // default). A small injected interval crosses the same boundaries: it is
+    // above the 31-row window and below "middle" of interval + 37 rows, and
+    // the sorted anchor still falls inside a run of equal bucket values.
+    assert.equal(storage!.windowAnchorInterval, 10_000);
+    const interval = 100;
+    const size = interval + 37;
+    const windowed = new TableStorage({
+      pool: app!,
+      ddlPool: ddl!,
+      cursorSecret: "storage-regression-secret-longer-than-thirty-two-bytes",
+      windowAnchorInterval: interval,
+    });
+    const table = await windowed.createTable(actor, databaseId, {
       name: "Native anchor boundaries",
       fields: [
         {
@@ -427,7 +439,7 @@ test(
     const ordinalColumn = `"f_${ordinal.id.toLowerCase()}"`;
     const bucketColumn = `"f_${bucket.id.toLowerCase()}"`;
     for (let start = 0; start < size; start += 250) {
-      await storage!.mutateRows(actor, table.id, {
+      await windowed.mutateRows(actor, table.id, {
         expectedSchemaVersion: table.schemaVersion,
         operations: Array.from(
           { length: Math.min(250, size - start) },
@@ -491,7 +503,7 @@ test(
       });
     const oracle = await nativeRows();
     assert.equal(oracle.length, size);
-    assert.equal((await storage!.getTable(actor, table.id)).rowCount, size);
+    assert.equal((await windowed.getTable(actor, table.id)).rowCount, size);
     const beforeQueries = await nativeState();
     const assertRows = (
       actual: Row[],
@@ -511,7 +523,7 @@ test(
         })),
       );
     };
-    const first = await storage!.queryWindow(actor, table.id, {
+    const first = await windowed.queryWindow(actor, table.id, {
       position: "first",
       query: { limit: 31 },
     });
@@ -530,7 +542,7 @@ test(
       await t.test(
         `${position} window returns native IDs, revisions, and values`,
         async () => {
-          const window = await storage!.queryWindow(actor, table.id, {
+          const window = await windowed.queryWindow(actor, table.id, {
             sessionId: first.sessionId,
             position,
             query: { limit: 31 },
@@ -550,19 +562,19 @@ test(
       );
     }
     await t.test(
-      "persisted anchors retain the exact native rows at ranks zero and 10000",
+      `persisted anchors retain the exact native rows at ranks zero and ${interval}`,
       async () => {
         const anchors = await nativeAnchors(first.sessionId);
         assert.deepEqual(anchors["0"], [oracle[0]!.id]);
-        assert.deepEqual(anchors["10000"], [oracle[10000]!.id]);
+        assert.deepEqual(anchors[String(interval)], [oracle[interval]!.id]);
         assert.deepEqual(anchors.__count, [size]);
       },
     );
-    for (const position of [9999, 10000, 10001]) {
+    for (const position of [interval - 1, interval, interval + 1]) {
       await t.test(
         `numeric position ${position} begins at the exact native rank`,
         async () => {
-          const window = await storage!.queryWindow(actor, table.id, {
+          const window = await windowed.queryWindow(actor, table.id, {
             sessionId: first.sessionId,
             position,
             query: { limit: 3 },
@@ -571,7 +583,7 @@ test(
           assertRows(window.result.data, oracle.slice(position, position + 3));
           assert.equal(window.result.page.hasMore, true);
           assert.ok(window.result.page.nextCursor);
-          const next = await storage!.queryRows(actor, table.id, {
+          const next = await windowed.queryRows(actor, table.id, {
             limit: 3,
             cursor: window.result.page.nextCursor,
           });
@@ -582,25 +594,29 @@ test(
     await t.test(
       "projection changes reuse ranked anchors while cursor projection remains bound",
       async () => {
-        const projected = await storage!.queryWindow(actor, table.id, {
+        const projected = await windowed.queryWindow(actor, table.id, {
           sessionId: first.sessionId,
-          position: 10001,
+          position: interval + 1,
           query: { select: ["bucket"], limit: 3 },
         });
         assert.equal(projected.sessionId, first.sessionId);
         assert.equal(projected.anchorsReady, true);
-        assertRows(projected.result.data, oracle.slice(10001, 10004), [
-          "bucket",
-        ]);
+        assertRows(
+          projected.result.data,
+          oracle.slice(interval + 1, interval + 4),
+          ["bucket"],
+        );
         assert.ok(projected.result.page.nextCursor);
-        const next = await storage!.queryRows(actor, table.id, {
+        const next = await windowed.queryRows(actor, table.id, {
           select: ["bucket"],
           limit: 3,
           cursor: projected.result.page.nextCursor,
         });
-        assertRows(next.data, oracle.slice(10004, 10007), ["bucket"]);
+        assertRows(next.data, oracle.slice(interval + 4, interval + 7), [
+          "bucket",
+        ]);
         await assert.rejects(
-          storage!.queryRows(actor, table.id, {
+          windowed.queryRows(actor, table.id, {
             select: ["ordinal"],
             limit: 3,
             cursor: projected.result.page.nextCursor,
@@ -613,11 +629,11 @@ test(
       "window sessions remain bound to filter, sort, and authority",
       async () => {
         for (const query of [
-          { where: { field: "ordinal", op: "gte", value: 10000 } },
+          { where: { field: "ordinal", op: "gte", value: interval } },
           { orderBy: [{ field: "bucket", direction: "desc" }] },
         ] satisfies QuerySpec[]) {
           await assert.rejects(
-            storage!.queryWindow(actor, table.id, {
+            windowed.queryWindow(actor, table.id, {
               sessionId: first.sessionId,
               position: "middle",
               query,
@@ -626,7 +642,7 @@ test(
           );
         }
         await assert.rejects(
-          storage!.queryWindow(
+          windowed.queryWindow(
             { ...actor, membershipVersion: (actor.membershipVersion ?? 0) + 1 },
             table.id,
             {
@@ -642,15 +658,14 @@ test(
       "filtered first remains unknown until an exact middle or last count is needed",
       async () => {
         const query: QuerySpec = {
-          where: { field: "ordinal", op: "gte", value: 10000 },
+          where: { field: "ordinal", op: "gte", value: interval },
           limit: 5,
         };
-        const filteredOracle = await nativeRows(
-          `${ordinalColumn}>=$1`,
-          [10000],
-        );
+        const filteredOracle = await nativeRows(`${ordinalColumn}>=$1`, [
+          interval,
+        ]);
         assert.equal(filteredOracle.length, 38);
-        const initial = await storage!.queryWindow(actor, table.id, {
+        const initial = await windowed.queryWindow(actor, table.id, {
           position: 0,
           query,
         });
@@ -659,7 +674,7 @@ test(
         assert.equal(initial.anchorsReady, false);
         assertRows(initial.result.data, filteredOracle.slice(0, 5));
         for (const position of ["middle", "last"] as const) {
-          const window = await storage!.queryWindow(actor, table.id, {
+          const window = await windowed.queryWindow(actor, table.id, {
             sessionId: initial.sessionId,
             position,
             query,
@@ -686,11 +701,11 @@ test(
           limit: 5,
         };
         assert.equal((await nativeRows(`${ordinalColumn}=$1`, [-1])).length, 0);
-        const middle = await storage!.queryWindow(actor, table.id, {
+        const middle = await windowed.queryWindow(actor, table.id, {
           position: "middle",
           query,
         });
-        const last = await storage!.queryWindow(actor, table.id, {
+        const last = await windowed.queryWindow(actor, table.id, {
           sessionId: middle.sessionId,
           position: "last",
           query,
@@ -712,11 +727,11 @@ test(
         };
         const filteredOracle = await nativeRows(`${bucketColumn} IS NULL`);
         assert.equal(filteredOracle.length, Math.floor(size / 7));
-        const middle = await storage!.queryWindow(actor, table.id, {
+        const middle = await windowed.queryWindow(actor, table.id, {
           position: "middle",
           query,
         });
-        const last = await storage!.queryWindow(actor, table.id, {
+        const last = await windowed.queryWindow(actor, table.id, {
           sessionId: middle.sessionId,
           position: "last",
           query,
@@ -749,7 +764,7 @@ test(
             [1],
             direction === "asc" ? "ASC" : "DESC",
           );
-          const middle = await storage!.queryWindow(actor, table.id, {
+          const middle = await windowed.queryWindow(actor, table.id, {
             position: "middle",
             query,
           });
@@ -760,14 +775,19 @@ test(
             sortedOracle.slice(Math.floor(size / 2), Math.floor(size / 2) + 3),
           );
           const anchors = await nativeAnchors(middle.sessionId);
-          assert.deepEqual(anchors["10000"], [
-            sortedOracle[10000]!.bucket,
-            sortedOracle[10000]!.id,
+          assert.deepEqual(anchors[String(interval)], [
+            sortedOracle[interval]!.bucket,
+            sortedOracle[interval]!.id,
           ]);
           assert.deepEqual(anchors.__count, [size]);
-          for (const position of [9999, 10000, 10001, "last"] as const) {
+          for (const position of [
+            interval - 1,
+            interval,
+            interval + 1,
+            "last",
+          ] as const) {
             await sortedTest.test(`position ${position}`, async () => {
-              const window = await storage!.queryWindow(actor, table.id, {
+              const window = await windowed.queryWindow(actor, table.id, {
                 sessionId: middle.sessionId,
                 position,
                 query,
@@ -794,14 +814,14 @@ test(
     await t.test(
       "unfiltered existing sessions use live native counts after create and delete",
       async () => {
-        const extra = await storage!.createRow(actor, table.id, {
+        const extra = await windowed.createRow(actor, table.id, {
           ordinal: 20000,
           bucket: null,
         });
         try {
           const grownOracle = await nativeRows();
           assert.equal(grownOracle.length, size + 1);
-          const grown = await storage!.queryWindow(actor, table.id, {
+          const grown = await windowed.queryWindow(actor, table.id, {
             sessionId: first.sessionId,
             position: "first",
             query: { limit: 31 },
@@ -811,13 +831,13 @@ test(
           assert.equal(grown.countKind, "live");
           assertRows(grown.result.data, grownOracle.slice(0, 31));
         } finally {
-          await storage!.deleteRow(actor, table.id, extra.id, {
+          await windowed.deleteRow(actor, table.id, extra.id, {
             expectedVersion: extra.version,
           });
         }
         const restoredOracle = await nativeRows();
         assert.equal(restoredOracle.length, size);
-        const restored = await storage!.queryWindow(actor, table.id, {
+        const restored = await windowed.queryWindow(actor, table.id, {
           sessionId: first.sessionId,
           position: "first",
           query: { limit: 31 },
@@ -830,7 +850,7 @@ test(
     await t.test(
       "schema changes invalidate old sessions and new first windows retain values",
       async () => {
-        const updated = await storage!.updateField(
+        const updated = await windowed.updateField(
           actor,
           table.id,
           ordinal.id,
@@ -840,13 +860,13 @@ test(
         );
         assert.equal(updated.schemaVersion, table.schemaVersion + 1);
         await assert.rejects(
-          storage!.queryWindow(actor, table.id, {
+          windowed.queryWindow(actor, table.id, {
             sessionId: first.sessionId,
             position: "middle",
           }),
           { code: "CURSOR_INVALID" },
         );
-        const fresh = await storage!.queryWindow(actor, table.id, {
+        const fresh = await windowed.queryWindow(actor, table.id, {
           position: "first",
           query: { limit: 31 },
         });

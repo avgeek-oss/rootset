@@ -455,10 +455,21 @@ export class TableStorage {
   readonly pool: Pool;
   readonly ddlPool: Pool;
   readonly cursor: CursorCodec;
-  constructor(options: { pool: Pool; ddlPool: Pool; cursorSecret: string }) {
+  /** Ranks between persisted window anchors. Tests may inject a smaller interval. */
+  readonly windowAnchorInterval: number;
+  constructor(options: {
+    pool: Pool;
+    ddlPool: Pool;
+    cursorSecret: string;
+    windowAnchorInterval?: number;
+  }) {
     this.pool = options.pool;
     this.ddlPool = options.ddlPool;
     this.cursor = new CursorCodec(options.cursorSecret);
+    const interval = options.windowAnchorInterval ?? 10_000;
+    if (!Number.isSafeInteger(interval) || interval < 1)
+      throw new Error("windowAnchorInterval must be a positive integer");
+    this.windowAnchorInterval = interval;
   }
   private async read<T>(
     actor: Actor,
@@ -4236,7 +4247,7 @@ export class TableStorage {
         ) {
           const cols = compiled.sorts.map((s) => q(s.column));
           const r = await c.query<Raw>(
-            `WITH ranked AS (SELECT row_number() OVER(ORDER BY ${compiled.orderBy})-1 AS rank${query.where ? ",count(*) OVER() AS matching_count" : ""},${cols.join(",")} FROM ${tablePath(t)} WHERE ${compiled.where}) SELECT * FROM ranked WHERE rank%10000=0 ORDER BY rank`,
+            `WITH ranked AS (SELECT row_number() OVER(ORDER BY ${compiled.orderBy})-1 AS rank${query.where ? ",count(*) OVER() AS matching_count" : ""},${cols.join(",")} FROM ${tablePath(t)} WHERE ${compiled.where}) SELECT * FROM ranked WHERE rank%${this.windowAnchorInterval}=0 ORDER BY rank`,
             compiled.params,
           );
           for (const raw of r.rows) {
@@ -4280,7 +4291,7 @@ export class TableStorage {
           params.push(...keyset.params);
         }
         const localOffset = Math.max(0, desired - rank);
-        if (localOffset >= 10000)
+        if (localOffset >= this.windowAnchorInterval)
           fail("QUERY_TIMEOUT", "Window anchors need refreshing");
         const presence = commentPresence(t, params);
         params.push(compiled.limit + 1, localOffset);
