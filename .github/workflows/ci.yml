@@ -1,4 +1,4 @@
-name: Verify candidate
+name: CI
 on:
   pull_request:
   push:
@@ -14,12 +14,11 @@ concurrency:
   # running check. Every other run is grouped by commit, so main pushes and
   # tags are never cancelled or replaced while pending; the release checks
   # need a result for each exact commit.
-  group: verify-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   workspace:
-    name: Workspace checks and integration
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -125,8 +124,7 @@ jobs:
 
   # The image build and installation smoke use only the checkout and Docker,
   # so they run beside the workspace job instead of after it.
-  images:
-    name: Images and installation
+  production:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -207,7 +205,7 @@ jobs:
   # a failed, cancelled or skipped job fail this check instead of skipping it,
   # because a skipped required check counts as passing.
   verify:
-    needs: [workspace, images, security, docs]
+    needs: [workspace, production, security, docs]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

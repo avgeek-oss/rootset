@@ -155,7 +155,7 @@ test("release builds cannot promote image digests before scanning every platform
     await readFile(".github/workflows/release-images.yml", "utf8"),
   );
   const build = workflow.jobs.build;
-  assert.deepEqual(build.needs, ["prepare", "verify"]);
+  assert.deepEqual(build.needs, ["prepare"]);
   assert.deepEqual(build.strategy.matrix.architecture, ["amd64", "arm64"]);
   const pushes = build.steps.filter((step) =>
     step.uses?.startsWith("docker/build-push-action@"),
@@ -199,11 +199,13 @@ test("release builds cannot promote image digests before scanning every platform
     assert.equal(scan.with["exit-code"], "1");
     assert(!scan["continue-on-error"]);
   }
-  assert.equal(workflow.jobs.verify.name, "Verify release CI");
-  const gate = workflow.jobs.verify.steps.find((step) => step.run);
+  assert.equal(workflow.jobs.prepare.permissions.checks, "read");
+  const gate = workflow.jobs.prepare.steps.find(
+    (step) => step.name === "Require the latest exact-commit CI results",
+  );
   assert.match(gate.run, /--paginate --slurp/);
   assert.match(gate.run, /--commit "\$RELEASE_COMMIT"/);
-  const ci = parse(await readFile(".github/workflows/verify.yaml", "utf8"));
+  const ci = parse(await readFile(".github/workflows/ci.yml", "utf8"));
   const sourceScan = ci.jobs.security.steps.find((step) =>
     step.uses?.startsWith("aquasecurity/trivy-action@"),
   );

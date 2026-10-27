@@ -103,7 +103,7 @@ node --env-file=.env.test apps/rootset-web/tests/verify-row-comments.mjs
 These observations cover this feature and its regression checks, not the full V1
 acceptance checklist. Candidate image
 builds and fresh Compose installation/restart are checked by the PR's existing
-`Verify candidate` workflow; consult the run for its current result.
+`CI` workflow; consult the run for its current result.
 
 ## Recovery boundary
 
