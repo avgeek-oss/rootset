@@ -104,7 +104,7 @@ jobs:
               exit 0
             fi
             if [ "$attempt" -eq 12 ]; then
-              echo "::error::The latest Required CI result for $GITHUB_SHA is not a success. Wait for main to go green, then run this again."
+              echo "::error::The latest verify result for $GITHUB_SHA is not a success. Wait for main to go green, then run this again."
               exit 1
             fi
             echo "Waiting for the exact-commit CI result ($attempt/12)"
