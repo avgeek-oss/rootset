@@ -92,7 +92,12 @@ jobs:
             sleep 15
           done
 
+  # One job per architecture builds all three targets on one builder, so the
+  # shared build stage runs once per architecture instead of once per image.
+  # Only the first build reads and writes the layer cache; the later builds
+  # reuse the builder's local cache from it.
   build:
+    name: build (${{ matrix.architecture }})
     needs: [prepare, verify]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
@@ -102,15 +107,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, worker, web]
         architecture: [amd64, arm64]
         include:
-          - service: api
-            target: runtime
-          - service: worker
-            target: worker
-          - service: web
-            target: web
           - architecture: amd64
             runner: ubuntu-24.04
           - architecture: arm64
@@ -128,13 +126,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - id: build
+      - id: build_api
+        name: Build and push the api image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          target: ${{ matrix.target }}
+          target: runtime
           platforms: linux/${{ matrix.architecture }}
-          outputs: type=image,name=ghcr.io/avgeek-oss/rootset-${{ matrix.service }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=ghcr.io/avgeek-oss/rootset-api,push-by-digest=true,name-canonical=true,push=true
           build-args: ROOTSET_SOURCE_REVISION=${{ needs.prepare.outputs.commit }}
           labels: |
             org.opencontainers.image.created=${{ needs.prepare.outputs.created }}
@@ -143,29 +142,97 @@ jobs:
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
           provenance: mode=max
           sbom: true
-          cache-from: type=gha,scope=release-${{ matrix.service }}-${{ matrix.architecture }}
-          cache-to: type=gha,mode=max,scope=release-${{ matrix.service }}-${{ matrix.architecture }}
-      - name: Scan the built platform image
+          cache-from: type=gha,scope=release-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.architecture }}
+      - id: build_worker
+        name: Build and push the worker image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: worker
+          platforms: linux/${{ matrix.architecture }}
+          outputs: type=image,name=ghcr.io/avgeek-oss/rootset-worker,push-by-digest=true,name-canonical=true,push=true
+          build-args: ROOTSET_SOURCE_REVISION=${{ needs.prepare.outputs.commit }}
+          labels: |
+            org.opencontainers.image.created=${{ needs.prepare.outputs.created }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+          provenance: mode=max
+          sbom: true
+      - id: build_web
+        name: Build and push the web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: web
+          platforms: linux/${{ matrix.architecture }}
+          outputs: type=image,name=ghcr.io/avgeek-oss/rootset-web,push-by-digest=true,name-canonical=true,push=true
+          build-args: ROOTSET_SOURCE_REVISION=${{ needs.prepare.outputs.commit }}
+          labels: |
+            org.opencontainers.image.created=${{ needs.prepare.outputs.created }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+          provenance: mode=max
+          sbom: true
+      - name: Scan the built api platform image
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         env:
           TRIVY_PLATFORM: linux/${{ matrix.architecture }}
         with:
-          image-ref: ghcr.io/avgeek-oss/rootset-${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          image-ref: ghcr.io/avgeek-oss/rootset-api@${{ steps.build_api.outputs.digest }}
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - name: Record immutable platform digest
+      - name: Scan the built worker platform image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         env:
-          DIGEST: ${{ steps.build.outputs.digest }}
+          TRIVY_PLATFORM: linux/${{ matrix.architecture }}
+        with:
+          image-ref: ghcr.io/avgeek-oss/rootset-worker@${{ steps.build_worker.outputs.digest }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Scan the built web platform image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        env:
+          TRIVY_PLATFORM: linux/${{ matrix.architecture }}
+        with:
+          image-ref: ghcr.io/avgeek-oss/rootset-web@${{ steps.build_web.outputs.digest }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Record immutable platform digests
+        env:
+          API_DIGEST: ${{ steps.build_api.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.build_worker.outputs.digest }}
+          WEB_DIGEST: ${{ steps.build_web.outputs.digest }}
         run: |
           set -euo pipefail
-          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          mkdir -p digests
-          touch "digests/${DIGEST#sha256:}"
+          for service in api worker web; do
+            variable="${service^^}_DIGEST"
+            digest="${!variable}"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            mkdir -p "digests/$service"
+            touch "digests/$service/${digest#sha256:}"
+          done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: digest-${{ matrix.service }}-${{ matrix.architecture }}
-          path: digests/*
+          name: digest-api-${{ matrix.architecture }}
+          path: digests/api/*
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-worker-${{ matrix.architecture }}
+          path: digests/worker/*
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-web-${{ matrix.architecture }}
+          path: digests/web/*
           if-no-files-found: error
           retention-days: 14
 
