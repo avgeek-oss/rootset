@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePageQuery as useQuery } from "./page-navigation";
 import { Button } from "@avgeek-oss/design-system/buttons/button";
@@ -25,16 +25,10 @@ import { Dialog } from "./dialog";
 import { Field, Section } from "./settings/ui";
 import type { SettingsPanelProps } from "./settings/types";
 import { Plus, Save, Trash2, View } from "./ui/icons";
-import { Dropdown, Label } from "@heroui/react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Layers01Icon,
-  ArrowDown01Icon,
-  Add01Icon,
-} from "@hugeicons/core-free-icons";
+import { Label } from "@heroui/react";
+import { WorkspaceSelector } from "@avgeek-oss/design-system/navigation/workspace-selector";
 import { PageSelectionTitle } from "./settings/account/page-selection-title";
 import { useSwitchWorkspace } from "./workspace-navigation";
-import "./workspaces.css";
 const showError = (error: unknown) =>
   toast.danger(
     error instanceof Error
@@ -53,7 +47,6 @@ export function WorkspaceSwitcher({
   orgId: string;
   canCreate: boolean;
 }) {
-  const selectorId = useId();
   const switchWorkspace = useSwitchWorkspace();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -80,65 +73,19 @@ export function WorkspaceSwitcher({
   }
   return (
     <>
-      <div className="workspace-switcher">
-        <Label htmlFor={selectorId} className="px-2 text-xs text-muted">
-          Workspace
-        </Label>
-        <Dropdown>
-          <Button
-            id={selectorId}
-            variant="secondary"
-            className="w-full justify-between px-2"
-            aria-label={`Workspace: ${current.name}`}
-          >
-            <span className="flex min-w-0 items-center gap-3">
-              <HugeiconsIcon
-                icon={Layers01Icon}
-                size={16}
-                className="shrink-0 text-muted"
-                aria-hidden
-              />
-              <span className="truncate">{current.name}</span>
-            </span>
-            <HugeiconsIcon icon={ArrowDown01Icon} size={16} aria-hidden />
-          </Button>
-          <Dropdown.Popover placement="bottom start" className="w-64">
-            <Dropdown.Menu
-              aria-label="Choose workspace"
-              selectionMode="single"
-              selectedKeys={new Set([current.id])}
-              onAction={(value) => {
-                const id = String(value);
-                if (id === "create-workspace") {
-                  key.current = crypto.randomUUID();
-                  setCreating(true);
-                } else if (id !== current.id) switchWorkspace(id);
-              }}
-            >
-              {workspaces.map((w) => (
-                <Dropdown.Item id={w.id} key={w.id} textValue={w.name}>
-                  <HugeiconsIcon
-                    icon={Layers01Icon}
-                    size={18}
-                    className="text-muted"
-                    aria-hidden
-                  />
-                  <Label>{w.name}</Label>
-                </Dropdown.Item>
-              ))}
-              {canCreate && (
-                <Dropdown.Item
-                  id="create-workspace"
-                  textValue="Create Workspace"
-                >
-                  <HugeiconsIcon icon={Add01Icon} size={18} aria-hidden />
-                  <Label>Create Workspace</Label>
-                </Dropdown.Item>
-              )}
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
-      </div>
+      <WorkspaceSelector
+        items={workspaces.length ? workspaces : [current]}
+        selectedKey={current.id}
+        onSelectionChange={switchWorkspace}
+        onCreate={
+          canCreate
+            ? () => {
+                key.current = crypto.randomUUID();
+                setCreating(true);
+              }
+            : undefined
+        }
+      />
       {creating && (
         <Dialog
           title="Create Workspace"
