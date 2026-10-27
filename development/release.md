@@ -15,7 +15,7 @@ to validate the package versions and installation image pins. The environment te
 contains installation settings; it does not select an image version. The public installation guide downloads both files from the latest release;
 keep those asset names stable.
 
-After merging, wait for `verify`, `docs` and `security` to pass on the exact main
+After merging, wait for `verify` to pass on the exact main
 commit.
 Then run **Cut release** on main from the Actions tab: it checks the versions,
 changelog entry and CI results for the head commit, creates the matching

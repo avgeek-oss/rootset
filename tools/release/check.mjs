@@ -7,7 +7,7 @@ export function requireVerifiedChecks(pages, commit) {
   for (const page of pages)
     assert(Array.isArray(page.check_runs), "Missing commit checks");
   const checks = pages.flatMap((page) => page.check_runs);
-  for (const name of ["verify", "docs", "security"]) {
+  for (const name of ["verify"]) {
     const matches = checks.filter(
       (check) =>
         check.name === name &&

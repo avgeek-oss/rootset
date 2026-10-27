@@ -38,8 +38,8 @@ committing them. Never capture real customer records or visible API key secrets.
 
 1. Review and merge the consolidated PR. Set the root package version to the
    intended stable release, keep the API/worker/web package versions and Compose
-   image pins aligned, and run `pnpm release:check`. Let `verify`, `docs` and
-   `security` pass on the exact main commit.
+   image pins aligned, and run `pnpm release:check`. Let `verify` pass on the exact
+   main commit.
 2. Create and push a matching `vMAJOR.MINOR.PATCH` tag on that exact main commit.
 3. Run **Publish release images** on main with that tag. It rejects mismatched
    versions, commits, incomplete checks and an already published release. The CI

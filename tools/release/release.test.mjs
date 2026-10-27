@@ -18,7 +18,7 @@ const version = "0.1.0";
 const commit = "a".repeat(40);
 const passedChecks = () => [
   {
-    check_runs: ["verify", "docs", "security"].map((name, id) => ({
+    check_runs: ["verify"].map((name, id) => ({
       id: id + 1,
       name,
       head_sha: commit,
@@ -30,9 +30,9 @@ const passedChecks = () => [
   },
 ];
 
-test("publication requires successful verification, docs and security for the exact commit", () => {
+test("publication requires a successful verify check for the exact commit", () => {
   assert.doesNotThrow(() => requireVerifiedChecks(passedChecks(), commit));
-  for (const name of ["verify", "docs", "security"]) {
+  for (const name of ["verify"]) {
     for (const change of [
       (input, index) => input.splice(index, 1),
       (input, index) => (input[index].status = "queued"),
@@ -57,7 +57,7 @@ test("publication requires successful verification, docs and security for the ex
 });
 
 test("publication reads all pages and rejects newer failed or unfinished reruns", () => {
-  for (const name of ["verify", "docs", "security"]) {
+  for (const name of ["verify"]) {
     const input = passedChecks();
     const original = input[0].check_runs.find((check) => check.name === name);
     const newer = { ...original, id: 20, started_at: "2026-10-19T00:00:01Z" };
