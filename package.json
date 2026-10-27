@@ -21,7 +21,7 @@
     "dev": "turbo run dev --parallel",
     "build": "turbo run build && tsx tools/build-apps.ts",
     "typecheck": "turbo run typecheck",
-    "lint": "eslint apps packages tools --max-warnings 0",
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives apps packages tools",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "turbo run test --concurrency=4",
@@ -55,13 +55,12 @@
     "@typescript/typescript6": "catalog:",
     "better-auth": "catalog:",
     "esbuild": "catalog:",
-    "eslint": "catalog:",
+    "oxlint": "catalog:",
     "pg": "catalog:",
     "prettier": "catalog:",
     "tsx": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
-    "typescript-eslint": "catalog:",
     "yaml": "2.8.1",
     "@avgeek-oss/mintlify-docs": "0.1.6"
   }

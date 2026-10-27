@@ -6,7 +6,7 @@ WORKDIR /workspace
 ENV CI=true NEXT_TELEMETRY_DISABLED=1 TURBO_TELEMETRY_DISABLED=1
 RUN npm install --global pnpm@11.5.3
 # Manifests first so the dependency layer is reused until the lockfile changes.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc .pnpmfile.cjs ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/rootset-api/package.json apps/rootset-api/
 COPY apps/rootset-web/package.json apps/rootset-web/
 COPY apps/rootset-worker/package.json apps/rootset-worker/
