@@ -23,6 +23,7 @@ Use the stable IDs returned by the table schema for both `fieldIds` and `where.f
 
 ```json
 {
+  "workspaceId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
   "expectedSchemaVersion": 3,
   "fieldIds": ["01ARZ3NDEKTSV4RRFFQ69G5FAV"],
   "where": {
@@ -33,7 +34,7 @@ Use the stable IDs returned by the table schema for both `fieldIds` and `where.f
 }
 ```
 
-Send this body to [Create unique rule](/api-reference/createUniqueRule) with an `Idempotency-Key`. For `rootset_create_unique_rule`, also supply `orgId`, `workspaceId`, `databaseId`, `tableId` and `idempotencyKey`. The accepted response contains a job ID; follow `getJob` or `rootset_get_job` until it succeeds. Rule lists, table schemas and schema-operation reports include the saved condition.
+Replace `workspaceId` with the selected workspace ID, including for Default. Send this body to [Create unique rule](/api-reference/createUniqueRule) with an `Idempotency-Key`. For `rootset_create_unique_rule`, also supply `orgId`, `databaseId`, `tableId` and `idempotencyKey`. The accepted response contains a job ID; follow `getJob` or `rootset_get_job` in the same workspace until it succeeds. Rule lists, table schemas and schema-operation reports include the saved condition.
 
 ## Activation, writes and schema changes
 
