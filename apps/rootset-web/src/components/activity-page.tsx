@@ -108,7 +108,7 @@ export function AuditLogsPage({
           <span className="inline-flex items-center gap-2">
             <HugeiconsIcon
               icon={TransactionHistoryIcon}
-              size={24}
+              size={19}
               className="shrink-0"
               aria-hidden
             />

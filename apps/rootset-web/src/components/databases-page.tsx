@@ -61,7 +61,7 @@ export function DatabasesPage({
             <span className="inline-flex items-center gap-2">
               <HugeiconsIcon
                 icon={DatabaseIcon}
-                size={24}
+                size={19}
                 className="shrink-0"
                 aria-hidden
               />
