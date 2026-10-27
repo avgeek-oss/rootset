@@ -15,10 +15,23 @@ import { ReadinessService } from "./readiness.js";
 
 export async function createRuntime(
   baseline: Config = loadConfig(),
-  options: { oauthClients?: OAuthConfig["clients"]; worker?: boolean } = {},
+  options: {
+    oauthClients?: OAuthConfig["clients"];
+    worker?: boolean;
+    /** Connection wait for the API and admission pools; tests may shorten it. */
+    databaseConnectionTimeoutMillis?: number;
+  } = {},
 ) {
-  const pool = createPool(baseline.databaseURL, 10, "api");
-  const admissionPool = createPool(baseline.databaseURL, 2, "admission");
+  const connection = {
+    connectionTimeoutMillis: options.databaseConnectionTimeoutMillis,
+  };
+  const pool = createPool(baseline.databaseURL, 10, "api", connection);
+  const admissionPool = createPool(
+    baseline.databaseURL,
+    2,
+    "admission",
+    connection,
+  );
   const ddlPool = pool;
   const identityPool = createPool(baseline.databaseURL, 4, "identity");
   try {

@@ -62,6 +62,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     restSecret = "";
   const positiveOperations = new Set<string>();
   const dependencyEvents: string[] = [];
+  // Over-quota requests wait out a pool connection timeout before their 503.
+  // The test injects a shorter wait than the 5 s production default.
+  const connectTimeoutMillis = 1_000;
   try {
     const config = {
       ...loadConfig(),
@@ -82,6 +85,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     };
     runtime = await createRuntime(config, {
       worker: true,
+      databaseConnectionTimeoutMillis: connectTimeoutMillis,
       oauthClients: [
         {
           client_id: oauthClientId,
@@ -90,6 +94,88 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       ],
     });
+    // Record every connection-wait timeout on the API and admission pools, so
+    // each over-quota 503 is shown to come from exactly that wait, and no other
+    // request in this file waits long enough to time out.
+    type TimeoutPool = "api" | "admission";
+    const connectionTimeouts: {
+      pool: TimeoutPool;
+      message: string;
+      waitedMs: number;
+      expected: boolean;
+    }[] = [];
+    let timeoutWindow: TimeoutPool | undefined;
+    for (const [name, pool] of [
+      ["api", runtime.pool],
+      ["admission", runtime.admissionPool],
+    ] as const) {
+      const connect = pool.connect.bind(pool) as (
+        callback?: (error: unknown, ...rest: unknown[]) => void,
+      ) => Promise<unknown> | void;
+      const observe = (started: number, error: unknown) => {
+        // A queued wait and a slow new connection both hit the injected timeout.
+        if (
+          error instanceof Error &&
+          [
+            "timeout exceeded when trying to connect",
+            "Connection terminated due to connection timeout",
+          ].includes(error.message)
+        )
+          connectionTimeouts.push({
+            pool: name,
+            message: error.message,
+            waitedMs: performance.now() - started,
+            expected: timeoutWindow === name,
+          });
+      };
+      pool.connect = ((
+        callback?: (error: unknown, ...rest: unknown[]) => void,
+      ) => {
+        const started = performance.now();
+        if (callback)
+          return connect((error, ...rest) => {
+            observe(started, error);
+            callback(error, ...rest);
+          });
+        return (connect() as Promise<unknown>).catch((error: unknown) => {
+          observe(started, error);
+          throw error;
+        });
+      }) as typeof pool.connect;
+    }
+    const whileExhausted = async <T>(
+      pool: TimeoutPool,
+      minimum: number,
+      work: () => Promise<T>,
+    ): Promise<T> => {
+      const start = connectionTimeouts.length;
+      timeoutWindow = pool;
+      let result: T;
+      try {
+        result = await work();
+      } finally {
+        timeoutWindow = undefined;
+      }
+      const timeouts = connectionTimeouts.slice(start);
+      assert.ok(
+        timeouts.length >= minimum,
+        `${pool} pool connection waits must time out (${timeouts.length})`,
+      );
+      for (const timeout of timeouts) {
+        assert.equal(timeout.pool, pool);
+        // The pool is full, so these requests queue rather than connect.
+        assert.equal(
+          timeout.message,
+          "timeout exceeded when trying to connect",
+        );
+        assert.ok(
+          timeout.waitedMs >= connectTimeoutMillis - 1 &&
+            timeout.waitedMs < 5_000,
+          `waited ${Math.round(timeout.waitedMs)} ms for the injected ${connectTimeoutMillis} ms timeout`,
+        );
+      }
+      return result;
+    };
     const record = runtime.observer.record.bind(runtime.observer);
     runtime.observer.record = (event) => {
       if (event.errorCode === "DEPENDENCY_UNAVAILABLE")
@@ -501,23 +587,25 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           assert.equal((await excess.json()).error.code, "RATE_LIMITED");
           assert.ok(Number(excess.headers.get("retry-after")) > 0);
           assert.equal((await request("/health/live")).status, 200);
-          const [peerRest, mixedMutation] = await Promise.all([
-            request(
-              queryPath,
-              "POST",
-              { query: { limit: 1 } },
-              { token: peerKey.secret },
-            ),
-            request(
-              `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/rows`,
-              "POST",
-              {
-                expectedSchemaVersion: 1,
-                values: { NAME: "Within-quota overload mutation" },
-              },
-              { token: restSecret, key: newId() },
-            ),
-          ]);
+          const [peerRest, mixedMutation] = await whileExhausted("api", 2, () =>
+            Promise.all([
+              request(
+                queryPath,
+                "POST",
+                { query: { limit: 1 } },
+                { token: peerKey.secret },
+              ),
+              request(
+                `/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/rows`,
+                "POST",
+                {
+                  expectedSchemaVersion: 1,
+                  values: { NAME: "Within-quota overload mutation" },
+                },
+                { token: restSecret, key: newId() },
+              ),
+            ]),
+          );
           assert.equal(peerRest.status, 503);
           assert.equal(peerRest.headers.get("retry-after"), "1");
           const peerEnvelope = await peerRest.json();
@@ -592,11 +680,13 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           runtime!.admissionPool.connect(),
         ]);
         try {
-          const response = await request(
-            queryPath,
-            "POST",
-            { query: { limit: 1 } },
-            { token: restSecret },
+          const response = await whileExhausted("admission", 1, () =>
+            request(
+              queryPath,
+              "POST",
+              { query: { limit: 1 } },
+              { token: restSecret },
+            ),
           );
           assert.equal(response.status, 503);
           const envelope = await response.json();
@@ -1492,10 +1582,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             typeof (await runtime!.getReadiness()).healthy,
             "boolean",
           );
-          const failure = await client.callTool({
-            name: getOperation("queryRows").toolName,
-            arguments: { ...ids, query: { limit: 1 } },
-          });
+          const failure = await whileExhausted("api", 1, () =>
+            client.callTool({
+              name: getOperation("queryRows").toolName,
+              arguments: { ...ids, query: { limit: 1 } },
+            }),
+          );
           assert.equal(failure.isError, true);
           const envelope = failure.structuredContent as {
             error: { code: string; details: { retryAfter: number } };
@@ -3402,6 +3494,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         })
       ).status,
       401,
+    );
+    assert.deepEqual(
+      connectionTimeouts.filter((timeout) => !timeout.expected),
+      [],
+      "only the over-quota requests may wait out a pool connection timeout",
     );
     t.diagnostic(
       `Successful actual transport operation classes: ${[...positiveOperations].sort().join(", ")}; all ${operations.length} tool discoveries and route authentication checks are separate evidence.`,

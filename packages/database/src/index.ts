@@ -94,12 +94,21 @@ export function createPool(
   connectionString: string,
   max = 10,
   purpose: PoolPurpose = "database",
+  options: { connectionTimeoutMillis?: number } = {},
 ): Pool {
+  // How long a request may wait for a pooled connection. Tests may inject a
+  // shorter wait; production uses the default.
+  const connectionTimeoutMillis = options.connectionTimeoutMillis ?? 5_000;
+  if (
+    !Number.isSafeInteger(connectionTimeoutMillis) ||
+    connectionTimeoutMillis < 1
+  )
+    throw new Error("connectionTimeoutMillis must be a positive integer");
   const pool = new Pool({
     connectionString,
     max,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis,
     application_name: "rootset",
     options:
       "-c timezone=UTC -c statement_timeout=10000 -c idle_in_transaction_session_timeout=30000",
