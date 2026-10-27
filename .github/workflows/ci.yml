@@ -198,7 +198,7 @@ jobs:
           docker compose --env-file rootset.env.example -f compose.images.yaml --profile local-db config --quiet
       - name: Validate Mintlify pages
         working-directory: docs
-        run: npx --yes mint@4.2.851 validate
+        run: npx --yes mint@4.2.986 validate
 
   # The one check the main ruleset requires and Cut release reads. It needs
   # every other CI job and fails unless all of them succeeded; always() makes
