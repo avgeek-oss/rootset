@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -65,10 +66,15 @@ test(
         actor = member,
         key = newId(),
       ) {
-        const result = await runtime.core.execute(id, actor, input, {
-          surface: "browser",
-          idempotencyKey: key,
-        });
+        const result = await runtime.core.execute(
+          id,
+          actor,
+          workspaceInput(id, actor, input),
+          {
+            surface: "browser",
+            idempotencyKey: key,
+          },
+        );
         return getOperation(id).outputSchema.parse(result) as T;
       }
       const database = await call<{ id: string }>(
@@ -128,16 +134,21 @@ test(
       );
       const patch = { ...input, action: { type: "set", values: { COUNT: 1 } } };
       await assert.rejects(
-        runtime.core.execute("previewBulkRows", member, patch, {
-          surface: "rest",
-          numericLexemes: [
-            analyseNumberLexeme("1.0000000000000001", [
-              "action",
-              "values",
-              "COUNT",
-            ]),
-          ],
-        }),
+        runtime.core.execute(
+          "previewBulkRows",
+          member,
+          workspaceInput("previewBulkRows", member, patch),
+          {
+            surface: "rest",
+            numericLexemes: [
+              analyseNumberLexeme("1.0000000000000001", [
+                "action",
+                "values",
+                "COUNT",
+              ]),
+            ],
+          },
+        ),
         { code: "VALIDATION_FAILED" },
       );
       const key = newId();
@@ -170,11 +181,16 @@ test(
       };
       const cancelledKey = newId();
       await assert.rejects(
-        runtime.core.execute("bulkRows", member, current, {
-          surface: "browser",
-          idempotencyKey: cancelledKey,
-          signal: AbortSignal.abort(),
-        }),
+        runtime.core.execute(
+          "bulkRows",
+          member,
+          workspaceInput("bulkRows", member, current),
+          {
+            surface: "browser",
+            idempotencyKey: cancelledKey,
+            signal: AbortSignal.abort(),
+          },
+        ),
         { code: "REQUEST_TIMEOUT" },
       );
       assert.equal(
@@ -193,16 +209,21 @@ test(
         3,
       );
       await assert.rejects(
-        runtime.core.execute("bulkRows", member, current, {
-          surface: "browser",
-          idempotencyKey: newId(),
-          beforePublish: async () => {
-            await fixture.owner.query(
-              "UPDATE rootset_control.memberships SET role='viewer' WHERE org_id=$1 AND user_id=$2",
-              [orgId, member.userId],
-            );
+        runtime.core.execute(
+          "bulkRows",
+          member,
+          workspaceInput("bulkRows", member, current),
+          {
+            surface: "browser",
+            idempotencyKey: newId(),
+            beforePublish: async () => {
+              await fixture.owner.query(
+                "UPDATE rootset_control.memberships SET role='viewer' WHERE org_id=$1 AND user_id=$2",
+                [orgId, member.userId],
+              );
+            },
           },
-        }),
+        ),
         { code: "FORBIDDEN" },
       );
       assert.equal(
@@ -242,19 +263,24 @@ test(
       assert.equal(keyResult.createdIds.length, 1);
       const revokedKey = newId();
       await assert.rejects(
-        runtime.core.execute("bulkRows", credential, current, {
-          surface: "rest",
-          idempotencyKey: revokedKey,
-          beforePublish: async () => {
-            const changed = await withOrg(fixture.owner, orgId, (c) =>
-              c.query(
-                "UPDATE rootset_control.api_keys SET revoked_at=now() WHERE id=$1",
-                [created.key.id],
-              ),
-            );
-            assert.equal(changed.rowCount, 1);
+        runtime.core.execute(
+          "bulkRows",
+          credential,
+          workspaceInput("bulkRows", credential, current),
+          {
+            surface: "rest",
+            idempotencyKey: revokedKey,
+            beforePublish: async () => {
+              const changed = await withOrg(fixture.owner, orgId, (c) =>
+                c.query(
+                  "UPDATE rootset_control.api_keys SET revoked_at=now() WHERE id=$1",
+                  [created.key.id],
+                ),
+              );
+              assert.equal(changed.rowCount, 1);
+            },
           },
-        }),
+        ),
         { code: "UNAUTHENTICATED" },
       );
       assert.equal(

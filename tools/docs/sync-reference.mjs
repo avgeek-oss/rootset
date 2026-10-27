@@ -56,7 +56,9 @@ const escape = (value) =>
     .replaceAll(">", "&gt;")
     .replaceAll("\n", " ");
 const argumentDescriptions = {
-  orgId: "Workspace ID returned by rootset_get_context.",
+  orgId: "Organisation ID returned by rootset_get_context.",
+  workspaceId:
+    "Workspace ID returned by rootset_list_workspaces; required even for Default.",
   databaseId: "ID of the database to work with.",
   tableId: "ID of the table to work with.",
   rowId: "Stable record ID, not its position in the spreadsheet.",

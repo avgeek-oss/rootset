@@ -86,7 +86,13 @@ test("URI, URL and image fields preserve arbitrary strings without address valid
 
 test("exports accept only CSV or JSONL and reject partial-table selectors", () => {
   const schema = getOperation("exportRows").inputSchema;
-  const input = { orgId: id, databaseId: id, tableId: id, format: "csv" };
+  const input = {
+    orgId: id,
+    workspaceId: id,
+    databaseId: id,
+    tableId: id,
+    format: "csv",
+  };
   for (const format of ["csv", "jsonl"])
     assert.equal(schema.safeParse({ ...input, format }).success, true);
   for (const extra of [
@@ -121,6 +127,7 @@ test("shared account and team name limits stay separate from resource names", ()
   }
   assert.equal(
     operationMap.createDatabase!.inputSchema.safeParse({
+      workspaceId: id,
       orgId: id,
       name: "R".repeat(255),
     }).success,
@@ -176,7 +183,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     assert.throws(() => getOperation(name), /Unknown Rootset operation/);
     assert(!client.includes(`async ${name}(`));
   }
-  assert.equal(operations.length, 106);
+  assert.equal(operations.length, 115);
   assert.equal(getOperation("createRow").readOnly, false);
   for (const name of ["previewImportRows", "importRows"]) {
     const operation = getOperation(name);
@@ -191,7 +198,7 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
   assert.equal(tools.length, operations.length);
   for (const operation of operations)
     assert.equal(getOperation(operation.id), operation);
-  assert(!JSON.stringify(generateOpenApi()).includes('"team_key"'));
+  assert(!JSON.stringify(generateOpenApi()).includes('"workspace_key"'));
 });
 
 test("profile and installation organisation outputs omit removed lifecycle flags", () => {
@@ -844,7 +851,7 @@ test("catalog uses unique operation IDs, MCP tools and routes with strict envelo
   );
   assert.equal(operationMap.queryRows!.readOnly, true);
   assert.equal(operationMap.createRow!.readOnly, false);
-  assert.equal(operationMap.createTeamKey!.minimumRole, "admin");
+  assert.equal(operationMap.createWorkspaceKey!.minimumRole, "admin");
   for (const id of ["listIndexes", "createIndex", "deleteIndex"])
     assert.equal(operationMap[id], undefined);
   assert.equal(
@@ -1065,6 +1072,7 @@ test("every generated request example validates against its actual operation sch
 test("operator repair publishes revision-bound update inputs and retains ordinary batch behavior", () => {
   const operation = operationMap.mutateRows!;
   const target = {
+    workspaceId: id,
     orgId: id,
     databaseId: id,
     tableId: id,
@@ -1154,7 +1162,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.equal(operation.errors.includes("STEP_UP_REQUIRED"), false);
-  assert.equal(operations.length, 106);
+  assert.equal(operations.length, 115);
   const api = generateOpenApi() as {
     paths: Record<
       string,
@@ -1447,6 +1455,7 @@ test("personal keys have explicit permission ceilings and all actors use support
     access: "read",
     includeAdmin: false,
     scope: "personal",
+    workspaceId: null,
     prefix: "rs_key_",
     createdAt: "2026-10-05T00:00:00.000Z",
     expiresAt: null,
@@ -1455,8 +1464,12 @@ test("personal keys have explicit permission ceilings and all actors use support
   };
   assert.equal(KeyMetadataSchema.safeParse(key).success, true);
   assert.equal(
-    KeyMetadataSchema.safeParse({ ...key, scope: "team", userId: null })
-      .success,
+    KeyMetadataSchema.safeParse({
+      ...key,
+      scope: "workspace",
+      workspaceId: id,
+      userId: null,
+    }).success,
     true,
   );
   for (const id of []) {

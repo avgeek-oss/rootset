@@ -1,3 +1,5 @@
+import { defaultWorkspaceToolCall } from "../../../tools/verification/workspace-transport";
+import { defaultWorkspaceFetch as fetch } from "../../../tools/verification/workspace-transport";
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { isDeepStrictEqual } from "node:util";
@@ -80,7 +82,12 @@ test(
       rawValues?: string,
     ): Promise<Result> {
       const operation = getOperation(operationId),
-        body = { ...input };
+        body: Record<string, unknown> = {
+          ...(operation.workspaceScoped
+            ? { workspaceId: String(input.orgId) }
+            : {}),
+          ...input,
+        };
       let path = operation.path.replace(/\{([^}]+)\}/g, (_, key: string) => {
         const value = body[key];
         delete body[key];
@@ -122,12 +129,23 @@ test(
     ): Promise<Result> {
       if (surface === "rest") return rest(operationId, input, false, rawValues);
       const operation = getOperation(operationId),
-        args = { ...input, idempotencyKey: newId() };
+        args = {
+          ...(operation.workspaceScoped
+            ? { workspaceId: String(input.orgId) }
+            : {}),
+          ...input,
+          idempotencyKey: newId(),
+        };
       if (rawValues === undefined) {
-        const value = await client.callTool({
-          name: operation.toolName,
-          arguments: args,
-        });
+        const value = await client.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: operation.toolName,
+              arguments: args,
+            },
+            String(input.orgId),
+          ),
+        );
         const structured = value.structuredContent as {
           error?: { code: string };
         };
@@ -309,6 +327,7 @@ test(
       const surfaceMatrix = async (s: TestContext, surface: "rest" | "mcp") => {
         await s.test(`${surface}/integer/auto-increment`, async () => {
           const created = await invoke(surface, "createTable", {
+            workspaceId: orgId,
             orgId,
             databaseId,
             name: `Generated ${surface}`,
@@ -330,6 +349,7 @@ test(
           };
           assert.equal(schema.fields[0]?.autoIncrement, true);
           const target = {
+            workspaceId: orgId,
             orgId,
             databaseId,
             tableId: schema.table.id,
@@ -421,6 +441,7 @@ test(
             602,
           );
           const invalid = await invoke(surface, "createTable", {
+            workspaceId: orgId,
             orgId,
             databaseId,
             name: "Conflicting default",
@@ -476,6 +497,7 @@ test(
               : []),
           ];
           const schema = await must("createTable", {
+            workspaceId: orgId,
             orgId,
             databaseId,
             name: `${fixture.type} ${surface}`,
@@ -531,7 +553,13 @@ test(
             nativeTypes.rows.map((row) => row.type),
             definitions.map(() => expectedNativeType),
           );
-          const ids = { orgId, databaseId, tableId, expectedSchemaVersion: 1 };
+          const ids = {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            tableId,
+            expectedSchemaVersion: 1,
+          };
           const baselineValues: Values = {
             TEST: fixture.baseline,
             REQUIRED: fixture.baseline,
@@ -889,6 +917,7 @@ test(
               `${surface}/json/depth-32-round-trips-through-durable-export-and-authenticated-download`,
               async () => {
                 const started = await invoke(surface, "exportRows", {
+                  workspaceId: orgId,
                   orgId,
                   databaseId,
                   tableId,

@@ -4,7 +4,7 @@ import { lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { QueryLoading } from "@avgeek-oss/design-system";
 import type { ActivityDetails } from "@rootset/contracts";
-import { client } from "@rootset/web-client";
+import { client, currentWorkspaceId } from "@rootset/web-client";
 import { AuditLogError } from "./audit-log-error";
 import { Dialog } from "./dialog";
 const JsonEditor = lazy(() =>
@@ -13,19 +13,21 @@ const JsonEditor = lazy(() =>
 
 export function AuditEventDetails({
   orgId,
+  workspaceId = currentWorkspaceId(),
   eventId,
   onClose,
 }: {
   orgId: string;
+  workspaceId?: string;
   eventId: string;
   onClose(): void;
 }) {
   const details = useQuery({
-    queryKey: ["activity-details", orgId, eventId],
+    queryKey: ["activity-details", orgId, workspaceId, eventId],
     queryFn: ({ signal }) =>
       client.operation<ActivityDetails>(
         "getActivityDetails",
-        { orgId, eventId },
+        { orgId, workspaceId, eventId },
         { signal },
       ),
     retry: false,

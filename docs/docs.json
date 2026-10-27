@@ -107,7 +107,7 @@
           },
           {
             "group": "Workspace",
-            "pages": ["team-access", "account-settings"]
+            "pages": ["workspaces", "team-access", "account-settings"]
           }
         ]
       },
@@ -148,10 +148,10 @@
                   "mcp-reference/rootset_create_personal_key",
                   "mcp-reference/rootset_rotate_personal_key",
                   "mcp-reference/rootset_revoke_personal_key",
-                  "mcp-reference/rootset_list_team_keys",
-                  "mcp-reference/rootset_create_team_key",
-                  "mcp-reference/rootset_rotate_team_key",
-                  "mcp-reference/rootset_revoke_team_key",
+                  "mcp-reference/rootset_list_workspace_keys",
+                  "mcp-reference/rootset_create_workspace_key",
+                  "mcp-reference/rootset_rotate_workspace_key",
+                  "mcp-reference/rootset_revoke_workspace_key",
                   "mcp-reference/rootset_get_security_status",
                   "mcp-reference/rootset_list_activity",
                   "mcp-reference/rootset_list_activity_filter_options",
@@ -162,7 +162,16 @@
                   "mcp-reference/rootset_update_view_preferences",
                   "mcp-reference/rootset_update_foreign_key_display_field",
                   "mcp-reference/rootset_preview_database_restore",
-                  "mcp-reference/rootset_restore_database_backup"
+                  "mcp-reference/rootset_restore_database_backup",
+                  "mcp-reference/rootset_delete_workspace",
+                  "mcp-reference/rootset_get_workspace",
+                  "mcp-reference/rootset_update_workspace",
+                  "mcp-reference/rootset_list_workspaces",
+                  "mcp-reference/rootset_create_workspace",
+                  "mcp-reference/rootset_list_team_workspaces",
+                  "mcp-reference/rootset_list_workspace_members",
+                  "mcp-reference/rootset_add_workspace_member",
+                  "mcp-reference/rootset_remove_workspace_member"
                 ]
               },
               {
@@ -290,10 +299,10 @@
                   "api-reference/createPersonalKey",
                   "api-reference/rotatePersonalKey",
                   "api-reference/revokePersonalKey",
-                  "api-reference/listTeamKeys",
-                  "api-reference/createTeamKey",
-                  "api-reference/rotateTeamKey",
-                  "api-reference/revokeTeamKey",
+                  "api-reference/listWorkspaceKeys",
+                  "api-reference/createWorkspaceKey",
+                  "api-reference/rotateWorkspaceKey",
+                  "api-reference/revokeWorkspaceKey",
                   "api-reference/getSecurityStatus",
                   "api-reference/listActivity",
                   "api-reference/listActivityFilterOptions",
@@ -304,7 +313,16 @@
                   "api-reference/updateViewPreferences",
                   "api-reference/updateForeignKeyDisplayField",
                   "api-reference/previewDatabaseRestore",
-                  "api-reference/restoreDatabaseBackup"
+                  "api-reference/restoreDatabaseBackup",
+                  "api-reference/deleteWorkspace",
+                  "api-reference/getWorkspace",
+                  "api-reference/updateWorkspace",
+                  "api-reference/listWorkspaces",
+                  "api-reference/createWorkspace",
+                  "api-reference/listTeamWorkspaces",
+                  "api-reference/listWorkspaceMembers",
+                  "api-reference/addWorkspaceMember",
+                  "api-reference/removeWorkspaceMember"
                 ]
               },
               {

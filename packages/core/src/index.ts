@@ -1,3 +1,4 @@
+import { Workspaces } from "./workspaces";
 import {
   getOperation,
   limits,
@@ -111,6 +112,7 @@ const rowPublic = (value: Row): Row => ({
 const databasePublic = (d: DatabaseRecord) => ({
   id: d.id,
   orgId: d.orgId,
+  workspaceId: d.workspaceId,
   name: d.name,
   description: d.description,
   state: d.state,
@@ -242,14 +244,24 @@ const jobOperations = new Set([
 export class RootsetCore {
   readonly paging: MetadataPaging;
   readonly activity: ActivityReader;
+  readonly workspaces: Workspaces;
   constructor(readonly options: CoreOptions) {
+    this.workspaces = new Workspaces(options.pool);
     this.paging =
       options.paging ?? new MetadataPaging(options.config.cursorSecret);
     this.activity = new ActivityReader({
       pool: options.pool,
       secret: options.config.cursorSecret,
-      refreshActor: (actor, client) =>
-        options.identity.refreshActor(actor, client),
+      refreshActor: async (actor, client) => {
+        const current = await options.identity.refreshActor(actor, client);
+        if (current.workspaceId)
+          await this.workspaces.assertAccess(
+            current,
+            current.workspaceId,
+            client,
+          );
+        return current;
+      },
     });
   }
   async authorise(
@@ -258,9 +270,54 @@ export class RootsetCore {
     input: Record<string, unknown>,
     client?: PoolClient,
   ): Promise<Actor> {
-    const actor = await this.options.identity.refreshActor(incoming, client),
-      op = getOperation(operationId);
+    let actor = await this.options.identity.refreshActor(incoming, client);
+    const op = getOperation(operationId);
+    if (actor.kind === "workspace_key") {
+      if (
+        typeof input.workspaceId === "string" &&
+        input.workspaceId !== actor.workspaceId
+      )
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Workspace was not found",
+          404,
+        );
+      if (
+        !op.workspaceScoped &&
+        ![
+          "getContext",
+          "getOrganisation",
+          "listWorkspaces",
+          "getWorkspace",
+        ].includes(operationId)
+      )
+        throw new RootsetError(
+          "INSUFFICIENT_SCOPE",
+          "Workspace keys cannot access team or account operations",
+          403,
+        );
+    }
     const orgId = typeof input.orgId === "string" ? input.orgId : actor.orgId;
+    if (op.workspaceScoped) {
+      const workspaceId = str(
+        input.workspaceId ?? incoming.workspaceId ?? incoming.orgId,
+      );
+      if (actor.kind === "workspace_key" && actor.workspaceId !== workspaceId)
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Workspace was not found",
+          404,
+        );
+      await this.workspaces.assertAccess(actor, workspaceId, client);
+      actor = { ...actor, workspaceId };
+    }
+    if (
+      !op.workspaceScoped &&
+      typeof input.workspaceId === "string" &&
+      !["listWorkspaceMembers"].includes(operationId)
+    ) {
+      await this.workspaces.assertAccess(actor, input.workspaceId, client);
+    }
     let databaseId =
       typeof input.databaseId === "string" ? input.databaseId : undefined;
     const tableId =
@@ -268,7 +325,8 @@ export class RootsetCore {
     const archivedResource =
       operationId === "deleteDatabase" ||
       operationId === "deleteTable" ||
-      operationId === "listActivity";
+      operationId === "listActivity" ||
+      typeof input.backupId === "string";
     if (tableId) {
       const table = await (archivedResource
         ? this.options.storage.getArchivedTable(actor, tableId)
@@ -280,6 +338,26 @@ export class RootsetCore {
           404,
         );
       databaseId = table.databaseId;
+    }
+    if (op.workspaceScoped && typeof input.backupId === "string") {
+      const source = await withOrg(
+        this.options.pool,
+        actor.orgId,
+        async (c) =>
+          (
+            await c.query<{ database_id: string }>(
+              "SELECT database_id FROM rootset_control.database_backups WHERE org_id=$1 AND id=$2",
+              [actor.orgId, input.backupId],
+            )
+          ).rows[0],
+      );
+      if (!source)
+        throw new RootsetError(
+          "RESOURCE_NOT_FOUND",
+          "Backup was not found",
+          404,
+        );
+      databaseId = source.database_id;
     }
     if (databaseId) {
       await (archivedResource
@@ -328,6 +406,11 @@ export class RootsetCore {
   ): Promise<unknown> {
     const input = { ...record(value) };
     delete input.operationContext;
+    if (
+      getOperation(operationId).workspaceScoped &&
+      input.workspaceId === undefined
+    )
+      input.workspaceId = actor.workspaceId ?? actor.orgId;
     return this.run(
       operationId,
       actor,
@@ -640,10 +723,37 @@ export class RootsetCore {
         jobFence: ctx.jobFence,
         client: ctx.client,
       });
+    if (
+      [
+        "listWorkspaces",
+        "listTeamWorkspaces",
+        "createWorkspace",
+        "getWorkspace",
+        "updateWorkspace",
+        "listWorkspaceMembers",
+        "addWorkspaceMember",
+        "removeWorkspaceMember",
+        "deleteWorkspace",
+      ].includes(id)
+    ) {
+      if (getOperation(id).readOnly)
+        return this.workspaces.execute(id, a, input, ctx.client);
+      return withOrg(this.options.pool, a.orgId, (c) =>
+        runMutation(
+          c,
+          a,
+          id,
+          input,
+          ctx.idempotencyKey!,
+          this.options.config.keyHashSecret,
+          () => this.workspaces.execute(id, a, input, c),
+        ),
+      );
+    }
     switch (id) {
       case "listDatabases": {
         const request = {
-          resource: "databases",
+          resource: `workspace:${a.workspaceId}:databases`,
           limit: typeof input.limit === "number" ? input.limit : undefined,
           cursor: typeof input.cursor === "string" ? input.cursor : undefined,
         };
@@ -1023,6 +1133,12 @@ export class RootsetCore {
             assertReadOpen(ctx);
             await ctx.beforePublish?.();
             const current = await this.options.identity.refreshActor(a, client);
+            if (current.workspaceId)
+              await this.workspaces.assertAccess(
+                current,
+                current.workspaceId,
+                client,
+              );
             assertAccess(current, { scope: "rows:write", orgId: a.orgId });
             assertReadOpen(ctx);
           },
@@ -1218,7 +1334,10 @@ export class RootsetCore {
             "Mutation was not found",
             404,
           );
-        await this.authorise(a, "getRow", { tableId: row.table_id });
+        await this.authorise(a, "getRow", {
+          tableId: row.table_id,
+          workspaceId: a.workspaceId,
+        });
         return {
           mutationId: input.id,
           result: await s.getMutation(a, row.table_id, str(input.id)),

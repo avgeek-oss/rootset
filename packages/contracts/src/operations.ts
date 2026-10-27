@@ -1,4 +1,9 @@
 import {
+  WorkspaceSchema,
+  WorkspaceInputSchema,
+  WorkspaceMemberSchema,
+} from "./workspaces";
+import {
   BulkRowsInputSchema,
   BulkRowsPreviewSchema,
   BulkRowsResultSchema,
@@ -89,6 +94,7 @@ import {
 } from "./resources";
 
 export interface OperationDefinition {
+  workspaceScoped: boolean;
   id: string;
   toolName: string;
   path: string;
@@ -178,6 +184,15 @@ function operation(
   settings: Settings = {},
 ): void {
   const readOnly = settings.readOnly ?? method === "GET";
+  const workspaceScoped =
+    /^\/v1\/orgs\/\{orgId\}\/(databases|jobs|artifacts|activity|backups|workspace-keys|mutations)(?:\/|$)/.test(
+      path,
+    ) || path.includes("{tableId}");
+  if (workspaceScoped && inputSchema instanceof z.ZodObject)
+    inputSchema = inputSchema
+      .safeExtend({ workspaceId: IdSchema })
+      .meta(inputSchema.meta() ?? {});
+
   const group = path.includes("/installation")
     ? "installation"
     : path.includes("/exports") || path.includes("/artifacts")
@@ -237,6 +252,7 @@ function operation(
         : path.includes("{orgId}")
           ? "organisation"
           : "none",
+    workspaceScoped,
     tags: [group],
     errors: [
       "VALIDATION_FAILED",
@@ -561,22 +577,22 @@ operation(
   { personal: true },
 );
 operation(
-  "listTeamKeys",
-  "list_team_keys",
+  "listWorkspaceKeys",
+  "list_workspace_keys",
   "GET",
-  `${O}/keys`,
-  ["team-keys:manage"],
+  `${O}/workspace-keys`,
+  ["workspace-keys:manage"],
   z.strictObject({ ...org, ...paging }),
   list(KeyMetadataSchema),
   "List metadata for workspace-owned API keys. Administrators only.",
   { minimumRole: "admin", personal: true },
 );
 operation(
-  "createTeamKey",
-  "create_team_key",
+  "createWorkspaceKey",
+  "create_workspace_key",
   "POST",
-  `${O}/keys`,
-  ["team-keys:manage"],
+  `${O}/workspace-keys`,
+  ["workspace-keys:manage"],
   z
     .strictObject({ ...org, ...keyInput })
     .refine((input) => !input.includeAdmin || input.access === "edit", {
@@ -587,11 +603,11 @@ operation(
   { minimumRole: "admin", personal: true },
 );
 operation(
-  "rotateTeamKey",
-  "rotate_team_key",
+  "rotateWorkspaceKey",
+  "rotate_workspace_key",
   "POST",
-  `${O}/keys/{id}/rotate`,
-  ["team-keys:manage"],
+  `${O}/workspace-keys/{id}/rotate`,
+  ["workspace-keys:manage"],
   z.strictObject({
     ...org,
     id: IdSchema,
@@ -606,11 +622,11 @@ operation(
   { minimumRole: "admin", personal: true },
 );
 operation(
-  "revokeTeamKey",
-  "revoke_team_key",
+  "revokeWorkspaceKey",
+  "revoke_workspace_key",
   "DELETE",
-  `${O}/keys/{id}`,
-  ["team-keys:manage"],
+  `${O}/workspace-keys/{id}`,
+  ["workspace-keys:manage"],
   z.strictObject({ ...org, id: IdSchema }),
   deleted,
   "Revoke a workspace-owned API key. Administrators only.",
@@ -1299,6 +1315,7 @@ operation(
   ActivityInputSchema,
   ActivityPageSchema,
   "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
+  { minimumRole: "admin" },
 );
 operation(
   "listActivityFilterOptions",
@@ -1309,6 +1326,7 @@ operation(
   ActivityFilterInputSchema,
   ActivityFilterOptionsSchema,
   "Find actors or resources in permitted audit history, independently of event pagination. Narrow the search when more matches are available.",
+  { minimumRole: "admin" },
 );
 operation(
   "getActivityDetails",
@@ -1320,6 +1338,7 @@ operation(
   ActivityDetailsSchema,
   "Read concise audit event context under current history, resource and job permissions. Includes retained field names and changes without record values or private job payloads.",
   {
+    minimumRole: "admin",
     example: {
       orgId: "01K6J7B8000000000000000000",
       eventId: "r:1",
@@ -1761,6 +1780,109 @@ operation(
   { minimumRole: "admin", job: true, successStatus: 202 },
 );
 
+operation(
+  "deleteWorkspace",
+  "delete_workspace",
+  "DELETE",
+  `${O}/workspaces/{workspaceId}`,
+  ["workspaces:manage"],
+  z.strictObject({ ...org, workspaceId: IdSchema }),
+  deleted,
+  "Delete an empty workspace. Default cannot be deleted.",
+  { minimumRole: "admin", personal: true },
+);
+const workspaceTarget = { ...org, workspaceId: IdSchema };
+operation(
+  "listWorkspaces",
+  "list_workspaces",
+  "GET",
+  `${O}/workspaces`,
+  ["org:read"],
+  z.strictObject({ ...org }),
+  list(WorkspaceSchema),
+  "List workspaces available to your current membership. Default is shared by everyone.",
+);
+operation(
+  "listTeamWorkspaces",
+  "list_team_workspaces",
+  "GET",
+  `${O}/team-workspaces`,
+  ["members:read"],
+  z.strictObject({ ...org }),
+  list(WorkspaceSchema),
+  "List every workspace for team administration, without granting access to its databases or audit logs.",
+  { minimumRole: "admin" },
+);
+operation(
+  "createWorkspace",
+  "create_workspace",
+  "POST",
+  `${O}/workspaces`,
+  ["workspaces:manage"],
+  WorkspaceInputSchema.extend(org),
+  WorkspaceSchema,
+  "Create a workspace and add yourself. Workspace members retain their team roles.",
+  { minimumRole: "admin", personal: true },
+);
+operation(
+  "getWorkspace",
+  "get_workspace",
+  "GET",
+  `${O}/workspaces/{workspaceId}`,
+  ["org:read"],
+  z.strictObject(workspaceTarget),
+  WorkspaceSchema,
+  "Read a workspace you can access.",
+);
+operation(
+  "updateWorkspace",
+  "update_workspace",
+  "PATCH",
+  `${O}/workspaces/{workspaceId}`,
+  ["workspaces:manage"],
+  z.strictObject({
+    ...workspaceTarget,
+    name: WorkspaceInputSchema.shape.name.optional(),
+    description: z.string().max(4096).optional(),
+  }),
+  WorkspaceSchema,
+  "Edit a workspace name and description. Default cannot be renamed.",
+  { minimumRole: "admin", personal: true },
+);
+operation(
+  "listWorkspaceMembers",
+  "list_workspace_members",
+  "GET",
+  `${O}/workspaces/{workspaceId}/members`,
+  ["members:read"],
+  z.strictObject(workspaceTarget),
+  list(WorkspaceMemberSchema),
+  "List workspace members. Team admins can inspect this directory without joining the workspace.",
+  { minimumRole: "admin" },
+);
+operation(
+  "addWorkspaceMember",
+  "add_workspace_member",
+  "POST",
+  `${O}/workspaces/{workspaceId}/members`,
+  ["workspaces:manage"],
+  z.strictObject({ ...workspaceTarget, userId: IdSchema }),
+  WorkspaceMemberSchema,
+  "Immediately add an existing team member. Only an admin who belongs to this workspace can manage access.",
+  { minimumRole: "admin", personal: true },
+);
+operation(
+  "removeWorkspaceMember",
+  "remove_workspace_member",
+  "DELETE",
+  `${O}/workspaces/{workspaceId}/members/{userId}`,
+  ["workspaces:manage"],
+  z.strictObject({ ...workspaceTarget, userId: IdSchema }),
+  deleted,
+  "Immediately remove a workspace member, including yourself. Default membership is automatic.",
+  { minimumRole: "admin", personal: true },
+);
+
 export const operations: readonly OperationDefinition[] =
   Object.freeze(definitions);
 export const operationMap: Readonly<Record<string, OperationDefinition>> =
@@ -1796,7 +1918,7 @@ export const ProtocolAdapterInventory = Object.freeze([
     methods: ["GET", "POST", "DELETE"],
     kind: "protocol",
     reason:
-      "Streamable HTTP MCP transport negotiates protocol methods and requires a personal API key or MCP-resource OAuth actor; its named tools come from the operation catalog.",
+      "Streamable HTTP MCP transport negotiates protocol methods and requires a personal or workspace API key or MCP-resource OAuth actor; its named tools come from the operation catalog.",
   },
   {
     path: "/v1/orgs/{orgId}/artifacts/{id}/download",

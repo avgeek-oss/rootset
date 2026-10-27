@@ -7,7 +7,7 @@ const management = [
   "restore-requests",
   "organisation",
   "members",
-  "team-api-keys",
+  "workspace-api-keys",
   "database-danger-zone",
   "table-danger-zone",
 ] as const;

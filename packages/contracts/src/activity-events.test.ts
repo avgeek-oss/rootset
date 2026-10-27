@@ -45,7 +45,8 @@ test("audit detail IDs accept each retained source and reject malformed or overf
     `a:${orgId}:resolved`,
   ])
     assert.equal(
-      ActivityDetailsInputSchema.parse({ orgId, eventId }).eventId,
+      ActivityDetailsInputSchema.parse({ orgId, workspaceId: orgId, eventId })
+        .eventId,
       eventId,
     );
   for (const eventId of [
@@ -60,7 +61,11 @@ test("audit detail IDs accept each retained source and reject malformed or overf
     `r:${orgId}`,
   ])
     assert.equal(
-      ActivityDetailsInputSchema.safeParse({ orgId, eventId }).success,
+      ActivityDetailsInputSchema.safeParse({
+        orgId,
+        workspaceId: orgId,
+        eventId,
+      }).success,
       false,
     );
 });
@@ -68,22 +73,34 @@ test("audit detail IDs accept each retained source and reject malformed or overf
 test("audit filters reject unknown event names, malformed resource keys and unbounded option requests", () => {
   const orgId = "01M4Z29DYW3NBAVHB1QS52RYAS";
   assert.equal(
-    ActivityInputSchema.safeParse({ orgId, event: "private-view.secret" })
-      .success,
+    ActivityInputSchema.safeParse({
+      orgId,
+      workspaceId: orgId,
+      event: "private-view.secret",
+    }).success,
     false,
   );
   assert.equal(
-    ActivityInputSchema.safeParse({ orgId, resource: "table:invalid" }).success,
+    ActivityInputSchema.safeParse({
+      orgId,
+      workspaceId: orgId,
+      resource: "table:invalid",
+    }).success,
     false,
   );
   assert.equal(
-    ActivityFilterInputSchema.safeParse({ orgId, kind: "actors", limit: 101 })
-      .success,
+    ActivityFilterInputSchema.safeParse({
+      orgId,
+      workspaceId: orgId,
+      kind: "actors",
+      limit: 101,
+    }).success,
     false,
   );
   assert.equal(
     ActivityInputSchema.parse({
       orgId,
+      workspaceId: orgId,
       event: "records.changed",
       actor: "system:rootset-worker",
       resource: `database:${orgId}`,

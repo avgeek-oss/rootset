@@ -22,6 +22,8 @@ import {
   RootsetClient,
   browserApiOrigin,
   resourcePath,
+  currentWorkspaceId,
+  selectWorkspace,
   unwrapData,
 } from "@rootset/web-client";
 import {
@@ -33,6 +35,7 @@ import { ConsentScreen } from "./mcp-oauth-consent";
 import {
   ContextSchema,
   IdSchema,
+  type Workspace,
   type Database,
   type DatabaseSummary,
   type Table,
@@ -70,6 +73,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DatabaseIcon,
   Logout03Icon,
+  Layers01Icon,
   Settings01Icon,
   UserAccountIcon,
   UserGroupIcon,
@@ -78,7 +82,6 @@ import {
   Mail01Icon,
   News01Icon,
   Message01Icon,
-  TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
 import { LogOut, Database as DatabaseSymbol, Plus } from "./ui/icons";
 
@@ -103,6 +106,9 @@ const AuditLogsPage = lazy(() =>
     default: module.AuditLogsPage,
   })),
 );
+
+import { WorkspaceSwitcher } from "./workspaces";
+import { useCommittedWorkspace } from "./workspace-navigation";
 
 const repositoryUrl = "https://github.com/avgeek-oss/rootset";
 const productLinks: Partial<Record<string, string>> = {
@@ -148,7 +154,8 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
   const route = resourceRoute(path);
-  const auditLogsPage = path === "/audit-logs";
+  const auditLogsPage =
+    path === "/audit-logs" || path === "/workspace-settings/audit-logs";
   const databaseId = auditLogsPage
     ? null
     : (route.databaseId ?? parameters.get("databaseId"));
@@ -158,21 +165,38 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
   const teamSection = path.startsWith("/team-settings/")
     ? path.split("/")[2]
     : null;
+  const workspaceSection = path.startsWith("/workspace-settings/")
+    ? path.split("/")[2]
+    : null;
   const section =
+    (auditLogsPage
+      ? "workspace-audit-logs"
+      : workspaceSection === "delete-workspace"
+        ? "workspace-danger-zone"
+        : workspaceSection === "general"
+          ? "workspace-general"
+          : workspaceSection === "manage-access"
+            ? "workspace-access"
+            : workspaceSection === "api-keys"
+              ? "workspace-api-keys"
+              : null) ??
     route.section ??
     (teamSection === "general"
       ? "organisation"
       : teamSection === "api-keys"
-        ? "team-api-keys"
-        : teamSection === "members"
-          ? "members"
-          : path.startsWith("/settings/")
-            ? path.split("/")[2]
-            : null);
+        ? "workspace-api-keys"
+        : teamSection === "workspaces"
+          ? "team-workspaces"
+          : teamSection === "members"
+            ? "members"
+            : path.startsWith("/settings/")
+              ? path.split("/")[2]
+              : null);
   const settings = resolveSettingsSection(section ?? null);
   const needsResources =
     !auditLogsPage &&
-    (!settings || !["account", "team"].includes(settingsScope(settings)));
+    (!settings ||
+      !["account", "team", "workspace"].includes(settingsScope(settings)));
   useEffect(() => {
     if (!auditLogsPage && parameters.has("databaseId"))
       router.replace(
@@ -200,28 +224,55 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     retry: false,
   });
   const orgId = context.data?.organisation?.id;
+  const workspaces = usePageQuery({
+    queryKey: ["workspaces", orgId],
+    queryFn: ({ signal }) =>
+      client.operation<{ data: Workspace[] }>(
+        "listWorkspaces",
+        { orgId },
+        { signal },
+      ),
+    enabled: !!orgId,
+  });
+  const requestedWorkspaceId =
+    parameters.get("workspaceId") ?? currentWorkspaceId();
+  const workspace =
+    workspaces.data?.data.find((w) => w.id === requestedWorkspaceId) ??
+    workspaces.data?.data.find((w) => w.isDefault) ??
+    workspaces.data?.data[0];
+  // Bootstrap an accessible scope before descendant queries on a direct page load.
+  // An existing workspace stays active while a switch prepares its destination.
+  if (
+    workspace &&
+    !workspaces.data?.data.some((w) => w.id === currentWorkspaceId())
+  )
+    selectWorkspace(workspace.id);
+  useCommittedWorkspace(workspace?.id);
+  const workspaceSettingsHref = workspace?.isDefault
+    ? "/workspace-settings/api-keys"
+    : "/workspace-settings/general";
   const databases = usePageQuery({
-    queryKey: ["databases", orgId],
+    queryKey: ["databases", orgId, workspace?.id],
     queryFn: async ({ signal }) =>
       unwrapData(
         await client.request<DatabaseSummary[] | { data: DatabaseSummary[] }>(
-          `${resourcePath(orgId!)}/databases`,
+          `${resourcePath(orgId!)}/databases?workspaceId=${workspace!.id}`,
           { signal },
         ),
       ),
-    enabled: !!orgId && needsResources,
+    enabled: !!orgId && !!workspace && needsResources,
   });
   const selectedDatabaseId = databaseId ?? null;
   const tables = usePageQuery({
-    queryKey: ["tables", orgId, selectedDatabaseId],
+    queryKey: ["tables", orgId, selectedDatabaseId, workspace?.id],
     queryFn: async ({ signal }) =>
       unwrapData(
         await client.request<TableSummary[] | { data: TableSummary[] }>(
-          `${resourcePath(orgId!, selectedDatabaseId!)}/tables`,
+          `${resourcePath(orgId!, selectedDatabaseId!)}/tables?workspaceId=${workspace!.id}`,
           { signal },
         ),
       ),
-    enabled: !!orgId && !!selectedDatabaseId && needsResources,
+    enabled: !!orgId && !!workspace && !!selectedDatabaseId && needsResources,
   });
   const selectedTableId = tableId;
   const database = databases.data?.find(
@@ -417,7 +468,8 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
             returnTo?.startsWith("/") && !returnTo.startsWith("//")
               ? returnTo
               : path.startsWith("/settings/") ||
-                  path.startsWith("/team-settings/")
+                  path.startsWith("/team-settings/") ||
+                  path.startsWith("/workspace-settings/")
                 ? `${path}${location.search}${location.hash}`
                 : "/",
           );
@@ -464,6 +516,16 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
       </main>
     );
 
+  if (orgId && !workspace)
+    return workspaces.isError ? (
+      <RootsetErrorState code={500} onRetry={() => void workspaces.refetch()} />
+    ) : (
+      <QueryLoading />
+    );
+  if (settings && settingsScope(settings) === "workspace" && !canManage)
+    return <RootsetErrorState code={404} />;
+  if (auditLogsPage && !canManage) return <RootsetErrorState code={404} />;
+
   const contextIds = {
     databaseId: selectedDatabaseId,
     tableId: selectedTableId,
@@ -499,6 +561,7 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
       databaseId={selectedDatabaseId}
       tableId={selectedTableId}
       locale={preferences.locale}
+      workspaceIsDefault={workspace?.isDefault}
     />
   );
   const resourceScope =
@@ -546,168 +609,189 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
             />
           }
           sidebar={
-            <ApplicationSidebar
-              config={{
-                accessibleLabel: "Primary navigation",
-                homeHref: "/",
-                brandVersion: rootsetVersion,
-                brand: {
-                  id: "rootset",
-                  accessibleLabel: "Rootset home",
-                  title: "Rootset",
-                  logo: <RootsetLogo />,
-                },
-                groups: [
-                  {
-                    id: "operate",
-                    label: "Operate",
-                    items: [
-                      {
-                        kind: "link",
-                        id: "databases",
-                        label: "Databases",
-                        href: "/databases",
-                        icon: DatabaseIcon,
-                        activePath: resourceScope ? path : "/databases",
-                      },
-                      {
-                        kind: "link",
-                        id: "audit-logs",
-                        label: "Audit Logs",
-                        href: "/audit-logs",
-                        icon: TransactionHistoryIcon,
-                        activePath: auditLogsPage ? path : "/audit-logs",
-                      },
-                    ],
+            <div className="workspace-sidebar">
+              {workspace && (
+                <WorkspaceSwitcher
+                  orgId={orgId!}
+                  current={workspace}
+                  workspaces={workspaces.data?.data ?? []}
+                  canCreate={canManage}
+                />
+              )}
+              <ApplicationSidebar
+                config={{
+                  accessibleLabel: "Primary navigation",
+                  homeHref: "/",
+                  brandVersion: rootsetVersion,
+                  brand: {
+                    id: "rootset",
+                    accessibleLabel: "Rootset home",
+                    title: "Rootset",
+                    logo: <RootsetLogo />,
                   },
-                  {
-                    id: "settings",
-                    label: "Settings",
-                    items: [
-                      {
-                        kind: "link",
-                        id: "account",
-                        label: "Account Settings",
-                        href: settingsHref("profile", {}),
-                        icon: UserAccountIcon,
-                        activePath:
-                          settings && settingsScope(settings) === "account"
-                            ? path
-                            : "/settings/profile",
-                      },
-                      ...(canManage
-                        ? [
+                  groups: [
+                    {
+                      id: "operate",
+                      label: "Operate",
+                      items: [
+                        {
+                          kind: "link",
+                          id: "databases",
+                          label: "Databases",
+                          href: "/databases",
+                          icon: DatabaseIcon,
+                          activePath: resourceScope ? path : "/databases",
+                        },
+                      ],
+                    },
+                    {
+                      id: "settings",
+                      label: "Settings",
+                      items: [
+                        {
+                          kind: "link",
+                          id: "account",
+                          label: "Account Settings",
+                          href: settingsHref("profile", {}),
+                          icon: UserAccountIcon,
+                          activePath:
+                            settings && settingsScope(settings) === "account"
+                              ? path
+                              : "/settings/profile",
+                        },
+                        ...(canManage
+                          ? [
+                              {
+                                kind: "link" as const,
+                                id: "workspace-settings",
+                                label: "Workspace Settings",
+                                href: workspaceSettingsHref,
+                                icon: Layers01Icon,
+                                activePath:
+                                  settings &&
+                                  settingsScope(settings) === "workspace"
+                                    ? path
+                                    : workspaceSettingsHref,
+                              },
+                              {
+                                kind: "link" as const,
+                                id: "team",
+                                label: "Team Settings",
+                                href: settingsHref("organisation", {}),
+                                icon: UserGroupIcon,
+                                activePath:
+                                  settings && settingsScope(settings) === "team"
+                                    ? path
+                                    : "/team-settings",
+                              },
+                            ]
+                          : []),
+                      ],
+                    },
+                  ],
+                  footerContent: (
+                    <SidebarAccountMenu
+                      name={profileName}
+                      email={context.data.profile?.email ?? ""}
+                      teamName={context.data.organisation?.name ?? "Rootset"}
+                      groups={[
+                        {
+                          id: "account",
+                          label: "Account",
+                          items: [
                             {
-                              kind: "link" as const,
-                              id: "team",
-                              label: "Team Settings",
-                              href: settingsHref("organisation", {}),
-                              icon: UserGroupIcon,
-                              activePath:
-                                settings && settingsScope(settings) === "team"
-                                  ? path
-                                  : "/team-settings",
+                              id: "profile",
+                              label: "Profile",
+                              icon: icon(UserAccountIcon),
                             },
-                          ]
-                        : []),
-                    ],
-                  },
-                ],
-                footerContent: (
-                  <SidebarAccountMenu
-                    name={profileName}
-                    email={context.data.profile?.email ?? ""}
-                    teamName={context.data.organisation?.name ?? "Rootset"}
-                    groups={[
-                      {
-                        id: "account",
-                        label: "Account",
-                        items: [
-                          {
-                            id: "profile",
-                            label: "Profile",
-                            icon: icon(UserAccountIcon),
-                          },
-                          {
-                            id: "preferences",
-                            label: "Preferences",
-                            icon: icon(Settings01Icon),
-                          },
-                          {
-                            id: "email-password",
-                            label: "Email & Password",
-                            icon: icon(Mail01Icon),
-                          },
-                          {
-                            id: "api-keys",
-                            label: "API Keys",
-                            icon: icon(Key01Icon),
-                          },
-                        ],
-                      },
-                      {
-                        id: "rootset",
-                        label: "Rootset",
-                        items: [
-                          {
-                            id: "changelog",
-                            label: "Changelog",
-                            icon: icon(News01Icon),
-                          },
-                          {
-                            id: "documentation",
-                            label: "Documentation",
-                            icon: icon(BookOpen01Icon),
-                          },
-                          {
-                            id: "feedback",
-                            label: "Leave Feedback",
-                            icon: icon(Message01Icon),
-                          },
-                        ],
-                      },
-                      {
-                        id: "session",
-                        label: "Session",
-                        items: [
-                          {
-                            id: "logout",
-                            label: "Sign out",
-                            icon: icon(Logout03Icon),
-                            destructive: true,
-                          },
-                        ],
-                      },
-                    ]}
-                    onAction={(id) => {
-                      const productUrl = productLinks[id];
-                      if (id === "logout")
-                        void authClient.signOut().then(() => {
-                          queryClient.clear();
-                          location.assign("/login");
-                        });
-                      else if (productUrl)
-                        window.open(
-                          productUrl,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
-                      else {
-                        const section = resolveSettingsSection(id);
-                        if (section) openSettings(section);
-                      }
-                    }}
-                  />
-                ),
-              }}
-            />
+                            {
+                              id: "preferences",
+                              label: "Preferences",
+                              icon: icon(Settings01Icon),
+                            },
+                            {
+                              id: "email-password",
+                              label: "Email & Password",
+                              icon: icon(Mail01Icon),
+                            },
+                            {
+                              id: "api-keys",
+                              label: "API Keys",
+                              icon: icon(Key01Icon),
+                            },
+                          ],
+                        },
+                        {
+                          id: "rootset",
+                          label: "Rootset",
+                          items: [
+                            {
+                              id: "changelog",
+                              label: "Changelog",
+                              icon: icon(News01Icon),
+                            },
+                            {
+                              id: "documentation",
+                              label: "Documentation",
+                              icon: icon(BookOpen01Icon),
+                            },
+                            {
+                              id: "feedback",
+                              label: "Leave Feedback",
+                              icon: icon(Message01Icon),
+                            },
+                          ],
+                        },
+                        {
+                          id: "session",
+                          label: "Session",
+                          items: [
+                            {
+                              id: "logout",
+                              label: "Sign out",
+                              icon: icon(Logout03Icon),
+                              destructive: true,
+                            },
+                          ],
+                        },
+                      ]}
+                      onAction={(id) => {
+                        const productUrl = productLinks[id];
+                        if (id === "logout")
+                          void authClient.signOut().then(() => {
+                            queryClient.clear();
+                            location.assign("/login");
+                          });
+                        else if (productUrl)
+                          window.open(
+                            productUrl,
+                            "_blank",
+                            "noopener,noreferrer",
+                          );
+                        else {
+                          const section = resolveSettingsSection(id);
+                          if (section) openSettings(section);
+                        }
+                      }}
+                    />
+                  ),
+                }}
+              />
+            </div>
           }
         >
           <AppShellBreadcrumb
             items={
               auditLogsPage
-                ? [{ label: "Rootset", href: "/" }, { label: "Audit Logs" }]
+                ? [
+                    {
+                      label: "Workspace Settings",
+                      href: workspaceSettingsHref,
+                    },
+                    { label: "Audit Logs" },
+                  ]
                 : resourceBreadcrumbs({
+                    workspaceIsDefault: workspace?.isDefault,
                     databaseId: selectedDatabaseId,
                     databaseName: database?.name,
                     tableId: selectedTableId,
@@ -752,14 +836,18 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
               )}
               {auditLogsPage ? (
                 <AuditLogsPage
-                  key={`${orgId}:${context.data.principal.role}`}
+                  key={`${orgId}:${workspace?.id}:${context.data.principal.role}`}
                   orgId={orgId!}
+                  workspaceId={workspace?.id}
                 />
               ) : settings ? (
                 <AppShell.Content variant="broad">
                   <SettingsPanel
                     section={settings}
                     orgId={orgId!}
+                    workspaceId={workspace?.id}
+                    workspaceIsDefault={workspace?.isDefault}
+                    userId={context.data.principal.userId}
                     role={context.data.principal.role}
                     databaseId={selectedDatabaseId ?? undefined}
                     tableId={selectedTableId ?? undefined}
@@ -807,10 +895,15 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
                   }
                   onChanged={() => {
                     void queryClient.invalidateQueries({
-                      queryKey: ["tables", orgId, selectedDatabaseId],
+                      queryKey: [
+                        "tables",
+                        orgId,
+                        selectedDatabaseId,
+                        workspace?.id,
+                      ],
                     });
                     void queryClient.invalidateQueries({
-                      queryKey: ["databases", orgId],
+                      queryKey: ["databases", orgId, workspace?.id],
                     });
                   }}
                 />

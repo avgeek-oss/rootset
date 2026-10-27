@@ -11,9 +11,9 @@ Rootset serves one workspace per installation. Admins manage its people in **Tea
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Viewer | Read tables and cell history, filter data, and request exports.                                                                                   |
 | Member | Viewer access plus create/edit databases, tables and fields, manage unique rules, and create/edit/delete rows. Cannot delete databases or tables. |
-| Admin  | Member access plus delete databases/tables, manage people and team API keys, and administer the installation.                                     |
+| Admin  | Member access plus delete databases/tables, manage people and workspace API keys, and administer the installation.                                |
 
-A person's current role applies to their browser session, personal API keys and OAuth connections. API permissions cannot elevate a person beyond their role. Team API keys belong to the workspace and are managed by Admins; they do not depend on the creator remaining a member.
+A person's current role applies to their browser session, personal API keys and OAuth connections. API permissions cannot elevate a person beyond their role. Workspace API keys belong to the workspace and are managed by Admins; they do not depend on the creator remaining a member.
 
 Database deletion in the browser asks an Admin to confirm their identity with a password or passkey. Other authorised operations execute directly; there is no approval-ticket workflow.
 

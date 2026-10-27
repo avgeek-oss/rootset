@@ -14,6 +14,7 @@ data, revisions and cell history on your infrastructure.
 
 ## What you can do
 
+- Group databases in workspaces with immediate membership and workspace-bound API keys.
 - Define typed fields, defaults, unique rules and table relations.
 - Edit, import, export and duplicate records; save views with filters, sorting
   and column layouts.

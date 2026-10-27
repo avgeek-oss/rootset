@@ -235,7 +235,7 @@ export class DatabaseRestores {
     return {
       jobId: job.id,
       state: job.state,
-      statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}`,
+      statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}?workspaceId=${actor.workspaceId ?? actor.orgId}`,
     };
   }
   async prepareRetry(actor: Actor, job: JobRecord, client: PoolClient) {

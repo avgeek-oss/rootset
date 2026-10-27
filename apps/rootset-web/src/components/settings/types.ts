@@ -7,10 +7,15 @@ import type {
 import type { z } from "zod";
 
 export type SettingsSection =
+  | "workspace-general"
+  | "workspace-access"
+  | "workspace-audit-logs"
+  | "workspace-danger-zone"
+  | "team-workspaces"
   | "organisation"
   | "members"
   | "api-keys"
-  | "team-api-keys"
+  | "workspace-api-keys"
   | "profile"
   | "preferences"
   | "email-password"
@@ -35,6 +40,9 @@ export type SettingsSection =
 export interface SettingsPanelProps {
   section: SettingsSection;
   orgId: string;
+  workspaceId?: string;
+  workspaceIsDefault?: boolean;
+  userId?: string;
   role?: string;
   databaseId?: string;
   tableId?: string;
@@ -202,10 +210,15 @@ export const FIELD_TYPES: TableField["type"][] = [
   "json",
 ];
 export const SECTION_LABELS: Record<SettingsSection, string> = {
+  "workspace-general": "General",
+  "workspace-access": "Manage Access",
+  "workspace-audit-logs": "Audit Logs",
+  "workspace-danger-zone": "Delete workspace",
+  "team-workspaces": "Workspaces",
   organisation: "General",
   members: "Members",
   "api-keys": "API Keys",
-  "team-api-keys": "API Keys",
+  "workspace-api-keys": "API Keys",
   profile: "Profile",
   preferences: "Preferences",
   "email-password": "Email & Password",
@@ -229,10 +242,15 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
 };
 
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
+  "workspace-general",
+  "workspace-access",
+  "workspace-audit-logs",
+  "workspace-danger-zone",
+  "team-workspaces",
   "backup-schedule",
   "backup-history",
   "restore-requests",
-  "team-api-keys",
+  "workspace-api-keys",
   "organisation",
   "members",
   "database-danger-zone",

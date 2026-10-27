@@ -71,6 +71,7 @@ interface ResourcePage {
 }
 type FieldChanges = Partial<FieldInput> & { clearDefault?: boolean };
 export interface DatabaseRecord {
+  workspaceId: string;
   id: string;
   orgId: string;
   name: string;
@@ -577,6 +578,25 @@ export class TableStorage {
         409,
       );
   }
+  private async workspace(
+    c: PoolClient,
+    actor: Actor,
+    workspaceId: string,
+  ): Promise<void> {
+    if (workspaceId !== (actor.workspaceId ?? actor.orgId))
+      fail("RESOURCE_NOT_FOUND", "Resource was not found", 404);
+    const result = await c.query(
+      `SELECT w.id FROM rootset_control.workspaces w WHERE w.org_id=$1 AND w.id=$2 AND w.deleted_at IS NULL AND (w.is_default OR $4::boolean OR EXISTS(SELECT 1 FROM rootset_control.workspace_members m WHERE m.workspace_id=w.id AND m.user_id=$3))`,
+      [
+        actor.orgId,
+        workspaceId,
+        actor.userId ?? null,
+        actor.kind === "operator" || actor.kind === "workspace_key",
+      ],
+    );
+    if (!result.rowCount)
+      fail("RESOURCE_NOT_FOUND", "Resource was not found", 404);
+  }
   private async database(
     c: PoolClient,
     actor: Actor,
@@ -590,12 +610,14 @@ export class TableStorage {
     );
     const d = r.rows[0];
     if (!d) fail("RESOURCE_NOT_FOUND", "Database was not found", 404);
+    await this.workspace(c, actor, String(d.workspace_id));
     return this.databaseRecord(d);
   }
   private databaseRecord(d: Raw): DatabaseRecord {
     return {
       id: String(d.id),
       orgId: String(d.org_id),
+      workspaceId: String(d.workspace_id),
       name: String(d.name),
       description: String(d.description),
       schemaName: String(d.schema_name),
@@ -612,11 +634,12 @@ export class TableStorage {
     archived = false,
   ): Promise<TableRecord> {
     const r = await c.query<Raw>(
-      `SELECT t.*,d.schema_name,d.state AS database_state FROM rootset_control.tables t JOIN rootset_control.databases d ON d.id=t.database_id WHERE t.id=$1 AND t.org_id=$2 ${archived ? "" : "AND t.state IN ('active','maintenance') AND d.state='active'"} ${lock ? "FOR UPDATE OF t" : ""}`,
+      `SELECT t.*,d.schema_name,d.workspace_id,d.state AS database_state FROM rootset_control.tables t JOIN rootset_control.databases d ON d.id=t.database_id WHERE t.id=$1 AND t.org_id=$2 ${archived ? "" : "AND t.state IN ('active','maintenance') AND d.state='active'"} ${lock ? "FOR UPDATE OF t" : ""}`,
       [id(tableId), actor.orgId],
     );
     const t = r.rows[0];
     if (!t) fail("RESOURCE_NOT_FOUND", "Table was not found", 404);
+    await this.workspace(c, actor, String(t.workspace_id));
     const fs = await c.query<{ definition: FieldDefinition }>(
       "SELECT definition FROM rootset_control.fields WHERE table_id=$1 AND state=$2 ORDER BY position,id",
       [t.id, "active"],
@@ -722,6 +745,9 @@ export class TableStorage {
       `${a.orgId}:${key}`,
     ]);
     const digest = hash({
+      ...(a.workspaceId && a.workspaceId !== a.orgId
+        ? { workspaceId: a.workspaceId }
+        : {}),
       kind,
       databaseId: kind === "database.create" ? null : databaseId,
       tableId: t?.id ?? null,
@@ -839,6 +865,12 @@ export class TableStorage {
     return this.run(
       a,
       async (c) => {
+        await this.workspace(c, a, a.workspaceId ?? a.orgId);
+        await c.query(
+          "SELECT id FROM rootset_control.workspaces WHERE org_id=$1 AND id=$2 AND deleted_at IS NULL FOR SHARE",
+          [a.orgId, a.workspaceId ?? a.orgId],
+        );
+        await this.workspace(c, a, a.workspaceId ?? a.orgId);
         const databaseId = newId();
         const j = await this.journal(
           c,
@@ -859,13 +891,14 @@ export class TableStorage {
         await this.assertPublication(c, a, input.context, false);
         const schemaName = `rsd_${databaseId.toLowerCase()}`;
         await c.query(
-          "INSERT INTO rootset_control.databases(id,org_id,name,description,schema_name) VALUES($1,$2,$3,$4,$5)",
+          "INSERT INTO rootset_control.databases(id,org_id,name,description,schema_name,workspace_id) VALUES($1,$2,$3,$4,$5,$6)",
           [
             databaseId,
             a.orgId,
             name(input.name),
             input.description ?? "",
             schemaName,
+            a.workspaceId ?? a.orgId,
           ],
         );
         await c.query(`CREATE SCHEMA ${q(schemaName)}`);
@@ -900,11 +933,12 @@ export class TableStorage {
     })[]
   > {
     return this.run(a, async (c) => {
+      await this.workspace(c, a, a.workspaceId ?? a.orgId);
       const r = await c.query<Raw>(
         `SELECT d.*,summary.*
          FROM (
            SELECT * FROM rootset_control.databases
-           WHERE org_id=$1 AND state='active' AND ($2::varchar IS NULL OR id>$2)
+           WHERE org_id=$1 AND workspace_id=$4 AND state='active' AND ($2::varchar IS NULL OR id>$2)
            ORDER BY id LIMIT $3
          ) d
          CROSS JOIN LATERAL (
@@ -916,7 +950,12 @@ export class TableStorage {
            FROM rootset_control.tables t WHERE t.database_id=d.id AND t.org_id=d.org_id
          ) summary
          ORDER BY d.id`,
-        [a.orgId, page?.afterId ?? null, page ? page.limit + 1 : null],
+        [
+          a.orgId,
+          page?.afterId ?? null,
+          page ? page.limit + 1 : null,
+          a.workspaceId ?? a.orgId,
+        ],
       );
       return r.rows.map((d) => ({
         ...this.databaseRecord(d),
@@ -4038,8 +4077,13 @@ export class TableStorage {
   ): Promise<RestoreDatabaseResult> {
     return this.run(
       actor,
-      (client) =>
-        restoreDatabaseSnapshot(
+      async (client) => {
+        await client.query(
+          "SELECT id FROM rootset_control.workspaces WHERE org_id=$1 AND id=$2 AND deleted_at IS NULL FOR SHARE",
+          [actor.orgId, actor.workspaceId ?? actor.orgId],
+        );
+        await this.workspace(client, actor, actor.workspaceId ?? actor.orgId);
+        return restoreDatabaseSnapshot(
           client,
           actor,
           { ...input, name: name(input.name) },
@@ -4072,7 +4116,8 @@ export class TableStorage {
               );
             },
           },
-        ),
+        );
+      },
       true,
     );
   }

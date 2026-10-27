@@ -13,7 +13,9 @@ export interface IsolatedDatabase {
 }
 
 /** Creates only a uniquely named local verification database, preserving the shared fixture database. */
-export async function isolatedDatabase(): Promise<IsolatedDatabase> {
+export async function isolatedDatabase(
+  options: { migrationDirectory?: string } = {},
+): Promise<IsolatedDatabase> {
   const source = new URL(fixtureSecret("ROOTSET_TEST_DATABASE_URL"));
   if (!["localhost", "127.0.0.1", "[::1]"].includes(source.hostname))
     throw new Error(
@@ -52,7 +54,7 @@ export async function isolatedDatabase(): Promise<IsolatedDatabase> {
       app,
       ddl,
       identity,
-      appliedMigrations: await migrate(owner),
+      appliedMigrations: await migrate(owner, options.migrationDirectory),
       close,
     };
   } catch (error) {

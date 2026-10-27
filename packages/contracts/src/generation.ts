@@ -157,7 +157,14 @@ export function operationExample(
   const example = Object.keys(definition.example).length
     ? definition.example
     : schemaExample(definition.inputSchema);
-  return definition.inputSchema.parse(example) as Record<string, unknown>;
+  return definition.inputSchema.parse(
+    definition.workspaceScoped
+      ? {
+          workspaceId: "01K6J7B8000000000000000000",
+          ...(example as Record<string, unknown>),
+        }
+      : example,
+  ) as Record<string, unknown>;
 }
 function componentSchema(schema: z.ZodType, name: string): JsonSchemaDocument {
   const result = schemaToJsonSchema(schema);
@@ -387,12 +394,20 @@ export function generateOpenApi(
         "Stream verified artifact bytes under current artifact-purpose and target authority.",
       description:
         "Use the authenticated download URL returned by getArtifact. An API key or API-audience OAuth bearer token is accepted; the MCP-audience OAuth grant used for artifact retrieval is also accepted only at this bound binary handoff. The server rechecks the artifact's organisation, original purpose scopes, requester and current role, verifies encrypted-object integrity, then streams the bytes with their exact declared size and checksum. Artifact-bound downloads are the only MCP-audience exception among /v1 routes; ordinary JSON API routes remain API-audience only. The ordinary JSON response budget does not apply to the binary stream. MCP artifact resources return bounded metadata with this authenticated download URL.",
-      parameters: ["orgId", "id"].map((name) => ({
-        name,
-        in: "path",
-        required: true,
-        schema: { type: "string", pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-      })),
+      parameters: [
+        ...["orgId", "id"].map((name) => ({
+          name,
+          in: "path",
+          required: true,
+          schema: { type: "string", pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+        })),
+        {
+          name: "workspaceId",
+          in: "query",
+          required: true,
+          schema: { type: "string", pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+        },
+      ],
       security: [{ apiKey: [] }, { oauth: [] }],
       responses: {
         "200": {

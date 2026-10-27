@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { test } from "node:test";
@@ -51,7 +52,7 @@ test("direct database/table permissions, fresh identity and worker role checks",
       input: Record<string, unknown>,
       surface: "rest" | "mcp" = "rest",
     ) =>
-      runtime.core.execute(id, actor, input, {
+      runtime.core.execute(id, actor, workspaceInput(id, actor, input), {
         idempotencyKey: newId(),
         surface,
       });

@@ -9,12 +9,69 @@ import {
 } from "./index";
 
 describe("browser transport", () => {
+  it("includes the active workspace when restore attempts have filters and pagination", async () => {
+    const workspaceId = "01M4Z29DYW3NBAVHB1QS52RYAS";
+    const databaseId = "01K6DVWSFS9MR156YW1H5XZ441";
+    const cursor = "cursor+with/slashes==";
+    vi.stubGlobal("window", { sessionStorage: { getItem: () => workspaceId } });
+    try {
+      const fetcher = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ data: [], nextCursor: null })),
+        );
+      const transport = new RootsetClient({
+        baseUrl: "https://rootset.example/api/internal/v1",
+        fetch: fetcher,
+      });
+      await transport.request(
+        `/orgs/${workspaceId}/jobs?databaseId=${databaseId}&kind=database_restore&order=desc&limit=25&cursor=${encodeURIComponent(cursor)}`,
+      );
+      const url = new URL(fetcher.mock.calls[0]![0]);
+      expect(url.searchParams.get("workspaceId")).toBe(workspaceId);
+      expect(url.searchParams.get("databaseId")).toBe(databaseId);
+      expect(url.searchParams.get("kind")).toBe("database_restore");
+      expect(url.searchParams.get("order")).toBe("desc");
+      expect(url.searchParams.get("limit")).toBe("25");
+      expect(url.searchParams.get("cursor")).toBe(cursor);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it("preserves an explicit target workspace and leaves account requests unscoped", async () => {
+    const active = "01M4Z29DYW3NBAVHB1QS52RYAS";
+    const target = "01K6DVWSFS9MR156YW1H5XZ440";
+    vi.stubGlobal("window", { sessionStorage: { getItem: () => active } });
+    try {
+      const fetcher = vi
+        .fn()
+        .mockImplementation(
+          async () => new Response(JSON.stringify({ data: [] })),
+        );
+      const transport = new RootsetClient({
+        baseUrl: "https://rootset.example/api/internal/v1",
+        fetch: fetcher,
+      });
+      await transport.request(
+        `/orgs/${active}/jobs?kind=database_restore&workspaceId=${target}`,
+      );
+      const scoped = new URL(fetcher.mock.calls[0]![0]);
+      expect(scoped.searchParams.getAll("workspaceId")).toEqual([target]);
+      await transport.request("/me?include=profile");
+      expect(
+        new URL(fetcher.mock.calls[1]![0]).searchParams.has("workspaceId"),
+      ).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("reports stale audit filter input without exposing the validation enum dump", async () => {
     const fetcher = vi.fn();
     const transport = new RootsetClient({ fetch: fetcher });
     const error = await transport
       .operation("listActivity", {
         orgId: "01M4Z29DYW3NBAVHB1QS52RYAS",
+        workspaceId: "01M4Z29DYW3NBAVHB1QS52RYAS",
         event: "old-client-event",
       })
       .catch((error) => error);
@@ -40,7 +97,10 @@ describe("browser transport", () => {
         ),
     });
     const error = await transport
-      .operation("listActivity", { orgId: "01M4Z29DYW3NBAVHB1QS52RYAS" })
+      .operation("listActivity", {
+        orgId: "01M4Z29DYW3NBAVHB1QS52RYAS",
+        workspaceId: "01M4Z29DYW3NBAVHB1QS52RYAS",
+      })
       .catch((error) => error);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
@@ -55,8 +115,8 @@ describe("browser transport", () => {
   it("builds API-hosted browser artifact downloads and rejects path substitution", () => {
     const orgId = "01K6DVWSFS9MR156YW1H5XZ440";
     const artifactId = "01K6DVWSFS9MR156YW1H5XZ441";
-    expect(browserArtifactDownloadPath(orgId, artifactId)).toBe(
-      `/api/internal/v1/orgs/${orgId}/artifacts/${artifactId}/download`,
+    expect(browserArtifactDownloadPath(orgId, artifactId, orgId)).toBe(
+      `/api/internal/v1/orgs/${orgId}/artifacts/${artifactId}/download?workspaceId=${orgId}`,
     );
     expect(() =>
       browserArtifactDownloadPath("//other.test", artifactId),
@@ -66,8 +126,8 @@ describe("browser transport", () => {
       __ROOTSET_API_ORIGIN: "https://rootset-api.avgeek.ltd",
     });
     try {
-      expect(browserArtifactDownloadPath(orgId, artifactId)).toBe(
-        `https://rootset-api.avgeek.ltd/api/internal/v1/orgs/${orgId}/artifacts/${artifactId}/download`,
+      expect(browserArtifactDownloadPath(orgId, artifactId, orgId)).toBe(
+        `https://rootset-api.avgeek.ltd/api/internal/v1/orgs/${orgId}/artifacts/${artifactId}/download?workspaceId=${orgId}`,
       );
     } finally {
       vi.unstubAllGlobals();

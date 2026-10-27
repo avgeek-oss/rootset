@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
@@ -75,18 +76,34 @@ test(
         NAME: "hidden-cell-value",
         COUNT: 0,
       });
+      // Reader redaction remains covered separately from the admin-only public audit API.
+      const audit = async (
+        operation:
+          "listActivity" | "getActivityDetails" | "listActivityFilterOptions",
+        actor: Actor,
+        input: Record<string, unknown>,
+        context = {},
+      ) => {
+        const scoped = workspaceInput(operation, actor, { orgId, ...input });
+        if (actor.role === "admin")
+          return runtime.core.execute(operation, actor, scoped, context);
+        const current = {
+          ...(await runtime.identity.refreshActor(actor)),
+          workspaceId: orgId,
+        };
+        if (operation === "listActivity")
+          return runtime.core.activity.list(current, scoped, context);
+        if (operation === "getActivityDetails")
+          return runtime.core.activity.details(current, scoped, context);
+        return runtime.core.activity.filters(current, scoped, context);
+      };
       const list = async (
         input: Record<string, unknown> = {},
         actor = admin,
         context = {},
       ) =>
         ActivityPageSchema.parse(
-          await runtime.core.execute(
-            "listActivity",
-            actor,
-            { orgId, ...input },
-            context,
-          ),
+          await audit("listActivity", actor, input, context),
         );
       const job = async (operation: string, actor = member) => {
         const id = newId();
@@ -112,12 +129,7 @@ test(
       };
       const details = async (eventId: string, actor = admin, context = {}) =>
         ActivityDetailsSchema.parse(
-          await runtime.core.execute(
-            "getActivityDetails",
-            actor,
-            { orgId, eventId },
-            context,
-          ),
+          await audit("getActivityDetails", actor, { eventId }, context),
         );
       const filters = async (
         kind: "actors" | "resources",
@@ -126,10 +138,10 @@ test(
         context = {},
       ) =>
         ActivityFilterOptionsSchema.parse(
-          await runtime.core.execute(
+          await audit(
             "listActivityFilterOptions",
             actor,
-            { orgId, kind, ...input },
+            { kind, ...input },
             context,
           ),
         );
@@ -339,13 +351,13 @@ test(
           const key = (await runtime.core.execute(
             "createPersonalKey",
             admin,
-            {
+            workspaceInput("createPersonalKey", admin, {
               orgId,
               name: "Activity reader",
               access: "read",
               includeAdmin: false,
               expiresAt: "2030-01-01T00:00:00.000Z",
-            },
+            }),
             { idempotencyKey: newId() },
           )) as { key: { id: string }; secret: string };
           const credential = await runtime.identity.resolveActor(
@@ -769,10 +781,14 @@ test(
             { code: "REQUEST_TIMEOUT" },
           );
           await assert.rejects(
-            runtime.core.execute("getActivityDetails", admin, {
-              orgId: newId(),
-              eventId: reorderEvent.id,
-            }),
+            runtime.core.execute(
+              "getActivityDetails",
+              admin,
+              workspaceInput("getActivityDetails", admin, {
+                orgId: newId(),
+                eventId: reorderEvent.id,
+              }),
+            ),
             { code: "RESOURCE_NOT_FOUND" },
           );
           const ruleTable = await runtime.storage.getTable(
@@ -831,7 +847,10 @@ test(
             },
           });
           await assert.rejects(
-            reader.list(await runtime.identity.refreshActor(member), { orgId }),
+            reader.list(await runtime.identity.refreshActor(member), {
+              orgId,
+              workspaceId: orgId,
+            }),
             { code: "FORBIDDEN" },
           );
           await withOrg(fixture.owner, orgId, (c) =>

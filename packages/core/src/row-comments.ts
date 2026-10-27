@@ -36,8 +36,8 @@ function canDelete(
   return (
     actor.role === "admin" ||
     (!!actor.userId && actor.userId === comment.author_user_id) ||
-    (actor.kind === "team_key" &&
-      comment.actor.kind === "team_key" &&
+    (actor.kind === "workspace_key" &&
+      comment.actor.kind === "workspace_key" &&
       actor.credentialId === comment.actor.credentialId)
   );
 }
@@ -181,8 +181,8 @@ export async function rowComments(
                   [actor.userId],
                 )
               : await client.query<{ name: string }>(
-                  "SELECT name FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope='team'",
-                  [actor.credentialId, actor.orgId],
+                  "SELECT name FROM rootset_control.api_keys WHERE id=$1 AND org_id=$2 AND scope='workspace' AND workspace_id=$3",
+                  [actor.credentialId, actor.orgId, actor.workspaceId],
                 );
             if (!identity.rows[0])
               throw new RootsetError(

@@ -6,6 +6,16 @@ declare global {
   }
 }
 
+export function currentWorkspaceId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.sessionStorage?.getItem("rootset:workspace-id") ?? undefined;
+}
+export function selectWorkspace(id: string): void {
+  if (typeof window !== "undefined")
+    window.sessionStorage.setItem("rootset:workspace-id", IdSchema.parse(id));
+}
+const workspacePath =
+  /^\/orgs\/[^/]+\/(?:databases|jobs|artifacts|activity|backups|workspace-keys|mutations)(?:\/|$)|^\/(?:tables\/[^/]+\/windows\/query|(?:me\/)?view-preferences\/)/;
 export function browserApiOrigin(): string {
   if (typeof window === "undefined") return "";
   const origin = window.__ROOTSET_API_ORIGIN;
@@ -16,8 +26,9 @@ export function browserApiOrigin(): string {
 export function browserArtifactDownloadPath(
   orgId: string,
   artifactId: string,
+  workspaceId = currentWorkspaceId(),
 ): string {
-  return `${browserApiOrigin()}/api/internal/v1/orgs/${IdSchema.parse(orgId)}/artifacts/${IdSchema.parse(artifactId)}/download`;
+  return `${browserApiOrigin()}/api/internal/v1/orgs/${IdSchema.parse(orgId)}/artifacts/${IdSchema.parse(artifactId)}/download?workspaceId=${IdSchema.parse(workspaceId)}`;
 }
 
 export interface RequestOptions {
@@ -106,7 +117,11 @@ export class RootsetClient {
     options: Omit<RequestOptions, "method" | "body"> = {},
   ): Promise<T> {
     const operation = getOperation(operationId);
-    const checkedInput = operation.inputSchema.safeParse(input);
+    const checkedInput = operation.inputSchema.safeParse(
+      operation.workspaceScoped && input.workspaceId === undefined
+        ? { ...input, workspaceId: currentWorkspaceId() }
+        : input,
+    );
     if (!checkedInput.success)
       throw new ApiError(400, {
         code: "VALIDATION_FAILED",
@@ -173,6 +188,23 @@ export class RootsetClient {
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     if (!path.startsWith("/") || path.startsWith("//")) {
       throw new Error("Rootset API paths must begin with a single slash");
+    }
+    const url = new URL(path, "http://rootset.invalid");
+    if (workspacePath.test(url.pathname) && currentWorkspaceId()) {
+      const workspaceId = currentWorkspaceId()!;
+      if ((options.method ?? "GET") === "GET") {
+        if (!url.searchParams.has("workspaceId"))
+          url.searchParams.set("workspaceId", workspaceId);
+        path = url.pathname + url.search;
+      } else {
+        options = {
+          ...options,
+          body: {
+            workspaceId,
+            ...((options.body as Record<string, unknown>) ?? {}),
+          },
+        };
+      }
     }
     const headers = new Headers(options.headers);
     headers.set("Accept", "application/json");

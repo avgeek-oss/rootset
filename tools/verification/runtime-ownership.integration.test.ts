@@ -48,6 +48,7 @@ verificationCase(
       "0012_backup_retention_alerts.sql",
       "0013_activity_job_events.sql",
       "0014_resource_data_changes.sql",
+      "0015_workspaces.sql",
     ]);
     const role = (
       await db.app.query(

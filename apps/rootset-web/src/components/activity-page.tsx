@@ -20,7 +20,7 @@ import {
   Search01Icon,
   TransactionHistoryIcon,
 } from "@hugeicons/core-free-icons";
-import { client } from "@rootset/web-client";
+import { client, currentWorkspaceId } from "@rootset/web-client";
 import { activityEventCatalog } from "@rootset/contracts";
 import type {
   ActivityCategory,
@@ -84,12 +84,26 @@ export function activityHref(event: ActivityEvent): string | null {
   }
 }
 
-export function AuditLogsPage({ orgId }: { orgId: string }) {
+export function AuditLogsPage({
+  orgId,
+  workspaceId = currentWorkspaceId(),
+}: {
+  orgId: string;
+  workspaceId?: string;
+}) {
   return (
     <AppShell.Content variant="broad" className="pt-0 sm:pt-0">
       <ApplicationPage
         title="Audit Logs"
-        breadcrumbAncestors={[{ label: "Rootset", href: "/" }]}
+        breadcrumbAncestors={[
+          {
+            label: "Workspace Settings",
+            href:
+              workspaceId === orgId
+                ? "/workspace-settings/api-keys"
+                : "/workspace-settings/general",
+          },
+        ]}
         titleContent={
           <span className="inline-flex items-center gap-2">
             <HugeiconsIcon
@@ -103,14 +117,24 @@ export function AuditLogsPage({ orgId }: { orgId: string }) {
         }
       >
         <RelativeTimeProvider>
-          <AuditLogsContents orgId={orgId} />
+          <AuditLogsContents
+            key={workspaceId}
+            orgId={orgId}
+            workspaceId={workspaceId}
+          />
         </RelativeTimeProvider>
       </ApplicationPage>
     </AppShell.Content>
   );
 }
 
-function AuditLogsContents({ orgId }: { orgId: string }) {
+function AuditLogsContents({
+  orgId,
+  workspaceId,
+}: {
+  orgId: string;
+  workspaceId?: string;
+}) {
   const [event, setEvent] = useState<AuditFilterValue | null>(null);
   const [actor, setActor] = useState<AuditFilterValue | null>(null);
   const [resource, setResource] = useState<AuditFilterValue | null>(null);
@@ -128,6 +152,7 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
   );
   const input = {
     orgId,
+    workspaceId,
     ...(event ? { event: event.value } : {}),
     ...(actor ? { actor: actor.value } : {}),
     ...(resource ? { resource: resource.value } : {}),
@@ -165,6 +190,7 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
         <div className="col-start-1 min-w-0 lg:col-start-auto">
           <AuditLogFilter
             orgId={orgId}
+            workspaceId={workspaceId}
             kind="events"
             value={event}
             categories={categories}
@@ -177,6 +203,7 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
         <div className="col-start-1 min-w-0 lg:col-start-auto">
           <AuditLogFilter
             orgId={orgId}
+            workspaceId={workspaceId}
             kind="resources"
             value={resource}
             onChange={(value) => {
@@ -188,6 +215,7 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
         <div className="col-start-1 min-w-0 lg:col-start-auto">
           <AuditLogFilter
             orgId={orgId}
+            workspaceId={workspaceId}
             kind="actors"
             value={actor}
             onChange={(value) => {
@@ -409,6 +437,7 @@ function AuditLogsContents({ orgId }: { orgId: string }) {
       {detailsEventId && (
         <AuditEventDetails
           orgId={orgId}
+          workspaceId={workspaceId}
           eventId={detailsEventId}
           onClose={() => setDetailsEventId(null)}
         />

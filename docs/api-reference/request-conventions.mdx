@@ -3,7 +3,7 @@ title: "Request conventions"
 description: "Authenticate, discover your schema, query records and write with revision checks."
 ---
 
-The public REST API is at your configured API origin under `/v1`. The UI talks to that origin directly; REST and MCP do not go through the UI server. Use a personal/team API key or an OAuth access token with the required authority.
+The public REST API is at your configured API origin under `/v1`. The UI talks to that origin directly; REST and MCP do not go through the UI server. Use a personal or workspace API key or an OAuth access token with the required authority.
 
 ## Discover the workspace and table
 
@@ -12,11 +12,11 @@ curl --fail-with-body "$ROOTSET_API_ORIGIN/v1/me" \
   -H "Authorization: Bearer $ROOTSET_API_KEY"
 ```
 
-Use the returned workspace ID to [list databases](/api-reference/listDatabases), then [list tables](/api-reference/listTables) and [read the schema](/api-reference/getTableSchema). IDs are opaque; names can change. Field names are the keys in row values.
+Use the returned organisation ID to [list workspaces](/api-reference/listWorkspaces). Select an accessible workspace ID, including Default, and supply `workspaceId` to [list databases](/api-reference/listDatabases), then [list tables](/api-reference/listTables) and [read the schema](/api-reference/getTableSchema). IDs are opaque; names can change. Field names are the keys in row values.
 
 ## Create a row
 
-Choose a table with `NAME` (text) and `STOCK` (integer). Set `ROOTSET_ORG_ID`, `ROOTSET_DATABASE_ID`, `ROOTSET_TABLE_ID` and `ROOTSET_SCHEMA_VERSION` from discovery responses.
+Choose a table with `NAME` (text) and `STOCK` (integer). Set `ROOTSET_ORG_ID`, `ROOTSET_WORKSPACE_ID`, `ROOTSET_DATABASE_ID`, `ROOTSET_TABLE_ID` and `ROOTSET_SCHEMA_VERSION` from discovery responses.
 
 ```bash
 curl --fail-with-body \
@@ -24,7 +24,7 @@ curl --fail-with-body \
   -H "Authorization: Bearer $ROOTSET_API_KEY" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(openssl rand -hex 16)" \
-  --data "{\"expectedSchemaVersion\":$ROOTSET_SCHEMA_VERSION,\"values\":{\"NAME\":\"Field notebook\",\"STOCK\":24}}"
+  --data "{\"workspaceId\":\"$ROOTSET_WORKSPACE_ID\",\"expectedSchemaVersion\":$ROOTSET_SCHEMA_VERSION,\"values\":{\"NAME\":\"Field notebook\",\"STOCK\":24}}"
 ```
 
 Writes validate field types, required values, [allowed text values](/fields#allowed-values), bounds and [unique rules](/unique-rules), including rules that apply only to matching rows. Optional omitted values use their default. You can also add records in the browser.

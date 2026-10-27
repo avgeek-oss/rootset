@@ -21,12 +21,12 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
 
 ## Arguments
 
-| Argument | Required | Type                                                | Details                                         |
-| -------- | -------- | --------------------------------------------------- | ----------------------------------------------- |
-| `orgId`  | Yes      | string                                              | Workspace ID returned by rootset_get_context.   |
-| `limit`  | No       | integer                                             | Maximum number of items to return.              |
-| `cursor` | No       | string or null                                      | Continuation cursor from the previous response. |
-| `state`  | No       | "pending" or "accepted" or "cancelled" or "expired" | —                                               |
+| Argument | Required | Type                                                | Details                                          |
+| -------- | -------- | --------------------------------------------------- | ------------------------------------------------ |
+| `orgId`  | Yes      | string                                              | Organisation ID returned by rootset_get_context. |
+| `limit`  | No       | integer                                             | Maximum number of items to return.               |
+| `cursor` | No       | string or null                                      | Continuation cursor from the previous response.  |
+| `state`  | No       | "pending" or "accepted" or "cancelled" or "expired" | —                                                |
 
 <Accordion title="Complete input schema">
 

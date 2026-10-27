@@ -1,3 +1,5 @@
+import { defaultWorkspaceToolCall } from "../../../tools/verification/workspace-transport";
+import { defaultWorkspaceFetch as fetch } from "../../../tools/verification/workspace-transport";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
@@ -470,10 +472,21 @@ test(
       });
       assert.equal(malformed.status, 400);
       assert.equal((await malformed.json()).error.code, -32700);
-      const result = await client.callTool({
-        name: "rootset_query_rows",
-        arguments: { orgId, databaseId, tableId, query: {} },
-      });
+      const result = await client.callTool(
+        defaultWorkspaceToolCall(
+          {
+            name: "rootset_query_rows",
+            arguments: {
+              workspaceId: orgId,
+              orgId,
+              databaseId,
+              tableId,
+              query: {},
+            },
+          },
+          orgId,
+        ),
+      );
       assert.equal(
         (result.structuredContent as { page: { requestedLimit: number } }).page
           .requestedLimit,
@@ -483,10 +496,21 @@ test(
       assert.equal(result.content.length, 1);
       assert(!JSON.stringify(result.content).includes("Airline"));
       assert(Buffer.byteLength(JSON.stringify(result)) < 1024 * 1024);
-      const oversized = await client.callTool({
-        name: "rootset_query_rows",
-        arguments: { orgId, databaseId, tableId, query: { limit: 25000 } },
-      });
+      const oversized = await client.callTool(
+        defaultWorkspaceToolCall(
+          {
+            name: "rootset_query_rows",
+            arguments: {
+              workspaceId: orgId,
+              orgId,
+              databaseId,
+              tableId,
+              query: { limit: 25000 },
+            },
+          },
+          orgId,
+        ),
+      );
       assert.equal(oversized.isError, true);
       assert.equal(
         (oversized.structuredContent as { error: { code: string } }).error.code,
@@ -519,7 +543,7 @@ test(
               Authorization: `Bearer ${restToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ query: { limit: 1 } }),
+            body: JSON.stringify({ workspaceId: orgId, query: { limit: 1 } }),
           },
         );
         assert.equal(rest.status, status);
@@ -529,10 +553,21 @@ test(
           rest.headers.get("retry-after"),
           status === 503 ? "1" : null,
         );
-        const mcp = await client.callTool({
-          name: "rootset_query_rows",
-          arguments: { orgId, databaseId, tableId, query: { limit: 1 } },
-        });
+        const mcp = await client.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: "rootset_query_rows",
+              arguments: {
+                workspaceId: orgId,
+                orgId,
+                databaseId,
+                tableId,
+                query: { limit: 1 },
+              },
+            },
+            orgId,
+          ),
+        );
         assert.equal(mcp.isError, true);
         assert.equal(
           (mcp.structuredContent as typeof restFailure).error.code,
@@ -566,6 +601,7 @@ test(
       const deniedTool = {
         name: "rootset_create_row",
         arguments: {
+          workspaceId: orgId,
           orgId,
           databaseId,
           tableId,
@@ -575,7 +611,7 @@ test(
         },
       };
       await assert.rejects(
-        client.callTool(deniedTool),
+        client.callTool(defaultWorkspaceToolCall(deniedTool, orgId)),
         (error) =>
           error instanceof Error && "code" in error && error.code === 403,
       );

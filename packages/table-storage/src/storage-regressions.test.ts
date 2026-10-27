@@ -3045,7 +3045,9 @@ test(
       0,
     );
     const other = { ...actor, orgId: newId() };
-    assert.deepEqual(await storage!.listDatabases(other), []);
+    await assert.rejects(storage!.listDatabases(other), {
+      code: "RESOURCE_NOT_FOUND",
+    });
     await assert.rejects(
       storage!.listTables(other, databaseId),
       (error: unknown) =>

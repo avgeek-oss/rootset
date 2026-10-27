@@ -22,14 +22,15 @@ Requires a current workspace role of **Member** or higher. The connection needs 
 
 ## Arguments
 
-| Argument         | Required | Type            | Details                                                            |
-| ---------------- | -------- | --------------- | ------------------------------------------------------------------ |
-| `orgId`          | Yes      | string          | Workspace ID returned by rootset_get_context.                      |
-| `databaseId`     | Yes      | string          | ID of the database to work with.                                   |
-| `name`           | Yes      | string          | —                                                                  |
-| `description`    | No       | string or null  | —                                                                  |
-| `fields`         | No       | array of object | —                                                                  |
-| `idempotencyKey` | Yes      | string          | Stable caller-provided key across retries of this exact operation. |
+| Argument         | Required | Type            | Details                                                                      |
+| ---------------- | -------- | --------------- | ---------------------------------------------------------------------------- |
+| `orgId`          | Yes      | string          | Organisation ID returned by rootset_get_context.                             |
+| `databaseId`     | Yes      | string          | ID of the database to work with.                                             |
+| `name`           | Yes      | string          | —                                                                            |
+| `description`    | No       | string or null  | —                                                                            |
+| `fields`         | No       | array of object | —                                                                            |
+| `workspaceId`    | Yes      | string          | Workspace ID returned by rootset_list_workspaces; required even for Default. |
+| `idempotencyKey` | Yes      | string          | Stable caller-provided key across retries of this exact operation.           |
 
 <Accordion title="Complete input schema">
 
@@ -691,6 +692,10 @@ Requires a current workspace role of **Member** or higher. The connection needs 
         ]
       }
     },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
     "idempotencyKey": {
       "type": "string",
       "minLength": 8,
@@ -698,7 +703,7 @@ Requires a current workspace role of **Member** or higher. The connection needs 
       "description": "Stable caller-provided key across retries of this exact operation."
     }
   },
-  "required": ["orgId", "databaseId", "name", "idempotencyKey"],
+  "required": ["orgId", "databaseId", "name", "workspaceId", "idempotencyKey"],
   "additionalProperties": false
 }
 ```
@@ -720,6 +725,7 @@ Your client initializes the MCP connection before this call. Example identifiers
       "orgId": "01K6J7B8000000000000000000",
       "databaseId": "01K6J7B8000000000000000000",
       "name": "example",
+      "workspaceId": "01K6J7B8000000000000000000",
       "idempotencyKey": "example-request-0001"
     }
   }

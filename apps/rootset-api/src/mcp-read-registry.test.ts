@@ -56,7 +56,12 @@ const owner: Actor = {
   role: "admin",
   scopes: ["rows:read", "rows:write"],
 };
-const ids = { orgId: owner.orgId, databaseId: newId(), tableId: newId() };
+const ids = {
+  workspaceId: owner.orgId,
+  orgId: owner.orgId,
+  databaseId: newId(),
+  tableId: newId(),
+};
 const readOutput = {
   data: [],
   schemaVersion: 1,

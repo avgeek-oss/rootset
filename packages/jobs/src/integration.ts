@@ -1370,6 +1370,7 @@ test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserv
   const key = newId(),
     requestId = newId();
   const input = {
+    workspaceId: actor.orgId,
     orgId: actor.orgId,
     databaseId: database.id,
     tableId: target.id,
@@ -1602,6 +1603,7 @@ test("V1-07 V1-17 V1-20 V1-24: trusted queued admission serializes filtered coun
     },
   });
   const business = {
+    workspaceId: actor.orgId,
     orgId: actor.orgId,
     databaseId: database.id,
     tableId: target.id,

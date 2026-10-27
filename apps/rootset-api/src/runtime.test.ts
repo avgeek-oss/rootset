@@ -1,3 +1,6 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input.js";
+import { defaultWorkspaceToolCall } from "../../../tools/verification/workspace-transport";
+import { defaultWorkspaceFetch as fetch } from "../../../tools/verification/workspace-transport";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
@@ -192,7 +195,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const execute = runtime.core.execute.bind(runtime.core);
     runtime.core.execute = async (...args) => {
       try {
-        return await execute(...args);
+        return await execute(
+          args[0],
+          args[1],
+          workspaceInput(args[0], args[1], args[2]),
+          args[3],
+        );
       } catch (error) {
         if (
           error &&
@@ -298,7 +306,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       token = restSecret,
     ) => {
       const op = getOperation(operationId),
-        body = { ...input };
+        body: Record<string, unknown> = {
+          ...(op.workspaceScoped
+            ? { workspaceId: String(input.orgId ?? context.organisation.id) }
+            : {}),
+          ...input,
+        };
       let path = op.path.replace(/\{([^}]+)\}/g, (_, name: string) => {
         const value = body[name];
         assert.equal(typeof value, "string");
@@ -370,6 +383,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       orgId = provision.orgId,
       databaseId = d.id;
     const schema = await call("createTable", {
+      workspaceId: orgId,
       orgId,
       databaseId,
       name: "Airlines",
@@ -390,7 +404,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       ],
     });
     const tableId = schema.table.id,
-      ids = { orgId, databaseId, tableId };
+      ids = { workspaceId: orgId, orgId, databaseId, tableId };
     const created = await call(
       "createRow",
       {
@@ -420,7 +434,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           "INSERT INTO rootset_control.worker_heartbeats(id,state,backup_backend_id) VALUES($1,'ready',$2)",
           [backupWorkerId, runtime!.jobs.backups.backendId],
         );
-        const target = { orgId, databaseId };
+        const target = { workspaceId: orgId, orgId, databaseId };
         for (const surface of ["browser", "rest"] as const) {
           assert.equal(
             (await call("getBackupSchedule", target, surface)).schedule,
@@ -895,7 +909,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       editKey.secret,
     );
     await t.test(
-      "Team keys are workspace-owned, admin-managed and permission-limited across REST and MCP",
+      "Workspace keys are workspace-owned, admin-managed and permission-limited across REST and MCP",
       async () => {
         const creatorId = newId(),
           creatorSession = newId();
@@ -934,12 +948,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             expiresAt: "2030-01-01T00:00:00.000Z",
           };
           const key = KeyCreatedSchema.parse(
-            await runtime!.core.execute("createTeamKey", creator, input, {
+            await runtime!.core.execute("createWorkspaceKey", creator, input, {
               surface: "browser",
               idempotencyKey: newId(),
             }),
           );
-          assert.equal(key.key.scope, "team");
+          assert.equal(key.key.scope, "workspace");
           assert.equal(key.key.userId, null);
           keys.push(key);
         }
@@ -950,9 +964,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             [creatorId, role],
           );
           for (const [operation, input] of [
-            ["listTeamKeys", { orgId }],
+            ["listWorkspaceKeys", { orgId }],
             [
-              "createTeamKey",
+              "createWorkspaceKey",
               {
                 orgId,
                 name: "Denied member team key",
@@ -961,8 +975,8 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
                 expiresAt: null,
               },
             ],
-            ["rotateTeamKey", { orgId, id: keys[0]!.key.id }],
-            ["revokeTeamKey", { orgId, id: keys[0]!.key.id }],
+            ["rotateWorkspaceKey", { orgId, id: keys[0]!.key.id }],
+            ["revokeWorkspaceKey", { orgId, id: keys[0]!.key.id }],
           ] as const) {
             await assert.rejects(
               () =>
@@ -985,7 +999,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
               headers: { Authorization: `Bearer ${team!.secret}` },
             }),
           );
-          assert.equal(principal!.kind, "team_key");
+          assert.equal(principal!.kind, "workspace_key");
           assert.equal(principal!.userId, undefined);
           await call(
             "queryRows",
@@ -997,7 +1011,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           );
           await call("getProfile", {}, "rest", 403, newId(), team!.secret);
           await call(
-            "listTeamKeys",
+            "listWorkspaceKeys",
             { orgId },
             "rest",
             403,
@@ -1063,7 +1077,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           "updateOrganisation",
           { orgId, name: organisation.name },
           "rest",
-          undefined,
+          403,
           newId(),
           adminTeam!.secret,
         );
@@ -1079,64 +1093,89 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             );
             assert.notEqual(
               (
-                await client.callTool({
-                  name: "rootset_query_rows",
-                  arguments: { ...ids, query: {} },
-                })
+                await client.callTool(
+                  defaultWorkspaceToolCall(
+                    {
+                      name: "rootset_query_rows",
+                      arguments: { ...ids, query: {} },
+                    },
+                    orgId,
+                  ),
+                )
               ).isError,
               true,
             );
             if (team === editTeam) {
-              const added = await client.callTool({
-                name: "rootset_create_row",
-                arguments: {
-                  ...ids,
-                  expectedSchemaVersion: 1,
-                  values: { NAME: "Team MCP write" },
-                  idempotencyKey: newId(),
-                },
-              });
+              const added = await client.callTool(
+                defaultWorkspaceToolCall(
+                  {
+                    name: "rootset_create_row",
+                    arguments: {
+                      ...ids,
+                      expectedSchemaVersion: 1,
+                      values: { NAME: "Team MCP write" },
+                      idempotencyKey: newId(),
+                    },
+                  },
+                  orgId,
+                ),
+              );
               assert.notEqual(added.isError, true);
               const row = getOperation("createRow").outputSchema.parse(
                 added.structuredContent,
               ) as { row: { id: string; version: string } };
               assert.notEqual(
                 (
-                  await client.callTool({
-                    name: "rootset_delete_row",
-                    arguments: {
-                      ...ids,
-                      rowId: row.row.id,
-                      expectedSchemaVersion: 1,
-                      expectedVersion: row.row.version,
-                      idempotencyKey: newId(),
-                    },
-                  })
+                  await client.callTool(
+                    defaultWorkspaceToolCall(
+                      {
+                        name: "rootset_delete_row",
+                        arguments: {
+                          ...ids,
+                          rowId: row.row.id,
+                          expectedSchemaVersion: 1,
+                          expectedVersion: row.row.version,
+                          idempotencyKey: newId(),
+                        },
+                      },
+                      orgId,
+                    ),
+                  )
                 ).isError,
                 true,
               );
             }
             if (team === adminTeam) {
-              assert.notEqual(
-                (
-                  await client.callTool({
+              await assert.rejects(
+                () =>
+                  client.callTool({
                     name: "rootset_update_organisation",
                     arguments: {
                       orgId,
                       name: organisation.name,
                       idempotencyKey: newId(),
                     },
-                  })
-                ).isError,
-                true,
+                  }),
+                (error) =>
+                  error instanceof StreamableHTTPError && error.code === 403,
               );
               continue;
             }
             const deleteDatabase = () =>
-              client.callTool({
-                name: "rootset_delete_database",
-                arguments: { orgId, databaseId, idempotencyKey: newId() },
-              });
+              client.callTool(
+                defaultWorkspaceToolCall(
+                  {
+                    name: "rootset_delete_database",
+                    arguments: {
+                      workspaceId: orgId,
+                      orgId,
+                      databaseId,
+                      idempotencyKey: newId(),
+                    },
+                  },
+                  orgId,
+                ),
+              );
             if (team === readTeam)
               await assert.rejects(
                 deleteDatabase,
@@ -1155,14 +1194,19 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             if (team === readTeam)
               await assert.rejects(
                 () =>
-                  client.callTool({
-                    name: "rootset_create_row",
-                    arguments: {
-                      ...ids,
-                      expectedSchemaVersion: 1,
-                      values: { NAME: "Denied MCP team read" },
-                    },
-                  }),
+                  client.callTool(
+                    defaultWorkspaceToolCall(
+                      {
+                        name: "rootset_create_row",
+                        arguments: {
+                          ...ids,
+                          expectedSchemaVersion: 1,
+                          values: { NAME: "Denied MCP team read" },
+                        },
+                      },
+                      orgId,
+                    ),
+                  ),
                 (error) =>
                   error instanceof StreamableHTTPError && error.code === 403,
               );
@@ -1191,7 +1235,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
               },
             },
           ],
-          ["exportDatabase", { orgId, databaseId }],
+          ["exportDatabase", { workspaceId: orgId, orgId, databaseId }],
         ] as const) {
           const exported = await call(
             operation,
@@ -1251,10 +1295,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           if (operation === "exportDatabase")
             assert.equal(artifact.tableCount, 1);
         }
-        const listed = await call("listTeamKeys", { orgId });
+        const listed = await call("listWorkspaceKeys", { orgId });
         assert.equal(
-          listed.data.filter((key: { scope: string }) => key.scope === "team")
-            .length,
+          listed.data.filter(
+            (key: { scope: string }) => key.scope === "workspace",
+          ).length,
           3,
         );
         assert.equal(
@@ -1266,18 +1311,18 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         // A different administrator can rotate and revoke keys after the creator leaves.
         const rotationId = newId();
         const rotated = await call(
-          "rotateTeamKey",
+          "rotateWorkspaceKey",
           { orgId, id: readTeam!.key.id },
           "browser",
           undefined,
           rotationId,
         );
-        assert.equal(rotated.key.scope, "team");
+        assert.equal(rotated.key.scope, "workspace");
         assert.equal(rotated.key.access, "read");
         assert.equal(rotated.key.includeAdmin, false);
         assert.equal(rotated.key.expiresAt, readTeam!.key.expiresAt);
         const replay = await call(
-          "rotateTeamKey",
+          "rotateWorkspaceKey",
           { orgId, id: readTeam!.key.id },
           "browser",
           undefined,
@@ -1294,8 +1339,13 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           readTeam!.secret,
         );
         await call("revokePersonalKey", { id: rotated.key.id }, "browser", 404);
-        await call("revokeTeamKey", { orgId, id: key.key.id }, "browser", 404);
-        await call("revokeTeamKey", { orgId, id: rotated.key.id });
+        await call(
+          "revokeWorkspaceKey",
+          { orgId, id: key.key.id },
+          "browser",
+          404,
+        );
+        await call("revokeWorkspaceKey", { orgId, id: rotated.key.id });
         await call(
           "queryRows",
           { ...ids, query: {} },
@@ -1316,7 +1366,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           newId(),
           editTeam!.secret,
         );
-        await call("revokeTeamKey", { orgId, id: adminTeam!.key.id });
+        await call("revokeWorkspaceKey", { orgId, id: adminTeam!.key.id });
       },
     );
     const editedRow = await call(
@@ -1368,48 +1418,73 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             requestInit: { headers: { Authorization: `Bearer ${token}` } },
           }),
         );
-        const read = await keyMcp.callTool({
-          name: "rootset_query_rows",
-          arguments: { ...ids, query: {} },
-        });
+        const read = await keyMcp.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: "rootset_query_rows",
+              arguments: { ...ids, query: {} },
+            },
+            orgId,
+          ),
+        );
         assert.notEqual(read.isError, true);
         if (!edit)
           await assert.rejects(
             () =>
-              keyMcp.callTool({
-                name: "rootset_update_row",
-                arguments: {
-                  ...ids,
-                  rowId,
-                  expectedSchemaVersion: 1,
-                  expectedVersion: "1",
-                  values: { NAME: "Denied" },
-                  idempotencyKey: newId(),
-                },
-              }),
+              keyMcp.callTool(
+                defaultWorkspaceToolCall(
+                  {
+                    name: "rootset_update_row",
+                    arguments: {
+                      ...ids,
+                      rowId,
+                      expectedSchemaVersion: 1,
+                      expectedVersion: "1",
+                      values: { NAME: "Denied" },
+                      idempotencyKey: newId(),
+                    },
+                  },
+                  orgId,
+                ),
+              ),
             (error) =>
               error instanceof StreamableHTTPError && error.code === 403,
           );
         if (edit) {
           assert.notEqual(
             (
-              await keyMcp.callTool({
-                name: "rootset_create_database",
-                arguments: {
+              await keyMcp.callTool(
+                defaultWorkspaceToolCall(
+                  {
+                    name: "rootset_create_database",
+                    arguments: {
+                      orgId,
+                      name: "MCP edit allowed",
+                      idempotencyKey: newId(),
+                    },
+                  },
                   orgId,
-                  name: "MCP edit allowed",
-                  idempotencyKey: newId(),
-                },
-              })
+                ),
+              )
             ).isError,
             true,
           );
         }
         const deleteDatabase = () =>
-          keyMcp.callTool({
-            name: "rootset_delete_database",
-            arguments: { orgId, databaseId, idempotencyKey: newId() },
-          });
+          keyMcp.callTool(
+            defaultWorkspaceToolCall(
+              {
+                name: "rootset_delete_database",
+                arguments: {
+                  workspaceId: orgId,
+                  orgId,
+                  databaseId,
+                  idempotencyKey: newId(),
+                },
+              },
+              orgId,
+            ),
+          );
         if (!edit)
           await assert.rejects(
             deleteDatabase,
@@ -1583,10 +1658,15 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             "boolean",
           );
           const failure = await whileExhausted("api", 1, () =>
-            client.callTool({
-              name: getOperation("queryRows").toolName,
-              arguments: { ...ids, query: { limit: 1 } },
-            }),
+            client.callTool(
+              defaultWorkspaceToolCall(
+                {
+                  name: getOperation("queryRows").toolName,
+                  arguments: { ...ids, query: { limit: 1 } },
+                },
+                orgId,
+              ),
+            ),
           );
           assert.equal(failure.isError, true);
           const envelope = failure.structuredContent as {
@@ -1618,10 +1698,15 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         } finally {
           workConnections.forEach((connection) => connection.release());
         }
-        const recovered = await client.callTool({
-          name: getOperation("queryRows").toolName,
-          arguments: { ...ids, query: { limit: 1 } },
-        });
+        const recovered = await client.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: getOperation("queryRows").toolName,
+              arguments: { ...ids, query: { limit: 1 } },
+            },
+            orgId,
+          ),
+        );
         assert.notEqual(recovered.isError, true);
         getOperation("queryRows").outputSchema.parse(
           recovered.structuredContent,
@@ -1635,13 +1720,20 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       key = newId(),
     ) => {
       const operation = getOperation(id),
-        result = await client.callTool({
-          name: operation.toolName,
-          arguments: {
-            ...input,
-            ...(operation.idempotencyRequired ? { idempotencyKey: key } : {}),
-          },
-        });
+        result = await client.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: operation.toolName,
+              arguments: {
+                ...input,
+                ...(operation.idempotencyRequired
+                  ? { idempotencyKey: key }
+                  : {}),
+              },
+            },
+            orgId,
+          ),
+        );
       assert.notEqual(
         result.isError,
         true,
@@ -1716,12 +1808,14 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       "issued MCP OAuth uses the database backup contracts and current Admin authority",
       async () => {
         const schedule = await mcpOperation("getBackupSchedule", {
+          workspaceId: orgId,
           orgId,
           databaseId,
         });
         assert.ok(schedule.schedule);
         assert.equal(schedule.version, 1);
         const preview = await mcpOperation("previewBackupSchedule", {
+          workspaceId: orgId,
           orgId,
           databaseId,
           cron: "0 2 * * *",
@@ -1729,6 +1823,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         });
         assert.equal((preview.nextRuns as string[]).length, 3);
         const history = await mcpOperation("listDatabaseBackups", {
+          workspaceId: orgId,
           orgId,
           databaseId,
           limit: 10,
@@ -1830,10 +1925,15 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         if (errorCode) assert.equal(result.error.code, errorCode);
         return result;
       }
-      const result = await journalClient.callTool({
-        name: operation.toolName,
-        arguments: { ...input, idempotencyKey },
-      });
+      const result = await journalClient.callTool(
+        defaultWorkspaceToolCall(
+          {
+            name: operation.toolName,
+            arguments: { ...input, idempotencyKey },
+          },
+          orgId,
+        ),
+      );
       if (errorCode) {
         assert.equal(result.isError, true);
         assert.equal(
@@ -1966,20 +2066,30 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       name: "Delegated direct key",
       idempotencyKey: "runtime-direct-key",
     };
-    const directKey = await client.callTool({
-      name: "rootset_create_personal_key",
-      arguments: directKeyInput,
-    });
+    const directKey = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_create_personal_key",
+          arguments: directKeyInput,
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(directKey.isError, true);
     const issued = directKey.structuredContent as {
       key: { id: string };
       secret?: string;
     };
     assert.equal(typeof issued.secret, "string");
-    const directReplay = await client.callTool({
-      name: "rootset_create_personal_key",
-      arguments: directKeyInput,
-    });
+    const directReplay = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_create_personal_key",
+          arguments: directKeyInput,
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(directReplay.isError, true);
     const directKeyReplay = directReplay.structuredContent as {
       key: { id: string };
@@ -1987,25 +2097,35 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     };
     assert.equal(directKeyReplay.key.id, issued.key.id);
     assert.equal(directKeyReplay.secret, undefined);
-    const mcpRead = await client.callTool({
-      name: "rootset_get_row",
-      arguments: { ...ids, rowId },
-    });
+    const mcpRead = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_get_row",
+          arguments: { ...ids, rowId },
+        },
+        orgId,
+      ),
+    );
     assert.deepEqual(mcpRead.structuredContent, {
       ...created.row,
       hasComments: true,
     });
-    const patch = await client.callTool({
-      name: "rootset_update_row",
-      arguments: {
-        ...ids,
-        rowId,
-        expectedSchemaVersion: 1,
-        expectedVersion: created.row.version,
-        values: { NAME: "Example Airways" },
-        idempotencyKey: "runtime-mcp-edit-0001",
-      },
-    });
+    const patch = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_update_row",
+          arguments: {
+            ...ids,
+            rowId,
+            expectedSchemaVersion: 1,
+            expectedVersion: created.row.version,
+            values: { NAME: "Example Airways" },
+            idempotencyKey: "runtime-mcp-edit-0001",
+          },
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(patch.isError, true);
     const updated = patch.structuredContent as {
       row: { version: string; values: Record<string, JsonValue> };
@@ -2061,17 +2181,22 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       409,
     );
     assert.equal(stale.error.code, "ROW_VERSION_CONFLICT");
-    const replay = await client.callTool({
-      name: "rootset_update_row",
-      arguments: {
-        ...ids,
-        rowId,
-        expectedSchemaVersion: 1,
-        expectedVersion: "1",
-        values: { NAME: "Example Airways" },
-        idempotencyKey: "runtime-mcp-edit-0001",
-      },
-    });
+    const replay = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_update_row",
+          arguments: {
+            ...ids,
+            rowId,
+            expectedSchemaVersion: 1,
+            expectedVersion: "1",
+            values: { NAME: "Example Airways" },
+            idempotencyKey: "runtime-mcp-edit-0001",
+          },
+        },
+        orgId,
+      ),
+    );
     assert.deepEqual(replay.structuredContent, patch.structuredContent);
     const afterReplay = await call(
       "getCellHistory",
@@ -2079,17 +2204,22 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       "rest",
     );
     assert.equal(afterReplay.data.length, 2);
-    const changedReplay = await client.callTool({
-      name: "rootset_update_row",
-      arguments: {
-        ...ids,
-        rowId,
-        expectedSchemaVersion: 1,
-        expectedVersion: "1",
-        values: { NAME: "Changed payload" },
-        idempotencyKey: "runtime-mcp-edit-0001",
-      },
-    });
+    const changedReplay = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_update_row",
+          arguments: {
+            ...ids,
+            rowId,
+            expectedSchemaVersion: 1,
+            expectedVersion: "1",
+            values: { NAME: "Changed payload" },
+            idempotencyKey: "runtime-mcp-edit-0001",
+          },
+        },
+        orgId,
+      ),
+    );
     assert.equal(changedReplay.isError, true);
     assert.equal(
       (changedReplay.structuredContent as { error: { code: string } }).error
@@ -2099,7 +2229,13 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     const window = await request(
       `/api/internal/v1/tables/${tableId}/windows/query`,
       "POST",
-      { orgId, databaseId, query: { limit: 200 }, position: "last" },
+      {
+        workspaceId: orgId,
+        orgId,
+        databaseId,
+        query: { limit: 200 },
+        position: "last",
+      },
       { browser: true },
     );
     assert.equal(window.status, 200);
@@ -2108,40 +2244,55 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(viewport.window.total, 1);
     const browserRow = await call("getRow", { ...ids, rowId }, "browser");
     assert.deepEqual(browserRow, { ...updated.row, hasComments: true });
-    const exportStart = await client.callTool({
-      name: "rootset_export_rows",
-      arguments: {
-        ...ids,
-        format: "jsonl",
-        idempotencyKey: "runtime-mcp-export-001",
-      },
-    });
+    const exportStart = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_export_rows",
+          arguments: {
+            ...ids,
+            format: "jsonl",
+            idempotencyKey: "runtime-mcp-export-001",
+          },
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(exportStart.isError, true);
     const acceptedExport = getOperation("exportRows").outputSchema.parse(
       exportStart.structuredContent,
     ) as { jobId: string; state: string };
     assert.equal(acceptedExport.state, "queued");
-    const exportReplay = await client.callTool({
-      name: "rootset_export_rows",
-      arguments: {
-        ...ids,
-        format: "jsonl",
-        idempotencyKey: "runtime-mcp-export-001",
-      },
-    });
+    const exportReplay = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_export_rows",
+          arguments: {
+            ...ids,
+            format: "jsonl",
+            idempotencyKey: "runtime-mcp-export-001",
+          },
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(exportReplay.isError, true);
     assert.deepEqual(
       exportReplay.structuredContent,
       exportStart.structuredContent,
     );
-    const changedExportReplay = await client.callTool({
-      name: "rootset_export_rows",
-      arguments: {
-        ...ids,
-        format: "csv",
-        idempotencyKey: "runtime-mcp-export-001",
-      },
-    });
+    const changedExportReplay = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_export_rows",
+          arguments: {
+            ...ids,
+            format: "csv",
+            idempotencyKey: "runtime-mcp-export-001",
+          },
+        },
+        orgId,
+      ),
+    );
     assert.equal(changedExportReplay.isError, true);
     assert.equal(
       (changedExportReplay.structuredContent as { error: { code: string } })
@@ -2186,10 +2337,15 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       { orgId, id: exportJob.result.artifactId },
       "rest",
     );
-    const mcpArtifact = await client.callTool({
-      name: "rootset_get_artifact",
-      arguments: { orgId, id: exportJob.result.artifactId },
-    });
+    const mcpArtifact = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_get_artifact",
+          arguments: { orgId, id: exportJob.result.artifactId },
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(mcpArtifact.isError, true);
     assert.deepEqual(mcpArtifact.structuredContent, exportArtifact);
     const resource = await client.readResource({
@@ -2230,28 +2386,40 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(browserDownload.status, 200);
     assert.equal(await browserDownload.text(), exportText);
-    const databaseExport = await client.callTool({
-      name: "rootset_export_database",
-      arguments: {
+    const databaseExport = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_export_database",
+          arguments: {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            format: "csv",
+            idempotencyKey: "runtime-mcp-database-export-001",
+          },
+        },
         orgId,
-        databaseId,
-        format: "csv",
-        idempotencyKey: "runtime-mcp-database-export-001",
-      },
-    });
+      ),
+    );
     assert.notEqual(databaseExport.isError, true);
     const databaseExportJob = getOperation("exportDatabase").outputSchema.parse(
       databaseExport.structuredContent,
     ) as { jobId: string };
-    const databaseExportReplay = await client.callTool({
-      name: "rootset_export_database",
-      arguments: {
+    const databaseExportReplay = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_export_database",
+          arguments: {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            format: "csv",
+            idempotencyKey: "runtime-mcp-database-export-001",
+          },
+        },
         orgId,
-        databaseId,
-        format: "csv",
-        idempotencyKey: "runtime-mcp-database-export-001",
-      },
-    });
+      ),
+    );
     assert.deepEqual(
       databaseExportReplay.structuredContent,
       databaseExport.structuredContent,
@@ -2410,22 +2578,27 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     assert.equal(personalDownload.status, 200);
     assert.equal(await personalDownload.text(), exportText);
-    const fieldStarted = await client.callTool({
-      name: "rootset_apply_schema_change",
-      arguments: {
-        ...ids,
-        expectedSchemaVersion: 1,
-        change: {
-          kind: "add_field",
-          field: {
-            type: "text",
-            name: "NOTES",
-            charLimit: 240,
+    const fieldStarted = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_apply_schema_change",
+          arguments: {
+            ...ids,
+            expectedSchemaVersion: 1,
+            change: {
+              kind: "add_field",
+              field: {
+                type: "text",
+                name: "NOTES",
+                charLimit: 240,
+              },
+            },
+            idempotencyKey: "runtime-generic-schema-field",
           },
         },
-        idempotencyKey: "runtime-generic-schema-field",
-      },
-    });
+        orgId,
+      ),
+    );
     assert.notEqual(fieldStarted.isError, true);
     const fieldAccepted = fieldStarted.structuredContent as {
       jobId: string;
@@ -2467,10 +2640,15 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(journal.phase, "committed");
     assert.equal(journal.change.field.name, "NOTES");
     assert.equal(journal.before.table.schemaVersion, 1);
-    const journalById = await client.callTool({
-      name: "rootset_get_schema_operation",
-      arguments: { ...ids, id: journal.id },
-    });
+    const journalById = await client.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_get_schema_operation",
+          arguments: { ...ids, id: journal.id },
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(journalById.isError, true);
     assert.deepEqual(journalById.structuredContent, journal);
     const latestSchema = await call("getTableSchema", ids, "rest");
@@ -2565,6 +2743,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       1,
     );
     const wideTable = await call("createTable", {
+        workspaceId: orgId,
         orgId,
         databaseId,
         name: "Wide sort cursor traversal",
@@ -2577,7 +2756,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           { type: "integer", name: "VALUE" },
         ],
       }),
-      wideIds = { orgId, databaseId, tableId: wideTable.table.id };
+      wideIds = {
+        workspaceId: orgId,
+        orgId,
+        databaseId,
+        tableId: wideTable.table.id,
+      };
     const sortLength =
       limits.rowBytes - rowBytes(wideTable.fields, { SORT: "", VALUE: 1 });
     for (const [sortValue, value] of [
@@ -2640,34 +2824,49 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     for (const operationId of []) {
       const operation = getOperation(operationId);
       await assert.rejects(
-        readOnlyClient.callTool({
-          name: operation.toolName,
-          arguments: operation.idempotencyRequired
-            ? { idempotencyKey: newId() }
-            : {},
-        }),
+        readOnlyClient.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: operation.toolName,
+              arguments: operation.idempotencyRequired
+                ? { idempotencyKey: newId() }
+                : {},
+            },
+            orgId,
+          ),
+        ),
         (error) => error instanceof StreamableHTTPError && error.code === 403,
       );
     }
-    const readMutation = await readOnlyClient.callTool({
-      name: "rootset_get_mutation",
-      arguments: { orgId, id: updated.mutationId },
-    });
+    const readMutation = await readOnlyClient.callTool(
+      defaultWorkspaceToolCall(
+        {
+          name: "rootset_get_mutation",
+          arguments: { orgId, id: updated.mutationId },
+        },
+        orgId,
+      ),
+    );
     assert.notEqual(readMutation.isError, true);
     assert.equal(
       (readMutation.structuredContent as { mutationId: string }).mutationId,
       updated.mutationId,
     );
     await assert.rejects(
-      readOnlyClient.callTool({
-        name: "rootset_reorder_fields",
-        arguments: {
-          ...wideIds,
-          expectedSchemaVersion: 2,
-          fieldIds: reverseFieldIds,
-          idempotencyKey: "runtime-read-only-reorder",
-        },
-      }),
+      readOnlyClient.callTool(
+        defaultWorkspaceToolCall(
+          {
+            name: "rootset_reorder_fields",
+            arguments: {
+              ...wideIds,
+              expectedSchemaVersion: 2,
+              fieldIds: reverseFieldIds,
+              idempotencyKey: "runtime-read-only-reorder",
+            },
+          },
+          orgId,
+        ),
+      ),
       (error) => error instanceof StreamableHTTPError && error.code === 403,
     );
     const reorderDenied = await request(
@@ -2706,6 +2905,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           const parent = await call(
             "createTable",
             {
+              workspaceId: orgId,
               orgId,
               databaseId,
               name: `FK parent ${mode}`,
@@ -2716,6 +2916,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           const child = await call(
             "createTable",
             {
+              workspaceId: orgId,
               orgId,
               databaseId,
               name: `FK child ${mode}`,
@@ -2723,8 +2924,18 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             },
             "rest",
           );
-          const parentIds = { orgId, databaseId, tableId: parent.table.id };
-          const childIds = { orgId, databaseId, tableId: child.table.id };
+          const parentIds = {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            tableId: parent.table.id,
+          };
+          const childIds = {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            tableId: child.table.id,
+          };
           const unique = await call(
             "createUniqueRule",
             {
@@ -2782,15 +2993,20 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             409,
           );
           assert.equal(invalid.error.code, "FOREIGN_KEY_CONFLICT");
-          const denied = await client.callTool({
-            name: "rootset_create_row",
-            arguments: {
-              ...childIds,
-              expectedSchemaVersion: 2,
-              values: { PARENT: "missing" },
-              idempotencyKey: newId(),
-            },
-          });
+          const denied = await client.callTool(
+            defaultWorkspaceToolCall(
+              {
+                name: "rootset_create_row",
+                arguments: {
+                  ...childIds,
+                  expectedSchemaVersion: 2,
+                  values: { PARENT: "missing" },
+                  idempotencyKey: newId(),
+                },
+              },
+              orgId,
+            ),
+          );
           assert.equal(denied.isError, true);
           assert.equal(
             (denied.structuredContent as { error: { code: string } }).error
@@ -2829,6 +3045,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           const created = await call(
             "createTable",
             {
+              workspaceId: orgId,
               orgId,
               databaseId,
               name: `Conditional ${mode}`,
@@ -2849,7 +3066,12 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             },
             "rest",
           );
-          const target = { orgId, databaseId, tableId: created.table.id };
+          const target = {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            tableId: created.table.id,
+          };
           for (const status of ["ceased", "ceased", "active"])
             await call(
               "createRow",
@@ -2884,15 +3106,20 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
             422,
           );
           assert.equal(invalidChoice.error.code, "VALIDATION_FAILED");
-          const invalidMcp = await client.callTool({
-            name: "rootset_create_row",
-            arguments: {
-              ...target,
-              expectedSchemaVersion: 1,
-              values: { code: "invalid", status: "missing" },
-              idempotencyKey: newId(),
-            },
-          });
+          const invalidMcp = await client.callTool(
+            defaultWorkspaceToolCall(
+              {
+                name: "rootset_create_row",
+                arguments: {
+                  ...target,
+                  expectedSchemaVersion: 1,
+                  values: { code: "invalid", status: "missing" },
+                  idempotencyKey: newId(),
+                },
+              },
+              orgId,
+            ),
+          );
           assert.equal(invalidMcp.isError, true);
           assert.equal(
             (invalidMcp.structuredContent as { error: { code: string } }).error
@@ -3060,6 +3287,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       },
     );
     const secondTable = await call("createTable", {
+      workspaceId: orgId,
       orgId,
       databaseId,
       name: "Restricted peer",
@@ -3304,13 +3532,18 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     assert.equal(targetRestDenied.error.code, "FORBIDDEN");
     await assert.rejects(
       () =>
-        scopeClient.callTool({
-          name: getOperation("deleteTable").toolName,
-          arguments: {
-            ...targetInput,
-            idempotencyKey: "runtime-target-scope-mcp-action",
-          },
-        }),
+        scopeClient.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: getOperation("deleteTable").toolName,
+              arguments: {
+                ...targetInput,
+                idempotencyKey: "runtime-target-scope-mcp-action",
+              },
+            },
+            orgId,
+          ),
+        ),
       (error) => error instanceof StreamableHTTPError && error.code === 401,
     );
     viewerMember = (
@@ -3335,6 +3568,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          workspaceId: orgId,
           orgId,
           databaseId,
           query: { limit: 200 },
@@ -3463,13 +3697,18 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
     );
     for (const [operationId, input] of Object.entries(journalInputs))
       await assert.rejects(
-        journalClient.callTool({
-          name: getOperation(operationId).toolName,
-          arguments: {
-            ...input,
-            idempotencyKey: `runtime-shared-journal-${operationId}`,
-          },
-        }),
+        journalClient.callTool(
+          defaultWorkspaceToolCall(
+            {
+              name: getOperation(operationId).toolName,
+              arguments: {
+                ...input,
+                idempotencyKey: `runtime-shared-journal-${operationId}`,
+              },
+            },
+            orgId,
+          ),
+        ),
       );
     await db.owner.query(
       "DELETE FROM rootset_control.memberships WHERE org_id=$1 AND user_id=$2",

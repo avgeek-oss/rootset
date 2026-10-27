@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { test } from "node:test";
@@ -101,7 +102,7 @@ test(
         as: Actor = actor,
       ) =>
         operationMap[id]!.outputSchema.parse(
-          await runtime.core.execute(id, as, input, {
+          await runtime.core.execute(id, as, workspaceInput(id, as, input), {
             surface: "browser",
             idempotencyKey: newId(),
             ...context,

@@ -1,3 +1,4 @@
+import { currentWorkspaceId } from "@rootset/web-client";
 import { operations } from "@rootset/contracts";
 
 export function resolveSettingsOperation(
@@ -32,7 +33,11 @@ export function resolveSettingsOperation(
     });
     return {
       operationId: operation.id,
-      input: operation.inputSchema.parse(input) as Record<string, unknown>,
+      input: operation.inputSchema.parse(
+        operation.workspaceScoped
+          ? { workspaceId: currentWorkspaceId(), ...input }
+          : input,
+      ) as Record<string, unknown>,
     };
   }
   return undefined;

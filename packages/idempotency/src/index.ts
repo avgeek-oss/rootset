@@ -25,7 +25,7 @@ export const identityMutationSet: ReadonlySet<string> = new Set([
   "inviteMember",
   "cancelInvitation",
   "revokePersonalKey",
-  "revokeTeamKey",
+  "revokeWorkspaceKey",
   "changePassword",
   "changeEmail",
   "signOutEverywhere",
@@ -59,6 +59,11 @@ export const backupMutationSet: ReadonlySet<string> = new Set([
   "testBackupDestination",
 ]);
 export const mutationSet: ReadonlySet<string> = new Set([
+  "deleteWorkspace",
+  "createWorkspace",
+  "updateWorkspace",
+  "addWorkspaceMember",
+  "removeWorkspaceMember",
   "bulkRows",
   ...backupMutationSet,
   ...identityMutationSet,

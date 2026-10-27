@@ -1,7 +1,7 @@
 ---
-title: "rootset_revoke_team_key"
-sidebarTitle: "Revoke team key"
-description: "Revoke a workspace-owned API key. Administrators only."
+title: "rootset_delete_workspace"
+sidebarTitle: "Delete workspace"
+description: "Delete an empty workspace. Default cannot be deleted."
 icon: "/assets/icons/mcp.svg"
 ---
 
@@ -9,24 +9,24 @@ icon: "/assets/icons/mcp.svg"
 
 ```mermaid
 flowchart LR
-  discover["Check the account"] --> invoke["Revoke team key"]
+  discover["Check the account"] --> invoke["Delete workspace"]
   invoke --> outcome["Read the result"]
 ```
 
 ## Access and behavior
 
-Requires a current workspace role of **Admin** or higher. Use a personal OAuth connection for the signed-in account. The connection needs `team-keys:manage` scope.
+Requires a current workspace role of **Admin** or higher. Use a personal OAuth connection for the signed-in account. The connection needs `workspaces:manage` scope.
 
 - This tool changes data or starts work. Confirm the target and input before calling it.
 - Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
 
 ## Arguments
 
-| Argument         | Required | Type   | Details                                                            |
-| ---------------- | -------- | ------ | ------------------------------------------------------------------ |
-| `orgId`          | Yes      | string | Workspace ID returned by rootset_get_context.                      |
-| `id`             | Yes      | string | —                                                                  |
-| `idempotencyKey` | Yes      | string | Stable caller-provided key across retries of this exact operation. |
+| Argument         | Required | Type   | Details                                                                      |
+| ---------------- | -------- | ------ | ---------------------------------------------------------------------------- |
+| `orgId`          | Yes      | string | Organisation ID returned by rootset_get_context.                             |
+| `workspaceId`    | Yes      | string | Workspace ID returned by rootset_list_workspaces; required even for Default. |
+| `idempotencyKey` | Yes      | string | Stable caller-provided key across retries of this exact operation.           |
 
 <Accordion title="Complete input schema">
 
@@ -39,7 +39,7 @@ Requires a current workspace role of **Admin** or higher. Use a personal OAuth c
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
     },
-    "id": {
+    "workspaceId": {
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
     },
@@ -50,7 +50,7 @@ Requires a current workspace role of **Admin** or higher. Use a personal OAuth c
       "description": "Stable caller-provided key across retries of this exact operation."
     }
   },
-  "required": ["orgId", "id", "idempotencyKey"],
+  "required": ["orgId", "workspaceId", "idempotencyKey"],
   "additionalProperties": false
 }
 ```
@@ -67,10 +67,10 @@ Your client initializes the MCP connection before this call. Example identifiers
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "rootset_revoke_team_key",
+    "name": "rootset_delete_workspace",
     "arguments": {
       "orgId": "01K6J7B8000000000000000000",
-      "id": "01K6J7B8000000000000000000",
+      "workspaceId": "01K6J7B8000000000000000000",
       "idempotencyKey": "example-request-0001"
     }
   }
@@ -79,6 +79,6 @@ Your client initializes the MCP connection before this call. Example identifiers
 
 ## Result
 
-Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/revokeTeamKey) documents the corresponding result fields and errors.
+Read the structured result returned by the tool. A tool failure sets `isError`; do not treat an error as a completed operation. The [REST operation](/api-reference/deleteWorkspace) documents the corresponding result fields and errors.
 
 [Connect an MCP client](/mcp-connections) · [Request conventions](/api-reference/request-conventions)

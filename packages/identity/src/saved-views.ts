@@ -38,7 +38,7 @@ function missing(): never {
 function writable(actor: Actor): boolean {
   return (
     roleAllows(actor.role, "rows:write") &&
-    (!["personal_key", "team_key", "oauth"].includes(actor.kind) ||
+    (!["personal_key", "workspace_key", "oauth"].includes(actor.kind) ||
       actor.scopes.includes("rows:write"))
   );
 }

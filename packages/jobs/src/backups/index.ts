@@ -56,6 +56,7 @@ export interface BackupConfig {
   forcePathStyle?: boolean;
 }
 interface ScheduleRow {
+  workspace_id: string;
   database_id: string;
   org_id: string;
   version: number;
@@ -375,7 +376,7 @@ export class DatabaseBackups {
       const value = BackupScheduleInputSchema.parse(
         Object.fromEntries(
           Object.entries(input).filter(
-            ([key]) => !["orgId", "databaseId"].includes(key),
+            ([key]) => !["orgId", "workspaceId", "databaseId"].includes(key),
           ),
         ),
       );
@@ -397,7 +398,7 @@ export class DatabaseBackups {
       return {
         jobId: job.id,
         state: job.state,
-        statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}`,
+        statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}?workspaceId=${actor.workspaceId ?? actor.orgId}`,
       };
     }
     const destination =
@@ -437,7 +438,7 @@ export class DatabaseBackups {
     return {
       jobId: job.id,
       state: job.state,
-      statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}`,
+      statusUrl: `/v1/orgs/${actor.orgId}/jobs/${job.id}?workspaceId=${actor.workspaceId ?? actor.orgId}`,
     };
   }
   private async enqueue(
@@ -570,7 +571,7 @@ export class DatabaseBackups {
     return withOrg(this.queue.workerPool, orgId, async (client) => {
       const schedules = (
         await client.query<ScheduleRow>(
-          `SELECT s.* FROM rootset_control.backup_schedules s JOIN rootset_control.databases d ON d.id=s.database_id
+          `SELECT s.*,d.workspace_id FROM rootset_control.backup_schedules s JOIN rootset_control.databases d ON d.id=s.database_id
         WHERE s.next_run_at<=$1 AND s.backend_id=$2 AND d.state='active' ORDER BY s.next_run_at LIMIT 10`,
           [now, this.backendId],
         )
@@ -620,6 +621,7 @@ export class DatabaseBackups {
           const actor: Actor = {
             kind: "operator",
             id: `database-backup:${schedule.database_id}`,
+            workspaceId: candidate.workspace_id,
             orgId,
             role: "admin",
             scopes: ["backups:manage"],

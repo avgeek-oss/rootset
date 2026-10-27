@@ -12,6 +12,7 @@ describe("Settings transport contract", () => {
     expect(
       resolveSettingsOperation(`${table}/fields`, "POST", {
         orgId: memberId,
+        workspaceId: orgId,
         expectedSchemaVersion: 1,
         field: {
           name: "AIRLINE_ID",
@@ -23,6 +24,7 @@ describe("Settings transport contract", () => {
       operationId: "createField",
       input: {
         orgId,
+        workspaceId: orgId,
         databaseId,
         tableId,
         expectedSchemaVersion: 1,
@@ -50,12 +52,14 @@ describe("Settings transport contract", () => {
   it("rejects field coercion, excess properties and unsupported constraints before sending", () => {
     expect(() =>
       resolveSettingsOperation(`${table}/fields`, "POST", {
+        workspaceId: orgId,
         expectedSchemaVersion: 1,
         field: { name: "ACTIVE", type: "boolean", min: 0 },
       }),
     ).toThrow();
     expect(() =>
       resolveSettingsOperation(`${table}/fields`, "POST", {
+        workspaceId: orgId,
         expectedSchemaVersion: 1,
         field: { name: "CODE", type: "text", charLimit: "12" },
       }),

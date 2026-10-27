@@ -17,6 +17,7 @@ export function createRuntimeApp(
     windowQuery: async (actor, input, context) => {
       const request = input as {
         orgId: string;
+        workspaceId: string;
         databaseId: string;
         tableId: string;
         query?: QuerySpec;
@@ -25,6 +26,7 @@ export function createRuntimeApp(
       };
       const authorised = await runtime.core.authorise(actor, "queryRows", {
         orgId: request.orgId,
+        workspaceId: request.workspaceId,
         databaseId: request.databaseId,
         tableId: request.tableId,
         query: request.query ?? {},

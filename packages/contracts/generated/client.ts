@@ -297,7 +297,8 @@ export type cancelInvitationOutput = { deleted: boolean; mutationId?: string };
 export type listPersonalKeysInput = Record<string, never>;
 export type listPersonalKeysOutput = {
   data: {
-    scope: "personal" | "team";
+    scope: "personal" | "workspace";
+    workspaceId: string | null;
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
@@ -322,7 +323,8 @@ export type createPersonalKeyInput = {
 };
 export type createPersonalKeyOutput = {
   key: {
-    scope: "personal" | "team";
+    scope: "personal" | "workspace";
+    workspaceId: string | null;
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
@@ -348,7 +350,8 @@ export type rotatePersonalKeyInput = {
 };
 export type rotatePersonalKeyOutput = {
   key: {
-    scope: "personal" | "team";
+    scope: "personal" | "workspace";
+    workspaceId: string | null;
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
@@ -366,14 +369,16 @@ export type rotatePersonalKeyOutput = {
 };
 export type revokePersonalKeyInput = { id: string };
 export type revokePersonalKeyOutput = { deleted: boolean; mutationId?: string };
-export type listTeamKeysInput = {
+export type listWorkspaceKeysInput = {
   orgId: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
-export type listTeamKeysOutput = {
+export type listWorkspaceKeysOutput = {
   data: {
-    scope: "personal" | "team";
+    scope: "personal" | "workspace";
+    workspaceId: string | null;
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
@@ -389,16 +394,18 @@ export type listTeamKeysOutput = {
   nextCursor?: unknown;
   hasMore?: boolean;
 };
-export type createTeamKeyInput = {
+export type createWorkspaceKeyInput = {
   orgId: string;
   name: string;
   access: "read" | "edit";
   includeAdmin: boolean;
   expiresAt: string | null;
+  workspaceId: string;
 };
-export type createTeamKeyOutput = {
+export type createWorkspaceKeyOutput = {
   key: {
-    scope: "personal" | "team";
+    scope: "personal" | "workspace";
+    workspaceId: string | null;
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
@@ -414,7 +421,7 @@ export type createTeamKeyOutput = {
   secret?: string;
   replayed?: boolean;
 };
-export type rotateTeamKeyInput = {
+export type rotateWorkspaceKeyInput = {
   orgId: string;
   id: string;
   overlapSeconds?: number;
@@ -422,10 +429,12 @@ export type rotateTeamKeyInput = {
   access?: "read" | "edit";
   includeAdmin?: boolean;
   expiresAt?: string | null;
+  workspaceId: string;
 };
-export type rotateTeamKeyOutput = {
+export type rotateWorkspaceKeyOutput = {
   key: {
-    scope: "personal" | "team";
+    scope: "personal" | "workspace";
+    workspaceId: string | null;
     access: "read" | "edit";
     includeAdmin: boolean;
     id: string;
@@ -441,8 +450,15 @@ export type rotateTeamKeyOutput = {
   secret?: string;
   replayed?: boolean;
 };
-export type revokeTeamKeyInput = { orgId: string; id: string };
-export type revokeTeamKeyOutput = { deleted: boolean; mutationId?: string };
+export type revokeWorkspaceKeyInput = {
+  orgId: string;
+  id: string;
+  workspaceId: string;
+};
+export type revokeWorkspaceKeyOutput = {
+  deleted: boolean;
+  mutationId?: string;
+};
 export type getSecurityStatusInput = Record<string, never>;
 export type getSecurityStatusOutput = {
   twoFactorEnabled: boolean;
@@ -458,9 +474,11 @@ export type listDatabasesInput = {
   orgId: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type listDatabasesOutput = {
   data: {
+    workspaceId: string;
     id: string;
     orgId: string;
     name: string;
@@ -481,8 +499,10 @@ export type createDatabaseInput = {
   orgId: string;
   name: string;
   description?: string | null;
+  workspaceId: string;
 };
 export type createDatabaseOutput = {
+  workspaceId: string;
   id: string;
   orgId: string;
   name: string;
@@ -492,8 +512,13 @@ export type createDatabaseOutput = {
   createdAt: string;
   updatedAt: string;
 };
-export type getDatabaseInput = { orgId: string; databaseId: string };
+export type getDatabaseInput = {
+  orgId: string;
+  databaseId: string;
+  workspaceId: string;
+};
 export type getDatabaseOutput = {
+  workspaceId: string;
   id: string;
   orgId: string;
   name: string;
@@ -508,8 +533,10 @@ export type updateDatabaseInput = {
   databaseId: string;
   name: string;
   description?: string | null;
+  workspaceId: string;
 };
 export type updateDatabaseOutput = {
+  workspaceId: string;
   id: string;
   orgId: string;
   name: string;
@@ -519,7 +546,11 @@ export type updateDatabaseOutput = {
   createdAt: string;
   updatedAt: string;
 };
-export type deleteDatabaseInput = { orgId: string; databaseId: string };
+export type deleteDatabaseInput = {
+  orgId: string;
+  databaseId: string;
+  workspaceId: string;
+};
 export type deleteDatabaseOutput = {
   jobId: string;
   state:
@@ -536,6 +567,7 @@ export type listTablesInput = {
   databaseId: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type listTablesOutput = {
   data: {
@@ -718,6 +750,7 @@ export type createTableInput = {
         type: "json";
       }
   )[];
+  workspaceId: string;
 };
 export type createTableOutput = {
   table: {
@@ -932,6 +965,7 @@ export type getTableInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type getTableOutput = {
   id: string;
@@ -953,6 +987,7 @@ export type updateTableInput = {
   expectedSchemaVersion: number;
   name: string;
   description?: string | null;
+  workspaceId: string;
 };
 export type updateTableOutput = {
   id: string;
@@ -972,6 +1007,7 @@ export type deleteTableInput = {
   databaseId: string;
   tableId: string;
   expectedSchemaVersion: number;
+  workspaceId: string;
 };
 export type deleteTableOutput = {
   jobId: string;
@@ -988,6 +1024,7 @@ export type getTableSchemaInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type getTableSchemaOutput = {
   table: {
@@ -1202,6 +1239,7 @@ export type listFieldsInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type listFieldsOutput = {
   data: (
@@ -1534,6 +1572,7 @@ export type createFieldInput = {
         order?: number;
         type: "json";
       };
+  workspaceId: string;
 };
 export type createFieldOutput =
   | {
@@ -1924,6 +1963,7 @@ export type updateFieldInput = {
       };
   clearDefault?: boolean;
   conversion?: "explicit" | "lossless";
+  workspaceId: string;
 };
 export type updateFieldOutput =
   | {
@@ -2158,6 +2198,7 @@ export type deleteFieldInput = {
   expectedSchemaVersion: number;
   fieldId: string;
   removeDependencies?: boolean;
+  workspaceId: string;
 };
 export type deleteFieldOutput =
   | {
@@ -2391,6 +2432,7 @@ export type reorderFieldsInput = {
   tableId: string;
   expectedSchemaVersion: number;
   fieldIds: string[];
+  workspaceId: string;
 };
 export type reorderFieldsOutput = {
   table: {
@@ -2625,6 +2667,7 @@ export type previewSchemaChangeInput = {
       }
     | { kind: "delete_field"; fieldId: string; removeDependencies: boolean }
     | { kind: "reorder_fields"; fieldIds: string[] };
+  workspaceId: string;
 };
 export type previewSchemaChangeOutput = {
   valid: boolean;
@@ -2662,6 +2705,7 @@ export type applySchemaChangeInput = {
       }
     | { kind: "delete_field"; fieldId: string; removeDependencies: boolean }
     | { kind: "reorder_fields"; fieldIds: string[] };
+  workspaceId: string;
 };
 export type applySchemaChangeOutput = {
   jobId: string;
@@ -2679,6 +2723,7 @@ export type getSchemaOperationInput = {
   databaseId: string;
   tableId: string;
   id: string;
+  workspaceId: string;
 };
 export type getSchemaOperationOutput = {
   id: string;
@@ -3488,6 +3533,7 @@ export type listUniqueRulesInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type listUniqueRulesOutput = {
   data: {
@@ -3515,6 +3561,7 @@ export type createUniqueRuleInput = {
   where?:
     | { field: string; op: "eq" | "ne"; value: string | number | boolean }
     | { field: string; op: "isNull" | "isNotNull" };
+  workspaceId: string;
 };
 export type createUniqueRuleOutput =
   | {
@@ -3547,6 +3594,7 @@ export type deleteUniqueRuleInput = {
   tableId: string;
   expectedSchemaVersion: number;
   id: string;
+  workspaceId: string;
 };
 export type deleteUniqueRuleOutput = { deleted: boolean; mutationId?: string };
 export type getRowRelationshipsInput = {
@@ -3557,6 +3605,7 @@ export type getRowRelationshipsInput = {
   expectedVersion?: string;
   cursor?: string | null;
   limit?: number;
+  workspaceId: string;
 };
 export type getRowRelationshipsOutput = {
   rowVersion: string;
@@ -3581,6 +3630,7 @@ export type getRelatedRowFilterInput = {
   tableId: string;
   ruleId: string;
   referencedRowId: string;
+  workspaceId: string;
 };
 export type getRelatedRowFilterOutput = {
   filter: { fieldId: string; value: unknown }[];
@@ -3593,6 +3643,7 @@ export type listForeignKeysInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type listForeignKeysOutput = {
   data: {
@@ -3618,6 +3669,7 @@ export type createForeignKeyInput = {
   referencedTableId: string;
   referencedRuleId: string;
   expectedReferencedSchemaVersion: number;
+  workspaceId: string;
 };
 export type createForeignKeyOutput =
   | {
@@ -3648,6 +3700,7 @@ export type deleteForeignKeyInput = {
   tableId: string;
   expectedSchemaVersion: number;
   id: string;
+  workspaceId: string;
 };
 export type deleteForeignKeyOutput = { deleted: boolean; mutationId?: string };
 export type listRowsInput = {
@@ -3658,6 +3711,7 @@ export type listRowsInput = {
   orderBy?: { field: string; direction: "asc" | "desc" }[];
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type listRowsOutput = {
   data: {
@@ -3722,6 +3776,7 @@ export type queryRowsInput = {
     limit?: number;
     cursor?: string | null;
   };
+  workspaceId: string;
 };
 export type queryRowsOutput = {
   data: {
@@ -3750,6 +3805,7 @@ export type getRowInput = {
   databaseId: string;
   tableId: string;
   rowId: string;
+  workspaceId: string;
 };
 export type getRowOutput = {
   id: string;
@@ -3771,6 +3827,7 @@ export type createRowInput = {
     string,
     null | boolean | number | string | unknown[] | Record<string, unknown>
   >;
+  workspaceId: string;
 };
 export type createRowOutput = {
   row: {
@@ -3793,6 +3850,7 @@ export type listRowCommentsInput = {
   rowId: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type listRowCommentsOutput = {
   data: {
@@ -3813,6 +3871,7 @@ export type countRowCommentsInput = {
   databaseId: string;
   tableId: string;
   rowIds: string[];
+  workspaceId: string;
 };
 export type countRowCommentsOutput = {
   data: { rowId: string; count: number }[];
@@ -3823,6 +3882,7 @@ export type createRowCommentInput = {
   tableId: string;
   rowId: string;
   body: string;
+  workspaceId: string;
 };
 export type createRowCommentOutput = { id: string };
 export type deleteRowCommentInput = {
@@ -3831,6 +3891,7 @@ export type deleteRowCommentInput = {
   tableId: string;
   rowId: string;
   commentId: string;
+  workspaceId: string;
 };
 export type deleteRowCommentOutput = { deleted: boolean; mutationId?: string };
 export type updateRowInput = {
@@ -3844,6 +3905,7 @@ export type updateRowInput = {
     string,
     null | boolean | number | string | unknown[] | Record<string, unknown>
   >;
+  workspaceId: string;
 };
 export type updateRowOutput = {
   row: {
@@ -3866,6 +3928,7 @@ export type deleteRowInput = {
   expectedSchemaVersion: number;
   rowId: string;
   expectedVersion: string;
+  workspaceId: string;
 };
 export type deleteRowOutput = { deleted: boolean; mutationId?: string };
 export type previewBulkRowsInput = {
@@ -3884,6 +3947,7 @@ export type previewBulkRowsInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type previewBulkRowsOutput = {
   action: "set" | "duplicate" | "delete";
@@ -3926,6 +3990,7 @@ export type bulkRowsInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type bulkRowsOutput = {
   mutationId: string;
@@ -3959,6 +4024,7 @@ export type mutateRowsInput = {
     | { type: "delete"; rowId: string; expectedVersion: string }
   )[];
   repair?: { reason: string };
+  workspaceId: string;
 };
 export type mutateRowsOutput =
   | {
@@ -4000,6 +4066,7 @@ export type getTableStatisticsInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type getTableStatisticsOutput = {
   liveRows: number;
@@ -4051,6 +4118,7 @@ export type countRowsInput = {
     cursor?: string | null;
   };
   exact?: boolean;
+  workspaceId: string;
 };
 export type countRowsOutput =
   | {
@@ -4077,6 +4145,7 @@ export type getCellHistoryInput = {
   fieldId: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type getCellHistoryOutput = {
   data: {
@@ -4275,6 +4344,7 @@ export type getCellHistoryOutput = {
 };
 export type listActivityInput = {
   orgId: string;
+  workspaceId: string;
   databaseId?: string;
   tableId?: string;
   category?:
@@ -4607,6 +4677,7 @@ export type listActivityOutput = {
 };
 export type listActivityFilterOptionsInput = {
   orgId: string;
+  workspaceId: string;
   kind: "actors" | "resources";
   q?: string;
   limit?: number;
@@ -4621,7 +4692,11 @@ export type listActivityFilterOptionsOutput = {
   }[];
   hasMore: boolean;
 };
-export type getActivityDetailsInput = { orgId: string; eventId: string };
+export type getActivityDetailsInput = {
+  orgId: string;
+  workspaceId: string;
+  eventId: string;
+};
 export type getActivityDetailsOutput = {
   event:
     | "job.testBackupDestination.cancelled"
@@ -4768,6 +4843,7 @@ export type queryHistoryInput = {
   to?: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type queryHistoryOutput = {
   data: {
@@ -4964,7 +5040,11 @@ export type queryHistoryOutput = {
   nextCursor: unknown;
   hasMore: boolean;
 };
-export type getMutationInput = { orgId: string; id: string };
+export type getMutationInput = {
+  orgId: string;
+  id: string;
+  workspaceId: string;
+};
 export type getMutationOutput = {
   mutationId: string;
   replayed?: boolean;
@@ -4980,6 +5060,7 @@ export type previewImportRowsInput = {
   content: string;
   fileName: string;
   mapping: { source: string; fieldId: string }[];
+  workspaceId: string;
 };
 export type previewImportRowsOutput = {
   jobId: string;
@@ -4998,6 +5079,7 @@ export type importRowsInput = {
   tableId: string;
   expectedSchemaVersion: number;
   previewId: string;
+  workspaceId: string;
 };
 export type importRowsOutput = {
   jobId: string;
@@ -5015,6 +5097,7 @@ export type exportRowsInput = {
   databaseId: string;
   tableId: string;
   format: "csv" | "jsonl";
+  workspaceId: string;
 };
 export type exportRowsOutput = {
   jobId: string;
@@ -5068,6 +5151,7 @@ export type exportViewInput = {
       | { or: JsonValue[] };
     orderBy?: { field: string; direction: "asc" | "desc" }[];
   };
+  workspaceId: string;
 };
 export type exportViewOutput = {
   jobId: string;
@@ -5084,6 +5168,7 @@ export type exportDatabaseInput = {
   orgId: string;
   databaseId: string;
   format: "csv" | "jsonl";
+  workspaceId: string;
 };
 export type exportDatabaseOutput = {
   jobId: string;
@@ -5096,7 +5181,11 @@ export type exportDatabaseOutput = {
     | "partially_completed";
   statusUrl: string;
 };
-export type getArtifactInput = { orgId: string; id: string };
+export type getArtifactInput = {
+  orgId: string;
+  id: string;
+  workspaceId: string;
+};
 export type getArtifactOutput = {
   id: string;
   orgId: string;
@@ -5125,6 +5214,7 @@ export type listJobsInput = {
     | "partially_completed";
   kind?: string;
   order?: "asc" | "desc";
+  workspaceId: string;
 };
 export type listJobsOutput = {
   data: {
@@ -5172,7 +5262,7 @@ export type listJobsOutput = {
   nextCursor?: unknown;
   hasMore?: boolean;
 };
-export type getJobInput = { orgId: string; id: string };
+export type getJobInput = { orgId: string; id: string; workspaceId: string };
 export type getJobOutput = {
   backupId?: string;
   id: string;
@@ -5215,7 +5305,7 @@ export type getJobOutput = {
     null | boolean | number | string | unknown[] | Record<string, unknown>;
   attempt?: number;
 };
-export type cancelJobInput = { orgId: string; id: string };
+export type cancelJobInput = { orgId: string; id: string; workspaceId: string };
 export type cancelJobOutput = {
   backupId?: string;
   id: string;
@@ -5258,7 +5348,7 @@ export type cancelJobOutput = {
     null | boolean | number | string | unknown[] | Record<string, unknown>;
   attempt?: number;
 };
-export type retryJobInput = { orgId: string; id: string };
+export type retryJobInput = { orgId: string; id: string; workspaceId: string };
 export type retryJobOutput = {
   jobId: string;
   state:
@@ -5280,7 +5370,7 @@ export type getUsageOutput = {
   historyBytes: number;
   artifactBytes: number;
 };
-export type getViewPreferencesInput = { tableId: string };
+export type getViewPreferencesInput = { tableId: string; workspaceId: string };
 export type getViewPreferencesOutput = {
   tableId: string;
   preferences: {
@@ -5304,6 +5394,7 @@ export type updateViewPreferencesInput = {
       null | boolean | number | string | unknown[] | Record<string, unknown>;
     foreignKeyDisplayFields?: Record<string, string>;
   };
+  workspaceId: string;
 };
 export type updateViewPreferencesOutput = {
   tableId: string;
@@ -5321,6 +5412,7 @@ export type updateForeignKeyDisplayFieldInput = {
   tableId: string;
   foreignKeyId: string;
   displayFieldId: string | null;
+  workspaceId: string;
 };
 export type updateForeignKeyDisplayFieldOutput = {
   tableId: string;
@@ -5338,6 +5430,7 @@ export type listSavedViewsInput = {
   orgId: string;
   databaseId: string;
   tableId: string;
+  workspaceId: string;
 };
 export type listSavedViewsOutput = {
   data: {
@@ -5360,6 +5453,7 @@ export type getSavedViewInput = {
   databaseId: string;
   tableId: string;
   viewId: string;
+  workspaceId: string;
 };
 export type getSavedViewOutput = {
   id: string;
@@ -5463,6 +5557,7 @@ export type createSavedViewInput = {
       orderBy?: { field: string; direction: "asc" | "desc" }[];
     };
   };
+  workspaceId: string;
 };
 export type createSavedViewOutput = {
   id: string;
@@ -5568,6 +5663,7 @@ export type updateSavedViewInput = {
       orderBy?: { field: string; direction: "asc" | "desc" }[];
     };
   };
+  workspaceId: string;
 };
 export type updateSavedViewOutput = {
   id: string;
@@ -5630,6 +5726,7 @@ export type deleteSavedViewInput = {
   tableId: string;
   viewId: string;
   expectedVersion: string;
+  workspaceId: string;
 };
 export type deleteSavedViewOutput = {
   id: string;
@@ -5639,6 +5736,7 @@ export type deleteSavedViewOutput = {
 export type getDatabaseBackupPolicyInput = {
   orgId: string;
   databaseId: string;
+  workspaceId: string;
 };
 export type getDatabaseBackupPolicyOutput = {
   policy: {
@@ -5672,6 +5770,7 @@ export type saveDatabaseBackupPolicyInput = {
   overdueGraceMinutes: number;
   orgId: string;
   databaseId: string;
+  workspaceId: string;
 };
 export type saveDatabaseBackupPolicyOutput = {
   policy: {
@@ -5699,7 +5798,11 @@ export type saveDatabaseBackupPolicyOutput = {
   }[];
   retentionError: unknown;
 };
-export type getBackupScheduleInput = { orgId: string; databaseId: string };
+export type getBackupScheduleInput = {
+  orgId: string;
+  databaseId: string;
+  workspaceId: string;
+};
 export type getBackupScheduleOutput = {
   schedule: {
     bucket: string;
@@ -5726,6 +5829,7 @@ export type saveBackupScheduleInput = {
   expectedVersion: number;
   orgId: string;
   databaseId: string;
+  workspaceId: string;
 };
 export type saveBackupScheduleOutput = {
   jobId: string;
@@ -5742,6 +5846,7 @@ export type deleteBackupScheduleInput = {
   orgId: string;
   databaseId: string;
   expectedVersion: number;
+  workspaceId: string;
 };
 export type deleteBackupScheduleOutput = {
   schedule: {
@@ -5766,6 +5871,7 @@ export type previewBackupScheduleInput = {
   timezone: string;
   orgId: string;
   databaseId: string;
+  workspaceId: string;
 };
 export type previewBackupScheduleOutput = { nextRuns: string[] };
 export type listDatabaseBackupsInput = {
@@ -5773,6 +5879,7 @@ export type listDatabaseBackupsInput = {
   databaseId: string;
   limit?: number;
   cursor?: string | null;
+  workspaceId: string;
 };
 export type listDatabaseBackupsOutput = {
   data: {
@@ -5810,7 +5917,11 @@ export type listDatabaseBackupsOutput = {
   nextCursor?: unknown;
   hasMore?: boolean;
 };
-export type runDatabaseBackupInput = { orgId: string; databaseId: string };
+export type runDatabaseBackupInput = {
+  orgId: string;
+  databaseId: string;
+  workspaceId: string;
+};
 export type runDatabaseBackupOutput = {
   jobId: string;
   state:
@@ -5827,6 +5938,7 @@ export type testBackupDestinationInput = {
   prefix: string;
   orgId: string;
   databaseId: string;
+  workspaceId: string;
 };
 export type testBackupDestinationOutput = {
   jobId: string;
@@ -5839,7 +5951,11 @@ export type testBackupDestinationOutput = {
     | "partially_completed";
   statusUrl: string;
 };
-export type previewDatabaseRestoreInput = { orgId: string; backupId: string };
+export type previewDatabaseRestoreInput = {
+  orgId: string;
+  backupId: string;
+  workspaceId: string;
+};
 export type previewDatabaseRestoreOutput = {
   jobId: string;
   state:
@@ -5856,6 +5972,7 @@ export type restoreDatabaseBackupInput = {
   backupId: string;
   previewId: string;
   name: string;
+  workspaceId: string;
 };
 export type restoreDatabaseBackupOutput = {
   jobId: string;
@@ -5867,6 +5984,111 @@ export type restoreDatabaseBackupOutput = {
     | "cancelled"
     | "partially_completed";
   statusUrl: string;
+};
+export type deleteWorkspaceInput = { orgId: string; workspaceId: string };
+export type deleteWorkspaceOutput = { deleted: boolean; mutationId?: string };
+export type listWorkspacesInput = { orgId: string };
+export type listWorkspacesOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    name: string;
+    description: string;
+    isDefault: boolean;
+    memberCount: number;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type listTeamWorkspacesInput = { orgId: string };
+export type listTeamWorkspacesOutput = {
+  data: {
+    id: string;
+    orgId: string;
+    name: string;
+    description: string;
+    isDefault: boolean;
+    memberCount: number;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type createWorkspaceInput = {
+  name: string;
+  description?: string;
+  orgId: string;
+};
+export type createWorkspaceOutput = {
+  id: string;
+  orgId: string;
+  name: string;
+  description: string;
+  isDefault: boolean;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type getWorkspaceInput = { orgId: string; workspaceId: string };
+export type getWorkspaceOutput = {
+  id: string;
+  orgId: string;
+  name: string;
+  description: string;
+  isDefault: boolean;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type updateWorkspaceInput = {
+  orgId: string;
+  workspaceId: string;
+  name?: string;
+  description?: string;
+};
+export type updateWorkspaceOutput = {
+  id: string;
+  orgId: string;
+  name: string;
+  description: string;
+  isDefault: boolean;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type listWorkspaceMembersInput = { orgId: string; workspaceId: string };
+export type listWorkspaceMembersOutput = {
+  data: {
+    userId: string;
+    name: string;
+    email: string;
+    role: "admin" | "member" | "viewer";
+  }[];
+  nextCursor?: unknown;
+  hasMore?: boolean;
+};
+export type addWorkspaceMemberInput = {
+  orgId: string;
+  workspaceId: string;
+  userId: string;
+};
+export type addWorkspaceMemberOutput = {
+  userId: string;
+  name: string;
+  email: string;
+  role: "admin" | "member" | "viewer";
+};
+export type removeWorkspaceMemberInput = {
+  orgId: string;
+  workspaceId: string;
+  userId: string;
+};
+export type removeWorkspaceMemberOutput = {
+  deleted: boolean;
+  mutationId?: string;
 };
 export interface CallOptions {
   signal?: AbortSignal;
@@ -5988,23 +6210,23 @@ const routes = {
     method: "DELETE",
     idempotencyRequired: true,
   },
-  listTeamKeys: {
-    path: "/v1/orgs/{orgId}/keys",
+  listWorkspaceKeys: {
+    path: "/v1/orgs/{orgId}/workspace-keys",
     method: "GET",
     idempotencyRequired: false,
   },
-  createTeamKey: {
-    path: "/v1/orgs/{orgId}/keys",
+  createWorkspaceKey: {
+    path: "/v1/orgs/{orgId}/workspace-keys",
     method: "POST",
     idempotencyRequired: true,
   },
-  rotateTeamKey: {
-    path: "/v1/orgs/{orgId}/keys/{id}/rotate",
+  rotateWorkspaceKey: {
+    path: "/v1/orgs/{orgId}/workspace-keys/{id}/rotate",
     method: "POST",
     idempotencyRequired: true,
   },
-  revokeTeamKey: {
-    path: "/v1/orgs/{orgId}/keys/{id}",
+  revokeWorkspaceKey: {
+    path: "/v1/orgs/{orgId}/workspace-keys/{id}",
     method: "DELETE",
     idempotencyRequired: true,
   },
@@ -6403,6 +6625,51 @@ const routes = {
     method: "POST",
     idempotencyRequired: true,
   },
+  deleteWorkspace: {
+    path: "/v1/orgs/{orgId}/workspaces/{workspaceId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
+  listWorkspaces: {
+    path: "/v1/orgs/{orgId}/workspaces",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  listTeamWorkspaces: {
+    path: "/v1/orgs/{orgId}/team-workspaces",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  createWorkspace: {
+    path: "/v1/orgs/{orgId}/workspaces",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  getWorkspace: {
+    path: "/v1/orgs/{orgId}/workspaces/{workspaceId}",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  updateWorkspace: {
+    path: "/v1/orgs/{orgId}/workspaces/{workspaceId}",
+    method: "PATCH",
+    idempotencyRequired: true,
+  },
+  listWorkspaceMembers: {
+    path: "/v1/orgs/{orgId}/workspaces/{workspaceId}/members",
+    method: "GET",
+    idempotencyRequired: false,
+  },
+  addWorkspaceMember: {
+    path: "/v1/orgs/{orgId}/workspaces/{workspaceId}/members",
+    method: "POST",
+    idempotencyRequired: true,
+  },
+  removeWorkspaceMember: {
+    path: "/v1/orgs/{orgId}/workspaces/{workspaceId}/members/{userId}",
+    method: "DELETE",
+    idempotencyRequired: true,
+  },
 } as const;
 export class RootsetClient {
   constructor(
@@ -6693,45 +6960,45 @@ export class RootsetClient {
       options,
     ) as Promise<revokePersonalKeyOutput>;
   }
-  listTeamKeys(
-    input: listTeamKeysInput,
+  listWorkspaceKeys(
+    input: listWorkspaceKeysInput,
     options?: CallOptions,
-  ): Promise<listTeamKeysOutput> {
+  ): Promise<listWorkspaceKeysOutput> {
     return this.call(
-      "listTeamKeys",
+      "listWorkspaceKeys",
       input,
       options,
-    ) as Promise<listTeamKeysOutput>;
+    ) as Promise<listWorkspaceKeysOutput>;
   }
-  createTeamKey(
-    input: createTeamKeyInput,
+  createWorkspaceKey(
+    input: createWorkspaceKeyInput,
     options?: CallOptions,
-  ): Promise<createTeamKeyOutput> {
+  ): Promise<createWorkspaceKeyOutput> {
     return this.call(
-      "createTeamKey",
+      "createWorkspaceKey",
       input,
       options,
-    ) as Promise<createTeamKeyOutput>;
+    ) as Promise<createWorkspaceKeyOutput>;
   }
-  rotateTeamKey(
-    input: rotateTeamKeyInput,
+  rotateWorkspaceKey(
+    input: rotateWorkspaceKeyInput,
     options?: CallOptions,
-  ): Promise<rotateTeamKeyOutput> {
+  ): Promise<rotateWorkspaceKeyOutput> {
     return this.call(
-      "rotateTeamKey",
+      "rotateWorkspaceKey",
       input,
       options,
-    ) as Promise<rotateTeamKeyOutput>;
+    ) as Promise<rotateWorkspaceKeyOutput>;
   }
-  revokeTeamKey(
-    input: revokeTeamKeyInput,
+  revokeWorkspaceKey(
+    input: revokeWorkspaceKeyInput,
     options?: CallOptions,
-  ): Promise<revokeTeamKeyOutput> {
+  ): Promise<revokeWorkspaceKeyOutput> {
     return this.call(
-      "revokeTeamKey",
+      "revokeWorkspaceKey",
       input,
       options,
-    ) as Promise<revokeTeamKeyOutput>;
+    ) as Promise<revokeWorkspaceKeyOutput>;
   }
   getSecurityStatus(
     input: getSecurityStatusInput,
@@ -7436,5 +7703,95 @@ export class RootsetClient {
       input,
       options,
     ) as Promise<restoreDatabaseBackupOutput>;
+  }
+  deleteWorkspace(
+    input: deleteWorkspaceInput,
+    options?: CallOptions,
+  ): Promise<deleteWorkspaceOutput> {
+    return this.call(
+      "deleteWorkspace",
+      input,
+      options,
+    ) as Promise<deleteWorkspaceOutput>;
+  }
+  listWorkspaces(
+    input: listWorkspacesInput,
+    options?: CallOptions,
+  ): Promise<listWorkspacesOutput> {
+    return this.call(
+      "listWorkspaces",
+      input,
+      options,
+    ) as Promise<listWorkspacesOutput>;
+  }
+  listTeamWorkspaces(
+    input: listTeamWorkspacesInput,
+    options?: CallOptions,
+  ): Promise<listTeamWorkspacesOutput> {
+    return this.call(
+      "listTeamWorkspaces",
+      input,
+      options,
+    ) as Promise<listTeamWorkspacesOutput>;
+  }
+  createWorkspace(
+    input: createWorkspaceInput,
+    options?: CallOptions,
+  ): Promise<createWorkspaceOutput> {
+    return this.call(
+      "createWorkspace",
+      input,
+      options,
+    ) as Promise<createWorkspaceOutput>;
+  }
+  getWorkspace(
+    input: getWorkspaceInput,
+    options?: CallOptions,
+  ): Promise<getWorkspaceOutput> {
+    return this.call(
+      "getWorkspace",
+      input,
+      options,
+    ) as Promise<getWorkspaceOutput>;
+  }
+  updateWorkspace(
+    input: updateWorkspaceInput,
+    options?: CallOptions,
+  ): Promise<updateWorkspaceOutput> {
+    return this.call(
+      "updateWorkspace",
+      input,
+      options,
+    ) as Promise<updateWorkspaceOutput>;
+  }
+  listWorkspaceMembers(
+    input: listWorkspaceMembersInput,
+    options?: CallOptions,
+  ): Promise<listWorkspaceMembersOutput> {
+    return this.call(
+      "listWorkspaceMembers",
+      input,
+      options,
+    ) as Promise<listWorkspaceMembersOutput>;
+  }
+  addWorkspaceMember(
+    input: addWorkspaceMemberInput,
+    options?: CallOptions,
+  ): Promise<addWorkspaceMemberOutput> {
+    return this.call(
+      "addWorkspaceMember",
+      input,
+      options,
+    ) as Promise<addWorkspaceMemberOutput>;
+  }
+  removeWorkspaceMember(
+    input: removeWorkspaceMemberInput,
+    options?: CallOptions,
+  ): Promise<removeWorkspaceMemberOutput> {
+    return this.call(
+      "removeWorkspaceMember",
+      input,
+      options,
+    ) as Promise<removeWorkspaceMemberOutput>;
   }
 }

@@ -1,3 +1,4 @@
+import { workspaceInput } from "./workspace-input";
 import assert from "node:assert/strict";
 import { before, after } from "node:test";
 import { createRuntime } from "@rootset/core/runtime";
@@ -39,11 +40,16 @@ const execute = (
   input: Record<string, unknown>,
   idempotencyKey = newId(),
 ) =>
-  runtime.core.execute(operation, actor, input, {
-    surface: "browser",
-    idempotencyKey,
-    requestId: newId(),
-  });
+  runtime.core.execute(
+    operation,
+    actor,
+    workspaceInput(operation, actor, input),
+    {
+      surface: "browser",
+      idempotencyKey,
+      requestId: newId(),
+    },
+  );
 const ids = () => ({ orgId, databaseId, tableId });
 const resolveKey = async (secret: unknown) => {
   assert.equal(typeof secret, "string");

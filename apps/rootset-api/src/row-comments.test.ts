@@ -1,3 +1,4 @@
+import { workspaceInput } from "../../../tools/verification/workspace-input.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { serve } from "@hono/node-server";
@@ -132,9 +133,14 @@ test("row comments: native permissions, pagination, retained deletion logs, race
       input: Record<string, unknown>,
       key = newId(),
     ): Promise<T> => {
-      const value = await runtime!.core.execute(id, actor, input, {
-        idempotencyKey: key,
-      });
+      const value = await runtime!.core.execute(
+        id,
+        actor,
+        workspaceInput(id, actor, input),
+        {
+          idempotencyKey: key,
+        },
+      );
       return getOperation(id).outputSchema.parse(value) as T;
     };
     const database = await runtime.storage.createDatabase(admin, {
@@ -150,7 +156,12 @@ test("row comments: native permissions, pagination, retained deletion logs, race
     const second = await runtime.storage.createRow(admin, table.id, {
       REGISTRATION: "VT-TWO",
     });
-    const ids = { orgId, databaseId: database.id, tableId: table.id };
+    const ids = {
+      workspaceId: orgId,
+      orgId,
+      databaseId: database.id,
+      tableId: table.id,
+    };
     const target = { ...ids, rowId: row.id };
     t.beforeEach(async () => {
       await withOrg(db.owner, orgId, (client) =>
@@ -578,12 +589,12 @@ test("row comments: native permissions, pagination, retained deletion logs, race
             "Content-Type": "application/json",
             "Idempotency-Key": newId(),
           },
-          body: JSON.stringify({ body: "From REST" }),
+          body: JSON.stringify({ workspaceId: orgId, body: "From REST" }),
         });
         assert.equal(rest.status, 201, await rest.clone().text());
         const created = (await rest.json()) as { id: string };
         const browser = await app!.request(
-          basePath.replace("/v1", "/api/internal/v1"),
+          `${basePath.replace("/v1", "/api/internal/v1")}?workspaceId=${orgId}`,
           { headers: { Cookie: cookie, Origin: baseURL } },
         );
         assert.equal(browser.status, 200);
@@ -654,7 +665,7 @@ test("row comments: native permissions, pagination, retained deletion logs, race
         for (const comment of (await list()).data)
           await remove(admin, comment.id);
         const team = KeyCreatedSchema.parse(
-          await execute("createTeamKey", admin, {
+          await execute("createWorkspaceKey", admin, {
             orgId,
             name: "Fleet bot",
             access: "edit",

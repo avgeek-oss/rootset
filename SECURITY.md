@@ -13,7 +13,9 @@ and redact secrets from logs and screenshots.
 ## Security boundaries
 
 An installation has one organisation and three membership roles: Admin, Member
-and Viewer. Admin includes installation management. Personal API keys use live
+and Viewer. Workspace membership limits access without changing those roles.
+Default is shared; private workspaces require explicit membership even for admins.
+Workspace API keys are restricted to their workspace. Admin includes installation management. Personal API keys use live
 membership authority and their configured permission ceiling. OAuth additionally
 limits operations through consent and validates PKCE, clients and token audiences.
 

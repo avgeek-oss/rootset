@@ -1,11 +1,11 @@
 ---
 title: "API keys"
-description: "Create a personal or team API key and connect your first script."
+description: "Create a personal or workspace API key and connect your first script."
 ---
 
 import { Screenshot } from "/snippets/oss/screenshot.jsx";
 
-Use an API key to connect a script or application to Rootset's REST API. Create a personal key for your own tools, or a team key for shared automation.
+Use an API key to connect a script or application to Rootset's REST API. Create a personal key for your own tools, or a workspace key for shared automation.
 
 ## Create a personal API key
 
@@ -13,7 +13,7 @@ Use an API key to connect a script or application to Rootset's REST API. Create 
 2. Give the key a name, such as **Catalog reader**, then choose its permissions and expiry.
 3. Select **Create key** and copy the secret. Rootset shows the full key only once.
 
-A personal key follows your current workspace role. **Read-only** can view data, **Edit** can also create, update and delete records, and **Administrative** can manage databases, tables, fields and team settings. Only the permissions available to your role appear in the form.
+A personal key follows your current team role and workspace membership. **Read-only** can view data, **Edit** can also create, update and delete records, and **Administrative** can manage databases, tables, fields and team settings. Only the permissions available to your role appear in the form.
 
 <Screenshot
   light="/assets/screenshots/api-key-editor-light.png"
@@ -24,24 +24,17 @@ A personal key follows your current workspace role. **Read-only** can view data,
   height={1600}
 />
 
-## Create a team API key
+## Create a workspace API key
 
-Workspace administrators can create team-owned keys for shared scripts and services.
+Only team admins who can access a workspace can create keys for its shared scripts and services.
 
-1. Open **Team Settings → API Keys** and select **Create API key**.
+1. Open **Settings → Workspace Settings → API Keys** and select **Create API key**.
 2. Name the service that will use it, then choose its permissions and expiry.
 3. Select **Create key** and save the secret in the service's secret store.
 
-Team keys belong to the workspace. Administrators can create, rotate and revoke them from the same page.
+Workspace keys belong to one workspace and cannot access another. Administrators can create, rotate and revoke them from the same page.
 
-<Screenshot
-  light="/assets/screenshots/team-api-keys-light.png"
-  dark="/assets/screenshots/team-api-keys-dark.png"
-  alt="Team API Keys settings with the Create API key action"
-  caption="Manage credentials for shared automation in Team Settings."
-  width={2560}
-  height={1600}
-/>
+Existing team API keys are revoked by the workspace upgrade. Create replacement workspace keys and update your scripts.
 
 ## Make your first request
 
@@ -56,7 +49,7 @@ curl --fail-with-body "$ROOTSET_API_ORIGIN/v1/me" \
   --header "Authorization: Bearer $ROOTSET_API_KEY"
 ```
 
-This read-only request returns your workspace context and capabilities. Use the workspace ID from the response when calling workspace-scoped endpoints, such as [listing databases](/api-reference/listDatabases). The URL and key are client settings; use the API address rather than the web application's address.
+This read-only request returns your organisation context and capabilities. Call [list workspaces](/api-reference/listWorkspaces) to discover your accessible workspace IDs. Pass an explicit `workspaceId`, including for Default, when calling workspace-scoped endpoints, such as [listing databases](/api-reference/listDatabases). The URL and key are client settings; use the API address rather than the web application's address.
 
 Send the same `Authorization` header with other requests in the [API reference](/api-reference/request-conventions). A `401` response means authentication failed; a `403` response means the credential does not have access to that operation. Expired or revoked keys stop working.
 
