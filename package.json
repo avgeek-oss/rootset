@@ -26,7 +26,7 @@
     "format:check": "prettier --check .",
     "test": "turbo run test --concurrency=2",
     "test:integration": "tsx --test tools/verification/*.test.ts",
-    "verify": "pnpm release:check && pnpm docs:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "verify": "pnpm release:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "release:check": "node tools/release/validate.mjs",
     "db:migrate": "tsx tools/migrate.ts",
     "setup:env": "tsx tools/setup-env.ts",

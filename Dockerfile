@@ -5,9 +5,27 @@ FROM ${NODE_IMAGE} AS build
 WORKDIR /workspace
 ENV CI=true NEXT_TELEMETRY_DISABLED=1 TURBO_TELEMETRY_DISABLED=1
 RUN npm install --global pnpm@11.5.3
-COPY . .
+# Manifests first so the dependency layer is reused until the lockfile changes.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/rootset-api/package.json apps/rootset-api/
+COPY apps/rootset-web/package.json apps/rootset-web/
+COPY apps/rootset-worker/package.json apps/rootset-worker/
+COPY packages/access/package.json packages/access/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/core/package.json packages/core/
+COPY packages/database/package.json packages/database/
+COPY packages/email/package.json packages/email/
+COPY packages/idempotency/package.json packages/idempotency/
+COPY packages/identity/package.json packages/identity/
+COPY packages/jobs/package.json packages/jobs/
+COPY packages/oauth/package.json packages/oauth/
+COPY packages/observability/package.json packages/observability/
+COPY packages/table-storage/package.json packages/table-storage/
+COPY packages/web-client/package.json packages/web-client/
 RUN pnpm install --frozen-lockfile
-RUN pnpm typecheck && pnpm build
+COPY . .
+# The host CI type-checks the same commit; the package build scripts run tsc.
+RUN pnpm build
 
 FROM ${NODE_IMAGE} AS backend
 ARG ROOTSET_SOURCE_REVISION
