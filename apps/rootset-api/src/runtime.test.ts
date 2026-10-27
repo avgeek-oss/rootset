@@ -4,7 +4,7 @@ import { defaultWorkspaceFetch as fetch } from "../../../tools/verification/work
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
-import { stripTypeScriptTypes } from "node:module";
+import ts from "typescript";
 import { serve } from "@hono/node-server";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -740,8 +740,14 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       },
     );
     const generatedSource =
-      stripTypeScriptTypes(generateClientSource(), { mode: "transform" }) +
-      "\n//# sourceURL=rootset-generated-client-test.js";
+      // Node 26 type stripping cannot erase the generated client's parameter
+      // properties, so compile it as the contracts client test does.
+      ts.transpileModule(generateClientSource(), {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2023,
+          module: ts.ModuleKind.ESNext,
+        },
+      }).outputText + "\n//# sourceURL=rootset-generated-client-test.js";
     const generated = (await import(
       `data:text/javascript;base64,${Buffer.from(generatedSource).toString("base64")}`
     )) as {

@@ -962,11 +962,8 @@ test(
                 const download = await fetch(artifact.downloadUrl, {
                   headers: { Authorization: `Bearer ${restSecret}` },
                 });
-                assert.equal(
-                  download.status,
-                  200,
-                  download.ok ? undefined : await download.text(),
-                );
+                if (download.ok) assert.equal(download.status, 200);
+                else assert.equal(download.status, 200, await download.text());
                 const body = await download.text();
                 assert.equal(
                   createHash("sha256").update(body).digest("hex"),
