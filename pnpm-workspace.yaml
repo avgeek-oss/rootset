@@ -9,7 +9,7 @@ catalog:
   zod: 4.6.7
   pg: 8.23.1
   "@types/pg": 8.23.1
-  "@types/node": 24.19.1
+  "@types/node": 24.19.2
   drizzle-orm: 0.45.3
   better-auth: 1.7.7
   "@better-auth/drizzle-adapter": 1.7.7
@@ -52,7 +52,6 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/lib-storage@3.1145.0"
   - "@tanstack/query-core@5.104.1"
   - "@tanstack/react-query@5.104.1"
-  - "@types/node@24.19.1"
   - lucide-react@1.50.0
   - "@avgeek-oss/design-system@1.2.17"
   - "@avgeek-oss/mintlify-docs@0.1.6"
