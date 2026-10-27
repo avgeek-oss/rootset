@@ -35,7 +35,7 @@
     "auth:operator": "tsx tools/operator.ts",
     "docs:sync": "node tools/docs/sync-reference.mjs && mintlify-docs sync --config docs/site.json --dir docs",
     "docs:check": "mintlify-docs check --config docs/site.json --dir docs && node tools/docs/check.mjs",
-    "docs:dev": "cd docs && npx --yes mint@4.2.851 dev --port 4178",
+    "docs:dev": "cd docs && npx --yes mint@4.2.986 dev --port 4178",
     "docs:screenshots": "node tools/docs/capture-screenshots.mjs"
   },
   "dependencies": {
