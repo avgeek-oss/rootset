@@ -18,7 +18,7 @@ keep those asset names stable.
 After merging, wait for `verify` to pass on the exact main
 commit.
 Then run **Cut release** on main from the Actions tab: it checks the versions,
-changelog entry and CI results for the head commit, creates the matching
+the `## X.Y.Z (YYYY-MM-DD)` changelog section and CI results for the head commit, creates the matching
 `vMAJOR.MINOR.PATCH` tag there, and runs **Publish release images** with that tag.
 Creating the tag and running the publisher by hand still works. An inconsistent version, tag or commit,
 failed/incomplete CI, private repository or already published release stops the
