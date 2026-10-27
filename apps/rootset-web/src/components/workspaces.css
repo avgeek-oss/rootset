@@ -12,7 +12,6 @@
 }
 .workspace-sidebar > nav > div:nth-child(2) {
   grid-row: 3;
-  padding-top: 0.5rem;
 }
 .workspace-sidebar > nav > div:nth-child(3) {
   grid-row: 4;

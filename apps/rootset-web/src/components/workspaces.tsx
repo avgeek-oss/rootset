@@ -88,13 +88,13 @@ export function WorkspaceSwitcher({
           <Button
             id={selectorId}
             variant="secondary"
-            className="w-full justify-between"
+            className="w-full justify-between px-2"
             aria-label={`Workspace: ${current.name}`}
           >
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 items-center gap-3">
               <HugeiconsIcon
                 icon={Layers01Icon}
-                size={18}
+                size={16}
                 className="shrink-0 text-muted"
                 aria-hidden
               />
