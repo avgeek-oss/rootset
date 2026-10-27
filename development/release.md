@@ -40,6 +40,34 @@ rerun, and queued or running checks block publication. The gate retries up to
 | Installation | Pull the immutable images on both native architectures; verify setup, email verification, migrations, health, non-root execution, permissions, preserved restart and upgrades from released schemas.           |
 | Publish      | Attach the image manifest and installation files, then publish the GitHub release only after both installation checks pass.                                                                                    |
 
+### Rehearsal
+
+Pull requests that change the release workflows, `Dockerfile`, `.dockerignore`,
+`tools/release`, `.github/scripts` or the installation files run **Publish
+release images** as a rehearsal. So does a manual run with `dry_run` set (the
+tag input is then unused). On both native architectures the rehearsal:
+
+- validates package versions and installation pins;
+- builds the API, worker and UI images locally;
+- scans them for High/Critical vulnerabilities;
+- checks their platform, version, revision and source labels;
+- runs the full installation check against them.
+
+It cannot publish. Its job has only read permission and never logs in to a
+registry, its builds load images locally instead of pushing, and every real
+job, from Prepare through Publish, is skipped. Rehearsals also queue apart from
+real publications, so one can never displace a pending release.
+
+The following still run only on a real release:
+
+- the main, tag and draft-release checks;
+- the exact-commit CI gate;
+- SBOM and provenance attestations;
+- pushes by digest;
+- the multi-platform manifest and public-pull check;
+- installation from the pulled images;
+- publishing the GitHub release.
+
 All three images use one version:
 
 ```text

@@ -13,6 +13,10 @@ import {
 } from "./check.mjs";
 import { inspectPublicImage, readReleaseImages } from "./images.mjs";
 import { verifyPulledImage } from "./verify-installation.mjs";
+import {
+  rehearsalImages,
+  verifyRehearsalImages,
+} from "./check-rehearsal-images.mjs";
 
 const version = "0.1.0";
 const commit = "a".repeat(40);
@@ -426,4 +430,130 @@ test("installation rejects a pulled image from another platform or source", () =
     change(input);
     assert.throws(() => verifyPulledImage(input, "arm64", version, commit));
   }
+});
+
+test("release rehearsals cannot publish, push or displace a real release", async () => {
+  const workflow = parse(
+    await readFile(".github/workflows/release-images.yml", "utf8"),
+  );
+  // False on pull_request and on dry-run dispatches; true only for a real one.
+  const real = "github.event_name == 'workflow_dispatch' && !inputs.dry_run";
+  const rehearsal = "github.event_name == 'pull_request' || inputs.dry_run";
+  assert.deepEqual(Object.keys(workflow.on).sort(), [
+    "pull_request",
+    "workflow_dispatch",
+  ]);
+  assert.ok(
+    workflow.on.pull_request.paths.includes(
+      ".github/workflows/release-images.yml",
+    ),
+  );
+  assert.equal(workflow.on.workflow_dispatch.inputs.release_tag.required, true);
+  assert.equal(workflow.on.workflow_dispatch.inputs.dry_run.type, "boolean");
+  assert.equal(workflow.on.workflow_dispatch.inputs.dry_run.default, false);
+  // Rehearsals queue apart from publications, which are never cancelled.
+  assert.match(workflow.concurrency.group, /'rootset-release-publication'/);
+  assert.match(workflow.concurrency.group, /rootset-release-rehearsal/);
+  assert.equal(
+    workflow.concurrency["cancel-in-progress"],
+    "${{ github.event_name == 'pull_request' }}",
+  );
+  // Every real job runs only for a real release, with its gates unchanged.
+  const chain = {
+    prepare: undefined,
+    verify: "prepare",
+    build: ["prepare", "verify"],
+    manifest: ["prepare", "build"],
+    "local-installation-smoke": ["prepare", "manifest"],
+    publish: ["prepare", "manifest", "local-installation-smoke"],
+  };
+  assert.deepEqual(
+    Object.keys(workflow.jobs).sort(),
+    [...Object.keys(chain), "rehearse"].sort(),
+  );
+  for (const [name, needs] of Object.entries(chain)) {
+    assert.equal(workflow.jobs[name].if, real, `${name} is real-only`);
+    assert.deepEqual(workflow.jobs[name].needs, needs, `${name} gates`);
+  }
+  const rehearse = workflow.jobs.rehearse;
+  assert.equal(rehearse.if, rehearsal);
+  assert.equal(rehearse.needs, undefined);
+  assert.deepEqual(rehearse.permissions, { contents: "read" });
+  assert.deepEqual(rehearse.strategy.matrix.architecture, ["amd64", "arm64"]);
+  for (const step of rehearse.steps) {
+    assert.ok(!step.uses?.startsWith("docker/login-action@"), "no login");
+    assert.ok(!step.uses?.startsWith("actions/attest"), "no attestation");
+    assert.ok(!step.uses?.startsWith("actions/download-artifact@"));
+    assert.doesNotMatch(
+      step.run ?? "",
+      /docker (push|login)|imagetools|gh release|cosign|oras/,
+    );
+    if (step.uses?.startsWith("docker/build-push-action@")) {
+      assert.equal(step.with.push, false, `${step.id} must not push`);
+      assert.equal(step.with.load, true, `${step.id} loads locally`);
+      assert.equal(step.with.outputs, undefined);
+      assert.equal(step.with["cache-to"], undefined);
+      assert.doesNotMatch(JSON.stringify(step.with), /push=true|ghcr\.io/);
+    }
+  }
+  // It still builds, scans and installs every image before it stops.
+  const index = (predicate) => rehearse.steps.findIndex(predicate);
+  const smoke = index((step) =>
+    step.run?.includes(".github/scripts/verify-installation.mjs"),
+  );
+  const labels = index((step) =>
+    step.run?.includes("tools/release/check-rehearsal-images.mjs"),
+  );
+  assert.ok(labels > 0 && smoke > labels);
+  for (const [service, target] of [
+    ["api", "runtime"],
+    ["worker", "worker"],
+    ["web", "web"],
+  ]) {
+    const built = index((step) => step.id === `build_${service}`);
+    assert.equal(rehearse.steps[built].with.target, target);
+    assert.equal(rehearse.steps[built].with.tags, rehearsalImages[service]);
+    const scanned = index(
+      (step) =>
+        step.uses?.startsWith("aquasecurity/trivy-action@") &&
+        step.with?.["image-ref"] === rehearsalImages[service],
+    );
+    assert.ok(built < scanned && scanned < labels, `${service} is scanned`);
+    const scan = rehearse.steps[scanned];
+    assert.equal(scan.env.TRIVY_PLATFORM, "linux/${{ matrix.architecture }}");
+    assert.equal(scan.with.severity, "HIGH,CRITICAL");
+    assert.equal(scan.with["exit-code"], "1");
+  }
+});
+
+test("rehearsal images must carry the release platform, version, revision and source", () => {
+  const image = () => ({
+    Os: "linux",
+    Architecture: "amd64",
+    Config: {
+      Labels: {
+        "org.opencontainers.image.source":
+          "https://github.com/avgeek-oss/rootset",
+        "org.opencontainers.image.revision": commit,
+        "org.opencontainers.image.version": version,
+      },
+    },
+  });
+  const inspected = [];
+  verifyRehearsalImages(
+    (name) => (inspected.push(name), image()),
+    "amd64",
+    version,
+    commit,
+  );
+  assert.deepEqual(inspected, Object.values(rehearsalImages));
+  assert.throws(() =>
+    verifyRehearsalImages(() => image(), "arm64", version, commit),
+  );
+  assert.throws(() =>
+    verifyRehearsalImages(() => image(), "amd64", "0.2.0", commit),
+  );
+  assert.throws(() =>
+    verifyRehearsalImages(() => image(), "amd64", version, "main"),
+  );
 });

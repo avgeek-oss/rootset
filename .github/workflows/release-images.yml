@@ -1,23 +1,43 @@
 name: Publish release images
 
 on:
+  # A rehearsal: pull requests that change the release path build, scan and
+  # install the images locally and never publish (see the rehearse job).
+  pull_request:
+    paths:
+      - .github/workflows/release-images.yml
+      - .github/workflows/release.yml
+      - .github/scripts/**
+      - tools/release/**
+      - Dockerfile
+      - .dockerignore
+      - compose.images.yaml
+      - rootset.env.example
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Reviewed stable tag on main to verify and publish, for example v0.1.0
+        description: Reviewed stable tag on main to verify and publish, for example v0.1.0 (unused when dry_run is set)
         required: true
         type: string
+      dry_run:
+        description: Rehearse the build, scans and installation smoke without publishing anything
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: rootset-release-publication
-  cancel-in-progress: false
+  # Real publications share one queue and are never cancelled. Rehearsals
+  # queue per ref in a separate group, so they can never displace a release.
+  group: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && format('rootset-release-rehearsal-{0}', github.ref) || 'rootset-release-publication' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare:
     runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     permissions:
       contents: read
     outputs:
@@ -63,6 +83,7 @@ jobs:
   verify:
     name: Verify release CI
     needs: prepare
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -99,6 +120,7 @@ jobs:
   build:
     name: build (${{ matrix.architecture }})
     needs: [prepare, verify]
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     permissions:
@@ -238,6 +260,7 @@ jobs:
 
   manifest:
     needs: [prepare, build]
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -292,6 +315,7 @@ jobs:
 
   local-installation-smoke:
     needs: [prepare, manifest]
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
@@ -332,6 +356,7 @@ jobs:
 
   publish:
     needs: [prepare, manifest, local-installation-smoke]
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -357,3 +382,155 @@ jobs:
           fi
           gh release upload "$RELEASE_TAG" rootset-images.json compose.images.yaml rootset.env.example --clobber
           gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  # Rehearsal of the publication path, for pull requests that touch it and
+  # dispatches with dry_run. It builds, scans and installs every image on both
+  # native architectures, then stops: it has no write permissions, never logs
+  # in to a registry, and its builds load images locally instead of pushing.
+  # It skips only the gates that need a release tag on main or Cut release:
+  # the main/tag/version-tag and draft-release checks, and the exact-commit CI
+  # gate (Verify release CI).
+  rehearse:
+    name: rehearse (${{ matrix.architecture }})
+    if: github.event_name == 'pull_request' || inputs.dry_run
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - id: release
+        name: Validate package versions and installation pins without a tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GH_REPO" --jq .private)" = "false"
+          docker compose --env-file rootset.env.example -f compose.images.yaml config --format json > "$RUNNER_TEMP/release-compose.json"
+          node tools/release/validate.mjs "$RUNNER_TEMP/release-compose.json"
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "created=$(git show -s --format=%cI HEAD)"
+            echo "version=$(jq -r .version package.json)"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: build_api
+        name: Build the api image locally
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: runtime
+          platforms: linux/${{ matrix.architecture }}
+          push: false
+          load: true
+          tags: rootset-api:rehearsal
+          build-args: ROOTSET_SOURCE_REVISION=${{ steps.release.outputs.commit }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.release.outputs.created }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release.outputs.commit }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=release-${{ matrix.architecture }}
+      - id: build_worker
+        name: Build the worker image locally
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: worker
+          platforms: linux/${{ matrix.architecture }}
+          push: false
+          load: true
+          tags: rootset-worker:rehearsal
+          build-args: ROOTSET_SOURCE_REVISION=${{ steps.release.outputs.commit }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.release.outputs.created }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release.outputs.commit }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+          provenance: false
+          sbom: false
+      - id: build_web
+        name: Build the web image locally
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: web
+          platforms: linux/${{ matrix.architecture }}
+          push: false
+          load: true
+          tags: rootset-web:rehearsal
+          build-args: ROOTSET_SOURCE_REVISION=${{ steps.release.outputs.commit }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.release.outputs.created }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release.outputs.commit }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+          provenance: false
+          sbom: false
+      - name: Scan the api rehearsal image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        env:
+          TRIVY_PLATFORM: linux/${{ matrix.architecture }}
+        with:
+          image-ref: rootset-api:rehearsal
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Scan the worker rehearsal image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        env:
+          TRIVY_PLATFORM: linux/${{ matrix.architecture }}
+        with:
+          image-ref: rootset-worker:rehearsal
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Scan the web rehearsal image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        env:
+          TRIVY_PLATFORM: linux/${{ matrix.architecture }}
+        with:
+          image-ref: rootset-web:rehearsal
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Require the release platform, version, revision and source labels
+        env:
+          RELEASE_ARCHITECTURE: ${{ matrix.architecture }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+        run: node tools/release/check-rehearsal-images.mjs
+      - name: Verify installation, preserved restart and upgrades with the rehearsal images
+        env:
+          ROOTSET_SMOKE_CI_HOST_CPU: "1"
+          ROOTSET_SMOKE_SOURCE_REVISION: ${{ steps.release.outputs.commit }}
+          ROOTSET_SMOKE_RUNTIME_IMAGE: rootset-api:rehearsal
+          ROOTSET_SMOKE_WORKER_IMAGE: rootset-worker:rehearsal
+          ROOTSET_SMOKE_WEB_IMAGE: rootset-web:rehearsal
+        run: node .github/scripts/verify-installation.mjs
+      - name: Preserve rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-rehearsal-${{ matrix.architecture }}
+          path: verification/ci/*.json
+          if-no-files-found: warn
+          retention-days: 7
