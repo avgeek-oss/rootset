@@ -22,6 +22,20 @@ updates:
     ignore:
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
+  # The Compose files pin service images by tag and digest. The published
+  # installation file has a byte-for-byte copy under docs, so both
+  # directories are updated together. Rootset's own images follow the
+  # release version, which Cut release sets, and are never bumped here.
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /docs/installation-files
+    patterns: ["*"]
+    multi-ecosystem-group: dependencies
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "ghcr.io/avgeek-oss/rootset-*"
   - package-ecosystem: github-actions
     directory: /
     patterns: ["*"]
