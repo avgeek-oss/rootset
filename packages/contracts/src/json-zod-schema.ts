@@ -37,10 +37,29 @@ class Parser {
   constructor(private readonly source: string) {}
 
   private space() {
-    const trivia = /(?:\s+|\/\/[^\n]*|\/\*[\s\S]*?\*\/)+/y;
-    trivia.lastIndex = this.position;
-    const match = trivia.exec(this.source);
-    if (match) this.position += match[0].length;
+    while (this.position < this.source.length) {
+      if (this.source[this.position]!.trim() === "") {
+        this.position++;
+        continue;
+      }
+      if (this.source.startsWith("//", this.position)) {
+        this.position += 2;
+        while (
+          this.position < this.source.length &&
+          !"\n\r\u2028\u2029".includes(this.source[this.position]!)
+        )
+          this.position++;
+        continue;
+      }
+      if (this.source.startsWith("/*", this.position)) {
+        const end = this.source.indexOf("*/", this.position + 2);
+        if (end === -1)
+          invalid(`Unclosed block comment at character ${this.position + 1}`);
+        this.position = end + 2;
+        continue;
+      }
+      return;
+    }
   }
   private take(token: string): boolean {
     this.space();

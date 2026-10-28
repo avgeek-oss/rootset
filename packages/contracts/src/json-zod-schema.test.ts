@@ -162,6 +162,41 @@ test("schemas reject executable syntax, unsupported Zod features and excessive w
   assert.equal(compileJsonZodSchema(source), compileJsonZodSchema(source));
 });
 
+test(
+  "schema comments handle every line ending and long unterminated blocks",
+  { timeout: 2000 },
+  () => {
+    for (const ending of ["\n", "\r", "\r\n", "\u2028", "\u2029"])
+      assert.equal(
+        compileJsonZodSchema(
+          `// schema${ending}z.string() // trailing`,
+        ).schema.safeParse("ok").success,
+        true,
+      );
+    const repeated = " /*".repeat(5000);
+    const commented = compileJsonZodSchema(
+      `/*${repeated}*/ z.string() /* trailing */`,
+    );
+    assert.equal(commented.schema.safeParse("ok").success, true);
+    assert.equal(commented.schema.safeParse(1).success, false);
+    for (const source of [
+      `/*${repeated}`,
+      `z.string() /*${repeated}`,
+      "z.object({ /* unfinished",
+    ])
+      assert.throws(() => compileJsonZodSchema(source), {
+        code: "VALIDATION_FAILED",
+        message: /Unclosed block comment/,
+      });
+    assert.equal(
+      compileJsonZodSchema(
+        "z.object(/* shape */ { name: /* value */ z.string() })",
+      ).schema.safeParse({ name: "Rootset" }).success,
+      true,
+    );
+  },
+);
+
 test("schema constraints share the bounded table metadata budget and do not constrain query operands", () => {
   const wide = `${" ".repeat(16000)}z.string()`;
   assert.throws(
