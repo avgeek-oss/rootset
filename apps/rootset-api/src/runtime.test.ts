@@ -4,7 +4,7 @@ import { defaultWorkspaceFetch as fetch } from "../../../tools/verification/work
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { serve } from "@hono/node-server";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {

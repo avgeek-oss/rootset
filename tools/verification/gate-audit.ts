@@ -1,6 +1,6 @@
 import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 const root = resolve(import.meta.dirname, "../..");
 export interface Requirement {

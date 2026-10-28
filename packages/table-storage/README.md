@@ -69,7 +69,7 @@ The test environment requires PostgreSQL 18 and one configured test database URL
 pnpm exec tsx --env-file=.env.test --test packages/table-storage/src/*.test.ts
 pnpm exec tsx --env-file=.env.test packages/table-storage/src/spike.ts
 pnpm --filter @rootset/table-storage typecheck
-pnpm exec eslint packages/table-storage/src --max-warnings=0
+pnpm exec oxlint --deny-warnings packages/table-storage/src
 ```
 
 The package tests cover typed query/keyset and byte boundaries, canonical finite-number parity, depth-32 JSON, atomic mutation rollback, schema idempotency paths, actual concurrent index retry and old-snapshot races, window anchor reuse, per-cell retention, worker cancellation at publication, private token omission and artifact verification. The executable spike verifies all eight native types, UTC round trips, revisions, history, idempotency, native uniqueness and query/window behavior in a disposable installed database.
