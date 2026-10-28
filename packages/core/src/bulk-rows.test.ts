@@ -116,7 +116,11 @@ test(
       };
       for (const id of ["previewBulkRows", "bulkRows"])
         await assert.rejects(
-          call(id, input, { ...viewer, scopes: ["*"], role: "admin" }),
+          call(id, input, {
+            ...viewer,
+            scopes: ["viewer", "member", "admin"],
+            role: "admin",
+          }),
           { code: "FORBIDDEN" },
         );
       const preview = await call<BulkRowsPreview>("previewBulkRows", input);

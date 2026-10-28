@@ -1057,16 +1057,7 @@ test("V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute unde
     userId: newId(),
     orgId: actor.orgId,
     role: "viewer",
-    scopes: [
-      "exports:read",
-      "schema:read",
-      "jobs:read",
-      "jobs:cancel",
-      "jobs:retry",
-      "rows:read",
-      "tables:read",
-      "databases:read",
-    ],
+    scopes: ["viewer"],
     membershipVersion: 1,
   };
   let liveViewer: Actor | undefined = viewer;
@@ -1090,7 +1081,7 @@ test("V1-07 V1-17 V1-24: Viewer-owned export cancellation and retry execute unde
     fallback.authorise(
       {
         ...viewer,
-        scopes: viewer.scopes.filter((scope) => scope !== "schema:read"),
+        scopes: viewer.scopes.filter((scope) => scope !== "viewer"),
       },
       "exportDatabase",
       { databaseId: database.id },
@@ -1469,7 +1460,7 @@ test("V1-07 V1-20 V1-24: generic exact-count replay after control expiry preserv
   for (const changed of [
     { clientId: newId() },
     { credentialId: newId() },
-    { scopes: ["*"] },
+    { scopes: ["viewer", "member", "admin"] },
   ])
     await assert.rejects(
       () =>

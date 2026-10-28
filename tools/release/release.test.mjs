@@ -200,7 +200,7 @@ test("release builds cannot promote image digests before scanning every platform
     assert.equal(scan.with["exit-code"], "1");
     assert(!scan["continue-on-error"]);
   }
-  assert.equal(workflow.jobs.prepare.permissions.checks, "read");
+  assert.equal(workflow.jobs.prepare.permissions.checks, "viewer");
   const gate = workflow.jobs.prepare.steps.find(
     (step) => step.name === "Require the latest exact-commit CI results",
   );

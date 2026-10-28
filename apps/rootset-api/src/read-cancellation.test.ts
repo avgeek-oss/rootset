@@ -164,7 +164,7 @@ test(
         orgId: newId(),
         kind: "personal_key",
         role: "admin",
-        scopes: ["rows:read"],
+        scopes: ["viewer"],
       };
       await owner.query(
         "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Native cancellation fixture')",
@@ -713,7 +713,7 @@ test(
             identity: fixtureIdentity,
             config,
             jobs: unexpected,
-            oauth: { defaultScopes: ["rows:read"] },
+            oauth: { defaultScopes: ["viewer"] },
             observer: {
               record: (event: (typeof events)[number]) => {
                 events.push(event);

@@ -54,31 +54,11 @@ function check<T extends { error?: { message?: string } | null }>(
 }
 
 export function oauthPermissions(role: string, scopes: string[]) {
-  const adminScopes = [
-    "org:manage",
-    "members:manage",
-    "databases:manage",
-    "tables:manage",
-    "schema:manage",
-    "installation:manage",
-  ];
-  const administrative =
-    role === "admin" && adminScopes.some((scope) => scopes.includes(scope));
+  const includeAdmin = role === "admin" && scopes.includes("admin");
   const edit =
     role !== "viewer" &&
-    ["rows:write", "databases:manage", "tables:manage", "schema:manage"].some(
-      (scope) => scopes.includes(scope),
-    );
-  return {
-    access: administrative || edit ? "edit" : "read",
-    includeAdmin: administrative,
-    permissionMode:
-      administrative && !adminScopes.every((scope) => scopes.includes(scope))
-        ? "scoped-admin"
-        : administrative
-          ? "full-admin"
-          : "standard",
-  };
+    (scopes.includes("member") || scopes.includes("admin"));
+  return { access: edit ? "edit" : "read", includeAdmin };
 }
 
 export function accountKeyRows(
@@ -89,7 +69,6 @@ export function accountKeyRows(
   return [
     ...keys.map((key) => ({
       ...key,
-      permissionMode: key.includeAdmin ? "full-admin" : "standard",
       tokenType: "api-key",
       scope: "personal",
     })),

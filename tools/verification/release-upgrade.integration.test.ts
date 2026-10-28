@@ -96,7 +96,7 @@ async function fixture(t: TestContext) {
     orgId: newId(),
     kind: "operator",
     role: "admin",
-    scopes: ["*"],
+    scopes: ["viewer", "member", "admin"],
   };
   await pool.query(
     "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Upgrade proof')",
@@ -253,6 +253,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0015_workspaces.sql",
         "0016_remove_audit_logs.sql",
         "0017_json_zod_schema.sql",
+        "0018_broad_authorization_scopes.sql",
       ]);
     } else
       assert.deepEqual(await migrate(pool), [
@@ -272,6 +273,7 @@ for (const mode of ["SQL bridge", "migration runner"])
         "0015_workspaces.sql",
         "0016_remove_audit_logs.sql",
         "0017_json_zod_schema.sql",
+        "0018_broad_authorization_scopes.sql",
       ]);
     const preservedTables = before.tables.filter(
       (name) => name !== "rootset_control.migrations",
@@ -289,7 +291,7 @@ for (const mode of ["SQL bridge", "migration runner"])
     );
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0017_json_zod_schema.sql",
+      version: "0018_broad_authorization_scopes.sql",
     });
     const summary = (await storage.listTables(actor, table.databaseId)).find(
       (entry) => entry.id === table.id,
@@ -378,7 +380,7 @@ test("concurrent migration hooks apply the compatibility upgrade only once", asy
   const { pool, actor } = await fixture(t);
   const before = await snapshot(pool, actor.orgId);
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  assert.deepEqual(results.map((names) => names.length).sort(), [0, 16]);
+  assert.deepEqual(results.map((names) => names.length).sort(), [0, 17]);
   assert.equal(
     (await pool.query("SELECT count(*) FROM rootset_control.migration_repairs"))
       .rows[0].count,
@@ -445,6 +447,7 @@ test("a failure after schema creation rolls back all DDL, data and ledger change
     "0015_workspaces.sql",
     "0016_remove_audit_logs.sql",
     "0017_json_zod_schema.sql",
+    "0018_broad_authorization_scopes.sql",
   ]);
   assert.equal((await migrationStatus(pool)).complete, true);
 });

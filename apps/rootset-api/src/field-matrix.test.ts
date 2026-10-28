@@ -282,8 +282,7 @@ test(
           .digest("base64url"),
         code_challenge_method: "S256",
         resource: `${baseURL}/mcp`,
-        scope:
-          "rows:read rows:write history:read tables:read databases:read exports:read jobs:read schema:manage",
+        scope: "viewer member",
         state: "field-matrix",
       }).toString();
       const authorization = await fetch(authorize, {

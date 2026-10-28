@@ -41,7 +41,7 @@ const actor: Actor = {
   orgId,
   kind: "operator",
   role: "admin",
-  scopes: ["*"],
+  scopes: ["viewer", "member", "admin"],
 };
 try {
   await migrate(owner);

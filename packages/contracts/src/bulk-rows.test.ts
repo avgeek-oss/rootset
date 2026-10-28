@@ -59,7 +59,7 @@ test("read-only bulk previews still require write authority and a member role", 
   assert.equal(preview.readOnly, true);
   assert.equal(preview.idempotencyRequired, false);
   assert.equal(preview.minimumRole, "member");
-  assert.deepEqual(preview.scopes, ["rows:write"]);
+  assert.deepEqual(preview.scopes, ["member"]);
   assert.equal(apply.idempotencyRequired, true);
   assert.equal(apply.destructive, true);
 });

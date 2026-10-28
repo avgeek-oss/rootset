@@ -117,25 +117,25 @@ describe("account component bindings", () => {
       access: "read",
       includeAdmin: false,
     });
-    expect(oauthPermissions("admin", ["rows:read"])).toMatchObject({
+    expect(oauthPermissions("admin", ["viewer"])).toMatchObject({
       access: "read",
       includeAdmin: false,
     });
-    expect(oauthPermissions("admin", ["rows:write"])).toMatchObject({
+    expect(oauthPermissions("admin", ["member"])).toMatchObject({
       access: "edit",
       includeAdmin: false,
     });
-    expect(oauthPermissions("member", ["schema:manage"])).toMatchObject({
+    expect(oauthPermissions("member", ["member"])).toMatchObject({
       access: "edit",
       includeAdmin: false,
     });
-    expect(
-      oauthPermissions("viewer", ["rows:write", "schema:manage"]),
-    ).toMatchObject({ access: "read", includeAdmin: false });
-    expect(oauthPermissions("admin", ["schema:manage"])).toMatchObject({
+    expect(oauthPermissions("viewer", ["member"])).toMatchObject({
+      access: "read",
+      includeAdmin: false,
+    });
+    expect(oauthPermissions("admin", ["admin"])).toMatchObject({
       access: "edit",
       includeAdmin: true,
-      permissionMode: "scoped-admin",
     });
   });
 });

@@ -25,7 +25,7 @@ const actor: Actor = {
   orgId: newId(),
   kind: "operator",
   role: "admin",
-  scopes: ["*"],
+  scopes: ["viewer", "member", "admin"],
 };
 const stamp = "2026-10-17T01:02:03.123456Z";
 let admin: Pool, pool: Pool, storage: TableStorage, sourceDatabaseId: string;

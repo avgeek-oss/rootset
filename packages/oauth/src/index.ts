@@ -10,10 +10,11 @@ import {
   parseStrictJson,
   RootsetError,
   limits,
+  scopeNames,
   type Actor,
 } from "@rootset/contracts";
 
-import { keyScopes, roleAllows } from "@rootset/access";
+import { keyScopes, roleAllows, scopedRole } from "@rootset/access";
 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
@@ -58,7 +59,6 @@ type Client = {
 export interface OAuthConfig {
   baseURL: string;
   webURL?: string;
-  scopes: readonly string[];
   resolveSession: (request: Request) => Promise<Actor | null>;
   refreshActor: (actor: Actor) => Promise<Actor | null>;
   clients?: Metadata[];
@@ -397,12 +397,7 @@ export class OAuthService {
     this.origin = new URL(config.baseURL).origin;
   }
   get defaultScopes(): string[] {
-    return [
-      "databases:read",
-      "tables:read",
-      "rows:read",
-      "history:read",
-    ].filter((s) => this.config.scopes.includes(s));
+    return ["viewer"];
   }
   private resource(audience: string) {
     return `${this.origin}/${audience === "api" || audience === "v1" ? "v1" : "mcp"}`;
@@ -481,7 +476,12 @@ export class OAuthService {
         "Requested operations exceed your current role.",
         403,
       );
-    return { ...actor, kind: "oauth", scopes };
+    return {
+      ...actor,
+      kind: "oauth",
+      role: scopedRole(actor.role, scopes),
+      scopes,
+    };
   }
   async resolveActor(
     request: Request,
@@ -514,15 +514,15 @@ export class OAuthService {
       !current ||
       current.userId !== row.user_id ||
       current.orgId !== row.org_id ||
-      current.role !== actor.role
+      scopedRole(current.role, row.scopes) !== actor.role
     )
       return null;
     const parsed = ActorSchema.safeParse({
       ...actor,
-      role: current.role,
+      role: scopedRole(current.role, row.scopes),
       membershipVersion: current.membershipVersion,
       scopes: row.scopes.filter((scope: string) =>
-        roleAllows(current.role, scope),
+        roleAllows(scopedRole(current.role, row.scopes), scope),
       ),
     });
     return parsed.success ? parsed.data : null;
@@ -539,7 +539,7 @@ export class OAuthService {
         return response({
           resource: this.resource(audience),
           authorization_servers: [this.origin],
-          scopes_supported: this.config.scopes,
+          scopes_supported: scopeNames,
           bearer_methods_supported: ["header"],
         });
       }
@@ -553,7 +553,7 @@ export class OAuthService {
           grant_types_supported: ["authorization_code", "refresh_token"],
           code_challenge_methods_supported: ["S256"],
           token_endpoint_auth_methods_supported: ["none"],
-          scopes_supported: this.config.scopes,
+          scopes_supported: scopeNames,
           client_id_metadata_document_supported: true,
           ...(this.config.allowDynamicRegistration
             ? { registration_endpoint: `${this.origin}/oauth/register` }
@@ -665,9 +665,9 @@ export class OAuthService {
       .filter(Boolean);
     if (
       !scopes.length ||
-      scopes.length > 50 ||
+      scopes.length > scopeNames.length ||
       new Set(scopes).size !== scopes.length ||
-      scopes.some((s) => !this.config.scopes.includes(s))
+      scopes.some((s) => !scopeNames.some((scope) => scope === s))
     )
       throw new OAuthError(
         "invalid_scope",
@@ -835,9 +835,6 @@ export class OAuthService {
       const scopes = keyScopes(
         body.accessLevel === "read" ? "read" : "edit",
         body.accessLevel === "admin",
-      ).filter(
-        (scope) =>
-          scope !== "installation:manage" && this.config.scopes.includes(scope),
       );
       const granted = {
         ...this.grantActor(
@@ -957,14 +954,18 @@ export class OAuthService {
       !current ||
       current.userId !== grant.user_id ||
       current.orgId !== grant.org_id ||
-      current.role !== grant.actor.role
+      scopedRole(current.role, grant.scopes) !== grant.actor.role
     )
       return null;
     const effectiveScopes = grant.scopes.filter((scope: string) =>
       roleAllows(current.role, scope),
     );
     if (!effectiveScopes.length) return null;
-    return { ...grant, scopes: effectiveScopes, actor: current };
+    return {
+      ...grant,
+      scopes: effectiveScopes,
+      actor: { ...current, role: scopedRole(current.role, effectiveScopes) },
+    };
   }
   private async exchange(request: Request) {
     const f = await this.form(request),

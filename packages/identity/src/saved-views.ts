@@ -37,9 +37,9 @@ function missing(): never {
 }
 function writable(actor: Actor): boolean {
   return (
-    roleAllows(actor.role, "rows:write") &&
+    roleAllows(actor.role, "member") &&
     (!["personal_key", "workspace_key", "oauth"].includes(actor.kind) ||
-      actor.scopes.includes("rows:write"))
+      actor.scopes.includes("member"))
   );
 }
 function canEdit(actor: Actor, view: StoredSummary): boolean {
@@ -109,7 +109,7 @@ export async function executeSavedViews(
   input: Record<string, unknown>,
 ): Promise<unknown> {
   assertAccess(actor, {
-    scope: "rows:read",
+    scope: "viewer",
     orgId: String(input.orgId),
     personal: true,
   });
@@ -206,7 +206,7 @@ export async function executeSavedViews(
       : view!.visibility;
   if (visibility === "shared")
     assertAccess(actor, {
-      scope: "rows:write",
+      scope: "member",
       orgId: actor.orgId,
       personal: true,
     });

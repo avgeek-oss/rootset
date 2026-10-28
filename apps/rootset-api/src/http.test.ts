@@ -127,7 +127,7 @@ test(
       userId,
       orgId,
       role: "admin",
-      scopes: ["rows:read"],
+      scopes: ["viewer"],
       authenticatedAt: Date.now(),
     };
     await owner.query(
@@ -215,7 +215,6 @@ test(
       redirect = "https://client.example/return";
     const oauth = new OAuthService(issuer, {
       baseURL,
-      scopes: ["rows:read", "rows:write"],
       clients: [
         {
           client_id: clientId,
@@ -305,7 +304,7 @@ test(
         code_challenge: challenge,
         code_challenge_method: "S256",
         resource,
-        scope: "rows:read",
+        scope: "viewer",
       }).toString();
       const authorization = await fetch(url, {
         headers: { Cookie: "test=session" },
@@ -632,7 +631,7 @@ test(
       );
       assert.match(
         scopeChallenge.headers.get("www-authenticate") ?? "",
-        /scope="rows:read rows:write"/,
+        /scope="member"/,
       );
       const denied = await fetch(
         `${baseURL}/v1/orgs/${orgId}/databases/${databaseId}/tables/${tableId}/query`,
@@ -685,7 +684,7 @@ test(
           client_name: "Transport verification",
           redirect_uris: [redirect],
           token_endpoint_auth_method: "none",
-          scope: "rows:read",
+          scope: "viewer",
         },
         clientInformation: () => ({ client_id: clientId, issuer: baseURL }),
         tokens: () => storedTokens,

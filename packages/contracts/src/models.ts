@@ -219,7 +219,11 @@ export const FieldTypeSchema = z.enum([
   "json",
 ]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
-export const RoleSchema = z.enum(["admin", "member", "viewer"]);
+export const scopeNames = ["viewer", "member", "admin"] as const;
+export const ScopeSchema = z.enum(scopeNames);
+export type Scope = z.infer<typeof ScopeSchema>;
+
+export const RoleSchema = ScopeSchema;
 export type Role = z.infer<typeof RoleSchema>;
 export const ActorSchema = z.strictObject({
   workspaceId: IdSchema.optional(),

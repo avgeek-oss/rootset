@@ -90,6 +90,7 @@ test(
       "0015_workspaces.sql",
       "0016_remove_audit_logs.sql",
       "0017_json_zod_schema.sql",
+      "0018_broad_authorization_scopes.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       assert.equal(
@@ -154,7 +155,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0017_json_zod_schema.sql",
+      version: "0018_broad_authorization_scopes.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -312,6 +313,7 @@ test(
       "0015_workspaces.sql",
       "0016_remove_audit_logs.sql",
       "0017_json_zod_schema.sql",
+      "0018_broad_authorization_scopes.sql",
     ])
       await writeFile(
         join(directory, name),

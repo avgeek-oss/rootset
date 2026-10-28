@@ -27,7 +27,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "member", "viewer"]
+                  "enum": ["viewer", "member", "admin"]
                 }
               },
               "required": ["id", "kind", "role"],
@@ -2074,7 +2074,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "member", "viewer"]
+                    "enum": ["viewer", "member", "admin"]
                   },
                   "version": {
                     "type": "string",
@@ -2204,7 +2204,7 @@
         },
         "id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
         "name": { "type": "string", "minLength": 1, "maxLength": 120 },
-        "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+        "role": { "type": "string", "enum": ["viewer", "member", "admin"] },
         "expectedVersion": {
           "type": "string",
           "pattern": "^[1-9][0-9]{0,18}$"
@@ -2244,7 +2244,7 @@
               "format": "email",
               "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
-            "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+            "role": { "type": "string", "enum": ["viewer", "member", "admin"] },
             "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
             "verified": { "type": "boolean" },
             "twoFactorEnabled": { "type": "boolean" }
@@ -20879,7 +20879,7 @@
   {
     "name": "rootset_mutate_rows",
     "title": "mutateRows",
-    "description": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
+    "description": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with admin and write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31133,7 +31133,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "member", "viewer"]
+                    "enum": ["viewer", "member", "admin"]
                   }
                 },
                 "required": ["userId", "name", "email", "role"],
@@ -31280,7 +31280,7 @@
               "format": "email",
               "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
-            "role": { "type": "string", "enum": ["admin", "member", "viewer"] }
+            "role": { "type": "string", "enum": ["viewer", "member", "admin"] }
           },
           "required": ["userId", "name", "email", "role"],
           "additionalProperties": false

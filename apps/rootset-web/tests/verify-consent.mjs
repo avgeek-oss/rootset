@@ -56,7 +56,7 @@ function authorization(state) {
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
     resource,
-    scope: "rows:read tables:read",
+    scope: "viewer",
     state,
     organization_id: fixture.orgId,
   }).toString();
@@ -72,7 +72,7 @@ async function review(request) {
   ).toBeEnabled();
   await expect(page.locator(".identity-panel")).toContainText(clientId);
   await expect(page.locator(".identity-panel")).toContainText(resource);
-  await expect(page.locator(".identity-panel")).toContainText("rows:read");
+  await expect(page.locator(".identity-panel")).toContainText("read");
   await expect(page.locator(".identity-panel")).toContainText(
     "Registered by an installation administrator",
   );

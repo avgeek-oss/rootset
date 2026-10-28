@@ -16,7 +16,7 @@ const actor: Actor = {
   orgId: newId(),
   kind: "operator",
   role: "admin",
-  scopes: ["*"],
+  scopes: ["viewer", "member", "admin"],
 };
 let admin: Pool, pool: Pool, storage: TableStorage, databaseId: string;
 before(async () => {

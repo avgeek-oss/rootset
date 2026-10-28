@@ -15,7 +15,7 @@ flowchart LR
 
 ## Access and behavior
 
-Use a personal OAuth connection for the signed-in account. The connection needs `account:security` scope.
+Use a personal OAuth connection for the signed-in account. The connection needs `member` scope.
 
 - This tool changes data or starts work. Confirm the target and input before calling it.
 - Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.

@@ -13,38 +13,30 @@ export class AccessError extends RootsetError {
   }
 }
 
-export const ALL_SCOPES = Object.freeze([...scopeNames, "installation:manage"]);
-
-const personalScopes = new Set([
-  "profile:manage",
-  "account:security",
-  "keys:manage",
-]);
+export const ALL_SCOPES = scopeNames;
 
 export function roleAllows(role: Role, scope: string): boolean {
-  if (!ALL_SCOPES.includes(scope as (typeof ALL_SCOPES)[number])) return false;
-  if (role === "admin") return true;
-  if (scope.startsWith("backups:") || scope.startsWith("workspaces:"))
-    return false;
-  if (personalScopes.has(scope) || scope === "org:read") return true;
-  if (scope === "members:read" || scope.startsWith("installation:"))
-    return false;
-  if (scope.endsWith(":read")) return true;
-  // Job ownership and purpose authority are rechecked by the job service.
-  if (scope === "jobs:cancel" || scope === "jobs:retry") return true;
   return (
-    role === "member" &&
-    [
-      "rows:write",
-      "databases:manage",
-      "tables:manage",
-      "schema:manage",
-    ].includes(scope)
+    scope === "viewer" ||
+    (scope === "member" && role !== "viewer") ||
+    (scope === "admin" && role === "admin")
   );
 }
 
 export function roleScopes(role: Role): string[] {
-  return ALL_SCOPES.filter((scope) => roleAllows(role, scope));
+  return scopeNames.filter((scope) => roleAllows(role, scope));
+}
+
+export function scopesAllow(
+  scopes: readonly string[],
+  required: string,
+): boolean {
+  return (
+    scopeNames.includes(required as (typeof scopeNames)[number]) &&
+    (scopes.includes(required) ||
+      scopes.includes("admin") ||
+      (required === "viewer" && scopes.includes("member")))
+  );
 }
 
 export function keyRole(
@@ -60,21 +52,16 @@ export function keyScopes(
   access: "read" | "edit",
   includeAdmin: boolean,
 ): string[] {
-  if (access === "read")
-    return ALL_SCOPES.filter((scope) => scope.endsWith(":read"));
-  if (includeAdmin) return [...ALL_SCOPES];
-  return roleScopes("member").filter((scope) => !personalScopes.has(scope));
+  return roleScopes(
+    access === "read" ? "viewer" : includeAdmin ? "admin" : "member",
+  );
 }
 
-export function workspaceKeyScopes(
-  access: "read" | "edit",
-  includeAdmin: boolean,
-): string[] {
-  return keyScopes(access, includeAdmin).filter(
-    (scope) =>
-      /^(rows|databases|tables|schema|history|jobs|backups|exports):/.test(
-        scope,
-      ) || scope === "org:read",
+export function scopedRole(role: Role, scopes: readonly string[]): Role {
+  return keyRole(
+    role,
+    scopesAllow(scopes, "member") ? "edit" : "read",
+    scopesAllow(scopes, "admin"),
   );
 }
 
@@ -96,12 +83,10 @@ export function assertAccess(
     );
   if (actor.kind === "operator" && actor.role !== "admin")
     throw new AccessError("FORBIDDEN", "Admin authority is required");
-  if (requirement.roles && !requirement.roles.includes(actor.role))
-    throw new AccessError(
-      "FORBIDDEN",
-      "Your role does not allow this operation",
-    );
-  if (!roleAllows(actor.role, requirement.scope))
+  if (
+    (requirement.roles && !requirement.roles.includes(actor.role)) ||
+    !roleAllows(actor.role, requirement.scope)
+  )
     throw new AccessError(
       "FORBIDDEN",
       "Your role does not allow this operation",
@@ -110,7 +95,7 @@ export function assertAccess(
     (actor.kind === "oauth" ||
       actor.kind === "personal_key" ||
       actor.kind === "workspace_key") &&
-    !actor.scopes.includes(requirement.scope)
+    !scopesAllow(actor.scopes, requirement.scope)
   )
     throw new AccessError(
       "INSUFFICIENT_SCOPE",
@@ -128,7 +113,7 @@ export function assertDelegation(actor: Actor, scopes: string[]): void {
         ((actor.kind === "oauth" ||
           actor.kind === "personal_key" ||
           actor.kind === "workspace_key") &&
-          !actor.scopes.includes(scope)),
+          !scopesAllow(actor.scopes, scope)),
     )
   )
     throw new AccessError(

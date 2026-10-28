@@ -120,7 +120,7 @@ test(
       // Token issuance is exercised by the HTTP/MCP suite; this grant checks persisted revocation state.
       const grantId = newId();
       await fixture.owner.query(
-        `INSERT INTO rootset_control.oauth_grants(id,org_id,user_id,client_id,scopes,actor,resource) VALUES($1,$2,$3,'signout-fixture-client',ARRAY['rows:read'],$4,$5)`,
+        `INSERT INTO rootset_control.oauth_grants(id,org_id,user_id,client_id,scopes,actor,resource) VALUES($1,$2,$3,'signout-fixture-client',ARRAY['read'],$4,$5)`,
         [
           grantId,
           actor.orgId,
@@ -1119,7 +1119,7 @@ test(
           const policyActor = await service.refreshPolicyActor(principal);
           assert.equal(policyActor.userId, actor.userId);
           assert.equal(policyActor.role, "admin");
-          assert.ok(policyActor.scopes.includes("schema:manage"));
+          assert.ok(policyActor.scopes.includes("member"));
         },
       );
       await t.test(
@@ -1472,7 +1472,7 @@ test(
             includeAdmin: admin.role === "admin",
             expiresAt: "2030-01-01T00:00:00.000Z",
             name: "Removed authority selector",
-            scopes: ["rows:write"],
+            scopes: ["member"],
           }),
         (error) => (error as { code: string }).code === "VALIDATION_FAILED",
       );
@@ -1531,7 +1531,7 @@ test(
       });
       const downgraded = await service.refreshActor(personal);
       assert.equal(downgraded.role, "viewer");
-      assert.ok(!downgraded.scopes.includes("rows:write"));
+      assert.ok(!downgraded.scopes.includes("member"));
       await assert.rejects(
         () =>
           execute("updateMember", peer, {

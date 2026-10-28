@@ -54,7 +54,7 @@ const owner: Actor = {
   userId: newId(),
   orgId: newId(),
   role: "admin",
-  scopes: ["rows:read", "rows:write"],
+  scopes: ["viewer", "member"],
 };
 const ids = {
   workspaceId: owner.orgId,
@@ -144,7 +144,7 @@ function fixture() {
     config: { baseURL: "http://mcp-fixture.localhost" },
     identity,
     oauth: {
-      defaultScopes: ["rows:read", "rows:write"],
+      defaultScopes: ["viewer", "member"],
     } as ApiDependencies["oauth"],
     core: {
       execute: async (operation, actor, _input, context) => {

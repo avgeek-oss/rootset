@@ -76,7 +76,7 @@ describe("Settings transport contract", () => {
       resolveSettingsOperation("/me/keys", "POST", {
         orgId,
         name: "Integration",
-        scopes: ["rows:read"],
+        scopes: ["viewer"],
         targets: [{ databaseId }],
       }),
     ).toThrow();

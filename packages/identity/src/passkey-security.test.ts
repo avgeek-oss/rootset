@@ -540,7 +540,6 @@ test(
             );
           const oauth = new OAuthService(fixture.identity, {
             baseURL: origin,
-            scopes: ["rows:read"],
             clients: [
               {
                 client_id: "passkey-recovery-test",
@@ -562,7 +561,7 @@ test(
               .digest("base64url"),
             code_challenge_method: "S256",
             resource: `${origin}/mcp`,
-            scope: "rows:read",
+            scope: "viewer",
             state: "recovery-proof",
           }).toString();
           const started = (await oauth.handler(

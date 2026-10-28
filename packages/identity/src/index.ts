@@ -26,9 +26,9 @@ import {
   ALL_SCOPES,
   keyRole,
   keyScopes,
-  workspaceKeyScopes,
   assertAccess,
   roleAllows,
+  scopedRole,
   type Actor,
   type Role,
 } from "@rootset/access";
@@ -582,7 +582,7 @@ export class IdentityService {
           credentialId: actor.credentialId ?? actor.id,
           orgId: actor.orgId,
           role: keyRole("admin", key.access, key.include_admin),
-          scopes: workspaceKeyScopes(key.access, key.include_admin),
+          scopes: keyScopes(key.access, key.include_admin),
         };
       }
       const membership = (
@@ -649,6 +649,7 @@ export class IdentityService {
         grantedScopes = actor.scopes.filter((scope) =>
           (grant.scopes as string[]).includes(scope),
         );
+        effectiveRole = scopedRole(membership.role, grantedScopes);
       }
       return {
         kind: actor.kind,
@@ -1241,7 +1242,13 @@ export class IdentityService {
           notFound();
         for (const scope of definition.scopes)
           assertAccess(actor, {
-            scope,
+            scope:
+              actor.kind === "session" &&
+              definition.personal &&
+              definition.resource !== "table" &&
+              scope === "member"
+                ? "viewer"
+                : scope,
             personal: definition.personal,
             orgId: actor.orgId,
           });
@@ -1259,7 +1266,7 @@ export class IdentityService {
         ).rows[0];
         if (!table) notFound();
         assertAccess(actor, {
-          scope: "rows:read",
+          scope: "viewer",
           personal: true,
         });
       }
@@ -1297,9 +1304,9 @@ export class IdentityService {
     context: ExecutionContext,
   ): Promise<unknown> {
     const personal = () =>
-      assertAccess(actor, { scope: "profile:manage", personal: true });
+      assertAccess(actor, { scope: "viewer", personal: true });
     const security = () =>
-      assertAccess(actor, { scope: "account:security", personal: true });
+      assertAccess(actor, { scope: "viewer", personal: true });
     const org = (scope: string, roles?: Role[]) =>
       assertAccess(actor, {
         scope,
@@ -1323,11 +1330,11 @@ export class IdentityService {
           ).rows[0],
           scopes: actor.scopes,
           profile:
-            actor.userId && actor.scopes.includes("profile:manage")
+            actor.userId && actor.scopes.includes("viewer")
               ? await this.getProfile(client, actor.userId)
               : null,
           preferences:
-            actor.userId && actor.scopes.includes("profile:manage")
+            actor.userId && actor.scopes.includes("viewer")
               ? await this.readPreferences(client, actor.userId)
               : null,
           onboarding: {
@@ -1372,7 +1379,7 @@ export class IdentityService {
       }
       case "getPreferenceOptions": {
         const selected =
-          actor.userId && actor.scopes.includes("profile:manage")
+          actor.userId && actor.scopes.includes("viewer")
             ? (await this.readPreferences(client, actor.userId)).timezone
             : undefined;
         return {
@@ -1465,7 +1472,7 @@ export class IdentityService {
         return { deleted: true };
       }
       case "getOrganisation":
-        org("org:read");
+        org("viewer");
         return (
           await client.query(
             `SELECT id,name,created_at "createdAt",updated_at "updatedAt" FROM rootset_control.organisations WHERE id=$1`,
@@ -1473,7 +1480,7 @@ export class IdentityService {
           )
         ).rows[0];
       case "updateOrganisation": {
-        org("org:manage", ["admin"]);
+        org("admin", ["admin"]);
         const update = parse(
           z.strictObject({
             orgId: IdSchema.optional(),
@@ -1494,7 +1501,7 @@ export class IdentityService {
         );
       }
       case "listMembers":
-        org("members:read", ["admin"]);
+        org("admin", ["admin"]);
         return this.page(
           client,
           actor,
@@ -1507,7 +1514,7 @@ export class IdentityService {
       case "removeMember":
         return this.mutateMember(client, operation, actor, input);
       case "listInvitations":
-        org("members:manage", ["admin"]);
+        org("admin", ["admin"]);
         return this.page(
           client,
           actor,
@@ -1524,7 +1531,7 @@ export class IdentityService {
       case "inviteMember":
         return this.inviteMember(client, actor, input);
       case "cancelInvitation": {
-        org("members:manage", ["admin"]);
+        org("admin", ["admin"]);
         const id = parse(IdSchema, input.id);
         const result = await client.query(
           `UPDATE rootset_control.invitations SET state='cancelled' WHERE id=$1 AND org_id=$2 AND state='pending' RETURNING id`,
@@ -1534,7 +1541,7 @@ export class IdentityService {
         return { deleted: true };
       }
       case "listPersonalKeys": {
-        assertAccess(actor, { scope: "keys:manage", personal: true });
+        assertAccess(actor, { scope: "viewer", personal: true });
         return this.page(
           client,
           actor,
@@ -1547,7 +1554,7 @@ export class IdentityService {
       }
       case "listWorkspaceKeys": {
         assertAccess(actor, {
-          scope: "workspace-keys:manage",
+          scope: "admin",
           roles: ["admin"],
           personal: true,
         });
@@ -1614,7 +1621,7 @@ export class IdentityService {
         ).rows[0];
         if (!table) notFound();
         assertAccess(actor, {
-          scope: "rows:read",
+          scope: "viewer",
           personal: true,
         });
         if (operation === "getViewPreferences") {
@@ -1810,7 +1817,7 @@ export class IdentityService {
     input: Record<string, unknown>,
   ): Promise<unknown> {
     assertAccess(actor, {
-      scope: "members:manage",
+      scope: "admin",
       orgId: input.orgId as string | undefined,
       roles: ["admin"],
     });
@@ -1906,7 +1913,7 @@ export class IdentityService {
     input: Record<string, unknown>,
   ): Promise<unknown> {
     assertAccess(actor, {
-      scope: "members:manage",
+      scope: "admin",
       orgId: input.orgId as string | undefined,
       roles: ["admin"],
       personal: true,
@@ -2376,9 +2383,7 @@ export class IdentityService {
     await this.lockUserAuthorities(client, [actor.userId!]);
     actor = await this.hydrateActor(actor, true, client);
     assertAccess(actor, {
-      scope: operation.endsWith("WorkspaceKey")
-        ? "workspace-keys:manage"
-        : "keys:manage",
+      scope: operation.endsWith("WorkspaceKey") ? "admin" : "viewer",
       personal: true,
       ...(operation.endsWith("WorkspaceKey")
         ? { roles: ["admin" as const] }
@@ -2454,7 +2459,7 @@ export class IdentityService {
     actor = await this.hydrateActor(actor, true, client);
     const scope = operation.endsWith("WorkspaceKey") ? "workspace" : "personal";
     assertAccess(actor, {
-      scope: scope === "workspace" ? "workspace-keys:manage" : "keys:manage",
+      scope: scope === "workspace" ? "admin" : "viewer",
       ...(scope === "workspace" ? { roles: ["admin" as const] } : {}),
       personal: true,
     });
@@ -2600,7 +2605,7 @@ export class IdentityService {
     scope: "personal" | "workspace" = "personal",
   ): Promise<unknown> {
     assertAccess(actor, {
-      scope: scope === "workspace" ? "workspace-keys:manage" : "keys:manage",
+      scope: scope === "workspace" ? "admin" : "viewer",
       ...(scope === "workspace" ? { roles: ["admin" as const] } : {}),
       personal: true,
     });
@@ -2621,7 +2626,7 @@ export class IdentityService {
     actor: Actor,
     input: Record<string, unknown>,
   ): Promise<unknown> {
-    assertAccess(actor, { scope: "account:security", personal: true });
+    assertAccess(actor, { scope: "viewer", personal: true });
     const data = parse(
       z.strictObject({
         currentPassword: z.string().max(1024).optional(),
@@ -2674,7 +2679,7 @@ export class IdentityService {
     actor: Actor,
     input: Record<string, unknown>,
   ): Promise<unknown> {
-    assertAccess(actor, { scope: "account:security", personal: true });
+    assertAccess(actor, { scope: "viewer", personal: true });
     const data = parse(z.strictObject({ newEmail: emailSchema }), input);
     this.assertSensitive(actor, "changeEmail");
     const user = (
@@ -2724,7 +2729,7 @@ export class IdentityService {
     const actor = await this.resolveActor(request, "browser");
     if (!actor?.userId)
       throw new RootsetError("UNAUTHENTICATED", "Sign in to continue", 401);
-    assertAccess(actor, { scope: "account:security", personal: true });
+    assertAccess(actor, { scope: "viewer", personal: true });
     const result = await withOrg(
       this.config.pool,
       actor.orgId,

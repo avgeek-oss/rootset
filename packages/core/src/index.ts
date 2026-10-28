@@ -349,7 +349,13 @@ export class RootsetCore {
     }
     for (const scope of op.scopes) {
       assertAccess(actor, {
-        scope,
+        scope:
+          actor.kind === "session" &&
+          op.personal &&
+          op.resource !== "table" &&
+          scope === "member"
+            ? "viewer"
+            : scope,
         orgId,
         personal: op.personal,
         ...(!op.personal && op.minimumRole === "admin"
@@ -365,7 +371,7 @@ export class RootsetCore {
       );
     if (operationId === "mutateRows" && input.repair !== undefined)
       assertAccess(actor, {
-        scope: "installation:manage",
+        scope: "admin",
         roles: ["admin"],
         personal: true,
         orgId,
@@ -1122,7 +1128,7 @@ export class RootsetCore {
                 current.workspaceId,
                 client,
               );
-            assertAccess(current, { scope: "rows:write", orgId: a.orgId });
+            assertAccess(current, { scope: "member", orgId: a.orgId });
             assertReadOpen(ctx);
           },
         };

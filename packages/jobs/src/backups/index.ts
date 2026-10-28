@@ -624,7 +624,7 @@ export class DatabaseBackups {
             workspaceId: candidate.workspace_id,
             orgId,
             role: "admin",
-            scopes: ["backups:manage"],
+            scopes: ["admin"],
           };
           await this.enqueue(
             client,
