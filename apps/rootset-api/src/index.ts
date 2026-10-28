@@ -21,9 +21,24 @@ let closing = false;
 async function shutdown() {
   if (closing) return;
   closing = true;
-  server.close(async () => {
-    await runtime.close();
-    process.exitCode = 0;
+  // server.close ignores its callback's result, so handle the runtime close
+  // here: a failure is logged and exits non-zero instead of becoming an
+  // unhandled rejection.
+  server.close(() => {
+    runtime.close().then(
+      () => {
+        process.exitCode = 0;
+      },
+      (error: unknown) => {
+        console.error(
+          JSON.stringify({
+            event: "rootset_api_shutdown_failed",
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+        process.exitCode = 1;
+      },
+    );
   });
   setTimeout(() => process.exit(1), 10_000).unref();
 }
