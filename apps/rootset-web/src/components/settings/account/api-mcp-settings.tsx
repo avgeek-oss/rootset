@@ -504,7 +504,13 @@ function CreateKey({
     }
   }
   return (
-    <form onSubmit={submit} className="content-grid">
+    <form
+      onSubmit={(event) => {
+        // submit reports its own errors with a toast.
+        void submit(event);
+      }}
+      className="content-grid"
+    >
       <div className="flex flex-col gap-2">
         <Label htmlFor={nameId} isRequired>
           Name

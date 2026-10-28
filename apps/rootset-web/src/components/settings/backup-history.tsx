@@ -140,25 +140,36 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
     !hasActiveBackup &&
     !pendingJobId,
   );
+  async function startBackup() {
+    if (!canStartBackup || starting.current) return;
+    starting.current = true;
+    const result = await mutation.run(() =>
+      performAction<{ jobId: string }>("runDatabaseBackup", {
+        orgId: props.orgId,
+        databaseId: props.databaseId,
+      }),
+    );
+    if (result.ok) {
+      setPendingJobId(result.value.jobId);
+      setCursors([""]);
+      setPage(0);
+      latest.reload();
+    } else starting.current = false;
+  }
+  async function cancelRun(run: DatabaseBackup) {
+    const result = await mutation.run(
+      () => performAction("cancelJob", { orgId: props.orgId, id: run.jobId }),
+      "Cancellation requested.",
+    );
+    if (result.ok) history.reload();
+  }
   const actions = useMemo(
     () => (
       <Button
         isDisabled={!canStartBackup}
-        onPress={async () => {
-          if (!canStartBackup || starting.current) return;
-          starting.current = true;
-          const result = await mutation.run(() =>
-            performAction<{ jobId: string }>("runDatabaseBackup", {
-              orgId: props.orgId,
-              databaseId: props.databaseId,
-            }),
-          );
-          if (result.ok) {
-            setPendingJobId(result.value.jobId);
-            setCursors([""]);
-            setPage(0);
-            latest.reload();
-          } else starting.current = false;
+        onPress={() => {
+          // startBackup reports its own errors through the mutation.
+          void startBackup();
         }}
       >
         <Backup />
@@ -345,16 +356,9 @@ export function BackupHistorySettings(props: SettingsPanelProps) {
                   <Button
                     variant="secondary"
                     isDisabled={mutation.busy}
-                    onPress={async () => {
-                      const result = await mutation.run(
-                        () =>
-                          performAction("cancelJob", {
-                            orgId: props.orgId,
-                            id: run.jobId,
-                          }),
-                        "Cancellation requested.",
-                      );
-                      if (result.ok) history.reload();
+                    onPress={() => {
+                      // cancelRun reports its own errors through the mutation.
+                      void cancelRun(run);
                     }}
                   >
                     <Stop />

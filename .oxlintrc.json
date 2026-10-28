@@ -65,7 +65,13 @@
       }
     },
     {
-      "files": ["apps/rootset-api/**", "packages/**", "tools/**"],
+      "files": [
+        "apps/rootset-api/**",
+        "apps/rootset-web/**",
+        "apps/rootset-worker/**",
+        "packages/**",
+        "tools/**"
+      ],
       "rules": {
         "typescript/no-floating-promises": [
           "error",

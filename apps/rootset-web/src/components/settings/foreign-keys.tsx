@@ -116,6 +116,29 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
               "The table relation could not be created."),
       );
   }, [pendingJobId, job.data, schema.reload, props.onChanged]);
+  async function removeRelation(
+    rule: TableSchemaResult["foreignKeys"][number],
+  ) {
+    if (
+      !(await confirmation.confirm(
+        "Remove table relation?",
+        "Future writes will no longer require a matching value in the referenced table.",
+        "Remove",
+      ))
+    )
+      return;
+    const result = await mutation.run(
+      () =>
+        write(`${path}/foreign-keys/${rule.id}`, "DELETE", {
+          expectedSchemaVersion: schema.data.table.schemaVersion,
+        }),
+      "Table relation removed.",
+    );
+    if (result.ok) {
+      schema.reload();
+      props.onChanged?.();
+    }
+  }
   if (!path) return <Empty>Select a table to manage table relations.</Empty>;
   return (
     <>
@@ -162,27 +185,9 @@ export function ForeignKeysSettings(props: SettingsPanelProps) {
                   <Button
                     variant="danger-soft"
                     isDisabled={disabled}
-                    onPress={async () => {
-                      if (
-                        !(await confirmation.confirm(
-                          "Remove table relation?",
-                          "Future writes will no longer require a matching value in the referenced table.",
-                          "Remove",
-                        ))
-                      )
-                        return;
-                      const result = await mutation.run(
-                        () =>
-                          write(`${path}/foreign-keys/${rule.id}`, "DELETE", {
-                            expectedSchemaVersion:
-                              schema.data.table.schemaVersion,
-                          }),
-                        "Table relation removed.",
-                      );
-                      if (result.ok) {
-                        schema.reload();
-                        props.onChanged?.();
-                      }
+                    onPress={() => {
+                      // removeRelation reports its own errors through the mutation.
+                      void removeRelation(rule);
                     }}
                   >
                     <Trash2 />

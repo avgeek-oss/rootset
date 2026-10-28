@@ -170,6 +170,32 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
   }, [cron, timezone, input, previewRequested, props.databaseId]);
   const clearError = (name: string) =>
     setFieldErrors((errors) => ({ ...errors, [name]: "" }));
+  async function deleteSchedule() {
+    const result = await mutation.run(
+      () =>
+        performAction<BackupScheduleResult>("deleteBackupSchedule", {
+          ...input,
+          expectedVersion: version,
+        }),
+      "Backup schedule deleted.",
+    );
+    if (result.ok) {
+      if (pending) {
+        completed.current.add(pending);
+        setPending(undefined);
+      }
+      resource.replace(result.value);
+      setVersion(result.value.version);
+      setBucket("");
+      setPrefix("");
+      setCron("0 2 * * *");
+      setTimezone(props.preferences?.timezone ?? "UTC");
+      setPreview([]);
+      setPreviewRequested(false);
+      setFieldErrors({});
+      setFormError(undefined);
+    }
+  }
   if (!path) return <Empty>Select a database to manage backups.</Empty>;
   return (
     <>
@@ -203,31 +229,9 @@ export function BackupScheduleSettings(props: SettingsPanelProps) {
                     type="button"
                     variant="danger-soft"
                     isDisabled={mutation.busy}
-                    onPress={async () => {
-                      const result = await mutation.run(
-                        () =>
-                          performAction<BackupScheduleResult>(
-                            "deleteBackupSchedule",
-                            { ...input, expectedVersion: version },
-                          ),
-                        "Backup schedule deleted.",
-                      );
-                      if (result.ok) {
-                        if (pending) {
-                          completed.current.add(pending);
-                          setPending(undefined);
-                        }
-                        resource.replace(result.value);
-                        setVersion(result.value.version);
-                        setBucket("");
-                        setPrefix("");
-                        setCron("0 2 * * *");
-                        setTimezone(props.preferences?.timezone ?? "UTC");
-                        setPreview([]);
-                        setPreviewRequested(false);
-                        setFieldErrors({});
-                        setFormError(undefined);
-                      }
+                    onPress={() => {
+                      // deleteSchedule reports its own errors through the mutation.
+                      void deleteSchedule();
                     }}
                   >
                     <Trash2 />

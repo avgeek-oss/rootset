@@ -1025,11 +1025,15 @@ export function Spreadsheet({
     currentSelection.current = selection;
   }, [rows, selection]);
   useEffect(() => () => copyAbort.current?.abort(), [copyContext]);
-  async function leaveEditor(action: () => void) {
+  // Never rejects: the editor submit reports its own errors, so event handlers
+  // call this with void.
+  async function leaveEditor(action: () => void | Promise<void>) {
     if (saving) return;
     if (draft && (await submitEditor.current?.()) !== true) return;
-    action();
+    await action();
   }
+  // Never rejects: loading and selection failures are reported with a toast, so
+  // event handlers call this with void.
   async function recordsChanged(created = false, createdIds: string[] = []) {
     createdSelectionAbort.current?.abort();
     const controller = new AbortController();
@@ -1407,7 +1411,7 @@ export function Spreadsheet({
     if (column.key === "__row_number" && ["Enter", " "].includes(event.key)) {
       event.preventDefault();
       event.preventGridDefault();
-      leaveEditor(() =>
+      void leaveEditor(() =>
         setDiscussion({
           rowId: row.id,
           rowNumber: windowStart + rowIdx + 1,
@@ -2008,7 +2012,7 @@ export function Spreadsheet({
       renderCell: ({ row, rowIdx, tabIndex }) => {
         if (isPlaceholderRow(row)) return null;
         const openDiscussion = () =>
-          leaveEditor(() =>
+          void leaveEditor(() =>
             setDiscussion({
               rowId: row.id,
               rowNumber: windowStart + rowIdx + 1,
@@ -2401,7 +2405,7 @@ export function Spreadsheet({
             saving
           }
           isEditing={filterVisible}
-          onPress={() => leaveEditor(() => setFilterVisible(true))}
+          onPress={() => void leaveEditor(() => setFilterVisible(true))}
         />
         {canEdit && (
           <Button
@@ -2426,7 +2430,7 @@ export function Spreadsheet({
           canEdit={writable}
           onClose={() => setRecordEditor(null)}
           onSaved={(_row, created) => {
-            recordsChanged(created);
+            void recordsChanged(created);
           }}
           onAccessLost={recordAccessLost}
         />
@@ -2436,7 +2440,7 @@ export function Spreadsheet({
           target={{ orgId, databaseId, tableId: table.id }}
           preferences={preferences}
           onClose={() => setImportOpen(false)}
-          onImported={() => recordsChanged(true)}
+          onImported={() => void recordsChanged(true)}
           onAccessLost={recordAccessLost}
         />
       )}
@@ -2645,7 +2649,7 @@ export function Spreadsheet({
                 if (saving) {
                   event.preventDefault();
                   event.stopPropagation();
-                } else leaveEditor(() => {});
+                } else void leaveEditor(() => {});
               }
             }}
             onPaste={(event) => {
@@ -2722,7 +2726,7 @@ export function Spreadsheet({
                 extendSelection.current = event.shiftKey;
                 if (draft) {
                   event.preventGridDefault();
-                  leaveEditor(() => args.setActivePosition());
+                  void leaveEditor(() => args.setActivePosition());
                 }
               }}
               onCellDoubleClick={({ row, column }, event) => {
@@ -2746,7 +2750,7 @@ export function Spreadsheet({
                   openRecordContextMenu(row, column.key, anchor);
                   return;
                 }
-                leaveEditor(() => {
+                void leaveEditor(() => {
                   focusCell(rowIdx, column.idx - systemColumns);
                   openRecordContextMenu(row, column.key, anchor);
                 });

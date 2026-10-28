@@ -57,6 +57,7 @@ import {
   type Job,
   type TableField,
   type TableSchemaResult,
+  type UniqueRule,
 } from "./types";
 
 import { FIELD_TYPE_OPTIONS, FieldTypeIcon } from "./field-type-options";
@@ -149,6 +150,22 @@ export function TableDangerZone(props: SettingsPanelProps) {
     props.onClose();
   });
   const confirmation = useConfirmation();
+  async function deleteTable() {
+    if (
+      await confirmation.confirm(
+        "Delete this table?",
+        `Delete ${schema.data.table.name || "this table"}? Its rows and fields will no longer be accessible, and its cell changelogs will be deleted.`,
+        "Delete table",
+      )
+    )
+      await mutation.run(
+        () =>
+          write(schema.path!, "DELETE", {
+            expectedSchemaVersion: schema.data.table.schemaVersion,
+          }),
+        "Table deletion requested.",
+      );
+  }
   if (!schema.path)
     return <Empty>Select a table to manage its settings.</Empty>;
   return (
@@ -161,21 +178,9 @@ export function TableDangerZone(props: SettingsPanelProps) {
         <Button
           variant="danger-soft"
           isDisabled={mutation.busy}
-          onPress={async () => {
-            if (
-              await confirmation.confirm(
-                "Delete this table?",
-                `Delete ${schema.data.table.name || "this table"}? Its rows and fields will no longer be accessible, and its cell changelogs will be deleted.`,
-                "Delete table",
-              )
-            )
-              await mutation.run(
-                () =>
-                  write(schema.path!, "DELETE", {
-                    expectedSchemaVersion: schema.data.table.schemaVersion,
-                  }),
-                "Table deletion requested.",
-              );
+          onPress={() => {
+            // deleteTable reports its own errors through the mutation.
+            void deleteTable();
           }}
         >
           <Trash2 />
@@ -527,6 +532,34 @@ export function FieldsSettings(props: SettingsPanelProps) {
     }
   }
   const confirmation = useConfirmation();
+  async function removeField(field: TableField) {
+    const dependencies = schema.data.uniqueRules.filter(
+      (rule) =>
+        (rule.fieldIds ?? rule.fields ?? []).includes(field.id) ||
+        rule.where?.field === field.id,
+    );
+    if (
+      await confirmation.confirm(
+        "Remove this field?",
+        `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent unique rules will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
+        "Remove field",
+      )
+    ) {
+      const result = await mutation.run(
+        () =>
+          write<TableSchemaResult | { jobId: string }>(
+            `${schema.path}/fields/${field.id}`,
+            "DELETE",
+            {
+              expectedSchemaVersion: schema.data.table.schemaVersion,
+              removeDependencies: dependencies.length > 0,
+            },
+          ),
+        "Field removal requested.",
+      );
+      if (result.ok) applySchema(result.value);
+    }
+  }
   const [editing, setEditing] = useState<TableField>();
   const [formOpen, setFormOpen] = useState(false);
   type FieldPreview = {
@@ -750,35 +783,9 @@ export function FieldsSettings(props: SettingsPanelProps) {
                   <Button
                     variant="danger-soft"
                     isDisabled={disabled}
-                    onPress={async () => {
-                      const dependencies = schema.data.uniqueRules.filter(
-                        (rule) =>
-                          (rule.fieldIds ?? rule.fields ?? []).includes(
-                            field.id,
-                          ) || rule.where?.field === field.id,
-                      );
-                      if (
-                        await confirmation.confirm(
-                          "Remove this field?",
-                          `${field.name} will be removed from the active table. ${dependencies.length ? `${dependencies.length} dependent unique rules will also be removed. ` : ""}Its cell changelogs are permanently removed.`,
-                          "Remove field",
-                        )
-                      ) {
-                        const result = await mutation.run(
-                          () =>
-                            write<TableSchemaResult | { jobId: string }>(
-                              `${schema.path}/fields/${field.id}`,
-                              "DELETE",
-                              {
-                                expectedSchemaVersion:
-                                  schema.data.table.schemaVersion,
-                                removeDependencies: dependencies.length > 0,
-                              },
-                            ),
-                          "Field removal requested.",
-                        );
-                        if (result.ok) applySchema(result.value);
-                      }
+                    onPress={() => {
+                      // removeField reports its own errors through the mutation.
+                      void removeField(field);
                     }}
                   >
                     <Trash2 />
@@ -865,6 +872,27 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
     }
   }, [pendingJobId, job.data, schema.reload, props.onChanged]);
   const confirmation = useConfirmation();
+  async function removeRule(rule: UniqueRule) {
+    if (
+      await confirmation.confirm(
+        "Remove unique rule?",
+        "Future writes will no longer enforce this uniqueness rule.",
+        "Remove",
+      )
+    ) {
+      const result = await mutation.run(
+        () =>
+          write(`${schema.path}/unique-rules/${rule.id}`, "DELETE", {
+            expectedSchemaVersion: schema.data.table.schemaVersion,
+          }),
+        "Unique rule removed.",
+      );
+      if (result.ok) {
+        schema.reload();
+        props.onChanged?.();
+      }
+    }
+  }
   const [formOpen, setFormOpen] = useState(false);
   const [fieldIds, setFieldIds] = useState<string[]>([]);
   const [conditional, setConditional] = useState(false);
@@ -973,31 +1001,9 @@ export function UniqueRulesSettings(props: SettingsPanelProps) {
                     <Button
                       variant="danger-soft"
                       isDisabled={disabled}
-                      onPress={async () => {
-                        if (
-                          await confirmation.confirm(
-                            "Remove unique rule?",
-                            "Future writes will no longer enforce this uniqueness rule.",
-                            "Remove",
-                          )
-                        ) {
-                          const result = await mutation.run(
-                            () =>
-                              write(
-                                `${schema.path}/unique-rules/${rule.id}`,
-                                "DELETE",
-                                {
-                                  expectedSchemaVersion:
-                                    schema.data.table.schemaVersion,
-                                },
-                              ),
-                            "Unique rule removed.",
-                          );
-                          if (result.ok) {
-                            schema.reload();
-                            props.onChanged?.();
-                          }
-                        }
+                      onPress={() => {
+                        // removeRule reports its own errors through the mutation.
+                        void removeRule(rule);
                       }}
                     >
                       <Trash2 />

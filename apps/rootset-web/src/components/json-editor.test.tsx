@@ -45,14 +45,14 @@ describe("JSON editor", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("reports edits to the current callback and retains undo history across renders", () => {
+  it("reports edits to the current callback and retains undo history across renders", async () => {
     const first = vi.fn();
     const view = render({ label: "Payload", value: "{}", onChange: first });
     act(() => view.dispatch({ changes: { from: 1, insert: '"count":0' } }));
     expect(first).toHaveBeenCalledWith('{"count":0}');
     const latest = vi.fn();
     render({ label: "Payload", value: '{"count":0}', onChange: latest });
-    act(() => undo(view));
+    await act(() => undo(view));
     expect(view.state.doc.toString()).toBe("{}");
     expect(latest).toHaveBeenCalledWith("{}");
     expect(first).toHaveBeenCalledOnce();
@@ -147,7 +147,7 @@ describe("inline JSON keyboard and focus boundaries", () => {
       );
     });
     expect(onCommit).not.toHaveBeenCalled();
-    act(() =>
+    await act(() =>
       input.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "Escape",
