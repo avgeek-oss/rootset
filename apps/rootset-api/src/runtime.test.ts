@@ -1,6 +1,8 @@
 import { workspaceInput } from "../../../tools/verification/workspace-input.js";
-import { defaultWorkspaceToolCall } from "../../../tools/verification/workspace-transport";
-import { defaultWorkspaceFetch as fetch } from "../../../tools/verification/workspace-transport";
+import {
+  defaultWorkspaceToolCall,
+  defaultWorkspaceFetch as fetch,
+} from "../../../tools/verification/workspace-transport";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
@@ -1633,6 +1635,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       "rootset_preview_restore",
       "rootset_restore_backup",
       "rootset_list_notifications",
+      "rootset_list_activity",
+      "rootset_list_activity_filter_options",
+      "rootset_get_activity_details",
       "rootset_mark_all_notifications_read",
     ])
       assert.equal(
@@ -1640,6 +1645,24 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         false,
       );
     assert(publishedTools.some((tool) => tool.name === "rootset_create_row"));
+    for (const surface of ["/v1", "/api/internal/v1"])
+      for (const path of [
+        "activity",
+        "activity/filters",
+        "activity/details/r:1",
+      ])
+        assert.equal(
+          (
+            await request(
+              `${surface}/orgs/${orgId}/${path}`,
+              "GET",
+              undefined,
+              { browser: true },
+            )
+          ).status,
+          404,
+        );
+
     for (const surface of ["/v1", "/api/internal/v1"])
       assert.equal(
         (
@@ -1750,66 +1773,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         unknown
       >;
     };
-    await t.test(
-      "activity REST, browser and MCP share summaries, current scope ceilings and principal-bound cursors",
-      async () => {
-        const input = { ...ids, category: "records", limit: 25 };
-        const rest = await call("listActivity", input, "rest");
-        const browser = await call("listActivity", input, "browser");
-        const mcp = await mcpOperation("listActivity", input);
-        assert.ok(rest.data.length > 0);
-        assert.deepEqual(browser.data, rest.data);
-        assert.deepEqual(mcp.data, rest.data);
-        const eventId = rest.data[0].id;
-        const eventDetails = await call(
-          "getActivityDetails",
-          { orgId, eventId },
-          "rest",
-        );
-        assert.deepEqual(
-          await call("getActivityDetails", { orgId, eventId }, "browser"),
-          eventDetails,
-        );
-        assert.deepEqual(
-          await mcpOperation("getActivityDetails", { orgId, eventId }),
-          eventDetails,
-        );
-        assert.equal(eventDetails.event, "records.changed");
-        assert.ok(
-          !/Example Air|scopes|credentialId|input_digest/.test(
-            JSON.stringify(eventDetails),
-          ),
-        );
-        assert.ok(
-          !/Example Air|scopes|credentialId|input_digest/.test(
-            JSON.stringify(rest),
-          ),
-        );
-        await call(
-          "listActivity",
-          { orgId, category: "backups" },
-          "rest",
-          403,
-          newId(),
-          readKey.secret,
-        );
-        const first = await call("listActivity", { orgId, limit: 1 }, "rest");
-        assert.ok(first.nextCursor);
-        const mismatch = await call(
-          "listActivity",
-          { orgId, limit: 1, cursor: first.nextCursor },
-          "browser",
-          409,
-        );
-        assert.equal(mismatch.error.code, "CURSOR_INVALID");
-        await call(
-          "listActivity",
-          { orgId, from: "2026-02-30T00:00:00.000Z" },
-          "rest",
-          422,
-        );
-      },
-    );
     await t.test(
       "issued MCP OAuth uses the database backup contracts and current Admin authority",
       async () => {

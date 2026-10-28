@@ -40,7 +40,10 @@ test("workspace upgrade buckets existing databases into Default and revokes ever
       "INSERT INTO rootset_control.api_keys(id,org_id,scope,access,include_admin,name,secret_hash,prefix) VALUES($1,$2,'team','edit',true,'Old team key','hash','rst_old')",
       [keyId, orgId],
     );
-    assert.deepEqual(await migrate(fixture.owner), ["0015_workspaces.sql"]);
+    assert.deepEqual(await migrate(fixture.owner), [
+      "0015_workspaces.sql",
+      "0016_remove_audit_logs.sql",
+    ]);
     const workspace = (
       await fixture.owner.query(
         "SELECT w.*,d.workspace_id FROM rootset_control.workspaces w JOIN rootset_control.databases d ON d.workspace_id=w.id WHERE d.id=$1",

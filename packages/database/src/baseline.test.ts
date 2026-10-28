@@ -88,18 +88,24 @@ test(
       "0013_activity_job_events.sql",
       "0014_resource_data_changes.sql",
       "0015_workspaces.sql",
+      "0016_remove_audit_logs.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
+      assert.equal(
+        (
+          await client.query(
+            "SELECT to_regclass('rootset_control.activity_job_events') AS relation",
+          )
+        ).rows[0].relation,
+        null,
+      );
       assert.deepEqual(
         (
           await client.query(
-            "SELECT state,to_char(occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') occurred_at FROM rootset_control.activity_job_events WHERE job_id='00000000000000000000000031' ORDER BY occurred_at",
+            "SELECT state FROM rootset_control.jobs WHERE id='00000000000000000000000031'",
           )
         ).rows,
-        [
-          { state: "queued", occurred_at: "2026-01-01T01:02:03.123456Z" },
-          { state: "failed", occurred_at: "2026-01-02T01:02:03.654321Z" },
-        ],
+        [{ state: "failed" }],
       );
       assert.deepEqual(
         (
@@ -147,7 +153,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0015_workspaces.sql",
+      version: "0016_remove_audit_logs.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -274,7 +280,6 @@ test(
       "backup_policies",
       "backup_alerts",
       "restore_results",
-      "activity_job_events",
     ])
       assert.notEqual(
         (
@@ -304,6 +309,7 @@ test(
       "0013_activity_job_events.sql",
       "0014_resource_data_changes.sql",
       "0015_workspaces.sql",
+      "0016_remove_audit_logs.sql",
     ])
       await writeFile(
         join(directory, name),

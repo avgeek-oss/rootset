@@ -117,13 +117,17 @@ describe("page navigation", () => {
     const slow = deferred<string>();
     const fast = deferred<string>();
     requests.set("backup schedule", slow);
-    requests.set("audit logs", fast);
+    requests.set("workspace settings", fast);
     await act(async () => navigate("backup schedule"));
-    await act(async () => navigate("audit logs"));
-    await act(async () => fast.resolve("Audit events"));
-    expect(container.querySelector("h1")?.textContent).toBe("audit logs");
+    await act(async () => navigate("workspace settings"));
+    await act(async () => fast.resolve("Workspace settings"));
+    expect(container.querySelector("h1")?.textContent).toBe(
+      "workspace settings",
+    );
     await act(async () => slow.resolve("Old destination"));
-    expect(container.querySelector("h1")?.textContent).toBe("audit logs");
+    expect(container.querySelector("h1")?.textContent).toBe(
+      "workspace settings",
+    );
     expect(commits).not.toContain("backup schedule");
   });
 

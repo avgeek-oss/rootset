@@ -39,7 +39,6 @@ import { MetadataPaging } from "./paging.js";
 import { readUsage } from "./usage.js";
 import { mapSchemaJournal } from "./schema-journal.js";
 import { rowComments } from "./row-comments.js";
-import { ActivityReader } from "./activity.js";
 
 export interface OperationContext {
   requestId?: string;
@@ -243,26 +242,11 @@ const jobOperations = new Set([
 
 export class RootsetCore {
   readonly paging: MetadataPaging;
-  readonly activity: ActivityReader;
   readonly workspaces: Workspaces;
   constructor(readonly options: CoreOptions) {
     this.workspaces = new Workspaces(options.pool);
     this.paging =
       options.paging ?? new MetadataPaging(options.config.cursorSecret);
-    this.activity = new ActivityReader({
-      pool: options.pool,
-      secret: options.config.cursorSecret,
-      refreshActor: async (actor, client) => {
-        const current = await options.identity.refreshActor(actor, client);
-        if (current.workspaceId)
-          await this.workspaces.assertAccess(
-            current,
-            current.workspaceId,
-            client,
-          );
-        return current;
-      },
-    });
   }
   async authorise(
     incoming: Actor,
@@ -325,7 +309,6 @@ export class RootsetCore {
     const archivedResource =
       operationId === "deleteDatabase" ||
       operationId === "deleteTable" ||
-      operationId === "listActivity" ||
       typeof input.backupId === "string";
     if (tableId) {
       const table = await (archivedResource
@@ -1290,21 +1273,6 @@ export class RootsetCore {
           hasMore: r.hasMore,
         };
       }
-      case "listActivity":
-        return this.activity.list(a, input, {
-          signal: readSignal(ctx),
-          responseBudget: ctx.responseBudget,
-        });
-      case "listActivityFilterOptions":
-        return this.activity.filters(a, input, {
-          signal: readSignal(ctx),
-          responseBudget: ctx.responseBudget,
-        });
-      case "getActivityDetails":
-        return this.activity.details(a, input, {
-          signal: readSignal(ctx),
-          responseBudget: ctx.responseBudget,
-        });
       case "queryHistory": {
         const r = await s.queryHistory(a, tableId, {
           ...input,

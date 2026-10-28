@@ -4,7 +4,7 @@ import {
   WorkspaceAccessSettings,
   TeamWorkspacesSettings,
 } from "../workspaces";
-import { lazy, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Page } from "@avgeek-oss/design-system/layouts/page";
 import { ContentPage, SettingsPageTitle } from "@avgeek-oss/design-system";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -22,7 +22,6 @@ import {
 import { PasskeySettings } from "./account/passkey-settings";
 import { ApiMcpSettings } from "./account/api-mcp-settings";
 import { settingsIcons, settingsScope } from "./navigation";
-
 import { useResource } from "./api";
 import { OrganisationSettings, MembersSettings } from "./accounts";
 import { PreferencesSettings } from "./preferences";
@@ -50,12 +49,6 @@ import "./settings.css";
 
 export type { SettingsPanelProps, SettingsSection } from "./types";
 
-const WorkspaceAuditLogsPage = lazy(() =>
-  import("../activity-page").then((module) => ({
-    default: module.AuditLogsPage,
-  })),
-);
-
 export function SettingsPanel(props: SettingsPanelProps) {
   const activeSection = props.section;
   const commonSettings = ["account", "team", "workspace"].includes(
@@ -82,7 +75,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const components = {
     "workspace-general": WorkspaceDetailsSettings,
     "workspace-danger-zone": WorkspaceDetailsSettings,
-    "workspace-audit-logs": WorkspaceAuditLogsPage,
     "workspace-access": WorkspaceAccessSettings,
     "team-workspaces": TeamWorkspacesSettings,
     organisation: OrganisationSettings,
@@ -147,9 +139,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   return (
     <PageSelectionContext.Provider value={setSelection}>
       <RelativeTimeProvider>
-        {activeSection === "workspace-audit-logs" ? (
-          content
-        ) : commonSettings && activeSection === "passkeys" ? (
+        {commonSettings && activeSection === "passkeys" ? (
           <Page>
             <div className="min-w-0">{content}</div>
             <IdentityConfirmation />
