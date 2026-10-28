@@ -103,6 +103,8 @@ export interface IdentityPaging {
 }
 const nameSchema = AccountNameSchema;
 const emailSchema = z.string().trim().toLowerCase().email().max(320);
+const SIGN_IN_ACCOUNT_LIMIT = 10;
+const SIGN_IN_ACCOUNT_WINDOW = "15 minutes";
 const passwordSchema = z.string().min(15).max(1024);
 const signOutEverywhereInputSchema = z.strictObject({
   revokeDelegated: z.boolean().optional(),
@@ -751,16 +753,52 @@ export class IdentityService {
     const oauth = await this.config.oauthResolver?.(request, audience);
     return oauth ? this.refreshActor(oauth) : null;
   }
+  // Counts one attempt in a bucket and returns the attempts in its current
+  // window. A bucket whose window has passed starts again at one.
+  private async countAttempt(key: string, window: string): Promise<number> {
+    const result = await this.config.pool.query(
+      `INSERT INTO rootset_control.identity_rate_limits(bucket_hash,attempts,expires_at) VALUES($1,1,now()+$2::interval) ON CONFLICT(bucket_hash) DO UPDATE SET attempts=CASE WHEN identity_rate_limits.expires_at<=now() THEN 1 ELSE identity_rate_limits.attempts+1 END,expires_at=CASE WHEN identity_rate_limits.expires_at<=now() THEN now()+$2::interval ELSE identity_rate_limits.expires_at END RETURNING attempts`,
+      [this.hashSecret(key), window],
+    );
+    return result.rows[0].attempts;
+  }
   private async limitRequest(request: Request, path: string): Promise<void> {
     const address =
       request.headers.get("x-rootset-client-address") ?? "unknown";
-    const key = this.hashSecret(`${address}:${path}`);
-    const result = await this.config.pool.query(
-      `INSERT INTO rootset_control.identity_rate_limits(bucket_hash,attempts,expires_at) VALUES($1,1,now()+interval '1 minute') ON CONFLICT(bucket_hash) DO UPDATE SET attempts=CASE WHEN identity_rate_limits.expires_at<=now() THEN 1 ELSE identity_rate_limits.attempts+1 END,expires_at=CASE WHEN identity_rate_limits.expires_at<=now() THEN now()+interval '1 minute' ELSE identity_rate_limits.expires_at END RETURNING attempts`,
-      [key],
-    );
-    if (result.rows[0].attempts > 20)
+    if ((await this.countAttempt(`${address}:${path}`, "1 minute")) > 20)
       throw new RootsetError("RATE_LIMITED", "Try again in one minute", 429);
+  }
+  // Password sign-in is also limited per account, whatever the address:
+  // SIGN_IN_ACCOUNT_LIMIT attempts per window. Every attempt is counted up
+  // front, so parallel guesses cannot overrun the limit, and a successful
+  // sign-in clears the bucket, so in effect only failures since the last
+  // success count. The bucket is keyed by the normalised email whether or
+  // not an account exists, and the refusal is the same either way.
+  private signInAccountKey(body: unknown): string | null {
+    const email =
+      body && typeof body === "object" && "email" in body
+        ? (body as { email: unknown }).email
+        : undefined;
+    return typeof email === "string" && email.trim()
+      ? `sign-in-account:${email.trim().toLowerCase()}`
+      : null;
+  }
+  private async limitSignInAccount(key: string): Promise<void> {
+    if (
+      (await this.countAttempt(key, SIGN_IN_ACCOUNT_WINDOW)) >
+      SIGN_IN_ACCOUNT_LIMIT
+    )
+      throw new RootsetError(
+        "RATE_LIMITED",
+        "Too many sign-in attempts. Try again later",
+        429,
+      );
+  }
+  private async clearSignInAccount(key: string): Promise<void> {
+    await this.config.pool.query(
+      `DELETE FROM rootset_control.identity_rate_limits WHERE bucket_hash=$1`,
+      [this.hashSecret(key)],
+    );
   }
   private async handleAuth(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname.replace(/^\/v1\/auth/, "");
@@ -945,6 +983,28 @@ export class IdentityService {
           },
         );
         response = Response.json({ recoveryCodes });
+      } else if (path === "/sign-in/email" && request.method === "POST") {
+        const accountKey = this.signInAccountKey(
+          await request
+            .clone()
+            .json()
+            .catch(() => null),
+        );
+        if (accountKey) await this.limitSignInAccount(accountKey);
+        response = await this.rawAuth.handler(request);
+        // A passkey challenge is not a sign-in yet; the count clears only
+        // once a session is issued.
+        if (
+          accountKey &&
+          response.ok &&
+          !(
+            (await response
+              .clone()
+              .json()
+              .catch(() => null)) as { twoFactorRedirect?: unknown } | null
+          )?.twoFactorRedirect
+        )
+          await this.clearSignInAccount(accountKey);
       } else response = await this.rawAuth.handler(request);
       if (response.ok && passkeySession) {
         const payload = (await response.clone().json()) as {
