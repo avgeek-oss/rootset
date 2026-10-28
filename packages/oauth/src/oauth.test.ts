@@ -370,6 +370,49 @@ test(
     }),
 );
 test(
+  "a replayed authorization code revokes the grant only with the right code verifier",
+  { skip: !databaseURL },
+  async () =>
+    fixture(async ({ owner, service, grant }) => {
+      const g = await grant();
+      const tokens = (await service.handler(form(exchange(g))))!;
+      assert.equal(tokens.status, 200);
+      const { access_token: accessToken } = await tokens.json();
+      const active = async () =>
+        (await service.resolveActor(
+          new Request(`${baseURL}/mcp`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          "mcp",
+        )) !== null;
+      const revokedAt = async () =>
+        (
+          await owner.query(
+            "SELECT revoked_at FROM rootset_control.oauth_grants WHERE id=$1",
+            [g.grantId],
+          )
+        ).rows[0].revoked_at;
+
+      // Without the verifier, a replay is refused and the grant stays.
+      for (const verifier of ["x".repeat(43), "", "short"]) {
+        const replay = (await service.handler(
+          form({ ...exchange(g), code_verifier: verifier }),
+        ))!;
+        assert.equal(replay.status, 400);
+        assert.equal((await replay.json()).error, "invalid_grant");
+      }
+      assert.equal(await revokedAt(), null);
+      assert.equal(await active(), true);
+
+      // A replay that passes the client and verifier checks revokes it.
+      const replay = (await service.handler(form(exchange(g))))!;
+      assert.equal(replay.status, 400);
+      assert.equal((await replay.json()).error, "invalid_grant");
+      assert.notEqual(await revokedAt(), null);
+      assert.equal(await active(), false);
+    }),
+);
+test(
   "standard OAuth parameters bind the installation organisation and freeze operation consent",
   { skip: !databaseURL },
   async () =>

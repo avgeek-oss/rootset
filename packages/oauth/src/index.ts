@@ -996,13 +996,6 @@ export class OAuthService {
           row.redirect_uri !== f.get("redirect_uri")
         )
           return response({ error: "invalid_grant" }, 400);
-        if (row.consumed_at) {
-          await db.query(
-            "UPDATE rootset_control.oauth_grants SET revoked_at=now() WHERE id=$1",
-            [row.grant_id],
-          );
-          return response({ error: "invalid_grant" }, 400);
-        }
         const verifier = f.get("code_verifier") ?? "";
         if (
           !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
@@ -1012,6 +1005,16 @@ export class OAuthService {
           )
         )
           return response({ error: "invalid_grant" }, 400);
+        // A replayed code revokes its grant, but only once the request has
+        // proved it holds the code verifier; a request without it is refused
+        // above and leaves the grant alone.
+        if (row.consumed_at) {
+          await db.query(
+            "UPDATE rootset_control.oauth_grants SET revoked_at=now() WHERE id=$1",
+            [row.grant_id],
+          );
+          return response({ error: "invalid_grant" }, 400);
+        }
         await db.query(
           "UPDATE rootset_control.oauth_codes SET consumed_at=now() WHERE digest=$1",
           [row.digest],
