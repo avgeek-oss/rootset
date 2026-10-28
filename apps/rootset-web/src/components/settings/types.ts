@@ -9,7 +9,6 @@ import type { z } from "zod";
 export type SettingsSection =
   | "workspace-general"
   | "workspace-access"
-  | "workspace-audit-logs"
   | "workspace-danger-zone"
   | "team-workspaces"
   | "organisation"
@@ -212,7 +211,6 @@ export const FIELD_TYPES: TableField["type"][] = [
 export const SECTION_LABELS: Record<SettingsSection, string> = {
   "workspace-general": "General",
   "workspace-access": "Manage Access",
-  "workspace-audit-logs": "Audit Logs",
   "workspace-danger-zone": "Delete workspace",
   "team-workspaces": "Workspaces",
   organisation: "General",
@@ -244,7 +242,6 @@ export const SECTION_LABELS: Record<SettingsSection, string> = {
 const ADMIN_SETTINGS: readonly SettingsSection[] = [
   "workspace-general",
   "workspace-access",
-  "workspace-audit-logs",
   "workspace-danger-zone",
   "team-workspaces",
   "backup-schedule",

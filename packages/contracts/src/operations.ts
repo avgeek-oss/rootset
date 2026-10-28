@@ -29,14 +29,6 @@ import {
 } from "./views";
 import { z } from "zod";
 import {
-  ActivityInputSchema,
-  ActivityPageSchema,
-  ActivityFilterInputSchema,
-  ActivityFilterOptionsSchema,
-  ActivityDetailsInputSchema,
-  ActivityDetailsSchema,
-} from "./activity";
-import {
   AccountNameSchema,
   CanonicalUtcDateTimeSchema,
   ActorSchema,
@@ -185,7 +177,7 @@ function operation(
 ): void {
   const readOnly = settings.readOnly ?? method === "GET";
   const workspaceScoped =
-    /^\/v1\/orgs\/\{orgId\}\/(databases|jobs|artifacts|activity|backups|workspace-keys|mutations)(?:\/|$)/.test(
+    /^\/v1\/orgs\/\{orgId\}\/(databases|jobs|artifacts|backups|workspace-keys|mutations)(?:\/|$)/.test(
       path,
     ) || path.includes("{tableId}");
   if (workspaceScoped && inputSchema instanceof z.ZodObject)
@@ -1307,45 +1299,6 @@ operation(
   "Read the latest 200 saved changes for an existing cell.",
 );
 operation(
-  "listActivity",
-  "list_activity",
-  "GET",
-  `${O}/activity`,
-  ["history:read"],
-  ActivityInputSchema,
-  ActivityPageSchema,
-  "Search bounded record, schema and job activity under current permissions. Cursors preserve a fixed cutoff; refresh to include newer events.",
-  { minimumRole: "admin" },
-);
-operation(
-  "listActivityFilterOptions",
-  "list_activity_filter_options",
-  "GET",
-  `${O}/activity/filters`,
-  ["history:read"],
-  ActivityFilterInputSchema,
-  ActivityFilterOptionsSchema,
-  "Find actors or resources in permitted audit history, independently of event pagination. Narrow the search when more matches are available.",
-  { minimumRole: "admin" },
-);
-operation(
-  "getActivityDetails",
-  "get_activity_details",
-  "GET",
-  `${O}/activity/details/{eventId}`,
-  ["history:read"],
-  ActivityDetailsInputSchema,
-  ActivityDetailsSchema,
-  "Read concise audit event context under current history, resource and job permissions. Includes retained field names and changes without record values or private job payloads.",
-  {
-    minimumRole: "admin",
-    example: {
-      orgId: "01K6J7B8000000000000000000",
-      eventId: "r:1",
-    },
-  },
-);
-operation(
   "queryHistory",
   "query_history",
   "POST",
@@ -1810,7 +1763,7 @@ operation(
   ["members:read"],
   z.strictObject({ ...org }),
   list(WorkspaceSchema),
-  "List every workspace for team administration, without granting access to its databases or audit logs.",
+  "List every workspace for team administration, without granting access to its databases.",
   { minimumRole: "admin" },
 );
 operation(

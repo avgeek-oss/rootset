@@ -30,7 +30,15 @@ import {
   QueryError,
   QueryLoading,
 } from "@avgeek-oss/design-system/patterns/feedback/query-state";
-import { AuthPage } from "@avgeek-oss/design-system";
+import {
+  AuthPage,
+  ApplicationSidebar,
+  AppLayout,
+  AppShell,
+  ApplicationNavbar,
+  SidebarAccountMenu,
+  useTheme,
+} from "@avgeek-oss/design-system";
 import { ConsentScreen } from "./mcp-oauth-consent";
 import {
   ContextSchema,
@@ -55,14 +63,6 @@ import {
   settingsScope,
   PageNavigation,
 } from "./settings/navigation";
-import {
-  ApplicationSidebar,
-  AppLayout,
-  AppShell,
-  ApplicationNavbar,
-  SidebarAccountMenu,
-  useTheme,
-} from "@avgeek-oss/design-system";
 import { RouteProvider } from "@avgeek-oss/design-system/hooks/route-context";
 import { AppShellBreadcrumb } from "@avgeek-oss/design-system/layouts/app-shell-breadcrumb";
 import { usePersistentAppSidebar } from "@avgeek-oss/design-system/layouts/app-shell";
@@ -100,11 +100,6 @@ const Spreadsheet = lazy(() =>
 );
 const SettingsPanel = lazy(() =>
   import("./settings").then((module) => ({ default: module.SettingsPanel })),
-);
-const AuditLogsPage = lazy(() =>
-  import("./activity-page").then((module) => ({
-    default: module.AuditLogsPage,
-  })),
 );
 
 import { WorkspaceSwitcher } from "./workspaces";
@@ -154,14 +149,8 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
   const route = resourceRoute(path);
-  const auditLogsPage =
-    path === "/audit-logs" || path === "/workspace-settings/audit-logs";
-  const databaseId = auditLogsPage
-    ? null
-    : (route.databaseId ?? parameters.get("databaseId"));
-  const tableId = auditLogsPage
-    ? null
-    : (route.tableId ?? parameters.get("tableId"));
+  const databaseId = route.databaseId ?? parameters.get("databaseId");
+  const tableId = route.tableId ?? parameters.get("tableId");
   const teamSection = path.startsWith("/team-settings/")
     ? path.split("/")[2]
     : null;
@@ -169,17 +158,15 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     ? path.split("/")[2]
     : null;
   const section =
-    (auditLogsPage
-      ? "workspace-audit-logs"
-      : workspaceSection === "delete-workspace"
-        ? "workspace-danger-zone"
-        : workspaceSection === "general"
-          ? "workspace-general"
-          : workspaceSection === "manage-access"
-            ? "workspace-access"
-            : workspaceSection === "api-keys"
-              ? "workspace-api-keys"
-              : null) ??
+    (workspaceSection === "delete-workspace"
+      ? "workspace-danger-zone"
+      : workspaceSection === "general"
+        ? "workspace-general"
+        : workspaceSection === "manage-access"
+          ? "workspace-access"
+          : workspaceSection === "api-keys"
+            ? "workspace-api-keys"
+            : null) ??
     route.section ??
     (teamSection === "general"
       ? "organisation"
@@ -194,17 +181,16 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
               : null);
   const settings = resolveSettingsSection(section ?? null);
   const needsResources =
-    !auditLogsPage &&
-    (!settings ||
-      !["account", "team", "workspace"].includes(settingsScope(settings)));
+    !settings ||
+    !["account", "team", "workspace"].includes(settingsScope(settings));
   useEffect(() => {
-    if (!auditLogsPage && parameters.has("databaseId"))
+    if (parameters.has("databaseId"))
       router.replace(
         settings
           ? settingsHref(settings, { databaseId, tableId })
           : dataHref(databaseId, tableId),
       );
-  }, [parameters, router, settings, databaseId, tableId, auditLogsPage]);
+  }, [parameters, router, settings, databaseId, tableId]);
   const [create, setCreate] = useState<"database" | "table" | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -480,11 +466,7 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     return (
       <RootsetErrorState code={500} onRetry={() => void context.refetch()} />
     );
-  if (
-    !selectedDatabaseId &&
-    !settings &&
-    !["/", "/databases", "/audit-logs"].includes(path)
-  )
+  if (!selectedDatabaseId && !settings && !["/", "/databases"].includes(path))
     return <RootsetErrorState code={404} />;
   if (navigationError)
     return (
@@ -524,7 +506,6 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     );
   if (settings && settingsScope(settings) === "workspace" && !canManage)
     return <RootsetErrorState code={404} />;
-  if (auditLogsPage && !canManage) return <RootsetErrorState code={404} />;
 
   const contextIds = {
     databaseId: selectedDatabaseId,
@@ -565,8 +546,7 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     />
   );
   const resourceScope =
-    !auditLogsPage &&
-    (!settings || ["database", "table"].includes(settingsScope(settings)));
+    !settings || ["database", "table"].includes(settingsScope(settings));
   return (
     <RouteProvider pathname={path} navigate={(href) => router.push(href)}>
       <a href="#table-content" className="skip-link">
@@ -779,49 +759,36 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
           }
         >
           <AppShellBreadcrumb
-            items={
-              auditLogsPage
-                ? [
-                    {
-                      label: "Workspace Settings",
-                      href: workspaceSettingsHref,
-                    },
-                    { label: "Audit Logs" },
-                  ]
-                : resourceBreadcrumbs({
-                    workspaceIsDefault: workspace?.isDefault,
-                    databaseId: selectedDatabaseId,
-                    databaseName: database?.name,
-                    tableId: selectedTableId,
-                    tableName: table?.name,
-                    section: settings,
-                    databaseSwitcher: database ? (
-                      <BreadcrumbResourceSwitcher
-                        kind="database"
-                        currentId={database.id}
-                        label={database.name}
-                        resources={databases.data ?? []}
-                      />
-                    ) : undefined,
-                    tableSwitcher:
-                      table && selectedDatabaseId ? (
-                        <BreadcrumbResourceSwitcher
-                          kind="table"
-                          currentId={table.id}
-                          databaseId={selectedDatabaseId}
-                          label={table.name}
-                          resources={tables.data ?? []}
-                        />
-                      ) : undefined,
-                  })
-            }
+            items={resourceBreadcrumbs({
+              workspaceIsDefault: workspace?.isDefault,
+              databaseId: selectedDatabaseId,
+              databaseName: database?.name,
+              tableId: selectedTableId,
+              tableName: table?.name,
+              section: settings,
+              databaseSwitcher: database ? (
+                <BreadcrumbResourceSwitcher
+                  kind="database"
+                  currentId={database.id}
+                  label={database.name}
+                  resources={databases.data ?? []}
+                />
+              ) : undefined,
+              tableSwitcher:
+                table && selectedDatabaseId ? (
+                  <BreadcrumbResourceSwitcher
+                    kind="table"
+                    currentId={table.id}
+                    databaseId={selectedDatabaseId}
+                    label={table.name}
+                    resources={tables.data ?? []}
+                  />
+                ) : undefined,
+            })}
             title={
-              auditLogsPage
-                ? "Audit Logs"
-                : settings
-                  ? SECTION_LABELS[settings]
-                  : (table?.name ??
-                    (selectedDatabaseId ? "Tables" : "Databases"))
+              settings
+                ? SECTION_LABELS[settings]
+                : (table?.name ?? (selectedDatabaseId ? "Tables" : "Databases"))
             }
           />
           <div id="table-content" tabIndex={-1} className="rootset-workspace">
@@ -832,13 +799,7 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
                   {mutationError}
                 </p>
               )}
-              {auditLogsPage ? (
-                <AuditLogsPage
-                  key={`${orgId}:${workspace?.id}:${context.data.principal.role}`}
-                  orgId={orgId!}
-                  workspaceId={workspace?.id}
-                />
-              ) : settings ? (
+              {settings ? (
                 <AppShell.Content variant="broad">
                   <SettingsPanel
                     section={settings}

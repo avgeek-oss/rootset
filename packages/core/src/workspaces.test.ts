@@ -156,7 +156,7 @@ test("workspace creation is admin-only and replay-safe; team directory grants no
     }),
   );
 });
-test("database, table, audit, cursor and job boundaries stay inside the selected workspace", async () => {
+test("database, table, cursor and job boundaries stay inside the selected workspace", async () => {
   privateDatabase = (await call(actors.admin, "createDatabase", {
     workspaceId: workspace.id,
     name: "Private database",
@@ -182,27 +182,11 @@ test("database, table, audit, cursor and job boundaries stay inside the selected
     data: unknown[];
   };
   assert.equal(defaults.data.length, 0);
-  const logs = (await call(actors.admin, "listActivity", {
-    workspaceId: workspace.id,
-  })) as { data: { id: string }[] };
-  assert.ok(logs.data.length);
-  const defaultLogs = (await call(actors.admin, "listActivity")) as {
-    data: unknown[];
-  };
-  assert.equal(defaultLogs.data.length, 0);
-  await unavailable(
-    call(actors.admin, "getActivityDetails", { eventId: logs.data[0]!.id }),
-  );
   await assert.rejects(
     call(actors.admin, "deleteWorkspace", { workspaceId: workspace.id }),
     { code: "VALIDATION_FAILED" },
   );
-  for (const operation of [
-    "listDatabases",
-    "getActivityDetails",
-    "listJobs",
-    "createWorkspaceKey",
-  ]) {
+  for (const operation of ["listDatabases", "listJobs", "createWorkspaceKey"]) {
     assert.equal(
       getOperation(operation).inputSchema.safeParse({ orgId }).success,
       false,
@@ -216,7 +200,10 @@ test("access is immediate, inherits live team roles, and only an enrolled admin 
       userId: actor.userId,
     });
   await assert.rejects(
-    call(actors.viewer, "listActivity", { workspaceId: workspace.id }),
+    call(actors.viewer, "createDatabase", {
+      workspaceId: workspace.id,
+      name: "Denied",
+    }),
     { code: "FORBIDDEN" },
   );
   await call(actors.member, "createDatabase", {

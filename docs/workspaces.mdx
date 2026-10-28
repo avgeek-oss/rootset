@@ -11,11 +11,11 @@ Admins can choose **Create Workspace** in the selector and enter a name and desc
 
 ## Manage access
 
-Open **Settings → Workspace Settings** for the selected workspace. **General** edits its name and description. Default shows only **API Keys** and **Audit Logs** in its workspace settings menu. **Manage Access** adds or removes existing team members immediately; there is no invitation or separate workspace role.
+Open **Settings → Workspace Settings** for the selected workspace. **General** edits its name and description. Default shows only **API Keys** in its workspace settings menu. **Manage Access** adds or removes existing team members immediately; there is no invitation or separate workspace role.
 
 Members retain their team-wide Admin, Member or Viewer role. An admin who belongs to the workspace can manage access, including removing themselves. Members and viewers cannot leave or change its membership. Removing someone from the team also removes their workspace memberships.
 
-All team admins can open **Team Settings → Workspaces** to inspect the workspace directory. Choose **View members** to open a read-only member table. This directory does not grant access to workspace data or audit logs.
+All team admins can open **Team Settings → Workspaces** to inspect the workspace directory. Choose **View members** to open a read-only member table. This directory does not grant access to workspace data.
 
 ## Workspace API keys
 
@@ -25,9 +25,9 @@ Existing team API keys are revoked by the workspace upgrade and no longer work. 
 
 ## API and MCP scope
 
-Use `getContext` or `rootset_get_context` to discover the organisation, then `listWorkspaces` or `rootset_list_workspaces` to discover accessible workspace IDs. Every database, table, record, job, artifact, table-preference and audit operation requires an explicit `workspaceId`, including operations on Default. Supply it in the query string for GET requests and in the JSON input for writes and MCP tools.
+Use `getContext` or `rootset_get_context` to discover the organisation, then `listWorkspaces` or `rootset_list_workspaces` to discover accessible workspace IDs. Every database, table, record, job, artifact, table-preference operation requires an explicit `workspaceId`, including operations on Default. Supply it in the query string for GET requests and in the JSON input for writes and MCP tools.
 
-Account, team administration and workspace discovery remain team-wide. An inaccessible workspace or a resource from a different workspace returns **Resource not found**. **Workspace Settings → Audit Logs** and its filter choices are scoped to the selected workspace and available to admins.
+Account, team administration and workspace discovery remain team-wide. An inaccessible workspace or a resource from a different workspace returns **Resource not found**.
 
 ## Delete a workspace
 

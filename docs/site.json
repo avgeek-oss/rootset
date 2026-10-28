@@ -62,8 +62,7 @@
               "bulk-rows",
               "import-requests",
               "export-requests",
-              "backups",
-              "audit-logs"
+              "backups"
             ]
           },
           {
@@ -114,9 +113,6 @@
                   "mcp-reference/rootset_rotate_workspace_key",
                   "mcp-reference/rootset_revoke_workspace_key",
                   "mcp-reference/rootset_get_security_status",
-                  "mcp-reference/rootset_list_activity",
-                  "mcp-reference/rootset_list_activity_filter_options",
-                  "mcp-reference/rootset_get_activity_details",
                   "mcp-reference/rootset_get_mutation",
                   "mcp-reference/rootset_get_usage",
                   "mcp-reference/rootset_get_view_preferences",
@@ -265,9 +261,6 @@
                   "api-reference/rotateWorkspaceKey",
                   "api-reference/revokeWorkspaceKey",
                   "api-reference/getSecurityStatus",
-                  "api-reference/listActivity",
-                  "api-reference/listActivityFilterOptions",
-                  "api-reference/getActivityDetails",
                   "api-reference/getMutation",
                   "api-reference/getUsage",
                   "api-reference/getViewPreferences",

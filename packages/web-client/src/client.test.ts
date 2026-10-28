@@ -65,14 +65,14 @@ describe("browser transport", () => {
       vi.unstubAllGlobals();
     }
   });
-  it("reports stale audit filter input without exposing the validation enum dump", async () => {
+  it("reports invalid job state without exposing the validation enum dump", async () => {
     const fetcher = vi.fn();
     const transport = new RootsetClient({ fetch: fetcher });
     const error = await transport
-      .operation("listActivity", {
+      .operation("listJobs", {
         orgId: "01M4Z29DYW3NBAVHB1QS52RYAS",
         workspaceId: "01M4Z29DYW3NBAVHB1QS52RYAS",
-        event: "old-client-event",
+        state: "old-client-state",
       })
       .catch((error) => error);
     expect(error).toBeInstanceOf(ApiError);
@@ -80,7 +80,7 @@ describe("browser transport", () => {
       code: "VALIDATION_FAILED",
       message:
         "The request could not be validated. Reload the page and try again.",
-      details: { issues: [{ code: "invalid_value", path: ["event"] }] },
+      details: { issues: [{ code: "invalid_value", path: ["state"] }] },
     });
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -91,13 +91,13 @@ describe("browser transport", () => {
         .fn()
         .mockResolvedValue(
           new Response(
-            JSON.stringify({ data: [{ event: "private-response-value" }] }),
+            JSON.stringify({ data: [{ name: "private-response-value" }] }),
             { status: 200 },
           ),
         ),
     });
     const error = await transport
-      .operation("listActivity", {
+      .operation("listDatabases", {
         orgId: "01M4Z29DYW3NBAVHB1QS52RYAS",
         workspaceId: "01M4Z29DYW3NBAVHB1QS52RYAS",
       })

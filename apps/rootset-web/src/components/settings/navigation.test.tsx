@@ -52,7 +52,7 @@ describe("context settings navigation", () => {
     if (scope === "account" || scope === "team")
       for (const item of items) expect(item.href).not.toContain("databaseId");
   });
-  it("keeps workspace administration together, including audit logs and deletion", () => {
+  it("keeps workspace administration together, including deletion", () => {
     const items = settingsNavigationGroups("workspace", "admin").flatMap(
       (group) => group.items,
     );
@@ -60,21 +60,20 @@ describe("context settings navigation", () => {
       ["General", "/workspace-settings/general"],
       ["Manage Access", "/workspace-settings/manage-access"],
       ["API Keys", "/workspace-settings/api-keys"],
-      ["Audit Logs", "/workspace-settings/audit-logs"],
       ["Delete workspace", "/workspace-settings/delete-workspace"],
     ]);
     expect(items.at(-1)?.destructive).toBe(true);
     for (const role of ["member", "viewer"])
       expect(settingsNavigationGroups("workspace", role)).toEqual([]);
   });
-  it("shows only API keys and audit logs for Default", () => {
+  it("shows only API keys for Default", () => {
     const groups = settingsNavigationGroups("workspace", "admin", {
       workspaceIsDefault: true,
     });
     expect(groups.map((group) => group.title)).toEqual(["Workspace"]);
     expect(
       groups.flatMap((group) => group.items.map((item) => item.id)),
-    ).toEqual(["workspace-api-keys", "workspace-audit-logs"]);
+    ).toEqual(["workspace-api-keys"]);
   });
   it("keeps exports available to viewers while hiding management", () => {
     expect(

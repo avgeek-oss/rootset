@@ -18,7 +18,7 @@ data, revisions and cell history on your infrastructure.
 - Define typed fields, defaults, unique rules and table relations.
 - Edit, import, export and duplicate records; save views with filters, sorting
   and column layouts.
-- Review cell history and audit logs with context for changes.
+- Review cell history with context for changes.
 - Connect through the REST API or MCP using API keys or OAuth. Admin, Member and
   Viewer roles control access; credentials remain bounded by their permissions.
 - Schedule encrypted database backups to S3-compatible storage and restore them

@@ -50,12 +50,7 @@ export const settingsGroups = {
   workspace: [
     {
       title: "Workspace",
-      sections: [
-        "workspace-general",
-        "workspace-access",
-        "workspace-api-keys",
-        "workspace-audit-logs",
-      ],
+      sections: ["workspace-general", "workspace-access", "workspace-api-keys"],
     },
     { title: "Danger Zone", sections: ["workspace-danger-zone"] },
   ],
@@ -107,7 +102,7 @@ export function settingsHref(
 ) {
   const scope = settingsScope(section);
   if (scope === "workspace")
-    return `/workspace-settings/${section === "workspace-general" ? "general" : section === "workspace-access" ? "manage-access" : section === "workspace-audit-logs" ? "audit-logs" : section === "workspace-danger-zone" ? "delete-workspace" : "api-keys"}`;
+    return `/workspace-settings/${section === "workspace-general" ? "general" : section === "workspace-access" ? "manage-access" : section === "workspace-danger-zone" ? "delete-workspace" : "api-keys"}`;
   if (scope === "team")
     return `/team-settings/${section === "organisation" ? "general" : section === "team-workspaces" ? "workspaces" : section}`;
   if (scope === "account") return `/settings/${section}`;
@@ -253,7 +248,6 @@ export const settingsIcons = {
   mcp: McpServerIcon,
   "workspace-general": Settings01Icon,
   "workspace-access": UserGroupIcon,
-  "workspace-audit-logs": TransactionHistoryIcon,
   "workspace-danger-zone": Delete02Icon,
   "team-workspaces": Layers01Icon,
   organisation: Settings01Icon,

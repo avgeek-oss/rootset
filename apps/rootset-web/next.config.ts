@@ -24,21 +24,6 @@ const config: NextConfig = {
         permanent: false,
       },
       {
-        source: "/activity",
-        destination: "/audit-logs",
-        permanent: false,
-      },
-      {
-        source: "/databases/:databaseId/settings/activity",
-        destination: "/audit-logs",
-        permanent: false,
-      },
-      {
-        source: "/databases/:databaseId/tables/:tableId/settings/activity",
-        destination: "/audit-logs",
-        permanent: false,
-      },
-      {
         source: "/settings",
         destination: "/settings/profile",
         permanent: false,
