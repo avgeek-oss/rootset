@@ -131,6 +131,7 @@ export interface TableField {
   required?: boolean;
   charLimit?: number;
   allowedValues?: string[] | null;
+  zodSchema?: string | null;
   autoIncrement?: boolean;
   min?: number | string;
   max?: number | string;

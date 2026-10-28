@@ -684,6 +684,19 @@ Requires a current workspace role of **Member** or higher. The connection needs 
               "type": {
                 "type": "string",
                 "const": "json"
+              },
+              "zodSchema": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 16384,
+                    "x-rootset-max-utf8-bytes": 16384,
+                    "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": ["name", "type"],

@@ -94,6 +94,8 @@ test(
         return encodeURIComponent(String(value));
       });
       if (browser) path = path.replace(/^\/v1/, "/api/internal/v1");
+      if (operation.httpMethod === "GET")
+        path += `?${new URLSearchParams(Object.entries(body).map(([key, value]) => [key, typeof value === "object" ? JSON.stringify(value) : String(value)]))}`;
       const response = await fetch(`${baseURL}${path}`, {
         method: operation.httpMethod,
         headers: {
@@ -105,12 +107,14 @@ test(
             : { Authorization: `Bearer ${restSecret}` }),
         },
         body:
-          rawValues === undefined
-            ? JSON.stringify(body)
-            : JSON.stringify({ ...body, values: "__RAW_VALUES__" }).replace(
-                '"__RAW_VALUES__"',
-                rawValues,
-              ),
+          operation.httpMethod === "GET"
+            ? undefined
+            : rawValues === undefined
+              ? JSON.stringify(body)
+              : JSON.stringify({ ...body, values: "__RAW_VALUES__" }).replace(
+                  '"__RAW_VALUES__"',
+                  rawValues,
+                ),
       });
       const value = await response.json();
       if (response.ok) operation.outputSchema.parse(value);
@@ -456,6 +460,82 @@ test(
           });
           assert.equal(invalid.ok, false);
           assert.equal(invalid.error?.code, "VALIDATION_FAILED");
+        });
+
+        await s.test(`${surface}/json/zod-schema`, async () => {
+          const zodSchema =
+            "z.object({ name: z.string().min(1), count: z.number().int().min(0).optional() })";
+          const created = await invoke(surface, "createTable", {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            name: `JSON schema ${surface}`,
+            fields: [
+              {
+                name: "DATA",
+                type: "json",
+                zodSchema,
+                default: { name: "default" },
+              },
+            ],
+          });
+          assert.ok(created.ok, JSON.stringify(created.value));
+          const schema = created.value as {
+            table: { id: string; schemaVersion: number };
+            fields: FieldDefinition[];
+          };
+          assert.equal(schema.fields[0]!.zodSchema, zodSchema);
+          const target = {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            tableId: schema.table.id,
+            expectedSchemaVersion: schema.table.schemaVersion,
+          };
+          const values = { DATA: { name: "Rootset", count: 0, keep: true } };
+          const seed = await invoke(surface, "createRow", {
+            ...target,
+            values,
+          });
+          assert.ok(seed.ok, JSON.stringify(seed.value));
+          const row = (seed.value as { row: Row }).row;
+          assert.deepEqual(row.values, values);
+          for (const DATA of [
+            {},
+            { name: "" },
+            { name: 1 },
+            { name: "valid", count: -1 },
+          ]) {
+            for (const operation of ["createRow", "updateRow"]) {
+              const rejected = await invoke(surface, operation, {
+                ...target,
+                ...(operation === "updateRow"
+                  ? { rowId: row.id, expectedVersion: row.version }
+                  : {}),
+                values: { DATA },
+              });
+              assert.equal(rejected.ok, false);
+              assert.equal(rejected.error?.code, "VALIDATION_FAILED");
+            }
+          }
+          const saved = await invoke(surface, "getRow", {
+            workspaceId: orgId,
+            orgId,
+            databaseId,
+            tableId: schema.table.id,
+            rowId: row.id,
+          });
+          assert.ok(saved.ok);
+          assert.deepEqual((saved.value as Row).values, row.values);
+          assert.equal((saved.value as Row).version, row.version);
+          const defaults = await invoke(surface, "createRow", {
+            ...target,
+            values: {},
+          });
+          assert.ok(defaults.ok);
+          assert.deepEqual((defaults.value as { row: Row }).row.values.DATA, {
+            name: "default",
+          });
         });
 
         for (const fixture of fieldCases) {

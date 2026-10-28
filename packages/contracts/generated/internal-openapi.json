@@ -6457,7 +6457,18 @@
                               "minimum": 0,
                               "maximum": 199
                             },
-                            "type": { "type": "string", "const": "json" }
+                            "type": { "type": "string", "const": "json" },
+                            "zodSchema": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 16384,
+                                  "x-rootset-max-utf8-bytes": 16384,
+                                  "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                                },
+                                { "type": "null" }
+                              ]
+                            }
                           },
                           "required": ["name", "type"],
                           "additionalProperties": false
@@ -8064,7 +8075,18 @@
                             "minimum": 0,
                             "maximum": 199
                           },
-                          "type": { "type": "string", "const": "json" }
+                          "type": { "type": "string", "const": "json" },
+                          "zodSchema": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 16384,
+                                "x-rootset-max-utf8-bytes": 16384,
+                                "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                              },
+                              { "type": "null" }
+                            ]
+                          }
                         },
                         "required": ["name", "type"],
                         "additionalProperties": false
@@ -8705,7 +8727,18 @@
                             "minimum": 0,
                             "maximum": 199
                           },
-                          "type": { "type": "string", "const": "json" }
+                          "type": { "type": "string", "const": "json" },
+                          "zodSchema": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 16384,
+                                "x-rootset-max-utf8-bytes": 16384,
+                                "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                              },
+                              { "type": "null" }
+                            ]
+                          }
                         },
                         "required": ["name", "type"],
                         "additionalProperties": false
@@ -27775,7 +27808,18 @@
                       "minimum": 0,
                       "maximum": 199
                     },
-                    "type": { "type": "string", "const": "json" }
+                    "type": { "type": "string", "const": "json" },
+                    "zodSchema": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 16384,
+                          "x-rootset-max-utf8-bytes": 16384,
+                          "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                        },
+                        { "type": "null" }
+                      ]
+                    }
                   },
                   "required": ["name", "type"],
                   "additionalProperties": false
@@ -28315,7 +28359,18 @@
                       "minimum": 0,
                       "maximum": 199
                     },
-                    "type": { "type": "string", "const": "json" }
+                    "type": { "type": "string", "const": "json" },
+                    "zodSchema": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 16384,
+                          "x-rootset-max-utf8-bytes": 16384,
+                          "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                        },
+                        { "type": "null" }
+                      ]
+                    }
                   },
                   "required": ["id", "name", "type"],
                   "additionalProperties": false
@@ -29304,7 +29359,18 @@
                       "minimum": 0,
                       "maximum": 199
                     },
-                    "type": { "type": "string", "const": "json" }
+                    "type": { "type": "string", "const": "json" },
+                    "zodSchema": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 16384,
+                          "x-rootset-max-utf8-bytes": 16384,
+                          "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                        },
+                        { "type": "null" }
+                      ]
+                    }
                   },
                   "required": ["id", "name", "type"],
                   "additionalProperties": false
@@ -29965,7 +30031,18 @@
                       "minimum": 0,
                       "maximum": 199
                     },
-                    "type": { "type": "string", "const": "json" }
+                    "type": { "type": "string", "const": "json" },
+                    "zodSchema": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 16384,
+                          "x-rootset-max-utf8-bytes": 16384,
+                          "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                        },
+                        { "type": "null" }
+                      ]
+                    }
                   },
                   "required": ["id", "name", "type"],
                   "additionalProperties": false
@@ -30358,7 +30435,18 @@
                     ]
                   },
                   "order": { "type": "integer", "minimum": 0, "maximum": 199 },
-                  "type": { "type": "string", "const": "json" }
+                  "type": { "type": "string", "const": "json" },
+                  "zodSchema": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 16384,
+                        "x-rootset-max-utf8-bytes": 16384,
+                        "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                      },
+                      { "type": "null" }
+                    ]
+                  }
                 },
                 "required": ["name", "type"],
                 "additionalProperties": false
@@ -30910,7 +30998,18 @@
                           "minimum": 0,
                           "maximum": 199
                         },
-                        "type": { "type": "string", "const": "json" }
+                        "type": { "type": "string", "const": "json" },
+                        "zodSchema": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 16384,
+                              "x-rootset-max-utf8-bytes": 16384,
+                              "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                            },
+                            { "type": "null" }
+                          ]
+                        }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false
@@ -31504,7 +31603,18 @@
                     ]
                   },
                   "order": { "type": "integer", "minimum": 0, "maximum": 199 },
-                  "type": { "type": "string", "const": "json" }
+                  "type": { "type": "string", "const": "json" },
+                  "zodSchema": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 16384,
+                        "x-rootset-max-utf8-bytes": 16384,
+                        "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                      },
+                      { "type": "null" }
+                    ]
+                  }
                 },
                 "required": ["name", "type"],
                 "additionalProperties": false
@@ -32062,7 +32172,18 @@
                           "minimum": 0,
                           "maximum": 199
                         },
-                        "type": { "type": "string", "const": "json" }
+                        "type": { "type": "string", "const": "json" },
+                        "zodSchema": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 16384,
+                              "x-rootset-max-utf8-bytes": 16384,
+                              "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                            },
+                            { "type": "null" }
+                          ]
+                        }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false
@@ -32843,7 +32964,18 @@
                           "minimum": 0,
                           "maximum": 199
                         },
-                        "type": { "type": "string", "const": "json" }
+                        "type": { "type": "string", "const": "json" },
+                        "zodSchema": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 16384,
+                              "x-rootset-max-utf8-bytes": 16384,
+                              "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                            },
+                            { "type": "null" }
+                          ]
+                        }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false
@@ -33621,7 +33753,18 @@
                       "minimum": 0,
                       "maximum": 199
                     },
-                    "type": { "type": "string", "const": "json" }
+                    "type": { "type": "string", "const": "json" },
+                    "zodSchema": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 16384,
+                          "x-rootset-max-utf8-bytes": 16384,
+                          "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                        },
+                        { "type": "null" }
+                      ]
+                    }
                   },
                   "required": ["id", "name", "type"],
                   "additionalProperties": false
@@ -34645,7 +34788,18 @@
                               "minimum": 0,
                               "maximum": 199
                             },
-                            "type": { "type": "string", "const": "json" }
+                            "type": { "type": "string", "const": "json" },
+                            "zodSchema": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 16384,
+                                  "x-rootset-max-utf8-bytes": 16384,
+                                  "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                                },
+                                { "type": "null" }
+                              ]
+                            }
                           },
                           "required": ["name", "type"],
                           "additionalProperties": false
@@ -35091,7 +35245,18 @@
                             "minimum": 0,
                             "maximum": 199
                           },
-                          "type": { "type": "string", "const": "json" }
+                          "type": { "type": "string", "const": "json" },
+                          "zodSchema": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 16384,
+                                "x-rootset-max-utf8-bytes": 16384,
+                                "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                              },
+                              { "type": "null" }
+                            ]
+                          }
                         },
                         "required": ["name", "type"],
                         "additionalProperties": false
@@ -35129,6 +35294,17 @@
                             "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
                             "uniqueItems": true,
                             "x-rootset-max-utf8-bytes": 65536
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "zodSchema": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 16384,
+                            "x-rootset-max-utf8-bytes": 16384,
+                            "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
                           },
                           { "type": "null" }
                         ]
@@ -35213,6 +35389,17 @@
                             "description": "1–100 distinct nonempty exact text choices; up to 4,096 Unicode characters per choice and 65,536 UTF-8 bytes for the whole list. Optional cells may be null; defaults must be listed.",
                             "uniqueItems": true,
                             "x-rootset-max-utf8-bytes": 65536
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "zodSchema": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 16384,
+                            "x-rootset-max-utf8-bytes": 16384,
+                            "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
                           },
                           { "type": "null" }
                         ]
@@ -35959,7 +36146,18 @@
                               "minimum": 0,
                               "maximum": 199
                             },
-                            "type": { "type": "string", "const": "json" }
+                            "type": { "type": "string", "const": "json" },
+                            "zodSchema": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 16384,
+                                  "x-rootset-max-utf8-bytes": 16384,
+                                  "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                                },
+                                { "type": "null" }
+                              ]
+                            }
                           },
                           "required": ["id", "name", "type"],
                           "additionalProperties": false
@@ -36516,7 +36714,18 @@
                         "minimum": 0,
                         "maximum": 199
                       },
-                      "type": { "type": "string", "const": "json" }
+                      "type": { "type": "string", "const": "json" },
+                      "zodSchema": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 16384,
+                            "x-rootset-max-utf8-bytes": 16384,
+                            "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                          },
+                          { "type": "null" }
+                        ]
+                      }
                     },
                     "required": ["id", "name", "type"],
                     "additionalProperties": false
@@ -39852,7 +40061,18 @@
                           "minimum": 0,
                           "maximum": 199
                         },
-                        "type": { "type": "string", "const": "json" }
+                        "type": { "type": "string", "const": "json" },
+                        "zodSchema": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 16384,
+                              "x-rootset-max-utf8-bytes": 16384,
+                              "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                            },
+                            { "type": "null" }
+                          ]
+                        }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false
@@ -40487,7 +40707,18 @@
                           "minimum": 0,
                           "maximum": 199
                         },
-                        "type": { "type": "string", "const": "json" }
+                        "type": { "type": "string", "const": "json" },
+                        "zodSchema": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 16384,
+                              "x-rootset-max-utf8-bytes": 16384,
+                              "description": "Optional validation-only Zod expression for JSON fields. Supports JSON types, object/strictObject, array, record, union, enum, literal, optional/nullable members, and min/max/length/int bounds. No executable JavaScript, transforms or coercion. At most 16,384 UTF-8 bytes, 256 nodes and 32 nesting levels. null removes the constraint."
+                            },
+                            { "type": "null" }
+                          ]
+                        }
                       },
                       "required": ["id", "name", "type"],
                       "additionalProperties": false

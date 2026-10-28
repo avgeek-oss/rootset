@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { fieldConstraints } from "./field-constraints";
 
 describe("field constraints summary", () => {
+  it("shows the saved JSON schema expression in the constraints column", () => {
+    const field = {
+      id: "schema",
+      name: "DATA",
+      type: "json" as const,
+      zodSchema: "z.object({ name: z.string() })",
+    };
+    expect(fieldConstraints(field)).toEqual([field.zodSchema]);
+    expect(fieldConstraints({ ...field, zodSchema: null })).toEqual([]);
+  });
   it("shows choices below ten and switches to a count at ten", () => {
     const choices = [
       "active",

@@ -2,12 +2,12 @@
   "formatVersion": 1,
   "openapiVersion": "3.1.2",
   "operationCount": 112,
-  "contractDigest": "7ffbd8c3fee8b8bbe612afa4cc097d5ec570eb5436b35cf737ba5d1cc93585ae",
+  "contractDigest": "058a0e130fcbadd8a2ac46ca9eb84cdd7d6b71e67302d65dbb920690e6fad02c",
   "sha256": {
-    "client.ts": "5464390fb3087942d52561f848e637fefdbae2fa2f9652c0e255369c97aaf93c",
-    "internal-openapi.json": "ed91c3130a5355289f4c68e4ba811f118df415897e6e108dde5ec102f729e629",
-    "mcp-tools.json": "10e065a5685afd4d9231b4d6268c8942191b2b6892be94dcf426b80a832b5d72",
-    "openapi.json": "4a669e597f2999742e9c91fd4a8481aff539a8157777727d5508e6afb7f7541f",
+    "client.ts": "34cdc417771eab45eaf3dbefe9bb200b12e49e9f31ad52b803c448567f0e35ea",
+    "internal-openapi.json": "ddd7c7523d7bd292a709fcec0d799a655061e2a9424b562cc0fe20816193443c",
+    "mcp-tools.json": "f42d3588f0f4a8dcb5ba452acbf40a1b66f212d199ab391a3fc9d359faeae95d",
+    "openapi.json": "6f79807cda7bc2bbbb87714f1202ece5c7fa59e8485063c069502255767ac1fa",
     "operation-inventory.json": "c100ce383dc80ecfea19da5151cbb104b08dba91dbb540712900776fc2a48ecb"
   }
 }

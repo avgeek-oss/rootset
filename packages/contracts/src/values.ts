@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { canonicalize } from "json-canonicalize";
+import { JsonZodSchemaSource, validateJsonZodSchema } from "./json-zod-schema";
 import type { NumberLexeme } from "./decoder";
 import {
   FieldNameSchema,
@@ -221,13 +222,16 @@ export function assertAllowedValuesBudget(
   const bytes = fields.reduce(
     (total, field) =>
       total +
+      (field.zodSchema
+        ? encoder.encode(JSON.stringify(field.zodSchema)).length
+        : 0) +
       (field.allowedValues
         ? encoder.encode(JSON.stringify(field.allowedValues)).length
         : 0),
     0,
   );
   if (bytes > limits.maxTableAllowedValuesBytes)
-    invalid("Table allowed values exceed the 512 KiB definition budget", {
+    invalid("Table field constraints exceed the 512 KiB definition budget", {
       bytes,
       limit: limits.maxTableAllowedValuesBytes,
     });
@@ -280,7 +284,11 @@ const rawFields = z.discriminatedUnion("type", [
     min: DateTimeSchema.optional(),
     max: DateTimeSchema.optional(),
   }),
-  z.strictObject({ ...common, type: z.literal("json") }),
+  z.strictObject({
+    ...common,
+    type: z.literal("json"),
+    zodSchema: JsonZodSchemaSource.nullable().optional(),
+  }),
 ]);
 export const FieldDefinitionSchema = rawFields.superRefine((field, context) => {
   if (
@@ -405,8 +413,11 @@ export function validateCell(
     case "date-time":
       result = parseUtcDateTime(value);
       break;
-    case "json":
-      return canonicalValue(value);
+    case "json": {
+      const json = canonicalValue(value);
+      if (field.zodSchema) validateJsonZodSchema(field.zodSchema, json, field);
+      return json;
+    }
     default:
       return invalid("Unsupported field type");
   }

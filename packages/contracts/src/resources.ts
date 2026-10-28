@@ -1,5 +1,6 @@
 import { UniqueRuleConditionSchema } from "./unique-rules";
 import { z } from "zod";
+import { JsonZodSchemaSource } from "./json-zod-schema";
 import {
   AccountNameSchema,
   IdSchema,
@@ -276,6 +277,7 @@ export const FieldChangesSchema = z.strictObject({
   autoIncrement: z.boolean().optional(),
   clearDefault: z.boolean().optional(),
   allowedValues: AllowedValuesSchema.nullable().optional(),
+  zodSchema: JsonZodSchemaSource.nullable().optional(),
   name: FieldNameSchema.optional(),
   type: FieldTypeSchema.optional(),
   required: z.boolean().optional(),

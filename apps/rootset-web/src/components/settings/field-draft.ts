@@ -10,6 +10,8 @@ export interface FieldDraft {
   allowedValues: string[];
   hadAllowedValues: boolean;
   hadAutoIncrement: boolean;
+  zodSchema: string;
+  hadZodSchema: boolean;
   min: string;
   max: string;
   defaultMode: "none" | "value" | "autoIncrement";
@@ -29,6 +31,8 @@ export function fieldDraft(field?: TableField): FieldDraft {
     allowedValues: field?.allowedValues ? [...field.allowedValues] : [""],
     hadAllowedValues: Boolean(field?.allowedValues),
     hadAutoIncrement: Boolean(field?.autoIncrement),
+    zodSchema: field?.zodSchema ?? "",
+    hadZodSchema: Boolean(field?.zodSchema),
     min: String(field?.min ?? ""),
     max: String(field?.max ?? ""),
     defaultMode: field?.autoIncrement
@@ -62,6 +66,10 @@ export function parseFieldDraft(
     result.charLimit = Number(value.charLimit);
     if (value.restrictValues) result.allowedValues = value.allowedValues;
     else if (value.hadAllowedValues) result.allowedValues = null;
+  }
+  if (value.type === "json") {
+    if (value.zodSchema.trim()) result.zodSchema = value.zodSchema.trim();
+    else if (value.hadZodSchema) result.zodSchema = null;
   }
   if (["integer", "float", "date", "date-time"].includes(value.type))
     for (const bound of ["min", "max"] as const)

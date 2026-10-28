@@ -33,6 +33,7 @@ verificationCase(
         "0014_resource_data_changes.sql",
         "0015_workspaces.sql",
         "0016_remove_audit_logs.sql",
+        "0017_json_zod_schema.sql",
       ]);
       assert.deepEqual(await migrate(fixture.owner), []);
       const orgId = newId();

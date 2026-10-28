@@ -29,6 +29,7 @@ import {
   newId,
   canonicalJson,
   validateCell,
+  compileJsonZodSchema,
   validateValues,
   assertRowBytes,
   assertFieldNames,
@@ -318,6 +319,12 @@ function physicalType(f: FieldDefinition): string {
       return "jsonb";
   }
 }
+function jsonSchemaConstraint(f: FieldDefinition): string {
+  if (f.type !== "json" || !f.zodSchema) return "";
+  const column = q(fieldColumn(f));
+  const rule = JSON.stringify(compileJsonZodSchema(f.zodSchema).rule);
+  return ` CONSTRAINT ${q(`rsj_${f.id.toLowerCase()}`)} CHECK (${column} IS NULL OR ${column}='null'::jsonb OR rootset_control.json_matches_zod(${column},${literal(rule)}::jsonb))`;
+}
 function parameter(field: FieldDefinition, value: JsonValue): unknown {
   if (value === null) return null;
   if (field.type === "json") return canonicalJson(value);
@@ -402,6 +409,7 @@ function changedField(
   if (patch.type && patch.type !== before.type) {
     delete base.charLimit;
     delete base.allowedValues;
+    delete base.zodSchema;
     delete base.min;
     delete base.max;
     delete base.autoIncrement;
@@ -817,7 +825,10 @@ export class TableStorage {
     withTrigger = true,
   ): Promise<void> {
     const columns = t.fields
-      .map((f) => `${q(fieldColumn(f))} ${physicalType(f)}`)
+      .map(
+        (f) =>
+          `${q(fieldColumn(f))} ${physicalType(f)}${jsonSchemaConstraint(f)}`,
+      )
       .join(",");
     await c.query(
       `CREATE TABLE ${tablePath(t)} (row_id varchar(26) PRIMARY KEY,org_id varchar(26) NOT NULL CHECK(org_id=${literal(t.orgId)}),row_version bigint NOT NULL DEFAULT 1 CHECK(row_version>0),created_at timestamptz NOT NULL DEFAULT clock_timestamp(),updated_at timestamptz NOT NULL DEFAULT clock_timestamp()${columns ? "," + columns : ""})`,
@@ -1422,7 +1433,7 @@ export class TableStorage {
           [f.name]: value,
         }));
         await c.query(
-          `ALTER TABLE ${tablePath(t)} ADD COLUMN ${q(fieldColumn(f))} ${physicalType(f)}`,
+          `ALTER TABLE ${tablePath(t)} ADD COLUMN ${q(fieldColumn(f))} ${physicalType(f)}${jsonSchemaConstraint(f)}`,
         );
         await this.insertField(c, t, f);
         await this.syncIntegerCounter(c, t, f);
@@ -1533,6 +1544,14 @@ export class TableStorage {
         await this.validateRows(c, t, fields, (r) =>
           renamedValues(r.values, before, f),
         );
+        if (before.zodSchema !== f.zodSchema) {
+          await c.query(
+            `ALTER TABLE ${tablePath(t)} DROP CONSTRAINT IF EXISTS ${q(`rsj_${f.id.toLowerCase()}`)}`,
+          );
+          const constraint = jsonSchemaConstraint(f);
+          if (constraint)
+            await c.query(`ALTER TABLE ${tablePath(t)} ADD${constraint}`);
+        }
         await c.query(
           "UPDATE rootset_control.fields SET name=$2,definition=$3::jsonb,position=$4 WHERE id=$1",
           [f.id, f.name, JSON.stringify(f), f.order ?? before.order ?? 0],

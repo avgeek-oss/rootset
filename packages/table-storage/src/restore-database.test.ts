@@ -75,7 +75,12 @@ function fixture() {
     { name: "PARENT_EDITION", type: "integer" },
     { name: "ENABLED", type: "boolean", default: false },
     { name: "NOTE", type: "text" },
-    { name: "PAYLOAD", type: "json" },
+    {
+      name: "PAYLOAD",
+      type: "json",
+      zodSchema:
+        "z.object({ id: z.string(), zero: z.literal(0), flag: z.boolean() })",
+    },
     { name: "WEIGHT", type: "float", default: 1e100 },
   ];
   const fields = definitions.map((field, order) =>
@@ -349,6 +354,23 @@ test(
     );
     const tableId = restoredId(input.databaseId, "table", table.id);
     const restored = await storage.getTable(actor, tableId);
+    const payloadField = restored.fields.find(
+      (field) => field.name === "PAYLOAD",
+    )!;
+    assert.equal(
+      payloadField.zodSchema,
+      fields.find((field) => field.type === "json")!.zodSchema,
+    );
+    await withOrg(pool, actor.orgId, async (client) => {
+      const constraint = await client.query(
+        "SELECT conname FROM pg_constraint WHERE conrelid=$1::regclass AND conname=$2",
+        [
+          `${restored.schemaName}.${restored.physicalName}`,
+          `rsj_${payloadField.id.toLowerCase()}`,
+        ],
+      );
+      assert.equal(constraint.rowCount, 1);
+    });
     assert.equal(restored.schemaVersion, 8);
     assert.equal(restored.rowCount, 2);
     const summary = (await storage.listTables(actor, input.databaseId)).find(

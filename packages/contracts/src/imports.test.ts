@@ -20,6 +20,30 @@ const mapping = fields.map((field) => ({
   fieldId: field.id,
 }));
 
+test("CSV and JSONL imports apply JSON Zod constraints and identify the failing source line", () => {
+  const schema = [
+    {
+      ...fields[3]!,
+      zodSchema: "z.object({ count: z.number().int().min(0) })",
+    },
+  ];
+  for (const [format, content] of [
+    ["jsonl", '{"PAYLOAD":{"count":0,"keep":true}}\n{"PAYLOAD":{"count":"1"}}'],
+    ["csv", 'PAYLOAD\n"{""count"":0,""keep"":true}"\n"{""count"":""1""}"'],
+  ] as const) {
+    const rows = prepareImportRows(
+      parseImportSource(format, content),
+      [mapping[3]!],
+      schema,
+    );
+    assert.equal(rows[0]!.issue, undefined);
+    assert.deepEqual(rows[0]!.values.PAYLOAD, { count: 0, keep: true });
+    assert.equal(rows[1]!.issue?.field, "PAYLOAD");
+    assert.equal(rows[1]!.issue?.line, format === "csv" ? 3 : 2);
+    assert.equal(rows[1]!.issue?.message.includes("count"), true);
+  }
+});
+
 test("CSV preserves quoted newlines, escaped quotes, leading-zero text, false and zero", () => {
   const input =
     '\uFEFFCODE,COUNT,ENABLED,PAYLOAD,AMOUNT\r\n"001,\"\"two\"\"\nlines",0,false,"{""count"":0}",0.5\r\n';

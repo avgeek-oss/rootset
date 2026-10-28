@@ -214,7 +214,7 @@ export function FieldForm({
     )
       updated.defaultMode = "none";
     setValue(updated);
-    if (Object.keys(errors).length)
+    if (Object.values(errors).some(Boolean))
       setErrors(parseFieldDraft(updated).errors ?? {});
   }
   return (
@@ -356,6 +356,27 @@ export function FieldForm({
             </div>
           )}
         </>
+      )}
+      {value.type === "json" && (
+        <div className="[&_textarea]:font-mono">
+          <Field
+            label="Zod schema"
+            value={value.zodSchema}
+            onChange={(next) => patch("zodSchema", next)}
+            onBlur={() =>
+              setErrors((current) => ({
+                ...current,
+                zodSchema: parseFieldDraft(value).errors?.zodSchema,
+              }))
+            }
+            readOnly={busy}
+            multiline
+            rows={6}
+            wrap="off"
+            maxLength={limits.jsonZodSchemaBytes}
+            error={errors.zodSchema}
+          />
+        </div>
       )}
       {["integer", "float", "date", "date-time"].includes(value.type) && (
         <div className="settings-inline">
@@ -756,6 +777,12 @@ export function FieldsSettings(props: SettingsPanelProps) {
                   field,
                   props.preferences,
                 ).join(", ");
+                if (field.type === "json" && field.zodSchema)
+                  return (
+                    <code className="block whitespace-pre-wrap font-mono text-sm">
+                      {constraints}
+                    </code>
+                  );
                 return (
                   <span className={constraints ? undefined : "field-empty"}>
                     {constraints || "—"}

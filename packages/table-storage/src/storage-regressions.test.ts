@@ -10,6 +10,7 @@ import {
 } from "@rootset/database";
 import {
   canonicalJson,
+  compileJsonZodSchema,
   limits,
   newId,
   rowBytes,
@@ -4013,7 +4014,7 @@ test(
     const before = await storage!.listTables(actor, databaseId);
     const rejected = {
       code: "VALIDATION_FAILED",
-      message: "Table allowed values exceed the 512 KiB definition budget",
+      message: "Table field constraints exceed the 512 KiB definition budget",
     };
     await assert.rejects(
       storage!.createTable(actor, databaseId, {
@@ -4055,5 +4056,202 @@ test(
       [table.schemaName, table.physicalName],
     );
     assert.equal(physical.rows[0].count, table.fields.length);
+  },
+);
+
+test(
+  "JSON Zod rules match the pinned validator in PostgreSQL, including missing members and Unicode",
+  { skip: !configured },
+  async () => {
+    const values = [
+      null,
+      true,
+      false,
+      0,
+      1,
+      1.5,
+      "",
+      "😀",
+      "ab",
+      [],
+      ["a"],
+      [1],
+      {},
+      { name: "a" },
+      { name: "a", extra: 1 },
+      { optional: null },
+      { optional: "x" },
+      { a: true },
+    ];
+    for (const source of [
+      "z.string().min(1).max(1)",
+      "z.number().int().min(0).max(1)",
+      "z.boolean()",
+      "z.null()",
+      "z.literal(false)",
+      "z.literal('😀')",
+      "z.array(z.string()).length(1)",
+      "z.object({ name: z.string() })",
+      "z.strictObject({ name: z.string() })",
+      "z.object({ optional: z.string().nullish() })",
+      "z.record(z.string(), z.boolean())",
+      "z.union([z.number(), z.string()])",
+      'z.enum(["a"])',
+    ]) {
+      const compiled = compileJsonZodSchema(source);
+      for (const value of values) {
+        const result = await owner!.query(
+          "SELECT rootset_control.json_matches_zod($1::jsonb,$2::jsonb) AS matches",
+          [JSON.stringify(value), JSON.stringify(compiled.rule)],
+        );
+        assert.equal(
+          result.rows[0].matches,
+          compiled.schema.safeParse(value).success,
+          `${source}: ${JSON.stringify(value)}`,
+        );
+      }
+    }
+  },
+);
+
+test(
+  "JSON Zod activation scans existing data, preserves rows and history on failure, and clears atomically",
+  { skip: !configured },
+  async () => {
+    let table = await storage!.createTable(actor, databaseId, {
+      name: "JSON schemas",
+      fields: [
+        { name: "data", type: "json" },
+        { name: "label", type: "text" },
+      ],
+    });
+    const created = await storage!.createRow(actor, table.id, {
+      data: { name: "Rootset", extra: true },
+      label: "untouched",
+    });
+    const row = await storage!.getRow(actor, table.id, created.id);
+    const field = table.fields[0]!;
+    const before = await repairState(table);
+    const strict = "z.strictObject({ name: z.string().min(1) })";
+    const zodSchema = "z.object({ name: z.string().min(1) })";
+    const preview = await storage!.previewSchemaChange(actor, table.id, {
+      expectedSchemaVersion: table.schemaVersion,
+      change: {
+        kind: "update_field",
+        fieldId: field.id,
+        changes: { zodSchema: strict },
+      },
+    });
+    assert.equal(preview.valid, false);
+    assert.equal(preview.conflicts[0]!.rowId, row.id);
+    await assert.rejects(
+      storage!.updateField(actor, table.id, field.id, {
+        zodSchema: strict,
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    assert.deepEqual(await repairState(table), before);
+    table = await storage!.updateField(actor, table.id, field.id, {
+      zodSchema,
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(table.fields[0]!.zodSchema, zodSchema);
+    assert.deepEqual(await storage!.getRow(actor, table.id, row.id), row);
+    for (const source of ["rest", "mcp", "ui", "import"] as const) {
+      const stable = await repairState(table);
+      await assert.rejects(
+        storage!.mutateRows(actor, table.id, {
+          context: { source },
+          operations: [
+            { kind: "create", values: { data: { name: "valid" } } },
+            {
+              kind: "update",
+              rowId: row.id,
+              expectedVersion: row.version,
+              values: { data: { name: "" } },
+            },
+          ],
+        }),
+        { code: "VALIDATION_FAILED" },
+      );
+      assert.deepEqual(await repairState(table), stable);
+    }
+    // Bypass application validation while retaining the audited native write context.
+    await assert.rejects(
+      withOrg(app!, actor.orgId, async (c) => {
+        const mutationId = newId();
+        await c.query(
+          "INSERT INTO rootset_control.mutations(id,org_id,table_id,input_hash,actor,context,schema_version) VALUES($1,$2,$3,'raw-zod-fixture','{}','{}',$4)",
+          [mutationId, actor.orgId, table.id, table.schemaVersion],
+        );
+        await c.query("SELECT set_config('rootset.mutation_id',$1,true)", [
+          mutationId,
+        ]);
+        await c.query(
+          `UPDATE "${table.schemaName}"."${table.physicalName}" SET "f_${field.id.toLowerCase()}"=$1::jsonb WHERE row_id=$2`,
+          [JSON.stringify({ name: 1 }), row.id],
+        );
+      }),
+      { code: "23514", constraint: `rsj_${field.id.toLowerCase()}` },
+    );
+    assert.deepEqual(await storage!.getRow(actor, table.id, row.id), row);
+    await assert.rejects(
+      storage!.updateField(actor, table.id, field.id, {
+        default: { name: "" },
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    await assert.rejects(
+      storage!.createField(actor, table.id, {
+        name: "invalid_default",
+        type: "json",
+        zodSchema,
+        default: {},
+        expectedSchemaVersion: table.schemaVersion,
+      }),
+      { code: "VALIDATION_FAILED" },
+    );
+    table = await storage!.createField(actor, table.id, {
+      name: "details",
+      type: "json",
+      zodSchema,
+      default: { name: "backfill", keep: true },
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.deepEqual(
+      (await storage!.getRow(actor, table.id, row.id)).values.details,
+      { name: "backfill", keep: true },
+    );
+    // Converting another field rebuilds the table and must preserve JSON checks.
+    table = await storage!.updateField(
+      actor,
+      table.id,
+      table.fields.find((f) => f.name === "label")!.id,
+      {
+        type: "json",
+        conversion: { strategy: "strict" },
+        expectedSchemaVersion: table.schemaVersion,
+      },
+    );
+    await assert.rejects(storage!.createRow(actor, table.id, { data: {} }), {
+      code: "VALIDATION_FAILED",
+    });
+    table = await storage!.updateField(actor, table.id, field.id, {
+      zodSchema: null,
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(table.fields[0]!.zodSchema, null);
+    await storage!.createRow(actor, table.id, {
+      data: { arbitrary: [1, true] },
+    });
+    // Changing away from JSON clears its type-specific source.
+    table = await storage!.updateField(actor, table.id, field.id, {
+      type: "text",
+      conversion: { strategy: "stringify" },
+      expectedSchemaVersion: table.schemaVersion,
+    });
+    assert.equal(table.fields[0]!.zodSchema, undefined);
   },
 );
