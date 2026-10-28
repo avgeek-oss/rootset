@@ -51,6 +51,7 @@ verificationCase(
       "0015_workspaces.sql",
       "0016_remove_audit_logs.sql",
       "0017_json_zod_schema.sql",
+      "0018_broad_authorization_scopes.sql",
     ]);
     const role = (
       await db.app.query(
