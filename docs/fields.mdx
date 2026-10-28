@@ -79,6 +79,44 @@ Field and table-schema reads return `allowedValues`. Omit it to preserve a const
 
 Adding or tightening choices checks every existing row before activating the change, including defaults and new-field backfills. A conflict leaves values and schema version unchanged; the error identifies an affected row and field, and the preview lists bounded row conflicts. Removing or renaming an option in use is a constraint change, not a bulk edit. To rename a choice, first allow both names, update the affected cells and default, then remove the old name. Choices, required checks and [unique rules](/unique-rules) apply together on every create, update, batch, paste/import and repair. Changes serialize with writes so waiting writers validate the activated definition.
 
+## JSON schemas with Zod
+
+JSON fields can have an optional **Zod schema**. Leave the editor empty to accept any valid JSON, or enter an expression such as:
+
+```ts
+z.object({
+  name: z.string().min(1),
+  tags: z.array(z.string()).max(10).optional(),
+  status: z.enum(["active", "archived"]),
+  count: z.number().int().min(0).nullable(),
+});
+```
+
+REST and MCP use `zodSchema` on the JSON field definition:
+
+```json
+{
+  "name": "DETAILS",
+  "type": "json",
+  "zodSchema": "z.object({ name: z.string().min(1) })"
+}
+```
+
+Schema reads return the expression. Omit `zodSchema` in an update to preserve it, or set it to `null` to remove it. In the field editor, clearing the text removes the constraint. Changing the field to another type clears its JSON schema.
+
+Schemas validate values without changing them. `z.object()` and `z.looseObject()` keep extra properties; `z.strictObject()` or `.strict()` rejects them. Optional cells still allow NULL regardless of the expression; **Required** controls whether a cell can be empty. Within JSON objects, `.optional()` permits a missing member, `.nullable()` permits JSON null, and `.nullish()` permits both.
+
+Supported syntax includes:
+
+- `z.string()`, `z.number()`, `z.int()`, `z.boolean()`, `z.null()` and scalar `z.literal()`.
+- `z.object()`, `z.strictObject()`, `z.looseObject()`, `z.array()`, `z.record(z.string(), valueSchema)`, `z.union()` and string `z.enum()`.
+- `.min()`, `.max()` and `.length()` for strings and arrays; `.min()`, `.max()`, `.gte()`, `.lte()`, `.int()`, `.nonnegative()` and `.nonpositive()` for numbers.
+- `.optional()`, `.nullable()`, `.nullish()`, `.array()`, `.or()`, `.strict()` and `.passthrough()` for the corresponding types.
+
+Use one expression with literal arguments. Imports, variables, functions, regexes, coercion, transforms, schema defaults and format validators such as `.email()` are unavailable. Unsupported syntax produces a field error. Expressions are capped at 16,384 UTF-8 bytes, 256 parsed nodes and 32 nesting levels. Serialized schemas and text choice lists share the table's 512 KiB constraint budget.
+
+Adding or changing a schema checks defaults and existing records before activation. Conflicts identify the field and an affected row; the change leaves saved data and the schema version intact. UI edits, REST/MCP writes, batches, paste, imports and repairs use the same validator. Native PostgreSQL checks enforce the compiled rules, including after table conversions and backup restores. Removing a schema preserves the stored JSON.
+
 ## Change or remove a field
 
 Editing a field previews the proposed schema change before applying it. Changes validate existing data, and long operations run through the worker. An invalid change fails without silently converting incompatible values. Removing a field also removes its cell history; review any dependent unique rules before removal.

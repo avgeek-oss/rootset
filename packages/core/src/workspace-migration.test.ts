@@ -43,6 +43,7 @@ test("workspace upgrade buckets existing databases into Default and revokes ever
     assert.deepEqual(await migrate(fixture.owner), [
       "0015_workspaces.sql",
       "0016_remove_audit_logs.sql",
+      "0017_json_zod_schema.sql",
     ]);
     const workspace = (
       await fixture.owner.query(

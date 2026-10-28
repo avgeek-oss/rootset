@@ -13,6 +13,7 @@ export const limits = Object.freeze({
   maxFields: 200,
   rowBytes: 65_536,
   jsonDepth: 32,
+  jsonZodSchemaBytes: 16_384,
   maxUniqueFields: 8,
   maxUniqueRules: 16,
   maxForeignKeys: 16,
@@ -336,6 +337,7 @@ export interface FieldDefinition {
   default?: JsonValue;
   charLimit?: number;
   allowedValues?: string[] | null;
+  zodSchema?: string | null;
   autoIncrement?: boolean;
   min?: number | string;
   max?: number | string;

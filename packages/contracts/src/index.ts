@@ -7,6 +7,7 @@ export * from "./query";
 export * from "./resources";
 export * from "./unique-rules";
 export * from "./values";
+export * from "./json-zod-schema";
 
 export * from "./backups";
 export * from "./imports";

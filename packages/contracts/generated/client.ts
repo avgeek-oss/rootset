@@ -748,6 +748,7 @@ export type createTableInput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       }
   )[];
   workspaceId: string;
@@ -931,6 +932,7 @@ export type createTableOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       }
   )[];
   uniqueRules: {
@@ -1205,6 +1207,7 @@ export type getTableSchemaOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       }
   )[];
   uniqueRules: {
@@ -1407,6 +1410,7 @@ export type listFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       }
   )[];
   nextCursor?: unknown;
@@ -1571,6 +1575,7 @@ export type createFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       };
   workspaceId: string;
 };
@@ -1759,6 +1764,7 @@ export type createFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "json";
+            zodSchema?: string | null;
           }
       )[];
       uniqueRules: {
@@ -1960,6 +1966,7 @@ export type updateFieldInput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       };
   clearDefault?: boolean;
   conversion?: "explicit" | "lossless";
@@ -2150,6 +2157,7 @@ export type updateFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "json";
+            zodSchema?: string | null;
           }
       )[];
       uniqueRules: {
@@ -2385,6 +2393,7 @@ export type deleteFieldOutput =
               | Record<string, unknown>;
             order?: number;
             type: "json";
+            zodSchema?: string | null;
           }
       )[];
       uniqueRules: {
@@ -2613,6 +2622,7 @@ export type reorderFieldsOutput = {
           | Record<string, unknown>;
         order?: number;
         type: "json";
+        zodSchema?: string | null;
       }
   )[];
   uniqueRules: {
@@ -2896,6 +2906,7 @@ export type getSchemaOperationOutput = {
                 | Record<string, unknown>;
               order?: number;
               type: "json";
+              zodSchema?: string | null;
             }
         )[];
       }
@@ -3057,6 +3068,7 @@ export type getSchemaOperationOutput = {
                 | Record<string, unknown>;
               order?: number;
               type: "json";
+              zodSchema?: string | null;
             };
       }
     | {
@@ -3066,6 +3078,7 @@ export type getSchemaOperationOutput = {
           autoIncrement?: boolean;
           clearDefault?: boolean;
           allowedValues?: string[] | null;
+          zodSchema?: string | null;
           name?: string;
           type?:
             | "text"
@@ -3100,6 +3113,7 @@ export type getSchemaOperationOutput = {
           autoIncrement?: boolean;
           clearDefault?: boolean;
           allowedValues?: string[] | null;
+          zodSchema?: string | null;
           name?: string;
           type?:
             | "text"
@@ -3332,6 +3346,7 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "json";
+          zodSchema?: string | null;
         }
     )[];
   } | null;
@@ -3522,6 +3537,7 @@ export type getSchemaOperationOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "json";
+          zodSchema?: string | null;
         };
   };
   createdAt: string;
@@ -4334,6 +4350,7 @@ export type getCellHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "json";
+          zodSchema?: string | null;
         };
     previousVersion: string | null;
     version: string;
@@ -4542,6 +4559,7 @@ export type queryHistoryOutput = {
             | Record<string, unknown>;
           order?: number;
           type: "json";
+          zodSchema?: string | null;
         };
     previousVersion: string | null;
     version: string;

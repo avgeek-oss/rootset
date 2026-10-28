@@ -33,6 +33,8 @@ export function fieldConstraints(
     return value;
   }
   const constraints: string[] = [];
+  if (field.type === "json" && field.zodSchema)
+    constraints.push(field.zodSchema);
   if (field.allowedValues)
     constraints.push(
       field.allowedValues.length < 10

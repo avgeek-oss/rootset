@@ -69,6 +69,7 @@ export function Field({
   readOnly,
   multiline,
   rows,
+  wrap,
 }: {
   label: string;
   hideLabel?: boolean;
@@ -89,6 +90,7 @@ export function Field({
   readOnly?: boolean;
   multiline?: boolean;
   rows?: number;
+  wrap?: "soft" | "hard" | "off";
 }) {
   return (
     <TextField
@@ -107,6 +109,9 @@ export function Field({
         <TextArea
           variant="secondary"
           rows={rows ?? 3}
+          wrap={wrap}
+          maxLength={maxLength}
+          spellCheck={false}
           autoComplete={autoComplete ?? "off"}
         />
       ) : (
@@ -275,6 +280,17 @@ export function Form({
       onSubmit={submitForm}
       aria-busy={busy}
       noValidate={noValidate}
+      onKeyDown={(event) => {
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key === "Enter" &&
+          !event.nativeEvent.isComposing &&
+          event.target instanceof HTMLTextAreaElement
+        ) {
+          event.preventDefault();
+          event.currentTarget.requestSubmit();
+        }
+      }}
     >
       <fieldset disabled={busy}>{children}</fieldset>
       <div className="settings-actions">

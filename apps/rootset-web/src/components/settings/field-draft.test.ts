@@ -7,6 +7,53 @@ import { FieldForm } from "./schema";
 const text = { ...fieldDraft(), name: "AIRLINE_CODE" };
 
 describe("field definition form", () => {
+  it("round-trips, validates and clears JSON schemas without leaking them into other field types", () => {
+    const field = {
+      id: "01J00000000000000000000000",
+      name: "DATA",
+      type: "json" as const,
+      zodSchema: "z.object({ name: z.string() })",
+    };
+    expect(parseFieldDraft(fieldDraft(field)).input?.zodSchema).toBe(
+      field.zodSchema,
+    );
+    expect(
+      parseFieldDraft({ ...fieldDraft(field), zodSchema: " " }).input
+        ?.zodSchema,
+    ).toBeNull();
+    expect(
+      parseFieldDraft({ ...fieldDraft(field), type: "text" }).input,
+    ).not.toHaveProperty("zodSchema");
+    expect(
+      parseFieldDraft({
+        ...fieldDraft(field),
+        zodSchema: "z.string().transform(String)",
+      }).errors?.zodSchema,
+    ).toContain("Invalid Zod schema");
+    expect(
+      parseFieldDraft({
+        ...fieldDraft(field),
+        defaultMode: "value",
+        defaultValue: '{"name":1}',
+      }).errors?.defaultValue,
+    ).toContain("name");
+    const html = renderToStaticMarkup(
+      createElement(FieldForm, { field, busy: false, submit: async () => {} }),
+    );
+    expect(html).toContain("Zod schema");
+    expect(html).not.toContain("Zod schema (optional)");
+    expect(html).not.toContain("Supported Zod syntax");
+    expect(html).not.toContain("Leave empty to allow any JSON");
+    expect(html).toContain(field.zodSchema);
+    const textHtml = renderToStaticMarkup(
+      createElement(FieldForm, {
+        field: { ...field, type: "text" },
+        busy: false,
+        submit: async () => {},
+      }),
+    );
+    expect(textHtml).not.toContain("Zod schema");
+  });
   it("converts selected date-time bounds to midnight UTC without a local timezone shift", () => {
     const parsed = parseFieldDraft({
       ...text,
