@@ -20,7 +20,8 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build && tsx tools/build-apps.ts",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && pnpm typecheck:tools",
+    "typecheck:tools": "tsc --noEmit -p tools/verification",
     "lint": "oxlint --type-aware --deny-warnings --report-unused-disable-directives apps packages tools",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

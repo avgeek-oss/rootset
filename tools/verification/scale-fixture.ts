@@ -113,6 +113,10 @@ function expression(type: FieldType, index: number): string {
       return `(timestamptz '2024-01-01T00:00:00Z'+(n%86400)*interval '1 second')`;
     case "json":
       return `jsonb_build_object('g',n%4)`;
+    case "uri":
+    case "url":
+    case "image":
+      throw new Error(`The scale fixture does not generate ${type} fields`);
   }
 }
 
@@ -325,20 +329,22 @@ export async function finalizeScaleFixture(filename: string): Promise<void> {
     manifest.historyChecksum = await historyChecksums(client, t.id);
     manifest.rows = 5000000;
     manifest.historyEvents = Number(events.rows[0]?.count);
+    // listTables returns summaries without fields, so reload a table left by
+    // an earlier run to get its field definitions.
     const existing = (
       await storage.listTables(actor, manifest.databaseId)
     ).find((table) => table.name === "Two hundred fields near row byte limit");
-    const wide =
-      existing ??
-      (await storage.createTable(actor, manifest.databaseId, {
-        name: "Two hundred fields near row byte limit",
-        fields: Array.from({ length: 200 }, (_, index) => ({
-          name: `FIELD_${fieldSuffix(index)}`,
-          type: "text" as const,
-          charLimit: 65536,
-        })),
-        idempotencyKey: newId(),
-      }));
+    const wide = existing
+      ? await storage.getTable(actor, existing.id)
+      : await storage.createTable(actor, manifest.databaseId, {
+          name: "Two hundred fields near row byte limit",
+          fields: Array.from({ length: 200 }, (_, index) => ({
+            name: `FIELD_${fieldSuffix(index)}`,
+            type: "text" as const,
+            charLimit: 65536,
+          })),
+          idempotencyKey: newId(),
+        });
     const values: Record<string, JsonValue> = Object.fromEntries(
       wide.fields.map((field) => [field.name, null]),
     );
