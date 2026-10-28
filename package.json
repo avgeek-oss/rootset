@@ -1,6 +1,6 @@
 {
   "name": "rootset",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Self-hosted structured master data management with a spreadsheet UI, REST API and MCP.",
   "license": "Apache-2.0",
   "private": true,

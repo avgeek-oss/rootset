@@ -2,10 +2,16 @@
 
 ## Unreleased
 
-- Group databases, records, audit logs and background work under workspaces. Migrate existing databases into a protected Default workspace shared by the whole team.
-- Let admins create private workspaces and manage access using members' existing team roles. Add a team-wide workspace directory, searchable member selection and confirmation before removing access.
-- Replace team API keys with admin-managed workspace API keys. Existing team keys are revoked during migration. Database, table, record, job, artifact and audit operations now require an explicit `workspaceId` in REST and MCP requests.
-- Keep the current page visible while workspace navigation loads its destination. Preserve workspace scope on filtered and paginated browser requests, including Restore Attempts.
+## 0.3.0 (2026-10-28)
+
+- Add workspace-scoped databases and records. Existing databases migrate into a protected Default workspace shared by the whole team.
+- Let admins create private workspaces, manage access using existing team roles, and browse a team-wide workspace directory.
+- Replace team API keys with admin-managed workspace API keys. Migration revokes legacy team keys. REST and MCP requests for databases, tables, records, jobs and artifacts now require an explicit `workspaceId`, including Default.
+- Keep the current page visible while switching workspaces and preserve workspace scope on filtered and paginated requests, including Restore Attempts.
+- Add Zod schema validation for JSON fields across the UI, REST, MCP, imports and native writes. Check existing rows before activating a schema and display the saved expression in the Constraints column.
+- Parse schema expressions without executing JavaScript, and scan comments without regex backtracking. Preserve validation through table conversions and backup restores.
+- Remove Audit Logs from the UI, REST and MCP, along with job audit events and audit-specific indexes. Keep cell changelogs and row discussions.
+- Update source builds to Node.js 26 and TypeScript 7. Adopt the shared sidebar, security policy, CI and release checks, and publish the source under Apache 2.0.
 
 ## 0.2.4 (2026-10-19)
 
