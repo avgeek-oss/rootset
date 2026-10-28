@@ -34,6 +34,8 @@ import { Admission } from "./admission.js";
 import { readJson, numberLexemes } from "./json.js";
 import { normaliseTransportError } from "./transport-errors.js";
 import { McpReadRegistry, validMcpRequestId } from "./mcp-read-registry.js";
+import { assistantRoutes } from "./assistant.js";
+import type { ProviderConfig } from "@avgeek-oss/agent-core";
 
 export interface OperationContext {
   requestId: string;
@@ -60,6 +62,7 @@ export interface AdmissionLimits {
   concurrentMutations: number;
 }
 export interface ApiDependencies {
+  assistant?: ProviderConfig;
   pool: Pool;
   admissionPool?: Pool;
   config: { baseURL: string; webURL?: string; version?: string };
@@ -826,6 +829,7 @@ export function createApp(deps: ApiDependencies) {
         }
       });
     }
+  app.route("/api/internal/v1/agent", assistantRoutes(deps, enterActor));
   app.all("/mcp", async (c) => {
     const request = c.req.raw;
     if (

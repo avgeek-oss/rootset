@@ -189,6 +189,15 @@ services:
       - api-artifact-spool:/var/lib/rootset/artifact-spool
     environment:
       <<: *runtime-environment
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_API_KEY: ${AGENT_API_KEY:-}
+      AGENT_AUTH_TOKEN: ${AGENT_AUTH_TOKEN:-}
+      AGENT_BASE_URL: ${AGENT_BASE_URL:-}
+      AGENT_MODEL: ${AGENT_MODEL:-}
+      AGENT_PROFILE: ${AGENT_PROFILE:-}
+      AGENT_EFFORT: ${AGENT_EFFORT:-}
+      AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-}
+      AGENT_HEADERS: ${AGENT_HEADERS:-}
       NODE_OPTIONS: --max-old-space-size=768 --max-http-header-size=196608
     ports:
       - "${ROOTSET_API_BIND:-127.0.0.1}:${ROOTSET_API_PORT:-4310}:4310"

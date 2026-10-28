@@ -1,6 +1,13 @@
 "use client";
 
-import { lazy, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { version as rootsetVersion } from "../../../../package.json";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -108,7 +115,13 @@ const AuditLogsPage = lazy(() =>
 );
 
 import { WorkspaceSwitcher } from "./workspaces";
+
+import { AgentChatTrigger } from "@avgeek-oss/design-system/patterns/agent-chat/agent-chat-trigger";
 import { useCommittedWorkspace } from "./workspace-navigation";
+
+const Assistant = lazy(() =>
+  import("./assistant").then((module) => ({ default: module.Assistant })),
+);
 
 const repositoryUrl = "https://github.com/avgeek-oss/rootset";
 const productLinks: Partial<Record<string, string>> = {
@@ -151,6 +164,7 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
   const lastServerTheme = useRef<string | null>(null);
   const themeSavePending = useRef(false);
   const [savingTheme, setSavingTheme] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const queryClient = useQueryClient();
   const browserSession = authClient.useSession();
   const route = resourceRoute(path);
@@ -224,6 +238,13 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
     retry: false,
   });
   const orgId = context.data?.organisation?.id;
+  const assistant = usePageQuery({
+    queryKey: ["assistant-status", context.data?.principal.userId],
+    queryFn: ({ signal }) =>
+      client.request<{ enabled: boolean }>("/agent/status", { signal }),
+    enabled: !!orgId,
+    retry: false,
+  });
   const workspaces = usePageQuery({
     queryKey: ["workspaces", orgId],
     queryFn: ({ signal }) =>
@@ -581,6 +602,29 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
           navigate={(href) => router.push(href)}
           sidebarOpen={sidebar.sidebarOpen}
           onSidebarOpenChange={sidebar.onSidebarOpenChange}
+          {...(assistant.data?.enabled && workspace
+            ? {
+                aside: (
+                  <Suspense
+                    fallback={<span role="status">Loading assistant…</span>}
+                  >
+                    <Assistant
+                      key={`${context.data?.principal.userId}:${context.data?.principal.role}:${workspace.id}`}
+                      workspaceId={workspace.id}
+                      workspaceName={workspace.name}
+                      entityNames={Object.fromEntries(
+                        [...(databases.data ?? []), ...(tables.data ?? [])].map(
+                          (item) => [item.id, item.name],
+                        ),
+                      )}
+                      onClose={() => setAssistantOpen(false)}
+                    />
+                  </Suspense>
+                ),
+                asideOpen: assistantOpen,
+                onAsideOpenChange: setAssistantOpen,
+              }
+            : {})}
           navbar={
             <ApplicationNavbar
               config={{
@@ -600,6 +644,12 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
               showThemeSwitcher={false}
               actions={
                 <div className="flex items-center gap-2">
+                  {assistant.data?.enabled && (
+                    <AgentChatTrigger
+                      isOpen={assistantOpen}
+                      onOpenChange={setAssistantOpen}
+                    />
+                  )}
                   <ThemeSwitcher
                     className="size-8 min-h-8 min-w-8 p-0 text-muted"
                     isDisabled={savingTheme}

@@ -7,12 +7,14 @@ import {
 import { readSignal } from "@rootset/core";
 import type { createRuntime } from "@rootset/core/runtime";
 import { createApp } from "./app.js";
+import { assistantProvider } from "./assistant.js";
 
 export function createRuntimeApp(
   runtime: Awaited<ReturnType<typeof createRuntime>>,
 ) {
   return createApp({
     ...runtime,
+    assistant: assistantProvider(),
     config: { ...runtime.config, version: release.version },
     windowQuery: async (actor, input, context) => {
       const request = input as {

@@ -23,7 +23,8 @@
     "@hono/node-server": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "pg": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@avgeek-oss/agent-core": "0.1.1"
   },
   "devDependencies": {
     "@types/pg": "catalog:"

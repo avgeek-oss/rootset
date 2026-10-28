@@ -6,7 +6,9 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
-    "typecheck": { "dependsOn": ["^typecheck"] },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": [],
@@ -18,5 +20,6 @@
       "cache": false,
       "passThroughEnv": ["ROOTSET_*"]
     }
-  }
+  },
+  "globalPassThroughEnv": ["AGENT_*", "ANTHROPIC_API_KEY"]
 }

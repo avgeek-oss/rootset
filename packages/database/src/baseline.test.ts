@@ -88,6 +88,7 @@ test(
       "0013_activity_job_events.sql",
       "0014_resource_data_changes.sql",
       "0015_workspaces.sql",
+      "0016_assistant.sql",
     ]);
     await withOrg(pool, "00000000000000000000000001", async (client) => {
       assert.deepEqual(
@@ -147,7 +148,7 @@ test(
     assert.deepEqual(await migrate(pool), []);
     assert.deepEqual(await migrationStatus(pool), {
       complete: true,
-      version: "0015_workspaces.sql",
+      version: "0016_assistant.sql",
     });
     const names = await pool.query(
       "SELECT table_name,character_maximum_length FROM information_schema.columns WHERE table_schema='rootset_control' AND column_name='name' AND table_name IN ('users','organisations','api_keys','auth_passkeys') ORDER BY table_name",
@@ -304,6 +305,7 @@ test(
       "0013_activity_job_events.sql",
       "0014_resource_data_changes.sql",
       "0015_workspaces.sql",
+      "0016_assistant.sql",
     ])
       await writeFile(
         join(directory, name),

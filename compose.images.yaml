@@ -121,6 +121,15 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_API_KEY: ${AGENT_API_KEY:-}
+      AGENT_AUTH_TOKEN: ${AGENT_AUTH_TOKEN:-}
+      AGENT_BASE_URL: ${AGENT_BASE_URL:-}
+      AGENT_MODEL: ${AGENT_MODEL:-}
+      AGENT_PROFILE: ${AGENT_PROFILE:-}
+      AGENT_EFFORT: ${AGENT_EFFORT:-}
+      AGENT_MAX_TOKENS: ${AGENT_MAX_TOKENS:-}
+      AGENT_HEADERS: ${AGENT_HEADERS:-}
       ROOTSET_API_URL: ${ROOTSET_API_URL:?Public API origin required}
       ROOTSET_WEB_URL: ${ROOTSET_WEB_URL:?Public UI origin required}
       ROOTSET_PORT: 4310
