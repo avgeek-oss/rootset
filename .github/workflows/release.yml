@@ -29,8 +29,11 @@ concurrency:
 jobs:
   cut:
     runs-on: ubuntu-latest
+    # The CI poll below waits up to 3 minutes; every other step takes seconds.
+    timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Require main
         if: github.ref != 'refs/heads/main'
@@ -44,7 +47,11 @@ jobs:
           else
             echo "**Release.** If every check passes, this run tags main and dispatches Publish release images." >> "$GITHUB_STEP_SUMMARY"
           fi
+      # The tag is created through the GitHub API with GH_TOKEN, so the
+      # checkout does not keep a git credential.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
@@ -71,6 +78,16 @@ jobs:
           set -euo pipefail
           docker compose --env-file rootset.env.example -f compose.images.yaml config --format json > "$RUNNER_TEMP/release-compose.json"
           RELEASE_TAG="$TAG" node tools/release/validate.mjs "$RUNNER_TEMP/release-compose.json"
+      - name: Check no newer release is published
+        run: |
+          set -euo pipefail
+          # Publishing marks the release as Latest, so an older version than
+          # the current latest release must not be cut.
+          gh release list --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName > "$RUNNER_TEMP/releases.json"
+          if [ "$(node tools/release/latest.mjs "$TAG" "$RUNNER_TEMP/releases.json")" != "true" ]; then
+            echo "::error::A newer release than $TAG is already published. Bump the version in package.json."
+            exit 1
+          fi
       - name: Check the changelog has an entry
         run: |
           set -euo pipefail
@@ -82,7 +99,12 @@ jobs:
       - name: Check the tag and release are new
         run: |
           set -euo pipefail
-          if [ -n "$(git ls-remote --tags origin "refs/tags/$TAG")" ]; then
+          # The listing must succeed; a failed lookup is not proof of absence.
+          if ! remote_tags=$(git ls-remote --tags origin "refs/tags/$TAG"); then
+            echo "::error::Could not list remote tags to check $TAG. Nothing was tagged."
+            exit 1
+          fi
+          if [ -n "$remote_tags" ]; then
             echo "::error::Tag $TAG already exists."
             exit 1
           fi
@@ -132,17 +154,21 @@ jobs:
             echo "::error::main moved to ${live:0:7} while this run checked ${GITHUB_SHA:0:7}. Nothing was tagged; run again on the new head."
             exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" "$GITHUB_SHA" -m "Rootset $TAG"
-          git push origin "refs/tags/$TAG"
+          # An annotated tag object, then the ref that points to it, created
+          # with GH_TOKEN instead of a git credential.
+          tag_object=$(gh api "repos/$GITHUB_REPOSITORY/git/tags" \
+            -f tag="$TAG" -f message="Rootset $TAG" -f object="$GITHUB_SHA" -f type=commit \
+            -f "tagger[name]=github-actions[bot]" \
+            -f "tagger[email]=41898282+github-actions[bot]@users.noreply.github.com" \
+            --jq .sha)
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$tag_object" --silent
       - name: Dispatch Publish release images
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           live=$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)
           if [ "$live" != "$GITHUB_SHA" ]; then
-            git push origin ":refs/tags/$TAG"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" --silent
             echo "::error::main moved to ${live:0:7} after $TAG was created. The publisher requires the tag on the head of main, so the tag was removed again. Run Cut release again on the new head."
             exit 1
           fi

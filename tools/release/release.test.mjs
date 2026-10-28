@@ -12,6 +12,7 @@ import {
   requireVersionConsistency,
 } from "./check.mjs";
 import { inspectPublicImage, readReleaseImages } from "./images.mjs";
+import { isNewestRelease } from "./latest.mjs";
 import { verifyPulledImage } from "./verify-installation.mjs";
 
 const version = "0.1.0";
@@ -428,4 +429,18 @@ test("installation rejects a pulled image from another platform or source", () =
     change(input);
     assert.throws(() => verifyPulledImage(input, "arm64", version, commit));
   }
+});
+
+test("a release is Latest only when no newer stable release is published", () => {
+  assert.equal(isNewestRelease("v1.0.6", []), true);
+  assert.equal(isNewestRelease("v1.0.6", ["v1.0.5", "v0.9.12"]), true);
+  // Compares numerically, not as text.
+  assert.equal(isNewestRelease("v1.0.10", ["v1.0.9"]), true);
+  assert.equal(isNewestRelease("v1.0.5", ["v1.0.6"]), false);
+  assert.equal(isNewestRelease("v1.2.0", ["v1.10.0"]), false);
+  assert.equal(isNewestRelease("v1.9.9", ["v2.0.0"]), false);
+  // The release itself and unrelated tags do not block it.
+  assert.equal(isNewestRelease("v1.0.6", ["v1.0.6", "nightly"]), true);
+  assert.throws(() => isNewestRelease("1.0.6", []), /not a stable release/);
+  assert.throws(() => isNewestRelease("v1.0.6-rc.1", []), /not a stable/);
 });

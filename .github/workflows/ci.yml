@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 concurrency:
   # Pull request runs are grouped by branch so a newer push supersedes the
@@ -55,7 +54,7 @@ jobs:
           --health-cmd "pg_isready -U postgres -d rootset"
           --health-interval 5s --health-timeout 3s --health-retries 30
       objects:
-        image: rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+        image: rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
         env:
           RUSTFS_ACCESS_KEY: fixture-rootset
           RUSTFS_SECRET_KEY: fixture-rootset-secret
@@ -65,14 +64,16 @@ jobs:
           --health-cmd "curl -fsS http://localhost:9000/health"
           --health-interval 5s --health-timeout 3s --health-retries 30
       mail:
-        image: axllent/mailpit@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
+        image: axllent/mailpit:v1.31.3@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
         ports: [1025:1025, 8025:8025]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install the pinned pnpm before Node so its store can be cached
-        run: npm install --global pnpm@11.5.3
+          persist-credentials: false
+      # pnpm/action-setup reads the version from packageManager in
+      # package.json. It runs before setup-node so the store can be cached.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
@@ -133,6 +134,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
@@ -168,6 +170,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
@@ -181,8 +184,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install the pinned pnpm before Node so its store can be cached
-        run: npm install --global pnpm@11.5.3
+        with:
+          persist-credentials: false
+      # pnpm/action-setup reads the version from packageManager in
+      # package.json. It runs before setup-node so the store can be cached.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
