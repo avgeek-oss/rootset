@@ -16,7 +16,7 @@ id: rootset-api
 name: Rootset API
 deployment:
   type: image
-  image: ghcr.io/avgeek-oss/rootset-api:0.2.4
+  image: ghcr.io/avgeek-oss/rootset-api:0.3.0
 autoDeploy: false
 rollout:
   type: recreate
@@ -84,7 +84,7 @@ id: rootset-worker
 name: Rootset worker
 deployment:
   type: image
-  image: ghcr.io/avgeek-oss/rootset-worker:0.2.4
+  image: ghcr.io/avgeek-oss/rootset-worker:0.3.0
 autoDeploy: false
 rollout:
   type: recreate
@@ -152,7 +152,7 @@ id: rootset-web
 name: Rootset UI
 deployment:
   type: image
-  image: ghcr.io/avgeek-oss/rootset-web:0.2.4
+  image: ghcr.io/avgeek-oss/rootset-web:0.3.0
 autoDeploy: false
 rollout:
   type: recreate
