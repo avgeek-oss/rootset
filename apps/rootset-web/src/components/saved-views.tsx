@@ -753,13 +753,15 @@ function ViewEditor({
             <Button
               variant="secondary"
               isDisabled={busy}
-              onPress={async () => {
-                const version = await onReloadFields();
-                if (version) {
-                  setSchemaVersion(version);
-                  setSchemaConflict(false);
-                }
-              }}
+              onPress={() =>
+                // onReloadFields reports its own errors with a toast.
+                void onReloadFields().then((version) => {
+                  if (version) {
+                    setSchemaVersion(version);
+                    setSchemaConflict(false);
+                  }
+                })
+              }
             >
               <RefreshCw />
               Reload fields

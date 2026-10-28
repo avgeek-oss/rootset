@@ -92,7 +92,13 @@ export function WorkspaceSwitcher({
           closeDisabled={busy}
           onClose={() => setCreating(false)}
         >
-          <form className="dialog-form" onSubmit={create}>
+          <form
+            className="dialog-form"
+            onSubmit={(event) => {
+              // create reports its own errors with a toast.
+              void create(event);
+            }}
+          >
             <Field
               label="Workspace name"
               value={name}
@@ -194,7 +200,13 @@ function WorkspaceGeneralForm({
   return (
     <div className="content-grid lg:grid-cols-2 lg:items-start">
       <Section title="Workspace details">
-        <form className="dialog-form" onSubmit={save}>
+        <form
+          className="dialog-form"
+          onSubmit={(event) => {
+            // save reports its own errors with a toast.
+            void save(event);
+          }}
+        >
           <Field
             label="Workspace name"
             value={name}
@@ -230,6 +242,20 @@ function WorkspaceDangerZone({ workspace }: { workspace: Workspace }) {
   const switchWorkspace = useSwitchWorkspace();
   const [busy, setBusy] = useState(false),
     [deleting, setDeleting] = useState(false);
+  async function deleteWorkspace() {
+    setBusy(true);
+    try {
+      await client.operation(
+        "deleteWorkspace",
+        { orgId: workspace.orgId, workspaceId: workspace.id },
+        { idempotencyKey: crypto.randomUUID() },
+      );
+      switchWorkspace(workspace.orgId);
+    } catch (error) {
+      showError(error);
+      setBusy(false);
+    }
+  }
   return (
     <>
       <Section
@@ -269,19 +295,9 @@ function WorkspaceDangerZone({ workspace }: { workspace: Workspace }) {
               <Button
                 variant="danger"
                 isPending={busy}
-                onPress={async () => {
-                  setBusy(true);
-                  try {
-                    await client.operation(
-                      "deleteWorkspace",
-                      { orgId: workspace.orgId, workspaceId: workspace.id },
-                      { idempotencyKey: crypto.randomUUID() },
-                    );
-                    switchWorkspace(workspace.orgId);
-                  } catch (error) {
-                    showError(error);
-                    setBusy(false);
-                  }
+                onPress={() => {
+                  // deleteWorkspace reports its own errors with a toast.
+                  void deleteWorkspace();
                 }}
               >
                 <Trash2 />

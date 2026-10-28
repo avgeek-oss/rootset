@@ -7,6 +7,9 @@
   "env": {
     "builtin": true
   },
+  "options": {
+    "typeAware": true
+  },
   "ignorePatterns": [
     "**/dist/**",
     "**/.next/**",
@@ -59,6 +62,39 @@
         "prefer-const": "error",
         "prefer-rest-params": "error",
         "prefer-spread": "error"
+      }
+    },
+    {
+      "files": [
+        "apps/rootset-api/**",
+        "apps/rootset-web/**",
+        "apps/rootset-worker/**",
+        "packages/**",
+        "tools/**"
+      ],
+      "rules": {
+        "typescript/no-floating-promises": [
+          "error",
+          {
+            "allowForKnownSafeCalls": [
+              {
+                "from": "package",
+                "package": "node:test",
+                "name": [
+                  "test",
+                  "it",
+                  "describe",
+                  "suite",
+                  "before",
+                  "after",
+                  "beforeEach",
+                  "afterEach"
+                ]
+              }
+            ]
+          }
+        ],
+        "typescript/no-misused-promises": "error"
       }
     }
   ]

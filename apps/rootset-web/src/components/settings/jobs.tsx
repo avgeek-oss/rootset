@@ -260,6 +260,17 @@ export function ExportsSettings(props: SettingsPanelProps) {
     ),
     [mutation.busy],
   );
+  async function retryExport(job: Job) {
+    const result = await mutation.run(
+      () =>
+        write<JobAccepted>(
+          `${organisationPath(props.orgId)}/jobs/${job.id}/retry`,
+          "POST",
+        ),
+      "Export request queued again.",
+    );
+    if (result.ok) pendingRequests.current.add(result.value.jobId);
+  }
   if (!path)
     return (
       <Empty>
@@ -285,16 +296,9 @@ export function ExportsSettings(props: SettingsPanelProps) {
                   "Download opened.",
                 );
               }}
-              onRetry={async (job) => {
-                const result = await mutation.run(
-                  () =>
-                    write<JobAccepted>(
-                      `${organisationPath(props.orgId)}/jobs/${job.id}/retry`,
-                      "POST",
-                    ),
-                  "Export request queued again.",
-                );
-                if (result.ok) pendingRequests.current.add(result.value.jobId);
+              onRetry={(job) => {
+                // retryExport reports its own errors through the mutation.
+                void retryExport(job);
               }}
               onCancel={(job) => {
                 void mutation.run(

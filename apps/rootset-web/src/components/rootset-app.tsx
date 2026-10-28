@@ -935,7 +935,13 @@ function RootsetPage({ location: routeLocation }: { location: string }) {
             if (!pending) setCreate(null);
           }}
         >
-          <form className="dialog-form" onSubmit={createResource}>
+          <form
+            className="dialog-form"
+            onSubmit={(event) => {
+              // createResource reports its own errors in the dialog.
+              void createResource(event);
+            }}
+          >
             <TextField name="name" isRequired>
               <Label>
                 {create === "database" ? "Database name" : "Table name"}

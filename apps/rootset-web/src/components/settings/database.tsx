@@ -81,6 +81,20 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
   if (!path) return <Empty>Select a database to manage its settings.</Empty>;
   if (!resource.data) return <Loading {...resource} retry={resource.reload} />;
   const name = resource.data.name;
+  const deleteDatabase = async () => {
+    if (
+      await confirmation.confirm(
+        "Delete this database?",
+        `Delete ${name} and all its tables? This action cannot be undone in Rootset.`,
+        "Delete database",
+      )
+    ) {
+      await mutation.run(async () => {
+        await confirmIdentity();
+        return write(path, "DELETE");
+      }, "Database deletion requested.");
+    }
+  };
   return (
     <>
       <Loading {...resource} retry={resource.reload} />
@@ -91,19 +105,9 @@ export function DatabaseDangerZone(props: SettingsPanelProps) {
         <Button
           variant="danger-soft"
           isDisabled={mutation.busy}
-          onPress={async () => {
-            if (
-              await confirmation.confirm(
-                "Delete this database?",
-                `Delete ${name} and all its tables? This action cannot be undone in Rootset.`,
-                "Delete database",
-              )
-            ) {
-              await mutation.run(async () => {
-                await confirmIdentity();
-                return write(path, "DELETE");
-              }, "Database deletion requested.");
-            }
+          onPress={() => {
+            // deleteDatabase reports its own errors through the mutation.
+            void deleteDatabase();
           }}
         >
           <Trash2 />
