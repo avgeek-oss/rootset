@@ -122,7 +122,7 @@ test("API09 control replay receipts are atomic, bound, private, bounded and reta
     userId: newId(),
     orgId,
     role: "admin",
-    scopes: ["members:manage"],
+    scopes: ["admin"],
   };
   try {
     assert.ok(fixture.appliedMigrations.length > 0);

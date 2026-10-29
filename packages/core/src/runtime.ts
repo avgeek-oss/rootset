@@ -1,6 +1,6 @@
 import release from "../../../package.json" with { type: "json" };
 import { createPool, withOrg } from "@rootset/database";
-import { scopeNames, JsonValueSchema, RootsetError } from "@rootset/contracts";
+import { JsonValueSchema, RootsetError } from "@rootset/contracts";
 import { assertAccess } from "@rootset/access";
 import { OperationalObserver } from "@rootset/observability";
 import { IdentityService } from "@rootset/identity";
@@ -101,7 +101,7 @@ export async function createRuntime(
         authoriseHistoryPolicy: async (actor, target) => {
           const current = await identity.refreshPolicyActor(actor);
           await storage.getTable(current, target.tableId);
-          for (const scope of ["history:read", "schema:manage"])
+          for (const scope of ["viewer", "member"])
             assertAccess(current, {
               scope,
               orgId: current.orgId,
@@ -140,7 +140,6 @@ export async function createRuntime(
     const oauth: OAuthService = new OAuthService(identityPool, {
       baseURL: config.baseURL,
       webURL: config.webURL,
-      scopes: scopeNames,
       clients: options.oauthClients,
       resolveSession: (request) => identity.resolveActor(request, "browser"),
       refreshActor: (actor) => identity.refreshActor(actor).catch(() => null),

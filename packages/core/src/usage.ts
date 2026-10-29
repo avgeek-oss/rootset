@@ -1,7 +1,8 @@
-import { roleAllows } from "@rootset/access";
+import { assertAccess } from "@rootset/access";
 import { type Actor } from "@rootset/contracts";
 import { withOrg, type Pool } from "@rootset/database";
 export async function readUsage(pool: Pool, actor: Actor) {
+  assertAccess(actor, { scope: "viewer" });
   return withOrg(pool, actor.orgId, async (c) => {
     const visible = (
       await c.query<{
@@ -13,26 +14,12 @@ export async function readUsage(pool: Pool, actor: Actor) {
       }>(
         "SELECT t.id,t.database_id,t.row_count::text,d.schema_name,t.physical_name FROM rootset_control.tables t JOIN rootset_control.databases d ON d.id=t.database_id WHERE t.state IN ('active','maintenance') AND d.state='active'",
       )
-    ).rows.filter(
-      () =>
-        roleAllows(actor.role, "rows:read") &&
-        roleAllows(actor.role, "tables:read") &&
-        (actor.kind !== "oauth" ||
-          ["rows:read", "tables:read"].every((scope) =>
-            actor.scopes.includes(scope),
-          )),
-    );
+    ).rows;
     const databaseIds = (
       await c.query<{ id: string }>(
         "SELECT id FROM rootset_control.databases WHERE state='active'",
       )
-    ).rows
-      .filter(
-        () =>
-          roleAllows(actor.role, "databases:read") &&
-          (actor.kind !== "oauth" || actor.scopes.includes("databases:read")),
-      )
-      .map((d) => d.id);
+    ).rows.map((d) => d.id);
     let dataBytes = 0,
       indexBytes = 0;
     for (const t of visible) {

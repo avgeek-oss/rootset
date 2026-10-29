@@ -157,7 +157,6 @@ type Settings = Partial<
     | "stepUp"
     | "job"
     | "personal"
-    | "minimumRole"
     | "resource"
     | "successStatus"
     | "example"
@@ -218,25 +217,14 @@ function operation(
     stepUp: "never",
     job: false,
     personal: false,
-    minimumRole: settings.personal
-      ? "viewer"
-      : scopes.some(
-            (scope) =>
-              (scope.endsWith(":manage") &&
-                ![
-                  "databases:manage",
-                  "tables:manage",
-                  "schema:manage",
-                ].includes(scope)) ||
-              scope === "members:read" ||
-              scope.startsWith("installation:"),
-          )
-        ? "admin"
-        : scopes.some((scope) => scope.endsWith(":manage"))
-          ? "member"
-          : readOnly
-            ? "viewer"
-            : "member",
+    minimumRole:
+      settings.personal && scopes.includes("member")
+        ? "viewer"
+        : scopes.includes("admin")
+          ? "admin"
+          : scopes.includes("member")
+            ? "member"
+            : "viewer",
     resource: path.includes("{tableId}")
       ? "table"
       : path.includes("{databaseId}")
@@ -274,7 +262,7 @@ operation(
   "get_context",
   "GET",
   "/v1/me",
-  [],
+  ["viewer"],
   empty,
   ContextSchema,
   "Get the caller, installation organisation, current role capabilities and preferences.",
@@ -284,7 +272,7 @@ operation(
   "get_profile",
   "GET",
   "/v1/me/profile",
-  ["profile:manage"],
+  ["viewer"],
   empty,
   ProfileSchema,
   "Read your profile.",
@@ -296,7 +284,7 @@ operation(
   "update_profile",
   "PATCH",
   "/v1/me/profile",
-  ["profile:manage"],
+  ["member"],
   z.strictObject({ name: AccountNameSchema }),
   ProfileSchema,
   "Update your display name.",
@@ -307,7 +295,7 @@ operation(
   "get_preferences",
   "GET",
   "/v1/me/preferences",
-  ["profile:manage"],
+  ["viewer"],
   empty,
   PreferencesSchema,
   "Read display preferences.",
@@ -318,7 +306,7 @@ operation(
   "update_preferences",
   "PATCH",
   "/v1/me/preferences",
-  ["profile:manage"],
+  ["member"],
   PreferencesSchema.partial(),
   PreferencesSchema,
   "Update timezone, locale, format or theme preferences.",
@@ -329,7 +317,7 @@ operation(
   "get_preference_options",
   "GET",
   "/v1/preferences/options",
-  [],
+  ["viewer"],
   empty,
   z.strictObject({
     timezones: z.array(z.string()),
@@ -345,7 +333,7 @@ operation(
   "preview_preferences",
   "POST",
   "/v1/me/preferences/preview",
-  [],
+  ["viewer"],
   z.strictObject({
     preferences: PreferencesSchema,
     value: DateTimeSchema,
@@ -363,7 +351,7 @@ operation(
   "list_sessions",
   "GET",
   "/v1/me/sessions",
-  ["account:security"],
+  ["viewer"],
   empty,
   list(SessionMetadataSchema),
   "List your active browser sessions without session secrets.",
@@ -374,7 +362,7 @@ operation(
   "revoke_session",
   "DELETE",
   "/v1/me/sessions/{id}",
-  ["account:security"],
+  ["member"],
   z.strictObject({ id: IdSchema }),
   deleted,
   "Revoke an owned browser session.",
@@ -385,7 +373,7 @@ operation(
   "list_connections",
   "GET",
   "/v1/me/connections",
-  ["account:security"],
+  ["viewer"],
   empty,
   list(ConnectionSchema),
   "List your delegated OAuth connections.",
@@ -396,7 +384,7 @@ operation(
   "revoke_connection",
   "DELETE",
   "/v1/me/connections/{id}",
-  ["account:security"],
+  ["member"],
   z.strictObject({ id: IdSchema }),
   deleted,
   "Revoke an owned OAuth grant and refresh family.",
@@ -407,7 +395,7 @@ operation(
   "get_organisation",
   "GET",
   O,
-  ["org:read"],
+  ["viewer"],
   z.strictObject(org),
   OrganisationSchema,
   "Read an authorised organisation.",
@@ -417,29 +405,27 @@ operation(
   "update_organisation",
   "PATCH",
   O,
-  ["org:manage"],
+  ["admin"],
   z.strictObject({ ...org, name: AccountNameSchema }),
   OrganisationSchema,
   "Update the installation organisation name.",
-  { minimumRole: "admin" },
 );
 operation(
   "listMembers",
   "list_members",
   "GET",
   `${O}/members`,
-  ["members:read"],
+  ["admin"],
   z.strictObject({ ...org, ...paging }),
   list(MemberSchema),
   "List organisation members.",
-  { minimumRole: "admin" },
 );
 operation(
   "updateMember",
   "update_member",
   "PATCH",
   `${O}/members/{id}`,
-  ["members:manage"],
+  ["admin"],
   z.strictObject({
     ...org,
     id: IdSchema,
@@ -449,14 +435,13 @@ operation(
   }),
   MemberSchema,
   "Update a member name or role while preserving at least one admin.",
-  { minimumRole: "admin" },
 );
 operation(
   "removeMember",
   "remove_member",
   "DELETE",
   `${O}/members/{id}`,
-  ["members:manage"],
+  ["admin"],
   z.strictObject({
     ...org,
     id: IdSchema,
@@ -464,14 +449,13 @@ operation(
   }),
   deleted,
   "Remove a member and invalidate delegated access.",
-  { minimumRole: "admin" },
 );
 operation(
   "listInvitations",
   "list_invitations",
   "GET",
   `${O}/invitations`,
-  ["members:manage"],
+  ["admin"],
   z.strictObject({
     ...org,
     ...paging,
@@ -479,14 +463,13 @@ operation(
   }),
   list(InvitationSchema),
   "List redacted organisation invitations.",
-  { minimumRole: "admin" },
 );
 operation(
   "inviteMember",
   "invite_member",
   "POST",
   `${O}/invitations`,
-  ["members:manage"],
+  ["admin"],
   z.strictObject({
     ...org,
     email: z.email(),
@@ -494,18 +477,17 @@ operation(
   }),
   InvitationSchema.extend({ inviteUrl: z.url() }),
   "Invite a member as an admin with email proof.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "cancelInvitation",
   "cancel_invitation",
   "DELETE",
   `${O}/invitations/{id}`,
-  ["members:manage"],
+  ["admin"],
   z.strictObject({ ...org, id: IdSchema }),
   deleted,
   "Cancel an invitation before acceptance.",
-  { minimumRole: "admin" },
 );
 const keyInput = {
   name: AccountNameSchema,
@@ -518,7 +500,7 @@ operation(
   "list_personal_keys",
   "GET",
   "/v1/me/keys",
-  ["keys:manage"],
+  ["viewer"],
   empty,
   list(KeyMetadataSchema),
   "List metadata for your personal keys.",
@@ -529,7 +511,7 @@ operation(
   "create_personal_key",
   "POST",
   "/v1/me/keys",
-  ["keys:manage"],
+  ["member"],
   z
     .strictObject({ ...org, ...keyInput })
     .refine((input) => !input.includeAdmin || input.access === "edit", {
@@ -544,7 +526,7 @@ operation(
   "rotate_personal_key",
   "POST",
   "/v1/me/keys/{id}/rotate",
-  ["keys:manage"],
+  ["member"],
   z.strictObject({
     id: IdSchema,
     overlapSeconds: z.number().int().min(0).max(86400).optional(),
@@ -562,7 +544,7 @@ operation(
   "revoke_personal_key",
   "DELETE",
   "/v1/me/keys/{id}",
-  ["keys:manage"],
+  ["member"],
   z.strictObject({ id: IdSchema }),
   deleted,
   "Revoke an owned personal key.",
@@ -573,18 +555,18 @@ operation(
   "list_workspace_keys",
   "GET",
   `${O}/workspace-keys`,
-  ["workspace-keys:manage"],
+  ["admin"],
   z.strictObject({ ...org, ...paging }),
   list(KeyMetadataSchema),
   "List metadata for workspace-owned API keys. Administrators only.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "createWorkspaceKey",
   "create_workspace_key",
   "POST",
   `${O}/workspace-keys`,
-  ["workspace-keys:manage"],
+  ["admin"],
   z
     .strictObject({ ...org, ...keyInput })
     .refine((input) => !input.includeAdmin || input.access === "edit", {
@@ -592,14 +574,14 @@ operation(
     }),
   KeyCreatedSchema,
   "Create a workspace-owned API key with explicit permissions and expiry; the secret appears once and access is independent of its creator.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "rotateWorkspaceKey",
   "rotate_workspace_key",
   "POST",
   `${O}/workspace-keys/{id}/rotate`,
-  ["workspace-keys:manage"],
+  ["admin"],
   z.strictObject({
     ...org,
     id: IdSchema,
@@ -611,25 +593,25 @@ operation(
   }),
   KeyCreatedSchema,
   "Rotate a workspace API key with bounded overlap; preserve permissions and expiry unless explicitly changed. Administrators only.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "revokeWorkspaceKey",
   "revoke_workspace_key",
   "DELETE",
   `${O}/workspace-keys/{id}`,
-  ["workspace-keys:manage"],
+  ["admin"],
   z.strictObject({ ...org, id: IdSchema }),
   deleted,
   "Revoke a workspace-owned API key. Administrators only.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "getSecurityStatus",
   "get_security_status",
   "GET",
   "/v1/me/security",
-  ["account:security"],
+  ["viewer"],
   empty,
   z.strictObject({
     twoFactorEnabled: z.boolean(),
@@ -652,7 +634,7 @@ operation(
   "list_databases",
   "GET",
   `${O}/databases`,
-  ["databases:read"],
+  ["viewer"],
   z.strictObject({ ...org, ...paging }),
   list(DatabaseSummarySchema),
   "List accessible logical databases.",
@@ -662,18 +644,17 @@ operation(
   "create_database",
   "POST",
   `${O}/databases`,
-  ["databases:manage"],
+  ["member"],
   z.strictObject({ ...org, ...names }),
   DatabaseSchema,
   "Create a logical database with a managed PostgreSQL namespace.",
-  { minimumRole: "member" },
 );
 operation(
   "getDatabase",
   "get_database",
   "GET",
   D,
-  ["databases:read"],
+  ["viewer"],
   z.strictObject(database),
   DatabaseSchema,
   "Read a database within its full organisation parent.",
@@ -683,29 +664,28 @@ operation(
   "update_database",
   "PATCH",
   D,
-  ["databases:manage"],
+  ["member"],
   z.strictObject({ ...database, ...names }),
   DatabaseSchema,
   "Update database presentation metadata.",
-  { minimumRole: "member" },
 );
 operation(
   "deleteDatabase",
   "delete_database",
   "DELETE",
   D,
-  ["databases:manage"],
+  ["admin"],
   z.strictObject({ ...database }),
   JobAcceptedSchema,
   "Start administrator database deletion, removing its tables, rows and cell history.",
-  { minimumRole: "admin", stepUp: "required", job: true, successStatus: 202 },
+  { stepUp: "required", job: true, successStatus: 202 },
 );
 operation(
   "listTables",
   "list_tables",
   "GET",
   `${D}/tables`,
-  ["tables:read"],
+  ["viewer"],
   z.strictObject({ ...database, ...paging }),
   list(TableSummarySchema),
   "List accessible tables inside a database.",
@@ -715,7 +695,7 @@ operation(
   "create_table",
   "POST",
   `${D}/tables`,
-  ["tables:manage"],
+  ["member"],
   z.strictObject({
     ...database,
     ...names,
@@ -729,7 +709,7 @@ operation(
   "get_table",
   "GET",
   T,
-  ["tables:read"],
+  ["viewer"],
   z.strictObject(table),
   TableSchema,
   "Read table metadata including cached live-row count.",
@@ -739,7 +719,7 @@ operation(
   "update_table",
   "PATCH",
   T,
-  ["tables:manage"],
+  ["member"],
   z.strictObject({ ...table, ...expected, ...names }),
   TableSchema,
   "Update table name and description.",
@@ -749,18 +729,18 @@ operation(
   "delete_table",
   "DELETE",
   T,
-  ["tables:manage"],
+  ["admin"],
   z.strictObject({ ...table, ...expected }),
   JobAcceptedSchema,
   "Start administrator table deletion, removing its rows and cell history.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "getTableSchema",
   "get_table_schema",
   "GET",
   `${T}/schema`,
-  ["tables:read"],
+  ["viewer"],
   z.strictObject(table),
   TableSchemaResultSchema,
   "Discover active fields, rules, limits and operator coverage.",
@@ -770,7 +750,7 @@ operation(
   "list_fields",
   "GET",
   `${T}/fields`,
-  ["tables:read"],
+  ["viewer"],
   z.strictObject(table),
   list(FieldDefinitionSchema),
   "List active fields by property name and stable identifier.",
@@ -780,7 +760,7 @@ operation(
   "create_field",
   "POST",
   `${T}/fields`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({ ...table, ...expected, field: FieldInputSchema }),
   jobOr(TableSchemaResultSchema),
   "Add a validated field, checking existing values and row bytes.",
@@ -791,7 +771,7 @@ operation(
   "update_field",
   "PATCH",
   `${T}/fields/{fieldId}`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -812,7 +792,7 @@ operation(
   "delete_field",
   "DELETE",
   `${T}/fields/{fieldId}`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -828,7 +808,7 @@ operation(
   "reorder_fields",
   "PUT",
   `${T}/field-order`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -859,18 +839,18 @@ operation(
   "preview_schema_change",
   "POST",
   `${T}/schema/preview`,
-  ["schema:manage"],
+  ["admin"],
   z.strictObject(schemaInput),
   previewSchema,
   "Dry run a proposed schema change over existing values.",
-  { readOnly: true, idempotencyRequired: false, minimumRole: "admin" },
+  { readOnly: true, idempotencyRequired: false },
 );
 operation(
   "applySchemaChange",
   "apply_schema_change",
   "POST",
   `${T}/schema/operations`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject(schemaInput),
   JobAcceptedSchema,
   "Start a journalled resumable schema change with verified cutover.",
@@ -881,7 +861,7 @@ operation(
   "get_schema_operation",
   "GET",
   `${T}/schema/operations/{id}`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({ ...table, id: IdSchema }),
   SchemaOperationReportSchema,
   "Inspect a schema journal using its journal ID or the originating schema job ID. Reports preserve recovery state and public business definitions without physical identifiers.",
@@ -891,7 +871,7 @@ operation(
   "list_unique_rules",
   "GET",
   `${T}/unique-rules`,
-  ["tables:read"],
+  ["viewer"],
   z.strictObject(table),
   list(UniqueRuleSchema),
   "List active or building scalar uniqueness rules.",
@@ -901,7 +881,7 @@ operation(
   "create_unique_rule",
   "POST",
   `${T}/unique-rules`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -917,7 +897,7 @@ operation(
   "delete_unique_rule",
   "DELETE",
   `${T}/unique-rules/{id}`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({ ...table, ...expected, id: IdSchema }),
   deleted,
   "Remove uniqueness enforcement and update the schema version.",
@@ -927,7 +907,7 @@ operation(
   "get_row_relationships",
   "GET",
   `${T}/rows/{rowId}/relationships`,
-  ["rows:read", "schema:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     rowId: IdSchema,
@@ -937,25 +917,23 @@ operation(
   }),
   RowRelationshipsSchema,
   "List the tables and foreign keys referencing a saved record with exact live counts and bounded pagination. Optional NULL key components do not form links.",
-  { minimumRole: "viewer" },
 );
 operation(
   "getRelatedRowFilter",
   "get_related_row_filter",
   "GET",
   `${T}/relationships/{ruleId}/records/{referencedRowId}/filter`,
-  ["rows:read", "schema:read"],
+  ["viewer"],
   z.strictObject({ ...table, ruleId: IdSchema, referencedRowId: IdSchema }),
   RelatedRowFilterSchema,
   "Resolve a compact reverse-relationship link into a typed filter using the current saved referenced record. Missing or incomplete keys never produce an unfiltered table.",
-  { minimumRole: "viewer" },
 );
 operation(
   "listForeignKeys",
   "list_foreign_keys",
   "GET",
   `${T}/foreign-keys`,
-  ["tables:read"],
+  ["viewer"],
   z.strictObject(table),
   list(ForeignKeySchema),
   "List foreign keys linking fields to an unconditional unique key in the same database.",
@@ -965,7 +943,7 @@ operation(
   "create_foreign_key",
   "POST",
   `${T}/foreign-keys`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -983,7 +961,7 @@ operation(
   "delete_foreign_key",
   "DELETE",
   `${T}/foreign-keys/{id}`,
-  ["schema:manage"],
+  ["member"],
   z.strictObject({ ...table, ...expected, id: IdSchema }),
   deleted,
   "Remove foreign-key validation without changing existing rows.",
@@ -993,7 +971,7 @@ operation(
   "list_rows",
   "GET",
   `${T}/rows`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     select: z.array(z.string().min(1).max(64)).max(limits.maxFields).optional(),
@@ -1019,7 +997,7 @@ operation(
   "query_rows",
   "POST",
   `${T}/query`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({ ...table, query: QuerySpecSchema }),
   QueryResultSchema,
   "Query typed fields with bounded projection, filters, sorting and live cursors.",
@@ -1039,7 +1017,7 @@ operation(
   "get_row",
   "GET",
   `${T}/rows/{rowId}`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({ ...table, rowId: IdSchema }),
   RowSchema,
   "Get one canonical row with its opaque ID and decimal-string revision.",
@@ -1049,7 +1027,7 @@ operation(
   "create_row",
   "POST",
   `${T}/rows`,
-  ["rows:write"],
+  ["member"],
   z.strictObject({ ...table, ...expected, values }),
   z.strictObject({ row: RowSchema, mutationId: IdSchema }),
   "Commit a validated row, uniqueness, capacity, initial cell history and idempotency.",
@@ -1059,7 +1037,7 @@ operation(
   "list_row_comments",
   "GET",
   `${T}/rows/{rowId}/comments`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     rowId: IdSchema,
@@ -1074,7 +1052,7 @@ operation(
   "count_row_comments",
   "POST",
   `${T}/comments/counts`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({ ...table, rowIds: z.array(IdSchema).min(1).max(200) }),
   z.strictObject({
     data: z.array(
@@ -1092,7 +1070,7 @@ operation(
   "create_row_comment",
   "POST",
   `${T}/rows/{rowId}/comments`,
-  ["rows:write"],
+  ["member"],
   z.strictObject({
     ...table,
     rowId: IdSchema,
@@ -1113,7 +1091,7 @@ operation(
   "delete_row_comment",
   "DELETE",
   `${T}/rows/{rowId}/comments/{commentId}`,
-  ["rows:write"],
+  ["member"],
   z.strictObject({ ...table, rowId: IdSchema, commentId: IdSchema }),
   deleted,
   "Permanently clear your own comment's body, or moderate as an administrator, while retaining its author, creation time and deletion timestamp in the discussion. Requires current write access to the row. Deleted entries cannot be edited, restored or removed through comment operations.",
@@ -1123,7 +1101,7 @@ operation(
   "update_row",
   "PATCH",
   `${T}/rows/{rowId}`,
-  ["rows:write"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -1139,7 +1117,7 @@ operation(
   "delete_row",
   "DELETE",
   `${T}/rows/{rowId}`,
-  ["rows:write"],
+  ["member"],
   z.strictObject({
     ...table,
     ...expected,
@@ -1162,7 +1140,7 @@ operation(
   "preview_bulk_rows",
   "POST",
   `${T}/rows/bulk/preview`,
-  ["rows:write"],
+  ["member"],
   BulkRowsInputSchema.extend(table),
   BulkRowsPreviewSchema,
   "Preview 1–200 revision-bound records for a field patch, duplication with regenerated automatic IDs, or deletion. Validate native constraints and roll back every simulated effect. Return row-specific conflicts and a bounded sample; no records or counters change.",
@@ -1171,7 +1149,6 @@ operation(
     readOnly: true,
     idempotent: true,
     idempotencyRequired: false,
-    minimumRole: "member",
     successStatus: 200,
   },
 );
@@ -1180,7 +1157,7 @@ operation(
   "bulk_rows",
   "POST",
   `${T}/rows/bulk`,
-  ["rows:write"],
+  ["member"],
   BulkRowsInputSchema.extend(table),
   BulkRowsResultSchema,
   "Apply a field patch, duplicate records with regenerated automatic IDs, or delete 1–200 selected records atomically. Recheck source revisions and schema, enforce native constraints, and replay an unchanged idempotent request without duplicating records.",
@@ -1200,7 +1177,7 @@ operation(
   "mutate_rows",
   "POST",
   `${T}/rows/batch`,
-  ["rows:write"],
+  ["member"],
   z
     .strictObject({
       ...table,
@@ -1247,7 +1224,7 @@ operation(
         .max(limits.mutationBatch),
     }),
   ),
-  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
+  "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with admin and write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
   { destructive: true, job: true },
 );
 operation(
@@ -1255,7 +1232,7 @@ operation(
   "get_table_statistics",
   "GET",
   `${T}/statistics`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject(table),
   z.strictObject({
     liveRows: z.number().int().nonnegative(),
@@ -1272,7 +1249,7 @@ operation(
   "count_rows",
   "POST",
   `${T}/count`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     query: QuerySpecSchema.optional(),
@@ -1293,7 +1270,7 @@ operation(
   "get_cell_history",
   "GET",
   `${T}/rows/{rowId}/cells/{fieldId}/history`,
-  ["history:read"],
+  ["viewer"],
   z.strictObject({ ...table, rowId: IdSchema, fieldId: IdSchema, ...paging }),
   HistoryPageSchema,
   "Read the latest 200 saved changes for an existing cell.",
@@ -1303,7 +1280,7 @@ operation(
   "query_history",
   "POST",
   `${T}/history/query`,
-  ["history:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     rowId: IdSchema.optional(),
@@ -1322,7 +1299,7 @@ operation(
   "get_mutation",
   "GET",
   `${O}/mutations/{id}`,
-  [],
+  ["viewer"],
   z.strictObject({ ...org, id: IdSchema }),
   outcome,
   "Inspect a committed mutation without replaying one-time secrets.",
@@ -1333,7 +1310,7 @@ operation(
   "preview_import_rows",
   "POST",
   `${T}/imports/preview`,
-  ["rows:read", "rows:write"],
+  ["member"],
   z.strictObject({ ...table, ...expected, ...ImportSourceSchema.shape }),
   JobAcceptedSchema,
   "Validate an append-only CSV or JSONL import, including mapping, field constraints, unique keys and foreign keys, without inserting records. The job returns a typed preview and a downloadable JSONL error report.",
@@ -1344,7 +1321,7 @@ operation(
   "import_rows",
   "POST",
   `${T}/imports`,
-  ["rows:read", "rows:write"],
+  ["member"],
   z.strictObject({ ...table, ...expected, previewId: IdSchema }),
   JobAcceptedSchema,
   "Append a previously validated import. Each preview can start one import; retries resume committed batches without duplicating records. Current constraints and authority are checked again before publication.",
@@ -1355,21 +1332,21 @@ operation(
   "export_rows",
   "POST",
   `${T}/exports`,
-  ["exports:read", "rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     format: z.enum(["csv", "jsonl"]),
   }),
   JobAcceptedSchema,
   "Start a complete-table snapshot export in CSV or JSONL, including every row and field, with checksummed artifacts.",
-  { minimumRole: "viewer", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "exportView",
   "export_view",
   "POST",
   `${T}/view-exports`,
-  ["exports:read", "rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     ...expected,
@@ -1378,25 +1355,25 @@ operation(
   }),
   JobAcceptedSchema,
   "Export every matching record and the chosen columns from a consistent snapshot of the captured filters and sort order. Complete-table exports remain available separately.",
-  { minimumRole: "viewer", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "exportDatabase",
   "export_database",
   "POST",
   `${D}/exports`,
-  ["exports:read", "rows:read", "schema:read"],
+  ["viewer"],
   z.strictObject({ ...database, format: z.enum(["csv", "jsonl"]) }),
   JobAcceptedSchema,
   "Export every table and its schema from one database snapshot as a ZIP containing CSV or JSONL data, field definitions, unique rules and foreign keys.",
-  { minimumRole: "viewer", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "getArtifact",
   "get_artifact",
   "GET",
   `${O}/artifacts/{id}`,
-  [],
+  ["viewer"],
   z.strictObject({ ...org, id: IdSchema }),
   ArtifactSchema,
   "Get authenticated expiring artifact access after current source/target permission checks.",
@@ -1407,7 +1384,7 @@ operation(
   "list_jobs",
   "GET",
   `${O}/jobs`,
-  ["jobs:read"],
+  ["viewer"],
   z.strictObject({
     ...org,
     ...jobPaging,
@@ -1425,7 +1402,7 @@ operation(
   "get_job",
   "GET",
   `${O}/jobs/{id}`,
-  ["jobs:read"],
+  ["viewer"],
   z.strictObject({ ...org, id: IdSchema }),
   JobSchema,
   "Inspect a durable job and committed checkpoints.",
@@ -1435,29 +1412,29 @@ operation(
   "cancel_job",
   "POST",
   `${O}/jobs/{id}/cancel`,
-  ["jobs:cancel"],
+  ["viewer"],
   z.strictObject({ ...org, id: IdSchema }),
   JobSchema,
   "Request cancellation at a safe checkpoint with partial outcomes.",
-  { destructive: true, minimumRole: "viewer" },
+  { destructive: true },
 );
 operation(
   "retryJob",
   "retry_job",
   "POST",
   `${O}/jobs/{id}/retry`,
-  ["jobs:retry"],
+  ["viewer"],
   z.strictObject({ ...org, id: IdSchema }),
   JobAcceptedSchema,
   "Retry an authorised recoverable job after reconciliation.",
-  { job: true, successStatus: 202, minimumRole: "viewer" },
+  { job: true, successStatus: 202 },
 );
 operation(
   "getUsage",
   "get_usage",
   "GET",
   `${O}/usage`,
-  ["org:read"],
+  ["viewer"],
   z.strictObject(org),
   z.strictObject({
     databases: z.number().int().nonnegative(),
@@ -1476,7 +1453,7 @@ operation(
   "get_view_preferences",
   "GET",
   "/v1/me/view-preferences/{tableId}",
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({ tableId: IdSchema }),
   ViewPreferencesResultSchema,
   "Read your accessible table column/filter preferences.",
@@ -1487,18 +1464,18 @@ operation(
   "update_view_preferences",
   "PUT",
   "/v1/me/view-preferences/{tableId}",
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({ tableId: IdSchema, preferences: ViewPreferencesSchema }),
   ViewPreferencesResultSchema,
   "Save table view preferences without changing data/schema.",
-  { personal: true, resource: "table", minimumRole: "viewer" },
+  { personal: true, resource: "table" },
 );
 operation(
   "updateForeignKeyDisplayField",
   "update_foreign_key_display_field",
   "PUT",
   "/v1/me/view-preferences/{tableId}/foreign-keys/{foreignKeyId}",
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({
     tableId: IdSchema,
     foreignKeyId: IdSchema,
@@ -1506,36 +1483,36 @@ operation(
   }),
   ViewPreferencesResultSchema,
   "Choose your display field for a foreign-key picker without changing its stored keys or other view preferences.",
-  { personal: true, resource: "table", minimumRole: "viewer" },
+  { personal: true, resource: "table" },
 );
 operation(
   "listSavedViews",
   "list_saved_views",
   "GET",
   `${T}/views`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject(table),
   z.strictObject({ data: z.array(SavedViewSummarySchema).max(200) }),
   "List your personal views and accessible shared views. Sharing a view never grants access to its table.",
-  { personal: true, minimumRole: "viewer" },
+  { personal: true },
 );
 operation(
   "getSavedView",
   "get_saved_view",
   "GET",
   `${T}/views/{viewId}`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({ ...table, viewId: IdSchema }),
   SavedViewSchema,
   "Read an accessible saved view and its current schema validation. Invalid predicates are retained and must be corrected before executing the view.",
-  { personal: true, minimumRole: "viewer" },
+  { personal: true },
 );
 operation(
   "createSavedView",
   "create_saved_view",
   "POST",
   `${T}/views`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     ...expected,
@@ -1545,14 +1522,14 @@ operation(
   }),
   SavedViewSchema,
   "Save your filters, sorting and column layout as a personal view. Shared views additionally require current row write authority. Each scope supports up to 100 views.",
-  { personal: true, minimumRole: "viewer", successStatus: 201 },
+  { personal: true, successStatus: 201 },
 );
 operation(
   "updateSavedView",
   "update_saved_view",
   "PATCH",
   `${T}/views/{viewId}`,
-  ["rows:read"],
+  ["viewer"],
   z
     .strictObject({
       ...table,
@@ -1574,7 +1551,6 @@ operation(
   "Update your personal view, or an owned/shared view with current write authority. Administrators can manage shared views; only its owner can make one personal. Versions reject concurrent edits.",
   {
     personal: true,
-    minimumRole: "viewer",
     example: {
       orgId: "01K6J7B8000000000000000000",
       databaseId: "01K6J7B8000000000000000001",
@@ -1591,7 +1567,7 @@ operation(
   "delete_saved_view",
   "DELETE",
   `${T}/views/{viewId}`,
-  ["rows:read"],
+  ["viewer"],
   z.strictObject({
     ...table,
     viewId: IdSchema,
@@ -1603,106 +1579,101 @@ operation(
     version: VersionSchema,
   }),
   "Delete an owned personal view or a shared view you can manage. Deleting a view never changes its records.",
-  { personal: true, minimumRole: "viewer" },
+  { personal: true },
 );
 operation(
   "getDatabaseBackupPolicy",
   "get_database_backup_policy",
   "GET",
   `${D}/backup-policy`,
-  ["backups:read"],
+  ["admin"],
   z.strictObject(database),
   BackupPolicyResultSchema,
   "Read backup retention, current failure/overdue alerts and the latest successful snapshot.",
-  { minimumRole: "admin" },
 );
 operation(
   "saveDatabaseBackupPolicy",
   "save_database_backup_policy",
   "PUT",
   `${D}/backup-policy`,
-  ["backups:manage"],
+  ["admin"],
   BackupPolicyInputSchema.extend(database),
   BackupPolicyResultSchema,
   "Save the successful-backup retention count and overdue grace. The newest successful backup and packages needed by current restore requests remain protected.",
-  { minimumRole: "admin" },
 );
 operation(
   "getBackupSchedule",
   "get_backup_schedule",
   "GET",
   `${D}/backup-schedule`,
-  ["backups:read"],
+  ["admin"],
   z.strictObject(database),
   BackupScheduleResultSchema,
   "Read the database backup schedule and worker availability.",
-  { minimumRole: "admin" },
 );
 operation(
   "saveBackupSchedule",
   "save_backup_schedule",
   "PUT",
   `${D}/backup-schedule`,
-  ["backups:manage"],
+  ["admin"],
   BackupScheduleInputSchema.extend(database),
   JobAcceptedSchema,
   "Verify the destination on the worker, then save and enable the schedule only if verification succeeds.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "deleteBackupSchedule",
   "delete_backup_schedule",
   "DELETE",
   `${D}/backup-schedule`,
-  ["backups:manage"],
+  ["admin"],
   z.strictObject({ ...database, expectedVersion: z.number().int().min(0) }),
   BackupScheduleResultSchema,
   "Delete the schedule and cancel pending scheduled runs and schedule saves. Existing backup packages and history are retained.",
-  { minimumRole: "admin" },
 );
 operation(
   "previewBackupSchedule",
   "preview_backup_schedule",
   "POST",
   `${D}/backup-schedule/preview`,
-  ["backups:read"],
+  ["admin"],
   BackupTimingSchema.extend(database),
   z.strictObject({ nextRuns: z.array(CanonicalUtcDateTimeSchema) }),
   "Preview the next three occurrences of a five-field cron schedule in an explicit timezone.",
-  { readOnly: true, minimumRole: "admin", successStatus: 200 },
+  { readOnly: true, successStatus: 200 },
 );
 operation(
   "listDatabaseBackups",
   "list_database_backups",
   "GET",
   `${D}/backups`,
-  ["backups:read"],
+  ["admin"],
   z.strictObject({ ...database, ...jobPaging }),
   list(DatabaseBackupSchema),
   "List database backup runs, destination tests and missed schedule ranges.",
-  { minimumRole: "admin" },
 );
 operation(
   "runDatabaseBackup",
   "run_database_backup",
   "POST",
   `${D}/backups`,
-  ["backups:manage"],
+  ["admin"],
   z.strictObject(database),
   JobAcceptedSchema,
   "Queue a full encrypted database backup to the saved destination.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "testBackupDestination",
   "test_backup_destination",
   "POST",
   `${D}/backup-schedule/test`,
-  ["backups:manage"],
+  ["admin"],
   BackupDestinationSchema.extend(database),
   JobAcceptedSchema,
   "Ask a backup-enabled worker to write, read, verify and remove a probe at the destination.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 
 operation(
@@ -1710,18 +1681,18 @@ operation(
   "preview_database_restore",
   "POST",
   `${O}/backups/{backupId}/restore-preview`,
-  ["backups:manage", "databases:manage"],
+  ["admin"],
   z.strictObject({ ...org, backupId: IdSchema }),
   JobAcceptedSchema,
   "Verify a managed backup and preview its contents before restoring into a new database.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 operation(
   "restoreDatabaseBackup",
   "restore_database_backup",
   "POST",
   `${O}/backups/{backupId}/restore`,
-  ["backups:manage", "databases:manage"],
+  ["admin"],
   z.strictObject({
     ...org,
     backupId: IdSchema,
@@ -1730,7 +1701,7 @@ operation(
   }),
   JobAcceptedSchema,
   "Restore an unexpired verified backup into a new database. The source and existing databases are preserved; no backup schedule is enabled.",
-  { minimumRole: "admin", job: true, successStatus: 202 },
+  { job: true, successStatus: 202 },
 );
 
 operation(
@@ -1738,11 +1709,11 @@ operation(
   "delete_workspace",
   "DELETE",
   `${O}/workspaces/{workspaceId}`,
-  ["workspaces:manage"],
+  ["admin"],
   z.strictObject({ ...org, workspaceId: IdSchema }),
   deleted,
   "Delete an empty workspace. Default cannot be deleted.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 const workspaceTarget = { ...org, workspaceId: IdSchema };
 operation(
@@ -1750,7 +1721,7 @@ operation(
   "list_workspaces",
   "GET",
   `${O}/workspaces`,
-  ["org:read"],
+  ["viewer"],
   z.strictObject({ ...org }),
   list(WorkspaceSchema),
   "List workspaces available to your current membership. Default is shared by everyone.",
@@ -1760,29 +1731,28 @@ operation(
   "list_team_workspaces",
   "GET",
   `${O}/team-workspaces`,
-  ["members:read"],
+  ["admin"],
   z.strictObject({ ...org }),
   list(WorkspaceSchema),
   "List every workspace for team administration, without granting access to its databases.",
-  { minimumRole: "admin" },
 );
 operation(
   "createWorkspace",
   "create_workspace",
   "POST",
   `${O}/workspaces`,
-  ["workspaces:manage"],
+  ["admin"],
   WorkspaceInputSchema.extend(org),
   WorkspaceSchema,
   "Create a workspace and add yourself. Workspace members retain their team roles.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "getWorkspace",
   "get_workspace",
   "GET",
   `${O}/workspaces/{workspaceId}`,
-  ["org:read"],
+  ["viewer"],
   z.strictObject(workspaceTarget),
   WorkspaceSchema,
   "Read a workspace you can access.",
@@ -1792,7 +1762,7 @@ operation(
   "update_workspace",
   "PATCH",
   `${O}/workspaces/{workspaceId}`,
-  ["workspaces:manage"],
+  ["admin"],
   z.strictObject({
     ...workspaceTarget,
     name: WorkspaceInputSchema.shape.name.optional(),
@@ -1800,40 +1770,39 @@ operation(
   }),
   WorkspaceSchema,
   "Edit a workspace name and description. Default cannot be renamed.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "listWorkspaceMembers",
   "list_workspace_members",
   "GET",
   `${O}/workspaces/{workspaceId}/members`,
-  ["members:read"],
+  ["admin"],
   z.strictObject(workspaceTarget),
   list(WorkspaceMemberSchema),
   "List workspace members. Team admins can inspect this directory without joining the workspace.",
-  { minimumRole: "admin" },
 );
 operation(
   "addWorkspaceMember",
   "add_workspace_member",
   "POST",
   `${O}/workspaces/{workspaceId}/members`,
-  ["workspaces:manage"],
+  ["admin"],
   z.strictObject({ ...workspaceTarget, userId: IdSchema }),
   WorkspaceMemberSchema,
   "Immediately add an existing team member. Only an admin who belongs to this workspace can manage access.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 operation(
   "removeWorkspaceMember",
   "remove_workspace_member",
   "DELETE",
   `${O}/workspaces/{workspaceId}/members/{userId}`,
-  ["workspaces:manage"],
+  ["admin"],
   z.strictObject({ ...workspaceTarget, userId: IdSchema }),
   deleted,
   "Immediately remove a workspace member, including yourself. Default membership is automatic.",
-  { minimumRole: "admin", personal: true },
+  { personal: true },
 );
 
 export const operations: readonly OperationDefinition[] =
@@ -1850,10 +1819,7 @@ export const toolMap: Readonly<Record<string, OperationDefinition>> =
       definitions.map((definition) => [definition.toolName, definition]),
     ),
   );
-export const scopeNames = Object.freeze(
-  [...new Set(definitions.flatMap((definition) => definition.scopes))].sort(),
-);
-export const ScopeSchema = z.enum(scopeNames as [string, ...string[]]);
+export { scopeNames, ScopeSchema } from "./models";
 export function getOperation(idOrTool: string): OperationDefinition {
   const definition = operationMap[idOrTool] ?? toolMap[idOrTool];
   if (!definition) throw new Error(`Unknown Rootset operation ${idOrTool}`);

@@ -127,7 +127,7 @@ test("split public API owns the browser session and accepts only the configured 
         .digest("base64url"),
       code_challenge_method: "S256",
       resource: `${apiURL}/mcp`,
-      scope: "rows:read",
+      scope: "viewer",
       state: "split-origin-state",
     }).toString();
     const consent = await fetch(authorization, {

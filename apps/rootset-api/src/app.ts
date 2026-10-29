@@ -1,3 +1,4 @@
+import { scopesAllow } from "@rootset/access";
 import { Hono, type Handler } from "hono";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Pool } from "pg";
@@ -205,7 +206,7 @@ function errorResponse(
     headers: Record<string, string> = { "X-Request-Id": requestId };
   if (status === 401)
     headers["WWW-Authenticate"] =
-      `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/${audience}", scope="${scopes ?? "rows:read"}"`;
+      `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/${audience}", scope="${scopes ?? "viewer"}"`;
   if (status === 403)
     headers["WWW-Authenticate"] =
       `Bearer error="insufficient_scope", resource_metadata="${origin}/.well-known/oauth-protected-resource/${audience}"${scopes ? `, scope="${scopes}"` : ""}`;
@@ -971,8 +972,7 @@ export function createApp(deps: ApiDependencies) {
       if (operation) c.set("operationId", operation.id);
       if (
         operation &&
-        !actor.scopes.includes("*") &&
-        operation.scopes.some((scope) => !actor.scopes.includes(scope))
+        operation.scopes.some((scope) => !scopesAllow(actor.scopes, scope))
       ) {
         c.set("errorCode", "ACCESS_DENIED");
         return errorResponse(
@@ -984,7 +984,7 @@ export function createApp(deps: ApiDependencies) {
           c.get("requestId"),
           origin,
           "mcp",
-          [...new Set([...actor.scopes, ...operation.scopes])].sort().join(" "),
+          operation.scopes.join(" "),
         );
       }
     }

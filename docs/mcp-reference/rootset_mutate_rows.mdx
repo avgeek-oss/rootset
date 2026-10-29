@@ -1,7 +1,7 @@
 ---
 title: "rootset_mutate_rows"
 sidebarTitle: "Mutate rows"
-description: "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result."
+description: "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with admin and write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result."
 icon: "/assets/icons/mcp.svg"
 ---
 
@@ -15,7 +15,7 @@ flowchart LR
 
 ## Access and behavior
 
-Requires a current workspace role of **Member** or higher. The connection needs `rows:write` scope.
+Requires a current workspace role of **Member** or higher. The connection needs `member` scope.
 
 - This tool changes data or starts work. Confirm the target and input before calling it.
 - Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.

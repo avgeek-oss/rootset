@@ -13,7 +13,7 @@
         "tags": ["accounts"],
         "summary": "Get the caller, installation organisation, current role capabilities and preferences.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": [] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -124,7 +124,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -152,7 +152,7 @@
         "tags": ["accounts"],
         "summary": "Read your profile.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": ["profile:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -263,7 +263,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -298,7 +298,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["profile:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -425,7 +425,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -455,7 +455,7 @@
         "tags": ["accounts"],
         "summary": "Read display preferences.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": ["profile:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -568,7 +568,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -603,7 +603,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["profile:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -764,7 +764,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -794,7 +794,7 @@
         "tags": ["accounts"],
         "summary": "List supported preference values.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": [] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -907,7 +907,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -935,7 +935,7 @@
         "tags": ["accounts"],
         "summary": "Preview a UTC instant with proposed display preferences.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": [] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -1125,7 +1125,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1162,7 +1162,7 @@
         "tags": ["accounts"],
         "summary": "List your active browser sessions without session secrets.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": ["account:security"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -1273,7 +1273,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1320,7 +1320,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["account:security"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -1431,7 +1431,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1461,7 +1461,7 @@
         "tags": ["accounts"],
         "summary": "List your delegated OAuth connections.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": ["account:security"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -1574,7 +1574,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1621,7 +1621,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["account:security"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -1734,7 +1734,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1775,7 +1775,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["org:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -1888,7 +1888,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1932,7 +1932,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["org:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -2061,7 +2061,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2125,7 +2125,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -2236,7 +2236,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2292,7 +2292,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -2307,7 +2307,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "member", "viewer"]
+                    "enum": ["viewer", "member", "admin"]
                   },
                   "expectedVersion": {
                     "type": "string",
@@ -2431,7 +2431,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2491,7 +2491,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -2621,7 +2621,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2696,7 +2696,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -2809,7 +2809,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2853,7 +2853,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -2988,7 +2988,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3050,7 +3050,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -3163,7 +3163,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3195,7 +3195,7 @@
         "tags": ["accounts"],
         "summary": "List metadata for your personal keys.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": ["keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -3308,7 +3308,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3343,7 +3343,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -3506,7 +3506,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3560,7 +3560,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -3712,7 +3712,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3760,7 +3760,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -3873,7 +3873,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3945,7 +3945,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspace-keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -4058,7 +4058,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4106,7 +4106,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspace-keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -4269,7 +4269,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4334,7 +4334,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspace-keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -4490,7 +4490,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4552,7 +4552,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspace-keys:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -4684,7 +4684,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4718,7 +4718,7 @@
         "tags": ["accounts"],
         "summary": "Read factor status and credential metadata only.",
         "parameters": [],
-        "security": [{ "apiKey": [] }, { "oauth": ["account:security"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -4831,7 +4831,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4902,7 +4902,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["databases:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -5013,7 +5013,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5060,7 +5060,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["databases:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -5206,7 +5206,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5270,7 +5270,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["databases:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -5381,7 +5381,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5439,7 +5439,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["databases:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -5585,7 +5585,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5645,7 +5645,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["databases:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -5777,7 +5777,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "required",
         "x-rootset-job": true,
@@ -5863,7 +5863,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -5974,7 +5974,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -6032,7 +6032,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -6601,7 +6601,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -6676,7 +6676,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -6787,7 +6787,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -6856,7 +6856,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -7006,7 +7006,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -7078,7 +7078,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -7216,7 +7216,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -7292,7 +7292,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -7405,7 +7405,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -7479,7 +7479,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -7590,7 +7590,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -7659,7 +7659,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -8227,7 +8227,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -8311,7 +8311,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -8887,7 +8887,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -8970,7 +8970,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -9117,7 +9117,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -9191,7 +9191,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -9342,7 +9342,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -9409,7 +9409,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -9640,7 +9640,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -9713,7 +9713,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -9944,7 +9944,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -10031,7 +10031,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -10144,7 +10144,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -10219,7 +10219,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -10332,7 +10332,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -10401,7 +10401,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -10603,7 +10603,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -10687,7 +10687,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -10827,7 +10827,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -10941,10 +10941,7 @@
             }
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["rows:read", "schema:read"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -11057,7 +11054,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "schema:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11152,10 +11149,7 @@
             }
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["rows:read", "schema:read"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -11268,7 +11262,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "schema:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11344,7 +11338,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["tables:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -11457,7 +11451,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11526,7 +11520,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -11709,7 +11703,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -11796,7 +11790,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["schema:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -11936,7 +11930,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12070,7 +12064,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -12181,7 +12175,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12250,7 +12244,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -12409,7 +12403,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12476,7 +12470,7 @@
             "example": "01K6J7B8000000000000000002"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -12759,7 +12753,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12844,7 +12838,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -12955,7 +12949,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13035,7 +13029,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -13204,7 +13198,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13298,7 +13292,7 @@
             "description": "Quoted row-id:decimal-version optimistic concurrency proof."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -13445,7 +13439,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13554,7 +13548,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -13667,7 +13661,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13747,7 +13741,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -13887,7 +13881,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13954,7 +13948,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -14098,7 +14092,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14190,7 +14184,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -14322,7 +14316,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14389,7 +14383,7 @@
             "example": "01J00000000000000000000002"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -14611,7 +14605,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14687,7 +14681,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -14907,7 +14901,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14944,7 +14938,7 @@
       "post": {
         "operationId": "mutateRows",
         "tags": ["data"],
-        "summary": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
+        "summary": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with admin and write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
         "parameters": [
           {
             "name": "orgId",
@@ -14984,7 +14978,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:write"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -15261,7 +15255,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -15339,7 +15333,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -15452,7 +15446,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -15516,7 +15510,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -15802,7 +15796,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -15917,7 +15911,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["history:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -16030,7 +16024,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["history:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -16096,7 +16090,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["history:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -16263,7 +16257,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["history:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -16327,7 +16321,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": [] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -16438,7 +16432,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -16508,10 +16502,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["rows:read", "rows:write"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -16689,7 +16680,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -16766,10 +16757,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["rows:read", "rows:write"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["member"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -16916,7 +16904,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -16990,10 +16978,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["exports:read", "rows:read"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -17127,7 +17112,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["exports:read", "rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17200,10 +17185,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["exports:read", "rows:read"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -17483,7 +17465,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["exports:read", "rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17548,10 +17530,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["exports:read", "rows:read", "schema:read"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -17687,7 +17666,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["exports:read", "rows:read", "schema:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17752,7 +17731,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": [] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -17863,7 +17842,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -17983,7 +17962,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["jobs:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -18094,7 +18073,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18156,7 +18135,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["jobs:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -18267,7 +18246,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18327,7 +18306,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["jobs:cancel"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -18457,7 +18436,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:cancel"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18518,7 +18497,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["jobs:retry"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -18648,7 +18627,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:retry"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -18692,7 +18671,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["org:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -18803,7 +18782,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18852,7 +18831,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -18965,7 +18944,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19013,7 +18992,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -19218,7 +19197,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19285,7 +19264,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -19429,7 +19408,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19505,7 +19484,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -19618,7 +19597,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19688,7 +19667,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -20018,7 +19997,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20114,7 +20093,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -20225,7 +20204,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20306,7 +20285,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -20631,7 +20610,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20716,7 +20695,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["rows:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -20855,7 +20834,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20923,7 +20902,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -21036,7 +21015,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21094,7 +21073,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -21252,7 +21231,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21319,7 +21298,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -21432,7 +21411,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21490,7 +21469,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -21654,7 +21633,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -21718,7 +21697,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -21858,7 +21837,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21913,7 +21892,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -22055,7 +22034,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -22141,7 +22120,7 @@
             }
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -22254,7 +22233,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -22312,7 +22291,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -22444,7 +22423,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -22505,7 +22484,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["backups:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -22648,7 +22627,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -22711,10 +22690,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["backups:manage", "databases:manage"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -22846,7 +22822,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage", "databases:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -22907,10 +22883,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [
-          { "apiKey": [] },
-          { "oauth": ["backups:manage", "databases:manage"] }
-        ],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -23055,7 +23028,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage", "databases:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -23118,7 +23091,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspaces:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -23231,7 +23204,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23283,7 +23256,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["org:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -23394,7 +23367,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23451,7 +23424,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspaces:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -23585,7 +23558,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23629,7 +23602,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["org:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["viewer"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -23742,7 +23715,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23786,7 +23759,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspaces:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -23924,7 +23897,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23969,7 +23942,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -24082,7 +24055,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24131,7 +24104,7 @@
             "example": "01K6J7B8000000000000000000"
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["members:read"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -24244,7 +24217,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24301,7 +24274,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspaces:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -24433,7 +24406,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24505,7 +24478,7 @@
             "description": "Bound to actor, operation, target, schema version and canonical payload; changed input returns 409."
           }
         ],
-        "security": [{ "apiKey": [] }, { "oauth": ["workspaces:manage"] }],
+        "security": [{ "apiKey": [] }, { "oauth": ["admin"] }],
         "responses": {
           "200": {
             "description": "Authorised operation result.",
@@ -24618,7 +24591,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24804,7 +24777,7 @@
               },
               "role": {
                 "type": "string",
-                "enum": ["admin", "member", "viewer"]
+                "enum": ["viewer", "member", "admin"]
               }
             },
             "required": ["id", "kind", "role"],
@@ -25537,7 +25510,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "member", "viewer"]
+                  "enum": ["viewer", "member", "admin"]
                 },
                 "version": {
                   "type": "string",
@@ -25578,7 +25551,7 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
           "name": { "type": "string", "minLength": 1, "maxLength": 120 },
-          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+          "role": { "type": "string", "enum": ["viewer", "member", "admin"] },
           "expectedVersion": {
             "type": "string",
             "pattern": "^[1-9][0-9]{0,18}$"
@@ -25608,7 +25581,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+          "role": { "type": "string", "enum": ["viewer", "member", "admin"] },
           "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
           "verified": { "type": "boolean" },
           "twoFactorEnabled": { "type": "boolean" }
@@ -44948,7 +44921,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "member", "viewer"]
+                  "enum": ["viewer", "member", "admin"]
                 }
               },
               "required": ["userId", "name", "email", "role"],
@@ -44993,7 +44966,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "member", "viewer"] }
+          "role": { "type": "string", "enum": ["viewer", "member", "admin"] }
         },
         "required": ["userId", "name", "email", "role"],
         "additionalProperties": false
@@ -45138,30 +45111,9 @@
             "authorizationUrl": "http://localhost:4310/oauth/authorize",
             "tokenUrl": "http://localhost:4310/oauth/token",
             "scopes": {
-              "profile:manage": "Current profile:manage authority; the live role ceiling still applies.",
-              "account:security": "Current account:security authority; the live role ceiling still applies.",
-              "org:read": "Current org:read authority; the live role ceiling still applies.",
-              "org:manage": "Current org:manage authority; the live role ceiling still applies.",
-              "members:read": "Current members:read authority; the live role ceiling still applies.",
-              "members:manage": "Current members:manage authority; the live role ceiling still applies.",
-              "keys:manage": "Current keys:manage authority; the live role ceiling still applies.",
-              "workspace-keys:manage": "Current workspace-keys:manage authority; the live role ceiling still applies.",
-              "databases:read": "Current databases:read authority; the live role ceiling still applies.",
-              "databases:manage": "Current databases:manage authority; the live role ceiling still applies.",
-              "tables:read": "Current tables:read authority; the live role ceiling still applies.",
-              "tables:manage": "Current tables:manage authority; the live role ceiling still applies.",
-              "schema:manage": "Current schema:manage authority; the live role ceiling still applies.",
-              "rows:read": "Current rows:read authority; the live role ceiling still applies.",
-              "schema:read": "Current schema:read authority; the live role ceiling still applies.",
-              "rows:write": "Current rows:write authority; the live role ceiling still applies.",
-              "history:read": "Current history:read authority; the live role ceiling still applies.",
-              "exports:read": "Current exports:read authority; the live role ceiling still applies.",
-              "jobs:read": "Current jobs:read authority; the live role ceiling still applies.",
-              "jobs:cancel": "Current jobs:cancel authority; the live role ceiling still applies.",
-              "jobs:retry": "Current jobs:retry authority; the live role ceiling still applies.",
-              "backups:read": "Current backups:read authority; the live role ceiling still applies.",
-              "backups:manage": "Current backups:manage authority; the live role ceiling still applies.",
-              "workspaces:manage": "Current workspaces:manage authority; the live role ceiling still applies."
+              "viewer": "Current viewer authority; the live role ceiling still applies.",
+              "member": "Current member authority; the live role ceiling still applies.",
+              "admin": "Current admin authority; the live role ceiling still applies."
             }
           }
         }

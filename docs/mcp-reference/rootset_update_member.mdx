@@ -15,7 +15,7 @@ flowchart LR
 
 ## Access and behavior
 
-Requires a current workspace role of **Admin** or higher. The connection needs `members:manage` scope.
+Requires a current workspace role of **Admin** or higher. The connection needs `admin` scope.
 
 - This tool changes data or starts work. Confirm the target and input before calling it.
 - Keep the same `idempotencyKey` when retrying an unchanged request; use a new key for different input.
@@ -27,7 +27,7 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
 | `orgId`           | Yes      | string                          | Organisation ID returned by rootset_get_context.                   |
 | `id`              | Yes      | string                          | —                                                                  |
 | `name`            | No       | string                          | —                                                                  |
-| `role`            | No       | "admin" or "member" or "viewer" | —                                                                  |
+| `role`            | No       | "viewer" or "member" or "admin" | —                                                                  |
 | `expectedVersion` | Yes      | string                          | —                                                                  |
 | `idempotencyKey`  | Yes      | string                          | Stable caller-provided key across retries of this exact operation. |
 
@@ -53,7 +53,7 @@ Requires a current workspace role of **Admin** or higher. The connection needs `
     },
     "role": {
       "type": "string",
-      "enum": ["admin", "member", "viewer"]
+      "enum": ["viewer", "member", "admin"]
     },
     "expectedVersion": {
       "type": "string",

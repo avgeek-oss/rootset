@@ -12,7 +12,7 @@ const actor: Actor = {
   userId: id(2),
   credentialId: id(3),
   role: "member",
-  scopes: ["databases:read", "tables:read"],
+  scopes: ["viewer"],
   membershipVersion: 4,
 };
 const rows = [8, 4, 7, 5, 6].map((value) => ({
@@ -69,7 +69,7 @@ test("metadata cursors bind organisation, principal, credential, role revision a
     { ...actor, kind: "oauth" as const, clientId: id(9) },
     { ...actor, role: "viewer" as const },
     { ...actor, membershipVersion: 5 },
-    { ...actor, scopes: ["databases:read"] },
+    { ...actor, scopes: ["viewer", "member"] },
   ];
   for (const changed of actors)
     assert.throws(

@@ -60,9 +60,9 @@ try {
     "../.env.permissions-browser-test",
     "member",
   );
-  expect(memberContext.scopes).toContain("rows:write");
-  expect(memberContext.scopes).not.toContain("databases:manage");
-  expect(memberContext.scopes).not.toContain("tables:manage");
+  expect(memberContext.scopes).toContain("write");
+  expect(memberContext.scopes).not.toContain("write");
+  expect(memberContext.scopes).not.toContain("write");
   await page.goto(baseURL);
   await expect(page.locator(".rootset-application")).toBeVisible();
   await expect(
@@ -133,7 +133,7 @@ try {
     status: "passed",
   });
   const adminContext = await signIn(admin, "../.env.browser-test", "admin");
-  expect(adminContext.scopes).toContain("installation:manage");
+  expect(adminContext.scopes).toContain("admin");
   await adminPage.goto(baseURL);
   await expect(
     adminPage

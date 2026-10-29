@@ -20,7 +20,7 @@ function fixture() {
     includeAdmin: true,
     session: true,
     grant: true,
-    scopes: ["rows:read", "rows:write"],
+    scopes: ["viewer", "member"],
     job: undefined as Record<string, unknown> | undefined,
     checkouts: 0,
     onAuthorityLock: undefined as (() => void) | undefined,
@@ -99,7 +99,7 @@ function fixture() {
     userId,
     orgId,
     role: "admin",
-    scopes: ["installation:manage"],
+    scopes: ["admin"],
   };
   return { state, service, actor, client };
 }
@@ -110,20 +110,20 @@ test("personal keys inherit the live member role and membership version within t
   const { state, service, actor } = fixture();
   const member = await service.refreshActor(actor);
   assert.equal(member.role, "member");
-  assert.ok(member.scopes.includes("rows:write"));
-  assert.ok(!member.scopes.includes("installation:manage"));
+  assert.ok(member.scopes.includes("member"));
+  assert.ok(!member.scopes.includes("admin"));
   assert.equal(member.membershipVersion, 1);
   state.role = "viewer";
   state.version++;
   const viewer = await service.refreshActor(member);
   assert.equal(viewer.role, "viewer");
   assert.equal(viewer.membershipVersion, 2);
-  assert.ok(!viewer.scopes.includes("rows:write"));
+  assert.ok(!viewer.scopes.includes("member"));
   state.role = "admin";
   state.version++;
   const admin = await service.refreshActor(viewer);
   assert.equal(admin.role, "admin");
-  assert.ok(admin.scopes.includes("installation:manage"));
+  assert.ok(admin.scopes.includes("admin"));
   assert.ok(admin.scopes.every((scope) => roleAllows("admin", scope)));
 });
 
@@ -148,19 +148,19 @@ test("member removal, verification loss, credential revocation and user/org mism
 
 test("OAuth consent scopes intersect the live role, while a stored grant cannot add unconsented operations", async () => {
   const { state, service, actor } = fixture();
-  state.scopes = ["rows:read", "rows:write", "installation:manage"];
+  state.scopes = ["viewer", "member", "admin"];
   const consent = {
     ...actor,
     kind: "oauth" as const,
-    scopes: ["rows:read", "rows:write"],
+    scopes: ["viewer", "member"],
     clientId: "test-client",
   };
   assert.deepEqual((await service.refreshActor(consent)).scopes, [
-    "rows:read",
-    "rows:write",
+    "viewer",
+    "member",
   ]);
   state.role = "viewer";
-  assert.deepEqual((await service.refreshActor(consent)).scopes, ["rows:read"]);
+  assert.deepEqual((await service.refreshActor(consent)).scopes, ["viewer"]);
   state.grant = false;
   await assert.rejects(() => service.refreshActor(consent), unauthenticated);
 });
@@ -189,18 +189,18 @@ test("stored API key ceilings survive role promotion and refresh forged actor pe
   state.includeAdmin = false;
   const read = await service.refreshActor(actor);
   assert.equal(read.role, "viewer");
-  assert.ok(read.scopes.includes("rows:read"));
-  assert.ok(!read.scopes.includes("rows:write"));
-  assert.ok(!read.scopes.includes("keys:manage"));
+  assert.ok(read.scopes.includes("viewer"));
+  assert.ok(!read.scopes.includes("member"));
+  assert.ok(!read.scopes.includes("admin"));
   state.access = "edit";
   const edit = await service.refreshActor(read);
   assert.equal(edit.role, "member");
-  assert.ok(edit.scopes.includes("rows:write"));
-  assert.ok(edit.scopes.includes("schema:manage"));
+  assert.ok(edit.scopes.includes("member"));
+  assert.ok(!edit.scopes.includes("admin"));
   state.includeAdmin = true;
   assert.equal((await service.refreshActor(edit)).role, "admin");
   state.role = "viewer";
   const demoted = await service.refreshActor(edit);
   assert.equal(demoted.role, "viewer");
-  assert.ok(!demoted.scopes.includes("rows:write"));
+  assert.ok(!demoted.scopes.includes("member"));
 });

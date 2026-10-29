@@ -402,7 +402,7 @@ export async function seedScaleFixture(destination: string): Promise<void> {
     userId,
     orgId,
     role: "admin",
-    scopes: ["rows:read", "rows:write", "history:read", "schema:manage"],
+    scopes: ["viewer", "member"],
     membershipVersion: 1,
   };
   let connection: PoolClient | undefined;

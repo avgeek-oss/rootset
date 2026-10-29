@@ -28,10 +28,7 @@ function canDelete(
   actor: Actor,
   comment: Pick<StoredComment, "author_user_id" | "actor">,
 ): boolean {
-  if (
-    !roleAllows(actor.role, "rows:write") ||
-    !actor.scopes.includes("rows:write")
-  )
+  if (!roleAllows(actor.role, "member") || !actor.scopes.includes("member"))
     return false;
   return (
     actor.role === "admin" ||
@@ -63,7 +60,7 @@ export async function rowComments(
       const readOnly =
         operation === "listRowComments" || operation === "countRowComments";
       assertAccess(actor, {
-        scope: readOnly ? "rows:read" : "rows:write",
+        scope: readOnly ? "viewer" : "member",
         orgId: String(input.orgId),
       });
       if (operation === "countRowComments") {

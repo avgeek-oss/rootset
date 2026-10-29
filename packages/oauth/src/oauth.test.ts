@@ -40,7 +40,7 @@ async function fixture(
       userId,
       orgId,
       role: "admin",
-      scopes: ["*"],
+      scopes: ["viewer", "member", "admin"],
       authenticatedAt: Date.now(),
     };
   await owner.query(
@@ -58,7 +58,6 @@ async function fixture(
   );
   const service = new OAuthService(issuer, {
     baseURL,
-    scopes: ["rows:read", "rows:write", "databases:read"],
     clients: [client],
     refreshActor: async (credential) => {
       const row = (
@@ -93,7 +92,7 @@ async function fixture(
       code_challenge: challenge,
       code_challenge_method: "S256",
       resource,
-      scope: "rows:read",
+      scope: "viewer",
       state: "bound-state",
     }).toString();
     const authorization = (await service.handler(
@@ -307,7 +306,7 @@ test(
         "mcp",
       );
       assert.equal(ActorSchema.parse(resolved).orgId, actor.orgId);
-      assert.equal(resolved?.role, "admin");
+      assert.equal(resolved?.role, "viewer");
       assert.equal(resolved && "targets" in resolved, false);
       assert.equal(
         await service.resolveActor(
@@ -549,8 +548,8 @@ test("OAuth bearer authority follows live role demotion and user removal", async
     credentialId: grantId,
     userId,
     orgId,
-    role: "admin",
-    scopes: ["rows:read", "rows:write"],
+    role: "member",
+    scopes: ["viewer", "member"],
   };
   let liveRole: Actor["role"] | null = "admin";
   const pool = {
@@ -572,7 +571,6 @@ test("OAuth bearer authority follows live role demotion and user removal", async
   } as unknown as Pool;
   const service = new OAuthService(pool, {
     baseURL,
-    scopes: saved.scopes,
     clients: [client],
     resolveSession: async () => null,
     refreshActor: async (actor) =>
@@ -582,14 +580,14 @@ test("OAuth bearer authority follows live role demotion and user removal", async
     headers: { Authorization: "Bearer rs_oauth_unit_token" },
   });
   assert.deepEqual((await service.resolveActor(request, "mcp"))?.scopes, [
-    "rows:read",
-    "rows:write",
+    "viewer",
+    "member",
   ]);
-  liveRole = "member";
+  liveRole = "viewer";
   assert.equal(await service.resolveActor(request, "mcp"), null);
   liveRole = "viewer";
   assert.equal(await service.resolveActor(request, "mcp"), null);
-  saved.role = "member";
+  saved.role = "viewer";
   liveRole = "admin";
   assert.equal(await service.resolveActor(request, "mcp"), null);
   assert.equal(await service.resolveActor(request, "api"), null);
@@ -615,7 +613,7 @@ function consentUnitFixture() {
     client_id: clientId,
     redirect_uri: client.redirect_uris[0],
     resource: `${baseURL}/mcp`,
-    scopes: ["rows:read", "rows:write"],
+    scopes: ["viewer", "member"],
     org_id: orgId,
     user_id: userId,
     state: "state",
@@ -641,7 +639,6 @@ function consentUnitFixture() {
   } as unknown as Pool;
   const service = new OAuthService(pool, {
     baseURL,
-    scopes: row.scopes,
     clients: [client],
     resolveSession: async () => actor,
     refreshActor: async (credential) => ({ ...credential, role: actor.role }),
@@ -672,7 +669,7 @@ test("OAuth approval requires reviewed real consent and rechecks the current rol
   const consent = (await fixture.inspect())!;
   assert.equal(consent.status, 200);
   const detail = await consent.json();
-  assert.deepEqual(detail.scopes, ["rows:read", "rows:write"]);
+  assert.deepEqual(detail.scopes, ["viewer", "member"]);
   assert.equal("targets" in detail, false);
   assert.equal("unrestricted" in detail, false);
   for (const level of [["admin"], 1, null, {}, "owner"])
@@ -697,7 +694,7 @@ test("OAuth rejects resource whitelists and requires S256 PKCE", async () => {
       code_challenge_method: "S256",
       code_challenge: "x".repeat(43),
       resource: `${baseURL}/mcp`,
-      scope: "rows:read",
+      scope: "viewer",
       ...extra,
     }).toString();
     return (await fixture.service.handler(new Request(url)))!;
@@ -722,7 +719,7 @@ test(
       const credentials = await (await service.handler(
         form(exchange(write)),
       ))!.json();
-      assert.match(credentials.scope, /rows:write/);
+      assert.match(credentials.scope, /member/);
       const access = new Request(`${baseURL}/mcp`, {
         headers: { Authorization: `Bearer ${credentials.access_token}` },
       });

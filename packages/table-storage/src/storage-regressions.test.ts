@@ -40,7 +40,7 @@ const actor: Actor = {
   orgId: newId(),
   kind: "operator",
   role: "admin",
-  scopes: ["*"],
+  scopes: ["viewer", "member", "admin"],
 };
 let databaseId: string;
 let schemaName: string;

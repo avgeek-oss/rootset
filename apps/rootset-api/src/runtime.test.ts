@@ -1154,18 +1154,19 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
               );
             }
             if (team === adminTeam) {
-              await assert.rejects(
-                () =>
-                  client.callTool({
-                    name: "rootset_update_organisation",
-                    arguments: {
-                      orgId,
-                      name: organisation.name,
-                      idempotencyKey: newId(),
-                    },
-                  }),
-                (error) =>
-                  error instanceof StreamableHTTPError && error.code === 403,
+              const denied = await client.callTool({
+                name: "rootset_update_organisation",
+                arguments: {
+                  orgId,
+                  name: organisation.name,
+                  idempotencyKey: newId(),
+                },
+              });
+              assert.equal(denied.isError, true);
+              assert.equal(
+                (denied.structuredContent as { error: { code: string } }).error
+                  .code,
+                "INSUFFICIENT_SCOPE",
               );
               continue;
             }
@@ -1184,21 +1185,11 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
                   orgId,
                 ),
               );
-            if (team === readTeam)
-              await assert.rejects(
-                deleteDatabase,
-                (error) =>
-                  error instanceof StreamableHTTPError && error.code === 403,
-              );
-            else {
-              const denied = await deleteDatabase();
-              assert.equal(denied.isError, true);
-              assert.equal(
-                (denied.structuredContent as { error: { code: string } }).error
-                  .code,
-                "FORBIDDEN",
-              );
-            }
+            await assert.rejects(
+              deleteDatabase,
+              (error) =>
+                error instanceof StreamableHTTPError && error.code === 403,
+            );
             if (team === readTeam)
               await assert.rejects(
                 () =>
@@ -1493,21 +1484,10 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
               orgId,
             ),
           );
-        if (!edit)
-          await assert.rejects(
-            deleteDatabase,
-            (error) =>
-              error instanceof StreamableHTTPError && error.code === 403,
-          );
-        else {
-          const denied = await deleteDatabase();
-          assert.equal(denied.isError, true);
-          assert.equal(
-            (denied.structuredContent as { error: { code: string } }).error
-              .code,
-            "FORBIDDEN",
-          );
-        }
+        await assert.rejects(
+          deleteDatabase,
+          (error) => error instanceof StreamableHTTPError && error.code === 403,
+        );
       } finally {
         await keyMcp.close();
       }
@@ -1573,7 +1553,14 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       const decision = await request(
         `/api/internal/v1/oauth/requests/${consentId}/decision`,
         "POST",
-        { approve: true, accessLevel: "admin" },
+        {
+          approve: true,
+          accessLevel: scopes.includes("admin")
+            ? "admin"
+            : scopes.includes("member")
+              ? "write"
+              : "read",
+        },
         { browser: true },
       );
       assert.equal(decision.status, 200);
@@ -1596,28 +1583,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         access_token: string;
         refresh_token: string;
       };
-      // Test narrower server policy independently of the client's requested scope.
-      await db.owner.query(
-        "UPDATE rootset_control.oauth_grants SET scopes=$2, actor=jsonb_set(actor,'{scopes}',to_jsonb($2::text[])) WHERE id=(SELECT grant_id FROM rootset_control.oauth_codes WHERE request_id=$1)",
-        [consentId, scopes],
-      );
       return issued;
     };
-    const tokens = await issueMcpGrant([
-      "profile:manage",
-      "rows:read",
-      "rows:write",
-      "history:read",
-      "tables:read",
-      "databases:read",
-      "keys:manage",
-      "exports:read",
-      "jobs:read",
-      "schema:read",
-      "schema:manage",
-      "backups:read",
-      "backups:manage",
-    ]);
+    const tokens = await issueMcpGrant(["viewer", "member", "admin"]);
     await client.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
         requestInit: {
@@ -1862,11 +1830,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         orgId,
         name: "Control replay verification",
       }),
-      journalTokens = await issueMcpGrant([
-        "members:manage",
-        "keys:manage",
-        "databases:read",
-      ]);
+      journalTokens = await issueMcpGrant(["admin", "viewer"]);
     await journalClient.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
         requestInit: {
@@ -2486,11 +2450,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       ).status,
       401,
     );
-    const readExportGrant = await issueMcpGrant([
-      "rows:read",
-      "tables:read",
-      "exports:read",
-    ]);
+    const readExportGrant = await issueMcpGrant(["viewer"]);
     const readExportDownload = await request(artifactPath, "GET", undefined, {
       token: readExportGrant.access_token,
     });
@@ -2507,21 +2467,9 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
           },
         )
       ).status,
-      403,
+      200,
     );
 
-    const missingExportGrant = await issueMcpGrant([
-      "rows:read",
-      "tables:read",
-    ]);
-    assert.equal(
-      (
-        await request(artifactPath, "GET", undefined, {
-          token: missingExportGrant.access_token,
-        })
-      ).status,
-      403,
-    );
     const revokedExportGrant = await fetch(`${baseURL}/oauth/revoke`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -2782,7 +2730,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       (reordered.fields as { id: string }[]).map((field) => field.id),
       reverseFieldIds,
     );
-    const readGrant = await issueMcpGrant(["rows:read", "tables:read"]);
+    const readGrant = await issueMcpGrant(["viewer"]);
     await readOnlyClient.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {
         requestInit: {
@@ -2790,23 +2738,6 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         },
       }),
     );
-    for (const operationId of []) {
-      const operation = getOperation(operationId);
-      await assert.rejects(
-        readOnlyClient.callTool(
-          defaultWorkspaceToolCall(
-            {
-              name: operation.toolName,
-              arguments: operation.idempotencyRequired
-                ? { idempotencyKey: newId() }
-                : {},
-            },
-            orgId,
-          ),
-        ),
-        (error) => error instanceof StreamableHTTPError && error.code === 403,
-      );
-    }
     const readMutation = await readOnlyClient.callTool(
       defaultWorkspaceToolCall(
         {
@@ -3262,11 +3193,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
       name: "Restricted peer",
       fields: [{ type: "text", name: "NAME" }],
     });
-    const peerGrant = await issueMcpGrant([
-      "rows:read",
-      "tables:read",
-      "exports:read",
-    ]);
+    const peerGrant = await issueMcpGrant(["viewer"]);
     assert.equal(
       (
         await request(artifactPath, "GET", undefined, {
@@ -3432,7 +3359,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         expiresAt: "2030-01-01T00:00:00.000Z",
         orgId,
         name: "Forbidden viewer write key",
-        scopes: ["rows:write"],
+        scopes: ["member"],
       },
       "browser",
       422,
@@ -3459,7 +3386,7 @@ test("actual runtime: bootstrap, Better Auth, personal keys, REST/browser/MCP pa
         orgId,
         name: "Current target authority replay verification",
       }),
-      scopeTokens = await issueMcpGrant(["tables:read", "tables:manage"]),
+      scopeTokens = await issueMcpGrant(["viewer", "member"]),
       currentSchema = await call("getTableSchema", ids),
       targetInput = {
         ...ids,

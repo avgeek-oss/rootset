@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { operations, type Actor } from "@rootset/contracts";
+import { operations, scopeNames, type Actor } from "@rootset/contracts";
 import {
-  ALL_SCOPES,
   keyScopes,
   keyRole,
+  scopedRole,
   assertAccess,
   assertDelegation,
   roleAllows,
@@ -20,161 +20,150 @@ const base: Actor = {
   scopes: [],
 };
 
-test("roles separate admin management, member row writes and viewer reads", () => {
-  for (const role of ["admin", "member", "viewer"] as const) {
-    for (const scope of [
-      "rows:read",
-      "history:read",
-      "exports:read",
-      "profile:manage",
-      "account:security",
-      "keys:manage",
-    ])
-      assert.equal(roleAllows(role, scope), true, `${role}:${scope}`);
-    for (const scope of [
-      "org:manage",
-      "members:read",
-      "members:manage",
-      "installation:manage",
-    ])
-      assert.equal(
-        roleAllows(role, scope),
-        role === "admin",
-        `${role}:${scope}`,
-      );
-    for (const scope of [
-      "rows:write",
-      "databases:manage",
-      "tables:manage",
-      "schema:manage",
-    ])
-      assert.equal(
-        roleAllows(role, scope),
-        role !== "viewer",
-        `${role}:${scope}`,
-      );
-    for (const scope of [
-      "ownership:manage",
-      "grants:manage",
-      "audit:read",
-      "*",
-      "unsupported:read",
-    ])
-      assert.equal(roleAllows(role, scope), false);
-  }
-  assert.deepEqual(roleScopes("admin"), [...ALL_SCOPES]);
-  for (const operation of operations)
-    for (const scope of operation.scopes)
-      assert.equal(
-        roleAllows(operation.minimumRole, scope),
-        true,
-        operation.id,
-      );
-});
-
-test("personal key permissions cap reads, writes and administration", () => {
+test("only three hierarchical scopes are supported", () => {
+  assert.deepEqual(scopeNames, ["viewer", "member", "admin"]);
+  assert.deepEqual(roleScopes("viewer"), ["viewer"]);
+  assert.deepEqual(roleScopes("member"), ["viewer", "member"]);
+  assert.deepEqual(roleScopes("admin"), ["viewer", "member", "admin"]);
   for (const role of ["viewer", "member", "admin"] as const) {
-    for (const access of ["read", "edit"] as const) {
-      for (const includeAdmin of [false, true]) {
-        const effectiveRole = keyRole(role, access, includeAdmin);
-        const actor = {
-          ...base,
-          kind: "personal_key" as const,
-          role: effectiveRole,
-          scopes: keyScopes(access, includeAdmin),
-        };
-        assert.doesNotThrow(() => assertAccess(actor, { scope: "rows:read" }));
-        for (const scope of ["rows:write", "schema:manage", "keys:manage"]) {
-          const allowed =
-            roleAllows(effectiveRole, scope) && actor.scopes.includes(scope);
-          if (allowed)
-            assert.doesNotThrow(() => assertAccess(actor, { scope }));
-          else assert.throws(() => assertAccess(actor, { scope }));
-        }
-        assert.equal(
-          effectiveRole === "admin",
-          role === "admin" && access === "edit" && includeAdmin,
-        );
-      }
-    }
+    for (const unsupported of [
+      "rows:read",
+      "installation:manage",
+      "read",
+      "write",
+      "*",
+      "unknown",
+    ])
+      assert.equal(roleAllows(role, unsupported), false);
   }
-  assert.throws(() =>
-    assertDelegation({ ...base, kind: "personal_key", scopes: ["rows:read"] }, [
-      "rows:write",
-    ]),
-  );
+  for (const operation of operations) {
+    assert.equal(operation.scopes.length, 1, operation.id);
+    assert.equal(
+      (operation.personal && operation.scopes[0] === "member") ||
+        roleAllows(operation.minimumRole, operation.scopes[0]!),
+      true,
+      operation.id,
+    );
+  }
 });
 
-test("OAuth operation consent intersects the current role on every check", () => {
+test("API key ceilings cannot exceed the live owner's role", () => {
+  for (const ownerRole of ["viewer", "member", "admin"] as const) {
+    const read = {
+      ...base,
+      kind: "personal_key" as const,
+      role: keyRole(ownerRole, "read", true),
+      scopes: keyScopes("read", true),
+    };
+    assert.doesNotThrow(() => assertAccess(read, { scope: "viewer" }));
+    assert.throws(() => assertAccess(read, { scope: "member" }));
+    assert.throws(() => assertAccess(read, { scope: "admin" }));
+    const edit = {
+      ...read,
+      role: keyRole(ownerRole, "edit", false),
+      scopes: keyScopes("edit", false),
+    };
+    if (ownerRole === "viewer")
+      assert.throws(() => assertAccess(edit, { scope: "member" }));
+    else assert.doesNotThrow(() => assertAccess(edit, { scope: "member" }));
+    assert.throws(() => assertAccess(edit, { scope: "admin" }));
+    const admin = {
+      ...read,
+      role: keyRole(ownerRole, "edit", true),
+      scopes: keyScopes("edit", true),
+    };
+    if (ownerRole === "admin")
+      assert.doesNotThrow(() => assertAccess(admin, { scope: "admin" }));
+    else assert.throws(() => assertAccess(admin, { scope: "admin" }));
+  }
+});
+
+test("OAuth grants combine their scope ceiling with the live role", () => {
   const actor = {
     ...base,
     kind: "oauth" as const,
-    scopes: ["rows:read", "rows:write"],
+    role: "admin" as const,
+    scopes: ["member"],
   };
-  assert.doesNotThrow(() =>
-    assertAccess(actor, {
-      scope: "rows:write",
-    }),
-  );
+  assert.doesNotThrow(() => assertAccess(actor, { scope: "viewer" }));
+  assert.doesNotThrow(() => assertAccess(actor, { scope: "member" }));
+  assert.throws(() => assertAccess(actor, { scope: "admin" }), /credential/);
   assert.throws(
-    () => assertAccess(actor, { scope: "exports:read" }),
-    /credential/,
-  );
-  assert.throws(
-    () => assertAccess({ ...actor, role: "viewer" }, { scope: "rows:write" }),
+    () => assertAccess({ ...actor, role: "viewer" }, { scope: "member" }),
     /role/,
   );
   assert.doesNotThrow(() =>
-    assertAccess({ ...actor, role: "viewer" }, { scope: "rows:read" }),
+    assertAccess({ ...actor, scopes: ["admin"] }, { scope: "member" }),
+  );
+  assert.throws(() =>
+    assertAccess({ ...actor, scopes: ["rows:write"] }, { scope: "member" }),
   );
 });
 
-test("the single organisation fence and personal identity still apply", () => {
+test("organisation and personal identity boundaries remain enforced", () => {
   assert.throws(
-    () => assertAccess(base, { scope: "rows:read", orgId: "foreign" }),
+    () => assertAccess(base, { scope: "viewer", orgId: "foreign" }),
     /not found/,
   );
   assert.doesNotThrow(() =>
-    assertAccess(base, { scope: "rows:read", orgId: base.orgId }),
+    assertAccess(base, { scope: "viewer", orgId: base.orgId }),
   );
   const anonymous = { ...base };
   delete anonymous.userId;
   assert.throws(
-    () => assertAccess(anonymous, { scope: "profile:manage", personal: true }),
+    () => assertAccess(anonymous, { scope: "viewer", personal: true }),
     /user identity/,
   );
-});
-
-test("installation administration has no second operator permission flag", () => {
-  assert.doesNotThrow(() =>
-    assertAccess({ ...base, role: "admin" }, { scope: "installation:manage" }),
+  assert.throws(
+    () => assertAccess({ ...base, kind: "operator" }, { scope: "viewer" }),
+    /Admin/,
   );
-  assert.throws(() => assertAccess(base, { scope: "installation:manage" }));
   assert.doesNotThrow(() =>
     assertAccess(
       { ...base, role: "admin", kind: "operator" },
-      { scope: "installation:manage" },
+      { scope: "admin" },
     ),
-  );
-  assert.throws(() =>
-    assertAccess({ ...base, kind: "operator" }, { scope: "rows:read" }),
   );
 });
 
-test("OAuth delegation cannot exceed live role or existing OAuth consent", () => {
-  assert.doesNotThrow(() =>
-    assertDelegation(base, ["rows:read", "rows:write"]),
-  );
-  assert.doesNotThrow(() => assertDelegation(base, ["schema:manage"]));
+test("delegation cannot exceed the live role or credential ceiling", () => {
+  assert.doesNotThrow(() => assertDelegation(base, ["viewer", "member"]));
+  assert.throws(() => assertDelegation(base, ["admin"]));
   assert.throws(() =>
-    assertDelegation({ ...base, role: "viewer" }, ["rows:write"]),
+    assertDelegation({ ...base, role: "viewer" }, ["member"]),
   );
   assert.throws(() =>
-    assertDelegation({ ...base, kind: "oauth", scopes: ["rows:read"] }, [
-      "rows:write",
+    assertDelegation({ ...base, kind: "oauth", scopes: ["viewer"] }, [
+      "member",
     ]),
   );
   assert.throws(() => assertDelegation(base, []));
-  assert.throws(() => assertDelegation(base, ["rows:read", "rows:read"]));
-  assert.throws(() => assertDelegation(base, ["grants:manage"]));
+  assert.throws(() => assertDelegation(base, ["viewer", "viewer"]));
+  assert.throws(() => assertDelegation(base, ["rows:read"]));
+});
+
+test("account ownership cannot bypass a credential or role ceiling", () => {
+  const viewer = { ...base, role: "viewer" as const };
+  assert.throws(() =>
+    assertAccess(viewer, { scope: "member", personal: true }),
+  );
+  assert.throws(() =>
+    assertAccess(
+      { ...viewer, kind: "oauth", scopes: ["viewer"] },
+      { scope: "member", personal: true },
+    ),
+  );
+  assert.throws(() =>
+    assertAccess(
+      { ...base, kind: "personal_key", scopes: ["viewer"] },
+      { scope: "member", personal: true },
+    ),
+  );
+});
+
+test("OAuth scope ceilings cap an administrator's effective role", () => {
+  assert.equal(scopedRole("admin", ["viewer"]), "viewer");
+  assert.equal(scopedRole("admin", ["viewer", "member"]), "member");
+  assert.equal(scopedRole("member", ["viewer", "member", "admin"]), "member");
+  assert.equal(scopedRole("admin", ["admin"]), "admin");
 });

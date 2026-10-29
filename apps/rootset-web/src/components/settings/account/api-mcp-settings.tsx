@@ -7,7 +7,6 @@ import {
 
 type KeyScope = "personal" | "workspace";
 type KeyAccess = "read" | "edit";
-type KeyPermissionMode = "full-admin" | "scoped-admin" | "standard";
 import { useAccess } from "./adapter";
 import { PageSelectionTitle } from "./page-selection-title";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -57,7 +56,6 @@ type ApiKey = {
   prefix: string;
   access: KeyAccess;
   includeAdmin: boolean;
-  permissionMode: KeyPermissionMode;
   scope: KeyScope;
   createdAt: string;
   lastUsedAt: string | null;
@@ -231,9 +229,7 @@ export function ApiMcpSettings({ section }: { section: KeyStoreSection }) {
         key.access === "read"
           ? "Read-only"
           : key.includeAdmin
-            ? key.permissionMode === "full-admin"
-              ? "Administrative"
-              : "Scoped administrative"
+            ? "Administrative"
             : "Edit",
     },
     {

@@ -45,7 +45,7 @@ export type getContextOutput = {
     id: string;
     kind: string;
     userId?: string;
-    role: "admin" | "member" | "viewer";
+    role: "viewer" | "member" | "admin";
   };
   organisation: {
     id: string;
@@ -226,7 +226,7 @@ export type listMembersOutput = {
     userId: string;
     name: string;
     email: string;
-    role: "admin" | "member" | "viewer";
+    role: "viewer" | "member" | "admin";
     version: string;
     verified: boolean;
     twoFactorEnabled: boolean;
@@ -238,7 +238,7 @@ export type updateMemberInput = {
   orgId: string;
   id: string;
   name?: string;
-  role?: "admin" | "member" | "viewer";
+  role?: "viewer" | "member" | "admin";
   expectedVersion: string;
 };
 export type updateMemberOutput = {
@@ -247,7 +247,7 @@ export type updateMemberOutput = {
   userId: string;
   name: string;
   email: string;
-  role: "admin" | "member" | "viewer";
+  role: "viewer" | "member" | "admin";
   version: string;
   verified: boolean;
   twoFactorEnabled: boolean;
@@ -5593,7 +5593,7 @@ export type listWorkspaceMembersOutput = {
     userId: string;
     name: string;
     email: string;
-    role: "admin" | "member" | "viewer";
+    role: "viewer" | "member" | "admin";
   }[];
   nextCursor?: unknown;
   hasMore?: boolean;
@@ -5607,7 +5607,7 @@ export type addWorkspaceMemberOutput = {
   userId: string;
   name: string;
   email: string;
-  role: "admin" | "member" | "viewer";
+  role: "viewer" | "member" | "admin";
 };
 export type removeWorkspaceMemberInput = {
   orgId: string;

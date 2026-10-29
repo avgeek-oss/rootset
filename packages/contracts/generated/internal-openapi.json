@@ -124,7 +124,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -263,7 +263,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -425,7 +425,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -568,7 +568,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -764,7 +764,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["profile:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -907,7 +907,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1125,7 +1125,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1273,7 +1273,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1431,7 +1431,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1574,7 +1574,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1734,7 +1734,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -1888,7 +1888,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2061,7 +2061,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2236,7 +2236,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2307,7 +2307,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "member", "viewer"]
+                    "enum": ["viewer", "member", "admin"]
                   },
                   "expectedVersion": {
                     "type": "string",
@@ -2431,7 +2431,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2621,7 +2621,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2809,7 +2809,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -2988,7 +2988,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3163,7 +3163,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3308,7 +3308,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3506,7 +3506,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3712,7 +3712,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -3873,7 +3873,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["keys:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4058,7 +4058,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4269,7 +4269,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4490,7 +4490,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4684,7 +4684,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspace-keys:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -4831,7 +4831,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["account:security"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5013,7 +5013,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5206,7 +5206,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5381,7 +5381,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5585,7 +5585,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -5777,7 +5777,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["databases:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "required",
         "x-rootset-job": true,
@@ -5974,7 +5974,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -6601,7 +6601,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -6787,7 +6787,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -7006,7 +7006,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -7216,7 +7216,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -7405,7 +7405,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -7590,7 +7590,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -8227,7 +8227,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -8887,7 +8887,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -9117,7 +9117,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -9342,7 +9342,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -9640,7 +9640,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -9944,7 +9944,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -10144,7 +10144,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -10332,7 +10332,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -10603,7 +10603,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -10827,7 +10827,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11054,7 +11054,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "schema:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11262,7 +11262,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "schema:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11451,7 +11451,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["tables:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -11703,7 +11703,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -11930,7 +11930,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["schema:manage"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12175,7 +12175,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12403,7 +12403,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12753,7 +12753,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -12949,7 +12949,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13198,7 +13198,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13439,7 +13439,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13661,7 +13661,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -13881,7 +13881,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14092,7 +14092,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14316,7 +14316,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14605,7 +14605,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14901,7 +14901,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -14938,7 +14938,7 @@
       "post": {
         "operationId": "mutateRows",
         "tags": ["data"],
-        "summary": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with installation:manage and rows:write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
+        "summary": "Commit at most 1,000 create/update/delete mutations atomically. With repair, accept only revision-bound updates as a durable operator repair job; require a personal admin with admin and write, current permission checks for the target, schema, revisions, values and reason. Ordinary batches return the synchronous result.",
         "parameters": [
           {
             "name": "orgId",
@@ -15255,7 +15255,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -15446,7 +15446,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -15796,7 +15796,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -16024,7 +16024,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["history:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -16257,7 +16257,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["history:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -16432,7 +16432,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -16680,7 +16680,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -16904,7 +16904,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read", "rows:write"],
+        "x-rootset-scopes": ["member"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17112,7 +17112,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["exports:read", "rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17465,7 +17465,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["exports:read", "rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17666,7 +17666,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["exports:read", "rows:read", "schema:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -17842,7 +17842,7 @@
             }
           }
         },
-        "x-rootset-scopes": [],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18073,7 +18073,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18246,7 +18246,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18436,7 +18436,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:cancel"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18627,7 +18627,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["jobs:retry"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -18782,7 +18782,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -18944,7 +18944,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19197,7 +19197,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19408,7 +19408,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19597,7 +19597,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -19997,7 +19997,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20204,7 +20204,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20610,7 +20610,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -20834,7 +20834,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["rows:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21015,7 +21015,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21231,7 +21231,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21411,7 +21411,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -21633,7 +21633,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -21837,7 +21837,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -22034,7 +22034,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -22233,7 +22233,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -22423,7 +22423,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -22627,7 +22627,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -22822,7 +22822,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage", "databases:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -23028,7 +23028,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["backups:manage", "databases:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": true,
@@ -23204,7 +23204,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23367,7 +23367,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23558,7 +23558,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23715,7 +23715,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["org:read"],
+        "x-rootset-scopes": ["viewer"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -23897,7 +23897,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24055,7 +24055,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24217,7 +24217,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["members:read"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": true,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24406,7 +24406,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24591,7 +24591,7 @@
             }
           }
         },
-        "x-rootset-scopes": ["workspaces:manage"],
+        "x-rootset-scopes": ["admin"],
         "x-rootset-read-only": false,
         "x-rootset-step-up": "never",
         "x-rootset-job": false,
@@ -24914,7 +24914,7 @@
               },
               "role": {
                 "type": "string",
-                "enum": ["admin", "member", "viewer"]
+                "enum": ["viewer", "member", "admin"]
               }
             },
             "required": ["id", "kind", "role"],
@@ -25647,7 +25647,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "member", "viewer"]
+                  "enum": ["viewer", "member", "admin"]
                 },
                 "version": {
                   "type": "string",
@@ -25688,7 +25688,7 @@
             "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
           },
           "name": { "type": "string", "minLength": 1, "maxLength": 120 },
-          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+          "role": { "type": "string", "enum": ["viewer", "member", "admin"] },
           "expectedVersion": {
             "type": "string",
             "pattern": "^[1-9][0-9]{0,18}$"
@@ -25718,7 +25718,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+          "role": { "type": "string", "enum": ["viewer", "member", "admin"] },
           "version": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
           "verified": { "type": "boolean" },
           "twoFactorEnabled": { "type": "boolean" }
@@ -45058,7 +45058,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["admin", "member", "viewer"]
+                  "enum": ["viewer", "member", "admin"]
                 }
               },
               "required": ["userId", "name", "email", "role"],
@@ -45103,7 +45103,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "role": { "type": "string", "enum": ["admin", "member", "viewer"] }
+          "role": { "type": "string", "enum": ["viewer", "member", "admin"] }
         },
         "required": ["userId", "name", "email", "role"],
         "additionalProperties": false
@@ -45248,30 +45248,9 @@
             "authorizationUrl": "http://localhost:4310/oauth/authorize",
             "tokenUrl": "http://localhost:4310/oauth/token",
             "scopes": {
-              "profile:manage": "Current profile:manage authority; the live role ceiling still applies.",
-              "account:security": "Current account:security authority; the live role ceiling still applies.",
-              "org:read": "Current org:read authority; the live role ceiling still applies.",
-              "org:manage": "Current org:manage authority; the live role ceiling still applies.",
-              "members:read": "Current members:read authority; the live role ceiling still applies.",
-              "members:manage": "Current members:manage authority; the live role ceiling still applies.",
-              "keys:manage": "Current keys:manage authority; the live role ceiling still applies.",
-              "workspace-keys:manage": "Current workspace-keys:manage authority; the live role ceiling still applies.",
-              "databases:read": "Current databases:read authority; the live role ceiling still applies.",
-              "databases:manage": "Current databases:manage authority; the live role ceiling still applies.",
-              "tables:read": "Current tables:read authority; the live role ceiling still applies.",
-              "tables:manage": "Current tables:manage authority; the live role ceiling still applies.",
-              "schema:manage": "Current schema:manage authority; the live role ceiling still applies.",
-              "rows:read": "Current rows:read authority; the live role ceiling still applies.",
-              "schema:read": "Current schema:read authority; the live role ceiling still applies.",
-              "rows:write": "Current rows:write authority; the live role ceiling still applies.",
-              "history:read": "Current history:read authority; the live role ceiling still applies.",
-              "exports:read": "Current exports:read authority; the live role ceiling still applies.",
-              "jobs:read": "Current jobs:read authority; the live role ceiling still applies.",
-              "jobs:cancel": "Current jobs:cancel authority; the live role ceiling still applies.",
-              "jobs:retry": "Current jobs:retry authority; the live role ceiling still applies.",
-              "backups:read": "Current backups:read authority; the live role ceiling still applies.",
-              "backups:manage": "Current backups:manage authority; the live role ceiling still applies.",
-              "workspaces:manage": "Current workspaces:manage authority; the live role ceiling still applies."
+              "viewer": "Current viewer authority; the live role ceiling still applies.",
+              "member": "Current member authority; the live role ceiling still applies.",
+              "admin": "Current admin authority; the live role ceiling still applies."
             }
           }
         }

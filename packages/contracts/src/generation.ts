@@ -110,7 +110,7 @@ export function schemaExample(schema: z.ZodType): unknown {
       if (/ids?$/i.test(name) && name !== "clientId" && name !== "operationId")
         return "01K6J7B8000000000000000000";
       if (/version/i.test(name)) return "1";
-      if (name === "scopes") return "rows:read";
+      if (name === "scopes") return "viewer";
       if (name === "timezone") return "UTC";
       if (name === "locale") return "en-GB";
       if (name === "cron") return "* * * * *";

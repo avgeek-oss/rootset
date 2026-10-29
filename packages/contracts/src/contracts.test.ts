@@ -192,10 +192,10 @@ test("V1-26 removed feature operations are absent while API/MCP row creation rem
     const operation = getOperation(name);
     assert.equal(operation.job, true);
     assert.equal(operation.idempotencyRequired, true);
-    assert.deepEqual(operation.scopes, ["rows:read", "rows:write"]);
+    assert.deepEqual(operation.scopes, ["member"]);
   }
   for (const operation of operations.filter((op) =>
-    op.scopes.some((scope) => scope.startsWith("backups:")),
+    op.path.includes("/backups"),
   ))
     assert.equal(operation.minimumRole, "admin");
   assert.equal(tools.length, operations.length);
@@ -874,7 +874,7 @@ test("catalog uses unique operation IDs, MCP tools and routes with strict envelo
     operationMap.createPersonalKey!.inputSchema.safeParse({
       orgId: id,
       name: "bad",
-      scopes: ["*"],
+      scopes: ["viewer", "member", "admin"],
       targets: [],
     }).success,
     false,
@@ -885,7 +885,7 @@ test("published invitation authority requires an admin and only supported member
   const definition = operationMap.inviteMember!;
   assert.equal(definition.personal, true);
   assert.equal(definition.minimumRole, "admin");
-  assert.deepEqual(definition.scopes, ["members:manage"]);
+  assert.deepEqual(definition.scopes, ["admin"]);
   assert.ok(definition.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.ok(definition.description.includes("as an admin"));
   for (const internal of [false, true]) {
@@ -1161,7 +1161,7 @@ test("operator repair publishes revision-bound update inputs and retains ordinar
   assert.equal(operation.stepUp, "never");
   assert.equal(operation.personal, false);
   assert.equal("operator" in operation, false);
-  assert.deepEqual(operation.scopes, ["rows:write"]);
+  assert.deepEqual(operation.scopes, ["member"]);
   assert.ok(operation.errors.includes("PERSONAL_IDENTITY_REQUIRED"));
   assert.equal(operation.errors.includes("OPERATOR_REQUIRED"), false);
   assert.equal(operation.errors.includes("STEP_UP_REQUIRED"), false);
@@ -1439,7 +1439,7 @@ test("personal keys have explicit permission ceilings and all actors use support
     true,
   );
   for (const extra of [
-    { scopes: ["rows:read"] },
+    { scopes: ["viewer"] },
     { targets: [] },
     { unrestricted: true },
   ])
@@ -1490,19 +1490,7 @@ test("personal keys have explicit permission ceilings and all actors use support
       false,
     );
   for (const operation of operations)
-    if (
-      operation.scopes.some(
-        (scope) =>
-          scope.endsWith(":manage") &&
-          ![
-            "profile:manage",
-            "keys:manage",
-            "databases:manage",
-            "tables:manage",
-            "schema:manage",
-          ].includes(scope),
-      )
-    )
+    if (operation.scopes.includes("admin"))
       assert.equal(operation.minimumRole, "admin", operation.id);
 });
 

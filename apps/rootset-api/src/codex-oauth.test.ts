@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { newId, scopeNames, type Actor } from "@rootset/contracts";
+import { newId, type Actor } from "@rootset/contracts";
 import { loadConfig } from "@rootset/core/config";
 import { createRuntime } from "@rootset/core/runtime";
 import { OAuthService } from "@rootset/oauth";
@@ -58,7 +58,7 @@ test(
       userId,
       orgId,
       role: "admin",
-      scopes: ["*"],
+      scopes: ["viewer", "member", "admin"],
       authenticatedAt: Date.now(),
     };
     const sdk = new Client({
@@ -80,7 +80,6 @@ test(
       );
       const oauth = new OAuthService(fixture.identity, {
         baseURL,
-        scopes: scopeNames,
         clients: [
           {
             client_id: codexId,
@@ -126,7 +125,7 @@ test(
           .digest("base64url"),
         code_challenge_method: "S256",
         resource: `${baseURL}/mcp`,
-        scope: "org:read org:manage",
+        scope: "viewer admin",
         state: "codex-bound-state",
       });
       const authorize = () =>
@@ -144,10 +143,7 @@ test(
         { headers: { Cookie: "fixture=session" } },
       );
       assert.equal(consent.status, 200);
-      assert.deepEqual((await consent.json()).scopes, [
-        "org:read",
-        "org:manage",
-      ]);
+      assert.deepEqual((await consent.json()).scopes, ["viewer", "admin"]);
       const approved = await fetch(
         `${baseURL}/api/internal/v1/oauth/requests/${requestId}/decision`,
         {
@@ -186,10 +182,10 @@ test(
       assert.equal(issued.status, 200);
       const tokens = await issued.json();
       const grantedScopes = tokens.scope.split(" ");
-      assert.ok(grantedScopes.includes("org:read"));
-      assert.ok(grantedScopes.includes("org:manage"));
-      assert.ok(grantedScopes.includes("rows:write"));
-      assert.ok(!grantedScopes.includes("installation:manage"));
+      assert.ok(grantedScopes.includes("viewer"));
+      assert.ok(grantedScopes.includes("admin"));
+      assert.ok(grantedScopes.includes("member"));
+      assert.deepEqual(grantedScopes.sort(), ["admin", "member", "viewer"]);
       assert(tokens.refresh_token);
       await sdk.connect(
         new StreamableHTTPClientTransport(new URL(`${baseURL}/mcp`), {

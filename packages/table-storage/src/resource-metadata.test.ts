@@ -16,7 +16,7 @@ test(
       orgId: newId(),
       kind: "operator",
       role: "admin",
-      scopes: ["*"],
+      scopes: ["viewer", "member", "admin"],
     };
     await fixture.owner.query(
       "INSERT INTO rootset_control.organisations(id,name) VALUES($1,'Resource metadata')",

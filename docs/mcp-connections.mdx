@@ -94,3 +94,5 @@ Open **Account Settings → MCP Connections** to see approved clients, their per
 />
 
 Use [API keys](/api-keys) for scripts and services that call the REST API directly.
+
+Rootset advertises only `viewer`, `member`, and `admin` protocol scopes, matching OSS Auth. Read-only, Write, and Administrator consent select those role ceilings. Tokens act with the lower of the approved ceiling and the person's current role. The scope upgrade revokes granular OAuth grants and pending approvals; reconnect each client to approve a new role ceiling.

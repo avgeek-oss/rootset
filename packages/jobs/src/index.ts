@@ -241,7 +241,7 @@ export class JobsService {
     }
     const required = [
       ...getOperation(operationId).scopes,
-      ...(inputTarget.repair ? ["rows:write", "installation:manage"] : []),
+      ...(inputTarget.repair ? ["admin"] : []),
     ];
     for (const scope of required)
       assertAccess(actor, {
@@ -1063,7 +1063,7 @@ export class JobsService {
       id: "artifact-retention",
       orgId,
       role: "admin",
-      scopes: ["*"],
+      scopes: ["viewer", "member", "admin"],
     };
     let removed = 0;
     for (const artifact of records) {
